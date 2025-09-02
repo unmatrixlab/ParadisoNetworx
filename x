@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paradiso Networx</title>
+    <link rel="icon" type="image/png" href="https://paradisonetworx.com/logo32px.png">
+    <!-- Loading Poppins and Orbitron fonts from Google Fonts for typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Loading Font Awesome for icons used in services and contact sections -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Loading GSAP for scroll-triggered animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <!-- Loading ScrollTrigger plugin for GSAP to enable scroll-based animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none;    /* Firefox */
+            -ms-user-select: none;     /* IE/Edge */
+        }
+        
+        :root {
+            /* Header properties */
+            --header-height: 14rem;
+            --header-bg-start: #193175;
+            --header-bg-end: #60a5fa; /*#60a5fa*/
+            --header-padding: 2rem;
+            --logo-height: 5.5rem;
+            --logo-width: auto;
+            --logo-margin: 1rem;
+            --title-font-size: 3rem;
+            --title-color: #ffffff;
+             --title-x-color  :#ffffff; /* New variable for X color */
+            --title-margin: 1rem;
+            --subtitle-font-size: 1.2rem;
+            --subtitle-color: #e0e7ff;
+            --subtitle-max-width: 750px;
+            --subtitle-opacity: 0.9;
+            --subtitle-margin: 1rem;
+            --primary: #1e3a8a;
+            --accent: #3b82f6;
+            --light-bg: #f5f7fa;
+            --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            --carousel-image-width: 200px;
+            --carousel-image-height: 80px;
+            --carousel-margin-total: 32px; /* 16px left + 16px right */
+            --carousel-num-images: 41;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: #1f2937;
+            line-height: 1.7;
+            background-color: var(--light-bg);
+            overflow-x: hidden;
+            transition: background-color 0.7s ease, color 0.7s ease;
+        }
+
+        header {
+            position: fixed;
+            width: 100%;
+            min-height: var(--header-height);
+            background: linear-gradient(135deg, var(--header-bg-start), var(--header-bg-end));
+            color: var(--title-color);
+            padding: var(--header-padding);
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: opacity 0.3s ease, background 0.7s ease, color 0.7s ease;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Ccircle cx="50" cy="50" r="40" fill="rgba(255,255,255,0.1)"/%3E%3C/svg%3E') center/cover;
+            z-index: -2;
+            animation: pulse 10s infinite;
+        }
+
+        header .logo-title-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin: var(--title-margin);
+        }
+
+        header .logo {
+            height: var(--logo-height);
+            width: var(--logo-width);
+            margin: var(--logo-margin);
+            transform: translateY(30px) rotate(-10deg);
+            opacity: 0;
+            animation: logoSpinIn 1.2s ease-out 0.5s forwards;
+        }
+
+        header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: var(--title-font-size);
+            font-weight: 700;
+            color: var(--title-color);
+            margin: var(--title-margin);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transform: translateY(30px);
+            opacity: 0;
+            animation: fadeInUp 1.2s ease-out 0.7s forwards;
+            transition: color 0.7s ease;
+        }
+
+        header h1 .highlight-x {
+            color: var(--title-x-color);
+        }
+        header h1 .highlight-x {
+    color: #ffffff !important; /* Override to ensure the X is always white */
+}
+
+        header p {
+            font-size: var(--subtitle-font-size);
+            color: var(--subtitle-color);
+            max-width: var(--subtitle-max-width);
+            margin: var(--subtitle-margin);
+            opacity: 0;
+            text-align: center;
+            animation: fadeInUp 1.2s ease-out 0.9s forwards;
+            transition: color 0.7s ease;
+        }
+
+        section {
+            padding: 6rem 1rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.8rem;
+            text-align: center;
+            margin-bottom: 3.5rem;
+            color: var(--primary);
+            position: relative;
+            font-weight: 700;
+            transition: color 0.7s ease;
+        }
+
+        h2::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 5px;
+            background: var(--accent);
+            border-radius: 3px;
+        }
+
+        #about {
+            background: #fff;
+            box-shadow: var(--card-shadow);
+            border-radius: 16px;
+            padding: 3.5rem;
+            position: relative;
+            overflow: hidden;
+            padding-top: calc(var(--header-height) + 8rem);
+            transition: background 0.7s ease;
+        }
+
+        #about::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(59,130,246,0.1) 0%, transparent 70%);
+            transform: rotate(45deg);
+            z-index: -1;
+        }
+
+      #about > p {
+    max-width: 900px;
+    margin: 0 auto;
+    font-size: 1.2rem;
+    color: #4b5563;
+    
+    text-align: left;  /* Solo este párrafo se centra */
+    transition: color 0.7s ease;
+}
+
+        .timeline {
+            margin-top: 2rem;
+            position: relative;
+            padding: 2rem 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--accent);
+            transform: translateX(-50%);
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            margin: 2rem 0;
+            opacity: 0;
+            transform: translateY(50px);
+        }
+
+        .timeline-item:hover .timeline-content {
+            background: linear-gradient(135deg, #f5f7fa, rgba(59,130,246,0.1));
+        }
+
+        .timeline-item:nth-child(odd) {
+            flex-direction: row-reverse;
+            text-align: right;
+        }
+
+        .timeline-content {
+            background: #fff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            width: 45%;
+            position: relative;
+            transition: background 0.7s ease;
+        }
+
+        .timeline-content::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 0;
+            height: 0;
+            border: 10px solid transparent;
+        }
+
+        .timeline-item:nth-child(odd) .timeline-content::before {
+            left: -20px;
+            border-right-color: #fff;
+        }
+
+        .timeline-item:nth-child(even) .timeline-content::before {
+            right: -20px;
+            border-left-color: #fff;
+        }
+
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        .founders-photos {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .founders-photos img {
+            width: 100px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.7s ease;
+        }
+
+        .founders-photos img:hover {
+            transform: scale(1.1);
+        }
+
+        #services .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2.5rem;
+        }
+
+        .service-card {
+            background: #fff;
+            padding: 2.5rem;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.4s ease, box-shadow 0.4s ease, background 0.7s ease;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(59,130,246,0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: -1;
+        }
+
+        .service-card:hover::before {
+            opacity: 1;
+        }
+
+        .service-card:hover {
+            transform: translateY(-12px) scale(1.03);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+        }
+
+        .service-card i {
+            font-size: 3rem;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            transition: transform 0.4s ease;
+        }
+
+        .service-card:hover i {
+            transform: scale(1.3) rotate(5deg);
+        }
+
+        .service-card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+            font-weight: 600;
+            transition: color 0.7s ease;
+        }
+
+        #portfolio .portfolio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 2.5rem;
+        }
+
+        .portfolio-card {
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.4s ease, background 0.7s ease;
+            position: relative;
+        }
+
+        .portfolio-card:hover {
+            transform: translateY(-12px);
+        }
+
+        .portfolio-card img {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            transition: transform 0.6s ease;
+        }
+
+        .portfolio-card:hover img {
+            transform: scale(1.15);
+        }
+
+        .portfolio-card-content {
+            padding: 2.5rem;
+            position: relative;
+        }
+
+        .portfolio-card h3 {
+            font-size: 1.4rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            font-weight: 600;
+            transition: color 0.7s ease;
+        }
+
+        .portfolio-card p {
+            font-size: 1.1rem;
+            color: #4b5563;
+            margin-bottom: 1rem;
+            transition: color 0.7s ease;
+        }
+
+        .portfolio-card a {
+            display: inline-block;
+            margin-top: 0.5rem;
+            padding: 0.8rem 1.8rem;
+            background: var(--accent);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: background 0.3s ease, transform 0.3s ease, color 0.7s ease;
+            font-weight: 500;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .portfolio-card a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.4s ease;
+        }
+
+        .portfolio-card a:hover::before {
+            left: 100%;
+        }
+
+        .portfolio-card a:hover {
+            background: var(--primary);
+            transform: translateY(-3px);
+        }
+
+        #contact {
+            background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+            border-radius: 0px;
+            padding: 3.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.7s ease;
+        }
+
+        #contact::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Cpath d="M0 50 Q 25 30 50 50 T 100 50" fill="none" stroke="rgba(59,130,246,0.1)" stroke-width="10"/%3E%3C/svg%3E') center/cover;
+            z-index: -1;
+        }
+
+        #contact p {
+            text-align: center;
+            max-width: 750px;
+            margin: 0 auto 2.5rem;
+            font-size: 1.2rem;
+            color: #4b5563;
+            transition: color 0.7s ease;
+        }
+
+        .contact-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1.8rem;
+            max-width: 750px;
+            margin: 0 auto;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 1.8rem;
+            font-size: 1.2rem;
+            padding: 1.2rem;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.7s ease;
+            position: relative;
+        }
+
+        .contact-item:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .contact-item i {
+            color: var(--accent);
+            font-size: 2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .contact-item:hover i {
+            transform: scale(1.3);
+        }
+
+        .contact-item a {
+            color: #1f2937;
+            text-decoration: none;
+            font-weight: 500;
+            position: relative;
+            transition: color 0.7s ease;
+        }
+
+        .contact-item a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        .contact-item a:hover::after {
+            width: 100%;
+        }
+
+        .contact-item a:hover {
+            color: var(--accent);
+        }
+
+        .address-wrapper {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .map-container {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .contact-item:hover .map-container {
+            display: block;
+        }
+
+        footer {
+            background: var(--primary);
+            color: white;
+            text-align: center;
+            padding: 4rem 1rem;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.7s ease, color 0.7s ease;
+        }
+
+        footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            z-index: -1;
+        }
+
+        footer p {
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+            position: relative;
+            z-index: 1;
+            transition: color 0.7s ease;
+        }
+
+        .social-links {
+            display: flex;
+            justify-content: center;
+            gap: 2.5rem;
+            margin-top: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .social-links a {
+            color: #bfdbfe;
+            font-size: 2rem;
+            text-decoration: none;
+            transition: color 0.3s ease, transform 0.3s ease;
+            position: relative;
+        }
+
+        .social-links a::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            background: radial-gradient(circle, rgba(59,130,246,0.3) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.3s ease;
+            z-index: -1;
+        }
+
+        .social-links a:hover::before {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .social-links a:hover {
+            color: white;
+            transform: scale(1.3);
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes logoSpinIn {
+            from { opacity: 0; transform: translateY(40px) rotate(-20deg); }
+            to { opacity: 1; transform: translateY(0) rotate(0); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.2; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.2); }
+            100% { opacity: 0.2; transform: scale(1); }
+        }
+
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+
+        /* Tablet-specific styles (769px to 1024px) */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            :root {
+                --header-height: 10rem; /* Compact header height for tablet */
+                --logo-height: 3.2rem; /* Smaller logo for tablet */
+                --title-font-size: 1.8rem; /* Smaller title font size */
+                --subtitle-font-size: 1rem; /* Smaller subtitle font size */
+                --carousel-image-width: 150px;
+                --carousel-image-height: 60px;
+            }
+
+            header {
+                padding: 1.5rem; /* Reduced padding for tablet */
+            }
+
+            header .logo-title-container {
+                flex-direction: row; /* Align logo and title horizontally */
+                align-items: center; /* Vertically center items */
+                justify-content: center; /* Center container horizontally */
+                margin: 0.5rem 0; /* Reduced margin */
+                max-width: 100%; /* Ensure container fits within header */
+            }
+
+            header .logo {
+                margin: 0 1rem 0 0; /* Space to the right of logo */
+                order: 1; /* Logo comes first */
+            }
+
+            header h1 {
+                font-size: var(--title-font-size); /* Smaller font size */
+                white-space: nowrap; /* Prevent title from wrapping */
+                letter-spacing: 1px; /* Tighten letter spacing */
+                margin: 0; /* Remove extra margin */
+                text-align: left; /* Align text to the left */
+                order: 2; /* Title comes after logo */
+            }
+
+            header p {
+                font-size: var(--subtitle-font-size); /* Smaller subtitle font */
+                margin: 0.5rem 0; /* Reduced margin */
+                padding: 0 1.5rem; /* Add padding for readability */
+            }
+
+            #about {
+                padding-top: calc(var(--header-height) + 6rem); /* Adjust padding for new header height */
+            }
+
+            .founders-photos img {
+                width: 100px;
+                height: 80px;
+            }
+        }
+
+        /* Phone-specific styles (≤768px) */
+        @media (max-width: 768px) {
+            :root {
+                --header-height: 9rem; /* Smaller header height for phone */
+                --logo-height: 2.8rem; /* Smaller logo for phone */
+                --title-font-size: 1.6rem; /* Smaller title font size */
+                --subtitle-font-size: 0.8rem; /* Smaller subtitle font size */
+                --carousel-image-width: 120px;
+                --carousel-image-height: 50px;
+            }
+
+            header {
+                padding: 1rem; /* Reduced padding for phone */
+            }
+
+            header .logo-title-container {
+                flex-direction: row; /* Align logo and title horizontally */
+                align-items: center; /* Vertically center items */
+                justify-content: center; /* Center container horizontally */
+                margin: 0.5rem 0; /* Reduced margin */
+                max-width: 100%; /* Ensure container fits within header */
+            }
+
+            header .logo {
+                margin: 0 0.5rem 0 0; /* Space to the right of logo */
+                order: 1; /* Logo comes first */
+            }
+
+            header h1 {
+                font-size: var(--title-font-size); /* Smaller font size */
+                white-space: nowrap; /* Prevent title from wrapping */
+                letter-spacing: 1px; /* Tighten letter spacing */
+                margin: 0; /* Remove extra margin */
+                text-align: left; /* Align text to the left */
+                order: 2; /* Title comes after logo */
+            }
+
+            header p {
+                font-size: var(--subtitle-font-size); /* Smaller subtitle font */
+                margin: 0.5rem 0; /* Reduced margin */
+                padding: 0 1rem; /* Add padding for readability */
+            }
+
+            #about {
+                padding-top: calc(var(--header-height) + 6rem); /* Adjust padding for new header height */
+            }
+
+            section {
+                padding: 4rem 1rem;
+            }
+
+            h2 {
+                font-size: 2.2rem;
+            }
+
+            .timeline::before {
+                left: 20px;
+            }
+
+            .timeline-item {
+                flex-direction: column;
+                text-align: left;
+            }
+
+            .timeline-content {
+                width: 80%;
+                margin-left: 40px;
+            }
+
+            .timeline-item:nth-child(odd) {
+                flex-direction: column;
+                text-align: left;
+            }
+
+            .timeline-content::before {
+                left: -20px !important;
+                border-right-color: #fff !important;
+                border-left-color: transparent !important;
+            }
+
+            .timeline-dot {
+                left: 20px;
+            }
+
+            .founders-photos img {
+                width: 100px;
+                height: 80px;
+            }
+        }
+
+        /* Extra small screens (≤480px) */
+        @media (max-width: 480px) {
+            :root {
+                --header-height: 8rem;
+                --logo-height: 2.5rem;
+                --title-font-size: 1.4rem;
+                --subtitle-font-size: 0.7rem;
+                --carousel-image-width: 100px;
+                --carousel-image-height: 40px;
+            }
+
+            h2 {
+                font-size: 1.8rem;
+            }
+
+            .contact-item {
+                font-size: 1rem;
+            }
+
+            .contact-item i {
+                font-size: 1.5rem;
+            }
+
+            .social-links a {
+                font-size: 1.5rem;
+            }
+
+            .founders-photos img {
+                width: 100px;
+                height: 80px;
+            }
+        }
+
+        /* Carousel styles 
+        .brands-carousel {
+            max-width: 1400px;
+            margin: 0 auto;
+            overflow: hidden;
+            background-color: #f9fafb;
+            padding: 2rem 0;
+            position: relative;
+            transition: background-color 0.7s ease;
+        }*/
+
+        .brands-carousel {
+    width: 100%; /* Full viewport width */
+    overflow: hidden;
+    background-color: #f9fafb;
+    padding: 2rem 0;
+    position: relative;
+    transition: background-color 0.7s ease;
+}
+
+        .carousel-track {
+            display: flex;
+            width: calc((var(--carousel-image-width) + var(--carousel-margin-total)) * var(--carousel-num-images) * 2);
+            animation: scroll 120s linear infinite;
+        }
+
+        .carousel-track img {
+            width: var(--carousel-image-width);
+            height: var(--carousel-image-height);
+            object-fit: contain;
+            margin: 0 16px;
+            filter: grayscale(100%);
+            transition: filter 0.3s ease;
+        }
+
+        .carousel-track img:hover {
+            filter: grayscale(0);
+        }
+
+        @keyframes scroll {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(calc(-1 * (var(--carousel-image-width) + var(--carousel-margin-total)) * var(--carousel-num-images)));
+            }
+        }
+
+        .brands-carousel:hover .carousel-track {
+            animation-play-state: paused;
+        }
+
+        /* Responsive adjustments for carousel */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .carousel-track img {
+                width: var(--carousel-image-width);
+                height: var(--carousel-image-height);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .carousel-track img {
+                width: var(--carousel-image-width);
+                height: var(--carousel-image-height);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .carousel-track img {
+                width: var(--carousel-image-width);
+                height: var(--carousel-image-height);
+            }
+        }
+
+        .download-section {
+            margin-top: 40px; /* espacio arriba del título */
+            text-align: center;
+        }
+        .download-section p {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: #4b5563;
+            transition: color 0.7s ease;
+        }
+        .download-section img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px; /* bordes redondeados */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        .download-section img:hover {
+            transform: scale(1.02);
+        }
+
+        .floating-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+        }
+
+        .floating-button:hover {
+            background: var(--primary);
+        }
+
+        .video-button {
+            width: 33px;
+            height: 33px;
+            bottom: 80px; /* Posicionado arriba del botón existente con ~10px de separación */
+            font-size: 1.2rem; /* Icono ajustado al tamaño */
+        }
+
+        body.high-contrast {
+            --header-bg-start: #001f3f;
+            --header-bg-end: #007bff;
+            --title-color: #ffffff;
+            --title-x-color: #ffd700;
+            --subtitle-color: #e0e7ff;
+            --primary: #00008b;
+            --accent: #00bfff;
+            --light-bg: #121212;
+            --card-shadow: 0 8px 24px rgba(255,255,255,0.05);
+            background-color: var(--light-bg);
+            color: #e0e0e0;
+        }
+
+        .high-contrast #about {
+            background: #1e1e1e;
+        }
+
+        .high-contrast .timeline-content {
+            background: #282828;
+        }
+
+        .high-contrast .timeline-item:hover .timeline-content {
+            background: linear-gradient(135deg, #282828, rgba(0, 191, 255, 0.1));
+        }
+
+        .high-contrast .timeline-content::before {
+            border-right-color: #282828;
+            border-left-color: #282828;
+        }
+
+        .high-contrast .service-card {
+            background: #1e1e1e;
+        }
+
+        .high-contrast .service-card h3 {
+            color: #ffffff;
+        }
+
+        .high-contrast .portfolio-card {
+            background: #1e1e1e;
+        }
+
+        .high-contrast .portfolio-card h3 {
+            color: #ffffff;
+        }
+
+        .high-contrast .portfolio-card p {
+            color: #cccccc;
+        }
+
+        .high-contrast #contact {
+            background: linear-gradient(135deg, #1e1e1e, #282828);
+        }
+
+        .high-contrast #contact p {
+            color: #cccccc;
+        }
+
+        .high-contrast .contact-item {
+            background: #282828;
+        }
+
+        .high-contrast .contact-item a {
+            color: #e0e0e0;
+        }
+
+        .high-contrast footer {
+            background: #001f3f;
+        }
+
+        .high-contrast h2 {
+            color: #ffffff;
+        }
+
+        .high-contrast p {
+            color: #cccccc;
+        }
+
+        .high-contrast #about > p {
+            color: #cccccc;
+        }
+
+        .high-contrast .brands-carousel {
+            background-color: #9c9c9c;
+        }
+
+        .high-contrast .carousel-track img {
+            filter: grayscale(50%);
+        }
+
+        .high-contrast .carousel-track img:hover {
+            filter: grayscale(0);
+        }
+
+        .high-contrast .download-section p {
+            color: #cccccc;
+        }
+
+        .high-contrast .social-links a {
+            color: #00bfff;
+        }
+
+        .high-contrast .social-links a:hover {
+            color: #ffffff;
+        }
+
+        .high-contrast footer p {
+            color: #e0e0e0;
+        }
+
+        /* Estilos para el modal del video */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1002;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 400px; /* Optimizado para video vertical */
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            top: 10px;
+            right: 25px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+
+        /* Iframe responsive para video vertical (9:16) */
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 177.78%; /* Relación 9:16 (16/9 invertido) */
+            height: 0;
+            overflow: hidden;
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #video-toggle {  /* OCULTA BOTON DE VIDEO */
+    display: none;
+}
+
+        /* Ajustes responsivos para el modal */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 90%;
+                max-width: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div id="particles-js"></div>
+        <div class="logo-title-container">
+            <img src="logo.png" alt="Logo" class="logo">
+            <h1>PARADISO NETWOR<span class="highlight-x">X</span></h1>         
+        </div>
+        <p>Connecting Your Business to the Future with Innovative Network and Smart Technology Solutions.</p>
+    </header>
+
+    <div id="contrast-toggle" class="floating-button">
+        <i class="fas fa-adjust"></i>
+    </div>
+
+    <!-- Nuevo botón para video, arriba del existente -->
+    <div id="video-toggle" class="floating-button video-button">
+        <i class="fas fa-play-circle"></i>
+    </div>
+
+
+<!-- Modal para el video popup -->
+<div id="videoModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <div class="video-wrapper">
+            <iframe frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+    </div>
+</div>
+
+    <section id="about">
+        <h2>About Us</h2>
+        <p>At Paradiso Networx, we are dedicated to providing cutting-edge network infrastructure and smart technology solutions for businesses of all sizes. Our team of experts is passionate about creating reliable, efficient, and customized systems that drive our clients' success.</p>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <h3>2019: Founded Paradiso Networx</h3>
+                    <p>A company dedicated to enhancing business connectivity.</p>
+                    <div class="founders-photos">
+                        <img src="https://www.paradisonetworx.com/nico.jpg" alt="Founder 1">
+                        <img src="https://www.paradisonetworx.com/Foto-Diego.jpg" alt="Founder 2">
+                    </div>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <h3>2021: First Major Project</h3>
+                    <p>Completed major network and audio projects for hotels and restaurants.</p>
+                    <div class="founders-photos">
+                        <img src="https://www.paradisonetworx.com/generator1.jpeg" alt="Hotel">
+                        <img src="https://www.paradisonetworx.com/fh1.jpg" alt="Hotel">
+                    </div>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <h3>2023: Expanded Services</h3>
+                    <p>include commercial audio design, tuning, IP audio, and security camera solutions and established a new headquarters in Miami</p>
+                    <div class="founders-photos">
+                        <img src="https://www.paradisonetworx.com/ofice1.png" alt="Founder 1">
+                        <img src="https://www.paradisonetworx.com/officeparadiso.jpg" alt="Founder 2">
+                    </div>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot"></div>
+                <div class="timeline-content">
+                    <h3>2025: Trusted in the industry</h3>
+                    <p>Focus on innovation, developing IoT solutions, smart building integrations, and exploring new markets with strategic partnerships.</p>
+                    <div class="founders-photos">
+                        <img src="https://www.paradisonetworx.com/Ceiling-Speaker-Installation.webp" alt="Founder 1">
+                        <img src="https://www.paradisonetworx.com/rack2.jpeg" alt="Founder 2">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="services">
+        <h2>Our Services</h2>
+        <div class="services-grid">
+            <div class="service-card">
+                <i class="fas fa-network-wired"></i>
+                <h3>Commercial Network</h3>
+                <p>We design and implement robust and secure networks for businesses, ensuring reliable connectivity for their daily operations.</p>
+            </div>
+            <div class="service-card">
+                <i class="fas fa-volume-up"></i>
+                <h3>Commercial Audio Systems</h3>
+                <p>We design and install customized audio systems that deliver high-quality sound and seamless integration, enhancing the ambiance and functionality of your space.</p>
+            </div>
+            <div class="service-card">
+                <i class="fas fa-sliders-h"></i>
+                <h3>Audio Zone Selectors</h3>
+                <p>Experience total control over your audio environment with intuitive interfaces that let you manage sound zones from a single touch, anywhere in your space.</p>
+            </div>
+            <div class="service-card">
+                <i class="fas fa-wifi"></i>
+                <h3>Connectivity Solutions</h3>
+                <p>We ensure comprehensive connectivity for all your devices and systems, optimizing performance and efficiency.</p>
+            </div>
+            <div class="service-card">
+                <i class="fas fa-cash-register"></i>
+                <h3>Point of Sale (POS) Installation</h3>
+                <p>We set up and integrate efficient and user-friendly point-of-sale systems for your commercial business.</p>
+            </div>
+            <div class="service-card">
+                <i class="fas fa-camera"></i>
+                <h3>Security Camera Installation</h3>
+                <p>We install high-quality surveillance systems with optimal coverage and remote monitoring capabilities to ensure the safety of your business.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="portfolio">
+        <h2>Our Portfolio</h2>
+        <div class="portfolio-grid">
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/Magic-13-front.jpg" alt="Magic-13">
+                <div class="portfolio-card-content">
+                    <h3>Magic 13 Brewing Co.</h3>
+                    <p>We installed an audio system throughout the cafe, enabling customized music playback in different zones. Access points for 1,000 users were also deployed.</p>
+                    <p><strong>Services:</strong> General Audio & Network </p>
+                    <a href="https://www.paradisonetworx.com/Magic13.html">View Project Details</a>
+                </div>
+            </div>
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/sandwich1.jpg" alt="Sanguich Coral Gables">
+                <div class="portfolio-card-content">
+                    <h3>Sanguich Coral Gables</h3>
+                    <p>A robust Wi-Fi network for customers and staff, along with an audio zone selector system with wall controls to manage the store's ambiance.</p>
+                    <p><strong>Services:</strong> Network Installation, Audio Zone Selectors</p>
+                    <a href="https://www.paradisonetworx.com/Sanguich.html">View Project Details</a>
+                </div>
+            </div>
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/fh1.jpg" alt="Freehand Hotel">
+                <div class="portfolio-card-content">
+                    <h3>Freehand Hotel</h3>
+                    <p>Comprehensive connectivity, including reliable internet for online orders and POS systems. Tablet-controllable audio zone selectors for the dining atmosphere.</p>
+                    <p><strong>Services:</strong> Connectivity, Audio Zone Selectors, Point of Sale</p>
+                    <a href="https://www.paradisonetworx.com/freehand.html">View Project Details</a>
+                </div>
+            </div>
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/montys1.jpg" alt="Monty's Sunset">
+                <div class="portfolio-card-content">
+                    <h3>Monty's Sunset</h3>
+                    <p>Installed audio system including zone wall controllers and IP-based control system accessible via LAN on tablets, enabling remote monitoring and control of the audio setup for all 6 restaurant and bar zones.</p>
+                    <p><strong>Services:</strong> Network Installation, Connectivity</p>
+                    <a href="https://www.paradisonetworx.com/Montys.html">View Project Details</a>
+                </div>
+            </div>
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/raysbar1.jpeg" alt="Ray's Bar Miami">
+                <div class="portfolio-card-content">
+                    <h3>Ray's Bar Miami</h3>
+                    <p>Ray's Bar Miami Beach now pulses with enhanced energy, thanks to Paradiso Networx's expertly designed audio system that perfectly complements the venue's lively atmosphere.</p>
+                    <p><strong>Services:</strong> Network Installation, Audio System Upgrade</p>
+                    <a href="https://www.paradisonetworx.com/rays.html">View Project Details</a>
+                </div>
+            </div>
+            <div class="portfolio-card">
+                <img src="https://paradisonetworx.com/generator1.jpeg" alt="Generator Miami Hotel">
+                <div class="portfolio-card-content">
+                    <h3>Generator Miami Hotel</h3>
+                    <p>Paradiso Networx collaborated with Generator Miami Hotel to upgrade their audio system, delivering a comprehensive solution that enhanced the overall guest experience.</p>
+                    <p><strong>Services:</strong> Audio System Integration, Audio Access Point Installation</p>
+                    <a href="https://www.paradisonetworx.com/Hotel.html">View Project Details</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="contact">
+        <h2>Contact Us</h2>
+        <p>We are here to help you with your network infrastructure and smart technology needs. Contact us today to discuss your project and get a personalized quote.</p>
+        <div class="contact-info">
+            <div class="contact-item">
+                <i class="fas fa-map-marker-alt"></i>
+                <div class="address-wrapper">
+                    <a href="https://www.google.com/maps?q=3565+NW+60th+Street,+Miami,+Florida+33142" target="_blank">3565 NW 60th Street, Miami, Florida 33142</a>
+                    <div class="map-container">
+                        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3591.782875195527!2d-80.2564130239793!3d25.82916110725247!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x88d9b0c07997c339%3A0x1d674ec67b0d8307!2s3565%20NW%2060th%20St%2C%20Miami%2C%20FL%2033142!5e0!3m2!1sen!2sus!4v1725312345678!5m2!1sen!2sus" width="100%" height="300" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                    </div>
+                </div>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-envelope"></i>
+                <a href="mailto:paradisonetworx@gmail.com">paradisonetworx@gmail.com</a>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <a href="tel:+13059700170">+1 (305) 970-0170 🇺🇸</a>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-phone"></i>
+                <a href="tel:+13054695812">+1 (305) 469-5812 🇪🇸</a>
+            </div>
+            <div class="contact-item">
+                <i class="fas fa-sms"></i>
+                <a href="sms:+13059700170">Send us a text message</a>
+            </div>
+            <div class="contact-item">
+                <i class="fab fa-whatsapp"></i>
+                <a href="https://wa.me/13059700170" target="_blank">Message us on WhatsApp</a>
+            </div>
+            <div class="download-section">
+                <p>Downloadable business card</p>
+                <a href="https://paradisonetworx.com/Paradiso Networx Card.jpg" download="Paradiso Networx Card.jpg">
+                    <img src="https://paradisonetworx.com/Paradiso Networx Card.jpg" alt="Card">
+                </a>
+            </div>
+        </div>
+    </section>
+
+  <div class="brands-carousel">
+    <div class="carousel-track">
+  <!-- Pro AV/Instalación -->
+        <a href="https://pro.bose.com/" target="_blank"><img src="https://www.logo.wine/a/logo/Bose_Corporation/Bose_Corporation-Logo.wine.svg" alt="Bose Pro"></a>
+        <a href="https://www.jblpro.com/" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/JBL_logo.svg/500px-JBL_logo.svg.png" alt="JBL Professional"></a>
+        <a href="https://www.denonpro.com/" target="_blank"><img src="https://www.logo.wine/a/logo/Denon/Denon-Logo.wine.svg" alt="Denon"></a>
+        <a href="https://www.shure.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Shure%20Logo%202024.svg" alt="Shure"></a>
+        <a href="https://www.sennheiser.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Sennheiser-Logo.svg" alt="Sennheiser"></a>
+        <a href="https://www.yamaha.com/en/proaudio/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Yamaha%20logo.svg" alt="Yamaha Pro Audio"></a>
+        <a href="https://www.electrovoice.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Electro-Voice_logo.svg" alt="Electro-Voice"></a>
+        <a href="https://www.qsc.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Logo%20QSC%202005.svg" alt="QSC (Q-SYS/QSC)"></a>
+        <a href="https://www.akg.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/AKG_logo.svg" alt="AKG"></a>
+        <a href="https://www.soundcraft.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Soundcraft%20logo.svg" alt="Soundcraft"></a>
+        <a href="https://www.crownaudio.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Crown%20Audio%20logo.svg" alt="Crown Audio"></a>
+        <a href="https://www.dbxpro.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Dbx%20Logo%202.svg" alt="dbx"></a>
+        <a href="https://www.dbaudio.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Logo%20d%26b%20audiotechnik.svg" alt="d&b audiotechnik"></a>
+        <a href="https://www.amx.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/AMX_logo.svg" alt="AMX"></a>
+        <!-- Comercial/Enterprise -->
+        <a href="https://www.cisco.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Cisco%20logo.svg" alt="Cisco"></a>
+        <a href="https://meraki.cisco.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Meraki%20Logo%202016.svg" alt="Cisco Meraki"></a>
+        <a href="https://www.arubanetworks.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Hpe-aruba-networking-logo.svg" alt="HPE Aruba Networking"></a>
+        <a href="https://www.juniper.net/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Juniper_Networks_logo.svg" alt="Juniper Networks"></a>
+        <a href="https://www.extremenetworks.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Extreme%20Networks%20logo%20-%20new.png" alt="Extreme Networks"></a>
+        <a href="https://www.ruckusnetworks.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/CS-Ruckus-logo.png" alt="Ruckus (CommScope)"></a>
+        <a href="https://www.fortinet.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Fortinet%20logo.svg" alt="Fortinet"></a>
+        <a href="https://www.netgear.com/business/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Netgearlogo.svg" alt="NETGEAR (Business)"></a>
+        <a href="https://www.tp-link.com/omada/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/TPLINK%20Logo%202.svg" alt="TP-Link (Omada)"></a>
+        <a href="https://www.cambiumnetworks.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Cambium%20Networks%20logo.svg" alt="Cambium Networks"></a>
+        <a href="https://www.mikrotik.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/MikroTik%20Logo%20(2022).svg" alt="MikroTik"></a>
+        <a href="https://www.ui.com/" target="_blank"><img src="https://upload.wikimedia.org/wikipedia/commons/7/71/Ubiquiti_Logo.png" alt="Ubiquiti"></a>
+        <a href="https://www.delltechnologies.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Dell_Technologies_logo.svg" alt="Dell Technologies"></a>
+        <a href="https://www.hikvision.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Hikvision_logo.svg" alt="Hikvision"></a>
+        <a href="https://www.axis.com/" target="_blank"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Axis_Communications_logo.svg" alt="Axis Communications"></a>
+
+    </div>
+</div>
+
+    <footer>
+        <p>Thank you for exploring Paradiso Networx! Let's connect your business to the future.</p>
+        <div class="social-links">
+            <a href="https://www.linkedin.com/in/paradiso-networx-smart-technology-935912370" target="_blank" title="LinkedIn"><i class="fab fa-linkedin"></i></a>
+            <a href="https://x.com/ParadisoNetworx" target="_blank" title="Twitter"><i class="fab fa-twitter"></i></a>
+            <a href="https://www.instagram.com/paradisonetworx" target="_blank" title="Instagram"><i class="fab fa-instagram"></i></a>
+        </div>
+        <p>© 2017 Paradiso Networx 🛜. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <script>
+        particlesJS('particles-js', {
+            particles: {
+                number: { value: 200, density: { enable: true, value_area: 800 } },
+                color: { value: '#ffffff' },
+                shape: { type: 'circle' },
+                opacity: { value: 0.5, random: true },
+                size: { value: 3, random: true },
+                line_linked: { enable: true, distance: 120, color: '#3b82f6', opacity: 0.4, width: 1.5 },
+                move: { enable: true, speed: 4, direction: 'none', random: true }
+            },
+            interactivity: {
+                detect_on: 'canvas',
+                events: { onhover: { enable: true, mode: 'grab' }, onclick: { enable: true, mode: 'push' } },
+                modes: { grab: { distance: 100, line_linked: { opacity: 0.7 } }, push: { particles_nb: 5 } }
+            },
+            retina_detect: true
+        });
+
+        gsap.registerPlugin(ScrollTrigger);
+
+        let lastScrollTop = 0;
+        let headerVisible = true;
+        let revealThreshold = 100;
+
+        window.addEventListener('scroll', () => {
+            let currentScroll = window.pageYOffset || document.documentElement.scrollTop;
+            let scrollDifference = currentScroll - lastScrollTop;
+
+            if (scrollDifference > 0 && currentScroll > 50) {
+                if (headerVisible) {
+                    gsap.to('header', { opacity: 0, duration: 0.3, ease: 'power2.out' });
+                    headerVisible = false;
+                }
+            } else if (scrollDifference < -revealThreshold || currentScroll <= 50) {
+                if (!headerVisible) {
+                    gsap.to('header', { opacity: 1, duration: 0.3, ease: 'power2.out' });
+                    headerVisible = true;
+                }
+            }
+
+            lastScrollTop = currentScroll <= 0 ? 0 : currentScroll;
+        });
+
+    
+
+        // Reemplaza el bloque de verificación inicial del tema
+window.addEventListener('pageshow', (event) => {
+    const body = document.body;
+    const toggleButton = document.getElementById('contrast-toggle');
+    const savedTheme = localStorage.getItem('theme');
+    
+    if (savedTheme === 'high-contrast') {
+        body.classList.add('high-contrast');
+        toggleButton.querySelector('i').classList.replace('fa-adjust', 'fa-sun');
+    } else {
+        body.classList.remove('high-contrast');
+        toggleButton.querySelector('i').classList.replace('fa-sun', 'fa-adjust');
+    }
+});
+
+        gsap.fromTo('#about', 
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 1.2, ease: 'power3.out', scrollTrigger: { trigger: '#about', start: 'top 80%' } }
+        );
+
+        gsap.fromTo('.timeline-item', 
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 1, stagger: 0.3, ease: 'power3.out', scrollTrigger: { trigger: '.timeline', start: 'top 80%' } }
+        );
+
+        gsap.fromTo('.service-card', 
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 1, stagger: 0.2, ease: 'power3.out', scrollTrigger: { trigger: '#services', start: 'top 80%' } }
+        );
+
+        gsap.fromTo('.portfolio-card', 
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 1, stagger: 0.2, ease: 'power3.out', scrollTrigger: { trigger: '#portfolio', start: 'top 80%' } }
+        );
+
+        gsap.fromTo('#contact', 
+            { opacity: 0, y: 60 },
+            { opacity: 1, y: 0, duration: 1.2, ease: 'power3.out', scrollTrigger: { trigger: '#contact', start: 'top 80%' } }
+        );
+
+        document.querySelectorAll('.service-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                const ripple = document.createElement('span');
+                ripple.style.position = 'absolute';
+                ripple.style.background = 'rgba(59,130,246,0.3)';
+                ripple.style.borderRadius = '50%';
+                ripple.style.width = '100px';
+                ripple.style.height = '100px';
+                ripple.style.left = `${e.offsetX - 50}px`;
+                ripple.style.top = `${e.offsetY - 50}px`;
+                ripple.style.transform = 'scale(0)';
+                ripple.style.animation = 'ripple 0.6s ease-out';
+                card.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+            @keyframes ripple {
+                to { transform: scale(2); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+        // Dark mode toggle with localStorage
+        const toggleButton = document.getElementById('contrast-toggle');
+        const body = document.body;
+
+        // Check saved theme on page load
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'high-contrast') {
+            body.classList.add('high-contrast');
+            toggleButton.querySelector('i').classList.replace('fa-adjust', 'fa-sun');
+        } else {
+            body.classList.remove('high-contrast');
+            toggleButton.querySelector('i').classList.replace('fa-sun', 'fa-adjust');
+        }
+
+        // Toggle theme on button click
+        toggleButton.addEventListener('click', () => {
+            body.classList.toggle('high-contrast');
+            const isHighContrast = body.classList.contains('high-contrast');
+            localStorage.setItem('theme', isHighContrast ? 'high-contrast' : 'light');
+            toggleButton.querySelector('i').classList.toggle('fa-adjust', !isHighContrast);
+            toggleButton.querySelector('i').classList.toggle('fa-sun', isHighContrast);
+        });
+
+        // Brands Carousel Animation
+        document.addEventListener('DOMContentLoaded', () => {
+            const track = document.querySelector('.carousel-track');
+            if (!track) return;
+
+            // Clone the entire set of images for seamless looping
+            const images = [...track.querySelectorAll('img')];
+            images.forEach(img => {
+                const clone = img.cloneNode(true);
+                track.appendChild(clone);
+            });
+
+            // Pause/resume animation on hover
+            const carousel = document.querySelector('.brands-carousel');
+            carousel.addEventListener('mouseenter', () => {
+                track.style.animationPlayState = 'paused';
+            });
+            carousel.addEventListener('mouseleave', () => {
+                track.style.animationPlayState = 'running';
+            });
+        });
+
+        // JavaScript para el modal del video
+     // JavaScript para el modal del video
+const videoModal = document.getElementById("videoModal");
+const videoBtn = document.getElementById("video-toggle");
+const closeSpan = document.getElementsByClassName("close")[0];
+const iframe = document.querySelector('#videoModal iframe');
+const videoSrc = 'https://www.youtube.com/embed/i6CHovyeJ7g?autoplay=1';
+
+function openModal() {
+    iframe.src = videoSrc; // Carga el video con autoplay
+    videoModal.style.display = "block";
+}
+
+function closeModal() {
+    videoModal.style.display = "none";
+    iframe.src = ''; // Descarga el video para detenerlo completamente
+}
+
+videoBtn.onclick = openModal;
+
+closeSpan.onclick = closeModal;
+
+window.onclick = function(event) {
+    if (event.target == videoModal) {
+        closeModal();
+    }
+}
+    </script>
+</body>
+</html>
