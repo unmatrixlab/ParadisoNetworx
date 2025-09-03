@@ -754,45 +754,76 @@
         }
       };
 
-      function populateVoices(){
-        voices = speechSynthesis.getVoices().filter(v => commonEnglishVoices.includes(v.lang));
-        voices.sort((a, b) => {
-          const ai = commonEnglishVoices.indexOf(a.lang);
-          const bi = commonEnglishVoices.indexOf(b.lang);
-          return ai - bi || a.name.localeCompare(b.name);
-        });
-        voiceSelect.innerHTML = '';
-        voices.forEach((v, i) => {
-          const opt = document.createElement('option');
-          opt.value = i;
-          opt.textContent = `${v.name} (${v.lang})${v.default ? ' — default' : ''}`;
-          voiceSelect.appendChild(opt);
-        });
-        const idx = voices.findIndex(v => commonEnglishVoices.includes(v.lang));
-        voiceSelect.value = String(idx > -1 ? idx : 0);
-      }
+    (function(){
+  const voiceSelect = document.getElementById('voice');
+  const rate = document.getElementById('rate');
+  const pitch = document.getElementById('pitch');
+  const rateVal = document.getElementById('rateVal');
+  const pitchVal = document.getElementById('pitchVal');
 
-      if (typeof speechSynthesis !== 'undefined'){
-        populateVoices();
-        if (speechSynthesis.onvoiceschanged !== undefined){
-          speechSynthesis.onvoiceschanged = populateVoices;
-        }
-      }
+  let voices = [];
+  let defaultVoice = null;
 
-      function speak(text){
-        if (!('speechSynthesis' in window)){
-          alert('Your browser does not support Speech Synthesis. Try Chrome, Edge, or Safari.');
-          return;
-        }
-        speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        const v = voices[parseInt(voiceSelect.value, 10)];
-        if (v) u.voice = v;
-        u.lang = (v && v.lang) || 'en-US';
-        u.rate = parseFloat(rate.value);
-        u.pitch = parseFloat(pitch.value);
-        speechSynthesis.speak(u);
-      }
+  // Detectar Safari
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+  function populateVoices() {
+    voices = speechSynthesis.getVoices();
+    voiceSelect.innerHTML = '';
+
+    const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+
+    englishVoices.forEach((voice, i) => {
+      const option = document.createElement('option');
+      option.value = i;
+      option.textContent = `${voice.name} (${voice.lang})`;
+      voiceSelect.appendChild(option);
+    });
+
+    if (isSafari) {
+      // Safari → tratar de elegir Samantha o la primera voz en-US
+      defaultVoice =
+        englishVoices.find(v => v.name.includes("Samantha")) ||
+        englishVoices.find(v => v.lang === "en-US") ||
+        englishVoices[0];
+    } else {
+      // Otros navegadores → dejar la predeterminada del sistema
+      defaultVoice = speechSynthesis.getVoices().find(v => v.default) || englishVoices[0];
+    }
+
+    const index = englishVoices.indexOf(defaultVoice);
+    if (index >= 0) {
+      voiceSelect.selectedIndex = index;
+    }
+  }
+
+  populateVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  function speak(text) {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.voice = defaultVoice;
+    utter.rate = parseFloat(rate.value);
+    utter.pitch = parseFloat(pitch.value);
+    speechSynthesis.speak(utter);
+  }
+
+  // Si el usuario cambia el select, actualizar la voz manualmente
+  voiceSelect.addEventListener('change', () => {
+    defaultVoice = voices[voiceSelect.value];
+  });
+
+  document.querySelectorAll('.speak').forEach(btn => {
+    btn.addEventListener('click', () => {
+      speak(btn.dataset.utterance);
+    });
+  });
+})();
 
       function showPopup(tense) {
         const explanation = tenseExplanations[tense];
