@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Verb Tenses App</title>
+
+<style>
+  :root{
+    --bg:#eef2ff;
+    --card:#ffffff;
+    --text:#222;
+    --muted:#666;
+    --accent:#2b7cff;
+    --success:#4CAF50;
+    --danger:#E53935;
+    --select-bg:#fff;
+    --shadow:0 6px 18px rgba(20,20,40,0.08);
+  }
+
+  body{
+    margin:0;
+    padding:20px;
+    font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto;
+    background:var(--bg);
+    color:var(--text);
+    height:100%;
+    width:100%;
+    box-sizing:border-box;
+  }
+
+  .card{
+    background:var(--card);
+    padding:20px;
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    margin-bottom:20px;
+  }
+
+  .exercise{
+    padding:14px;
+    background:#ffffff;
+    border-radius:10px;
+    margin-bottom:14px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    box-shadow:var(--shadow);
+  }
+
+  .left{
+    display:flex;
+    align-items:flex-start;
+    gap:12px;
+    flex:1;
+  }
+
+  .num{
+    background:#eef5ff;
+    color:var(--accent);
+    width:26px;
+    height:26px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:600;
+  }
+
+  .sentence{
+    font-size:16px;
+    line-height:1.4;
+  }
+
+  select.blank{
+    font-size:16px;
+    padding:6px 10px;
+    border-radius:6px;
+    border:1px solid #cfd8e6;
+    background:var(--select-bg);
+    margin:0 4px;
+    transition:0.2s ease;
+  }
+
+  select.blank.correct{
+    background:rgba(76,175,80,0.15);
+    border-color:rgba(76,175,80,0.5);
+  }
+
+  select.blank.incorrect{
+    background:rgba(229,57,53,0.15);
+    border-color:rgba(229,57,53,0.5);
+  }
+
+  .speakBtn{
+    width:34px;
+    height:34px;
+    background:none;
+    border:none;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    opacity:0.7;
+    transition:0.2s;
+  }
+
+  .speakBtn:hover{
+    opacity:1;
+  }
+
+  /* Modal */
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(10,12,20,0.45);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:999;
+  }
+
+  .overlay.show{
+    display:flex;
+  }
+
+  .modal{
+    background:white;
+    width:90%;
+    max-width:600px;
+    border-radius:12px;
+    padding:20px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.3);
+  }
+
+  .modal pre{
+    background:#f4f6ff;
+    padding:10px;
+    border-radius:8px;
+    font-size:13px;
+  }
+
+  .btn{
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    background:var(--accent);
+    color:white;
+    cursor:pointer;
+    font-weight:600;
+    float:right;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="card" id="exercisesCard"></div>
+
+<!-- MODAL -->
+<div id="overlay" class="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">Explanation</h2>
+    <p id="modalSubtitle" style="color:var(--muted)"></p>
+    <pre id="modalRule"></pre>
+    <button id="closeModal" class="btn">Close</button>
+  </div>
+</div>
+
+<script>
+
+/******************************************************************
+  HOW TO ADD EXERCISES (COMMENTED VERSION)
+  ----------------------------------------
+  Each exercise is an object:
+
+  {
+    text: "John {0} every day and {1} early.",
+    options: [
+      ["work","works","worked"],    // options for {0}
+      ["leave","leaves","left"]     // options for {1}
+    ],
+    answers: ["works","leaves"],
+    rules: [
+      "Rule for blank 1",
+      "Rule for blank 2"
+    ]
+  }
+
+  You can add new exercises by pushing into the `exercises` array.
+******************************************************************/
+
+const exercises = [
+  {
+    text: "John {0} every morning and {1} a quick shower.",
+    options: [
+      ["work","works","worked"],
+      ["take","takes","took"]
+    ],
+    answers:["works","takes"],
+    rules:[
+      "Present Simple: he/she/it + verb + 's'. → 'works'",
+      "Present Simple: he/she/it + verb + 's'. → 'takes'"
+    ]
+  },
+  {
+    text: "Mary {0} her teeth while she {1} a podcast.",
+    options:[
+      ["is brush","is brushing","are brushing"],
+      ["listen","is listening","listens"]
+    ],
+    answers:["is brushing","is listening"],
+    rules:[
+      "Present Continuous: is + verb-ing.",
+      "Present Continuous: is + verb-ing."
+    ]
+  },
+  {
+    text:"They {0} to Paris many times, but yesterday they {1} the train.",
+    options:[
+      ["have gone","went","goes"],
+      ["miss","missed","will miss"]
+    ],
+    answers:["have gone","missed"],
+    rules:[
+      "Present Perfect: have/has + past participle.",
+      "Past Simple: regular verbs end in -ed → 'missed'."
+    ]
+  },
+  {
+    text: "She {0} the book when the phone {1}.",
+    options:[
+      ["was reading","reads","read"],
+      ["rang","rings","ring"]
+    ],
+    answers:["was reading","rang"],
+    rules:[
+      "Past Continuous: was/were + verb-ing.",
+      "Past Simple: irregular verb 'ring' → 'rang'."
+    ]
+  },
+  {
+    text: "By the time we arrive, they {0} dinner and {1} TV.",
+    options:[
+      ["will have finished","finish","finished"],
+      ["will be watching","watch","watched"]
+    ],
+    answers:["will have finished","will be watching"],
+    rules:[
+      "Future Perfect: will have + past participle.",
+      "Future Continuous: will be + verb-ing."
+    ]
+  },
+  {
+    text: "If it {0} tomorrow, we {1} the picnic.",
+    options:[
+      ["rains","will rain","rain"],
+      ["cancel","will cancel","canceled"]
+    ],
+    answers:["rains","will cancel"],
+    rules:[
+      "First Conditional: if + present simple → main clause with 'will'.",
+      "First Conditional: main clause with 'will' + base verb."
+    ]
+  },
+  {
+    text: "I wish I {0} more time to study, but I {1} late every night.",
+    options:[
+      ["had","have","has"],
+      ["work","works","worked"]
+    ],
+    answers:["had","work"],
+    rules:[
+      "Wish (present): wish + past simple.",
+      "Present Simple: I/you/we/they + base verb."
+    ]
+  },
+  {
+    text: "The cake {0} by my mom while I {1} the table.",
+    options:[
+      ["was baked","is baked","bakes"],
+      ["was setting","set","sets"]
+    ],
+    answers:["was baked","was setting"],
+    rules:[
+      "Past Simple Passive: was/were + past participle.",
+      "Past Continuous: was/were + verb-ing."
+    ]
+  },
+  {
+    text: "He {0} to the meeting unless he {1} sick.",
+    options:[
+      ["won't come","doesn't come","didn't come"],
+      ["is","was","will be"]
+    ],
+    answers:["won't come","is"],
+    rules:[
+      "Unless + present simple → future consequence with 'will'.",
+      "Present Simple: he/she/it + verb + 's/es'."
+    ]
+  },
+  {
+    text: "She said that she {0} the movie before and {1} it again.",
+    options:[
+      ["had seen","saw","sees"],
+      ["didn't want","doesn't want","won't want"]
+    ],
+    answers:["had seen","didn't want"],
+    rules:[
+      "Reported Speech: past perfect for earlier past action.",
+      "Reported Speech: backshift 'don't want' → 'didn't want'."
+    ]
+  },
+  {
+    text: "This time next week, we {0} on the beach and {1} cocktails.",
+    options:[
+      ["will be lying","lie","lay"],
+      ["will be drinking","drink","drank"]
+    ],
+    answers:["will be lying","will be drinking"],
+    rules:[
+      "Future Continuous: will be + verb-ing (future arrangement).",
+      "Future Continuous: will be + verb-ing."
+    ]
+  },
+  {
+    text: "The room {0} cleaned before the guests {1}.",
+    options:[
+      ["must be","must","has to be"],
+      ["arrive","arrived","will arrive"]
+    ],
+    answers:["must be","arrive"],
+    rules:[
+      "Modal Passive: modal + be + past participle.",
+      "Time clause (future): present simple after 'before'."
+    ]
+  },
+  {
+    text: "If I {0} the lottery, I {1} around the world.",
+    options:[
+      ["won","win","had won"],
+      ["would travel","will travel","travel"]
+    ],
+    answers:["won","would travel"],
+    rules:[
+      "Second Conditional: if + past simple → would + base verb.",
+      "Second Conditional: would + base verb."
+    ]
+  },
+  {
+    text: "They {0} the project for weeks when the deadline {1} changed.",
+    options:[
+      ["had been working","worked","work"],
+      ["was","is","has been"]
+    ],
+    answers:["had been working","was"],
+    rules:[
+      "Past Perfect Continuous: had been + verb-ing (duration before past).",
+      "Past Simple Passive: was/were + past participle."
+    ]
+  },
+  {
+    text: "You {0} smoke here; it {1} against the rules.",
+    options:[
+      ["must not","must","may not"],
+      ["is","was","will be"]
+    ],
+    answers:["must not","is"],
+    rules:[
+      "Obligation prohibition: 'must not' for rules.",
+      "Present Simple Passive: is + past participle."
+    ]
+  },
+  {
+    text: "The teacher asked if we {0} our homework and {1} it in yet.",
+    options:[
+      ["had finished","finished","finish"],
+      ["had handed","handed","hand"]
+    ],
+    answers:["had finished","had handed"],
+    rules:[
+      "Reported Question: past perfect for completed action.",
+      "Reported Speech: past perfect for sequence."
+    ]
+  },
+  {
+    text: "By 2030, scientists {0} a cure for cancer, or at least {1} major breakthroughs.",
+    options:[
+      ["may have discovered","discover","discovered"],
+      ["will have made","make","made"]
+    ],
+    answers:["may have discovered","will have made"],
+    rules:[
+      "Future Perfect with modal: may have + past participle (possibility).",
+      "Future Perfect: will have + past participle (prediction)."
+    ]
+  },
+  {
+    text: "He {0} his keys somewhere; he {1} them all morning.",
+    options:[
+      ["must have left","leaves","left"],
+      ["has been looking for","looks for","looked for"]
+    ],
+    answers:["must have left","has been looking for"],
+    rules:[
+      "Deduction (past): must have + past participle.",
+      "Present Perfect Continuous: has/have been + verb-ing (ongoing)."
+    ]
+  },
+  {
+    text: "The book, which {0} by a famous author, {1} on the shelf for months.",
+    options:[
+      ["was written","is written","writes"],
+      ["has been sitting","sits","sat"]
+    ],
+    answers:["was written","has been sitting"],
+    rules:[
+      "Relative Clause Passive: was/were + past participle.",
+      "Present Perfect Continuous: has/have been + verb-ing (duration)."
+    ]
+  },
+  {
+    text: "Had I known about the traffic, I {0} earlier and {1} the delay.",
+    options:[
+      ["would have left","left","leave"],
+      ["would have avoided","avoided","avoid"]
+    ],
+    answers:["would have left","would have avoided"],
+    rules:[
+      "Third Conditional: If + past perfect → would have + past participle.",
+      "Third Conditional: would have + past participle."
+    ]
+  }
+];
+    
+
+const container = document.getElementById("exercisesCard");
+
+function createSelect(exIndex, blankIndex, opts){
+  const select = document.createElement("select");
+  select.className = "blank";
+  select.dataset.exercise = exIndex;
+  select.dataset.blank = blankIndex;
+
+  const def = document.createElement("option");
+  def.textContent = "— choose —";
+  def.value = "";
+  def.disabled = true;
+  def.selected = true;
+  select.appendChild(def);
+
+  opts.forEach(o=>{
+    const op = document.createElement("option");
+    op.value=o;
+    op.textContent=o;
+    select.appendChild(op);
+  });
+
+  select.onchange = onSelectChange;
+  return select;
+}
+
+function renderExercises(){
+  container.innerHTML="";
+  exercises.forEach((ex, idx)=>{
+
+    const wrap = document.createElement("div");
+    wrap.className="exercise";
+
+    const left = document.createElement("div");
+    left.className="left";
+
+    const num = document.createElement("div");
+    num.className="num";
+    num.textContent = idx+1;
+
+    const sentence = document.createElement("div");
+    sentence.className="sentence";
+
+    let text = ex.text;
+    const matches = [...text.matchAll(/\{(\d+)\}/g)];
+    let last = 0;
+    const frag = document.createDocumentFragment();
+
+    matches.forEach(m=>{
+      const pos = m.index;
+      const bIndex = Number(m[1]);
+      frag.append(text.slice(last,pos));
+      frag.append(createSelect(idx,bIndex,ex.options[bIndex]));
+      last = pos + m[0].length;
+    });
+
+    frag.append(text.slice(last));
+    sentence.append(frag);
+
+    // SPEAK BUTTON
+    const speakBtn = document.createElement("button");
+    speakBtn.className="speakBtn";
+    speakBtn.innerHTML = `
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.1-3.8v7.6a4.5 4.5 0 0 0 2.1-3.8zm-2.1-7.6v1.7a6 6 0 0 1 0 10.8v1.7a7.7 7.7 0 0 0 0-14.2z"/>
+      </svg>
+    `;
+
+    speakBtn.onclick = () => speakSentence(ex.text, ex);
+
+    left.append(num, sentence);
+    wrap.append(left, speakBtn);
+
+    container.append(wrap);
+  });
+}
+
+// Convert text with placeholders to readable full sentence
+function buildFullSentence(template, ex){
+  return template.replace(/\{(\d+)\}/g,(m,n)=>{
+    const blankIndex = Number(n);
+    return ex.answers[blankIndex];
+  });
+}
+
+// Speak
+function speakSentence(template, ex){
+  const utter = new SpeechSynthesisUtterance(buildFullSentence(template, ex));
+  utter.lang = "en-US";
+  window.speechSynthesis.speak(utter);
+}
+
+// Modal logic
+const overlay = document.getElementById("overlay");
+const modalRule = document.getElementById("modalRule");
+const modalSubtitle = document.getElementById("modalSubtitle");
+const modalTitle = document.getElementById("modalTitle");
+
+document.getElementById("closeModal").onclick = () => overlay.classList.remove("show");
+
+function onSelectChange(e){
+  const sel = e.target;
+  const exIndex = sel.dataset.exercise;
+  const bIndex = sel.dataset.blank;
+
+  const exercise = exercises[exIndex];
+  const chosen = sel.value;
+  const correct = exercise.answers[bIndex];
+
+  sel.classList.remove("correct","incorrect");
+
+  if(chosen === correct){
+    sel.classList.add("correct");
+  } else {
+    sel.classList.add("incorrect");
+
+    modalTitle.textContent="Incorrect choice";
+    modalSubtitle.textContent="Check the rule below:";
+    modalRule.textContent = exercise.rules[bIndex];
+
+    overlay.classList.add("show");
+  }
+}
+
+// Init
+renderExercises();
+
+</script>
+</body>
+</html>
