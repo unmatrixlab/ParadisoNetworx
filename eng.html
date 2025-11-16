@@ -109,7 +109,7 @@
     opacity:1;
   }
 
-  /* ===== MODAL (FIXED) ===== */
+  /* ===== MODAL ===== */
   .overlay{
     position:fixed;
     inset:0;
@@ -118,7 +118,7 @@
     align-items:center;
     justify-content:center;
     z-index:999;
-    padding:10px; 
+    padding:10px;
   }
 
   .overlay.show{
@@ -132,23 +132,18 @@
     border-radius:12px;
     padding:20px;
     box-shadow:0 20px 50px rgba(0,0,0,0.3);
-
     max-height:80vh;
     overflow-y:auto;
   }
 
-  /* ★ FIX PARA QUE NUNCA SE CORTEN LAS REGLAS EN MÓVIL */
   .modal pre{
     background:#f4f6ff;
     padding:10px;
     border-radius:8px;
     font-size:13px;
-
     white-space:pre-wrap;
-    white-space:pre-line;     /* ← Fix fuerte */
     word-wrap:break-word;
     overflow-wrap:break-word;
-    word-break:break-word;    /* ← Fix agregado */
   }
 
   .btn{
@@ -159,12 +154,14 @@
     color:white;
     cursor:pointer;
     font-weight:600;
-    float:right;
   }
+
 </style>
 </head>
 
 <body>
+
+<button id="resetBtn" class="btn" style="margin-bottom:20px;">Reset Answers</button>
 
 <div class="card" id="exercisesCard"></div>
 
@@ -1448,11 +1445,11 @@ function buildFullSentence(template, ex){
 function speakSentence(template, ex){
   const utter = new SpeechSynthesisUtterance(buildFullSentence(template, ex));
   utter.lang = "en-US";
-   utter.rate = 0.8;   // ← velocidad ligeramente más lenta
+  utter.rate = 0.75; // slower pronunciation
   window.speechSynthesis.speak(utter);
 }
 
-// Modal logic
+// MODAL
 const overlay = document.getElementById("overlay");
 const modalRule = document.getElementById("modalRule");
 const modalSubtitle = document.getElementById("modalSubtitle");
@@ -1460,6 +1457,32 @@ const modalTitle = document.getElementById("modalTitle");
 
 document.getElementById("closeModal").onclick = () => overlay.classList.remove("show");
 
+// SAVE & LOAD PROGRESS
+function saveProgress() {
+  const all = [...document.querySelectorAll("select.blank")].map(sel => ({
+    ex: sel.dataset.exercise,
+    blank: sel.dataset.blank,
+    value: sel.value
+  }));
+
+  localStorage.setItem("verbProgress", JSON.stringify(all));
+}
+
+function loadProgress() {
+  const saved = JSON.parse(localStorage.getItem("verbProgress") || "[]");
+
+  saved.forEach(item => {
+    const sel = document.querySelector(`select.blank[data-exercise="${item.ex}"][data-blank="${item.blank}"]`);
+    if (sel && item.value) {
+      sel.value = item.value;
+
+      const correct = exercises[item.ex].answers[item.blank];
+      sel.classList.add(item.value === correct ? "correct" : "incorrect");
+    }
+  });
+}
+
+// SELECT CHANGE
 function onSelectChange(e){
   const sel = e.target;
   const exIndex = sel.dataset.exercise;
@@ -1482,9 +1505,24 @@ function onSelectChange(e){
 
     overlay.classList.add("show");
   }
+
+  saveProgress();
 }
 
+// RESET BUTTON
+document.getElementById("resetBtn").onclick = () => {
+  localStorage.removeItem("verbProgress");
+
+  document.querySelectorAll("select.blank").forEach(sel => {
+    sel.value = "";
+    sel.classList.remove("correct","incorrect");
+  });
+};
+
+// INIT
 renderExercises();
+loadProgress();
+
 </script>
 </body>
 </html>
