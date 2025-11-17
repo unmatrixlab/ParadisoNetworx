@@ -546,75 +546,74 @@
 
 <script>
   let player;
-  let currentTimeout = null;  // para poder cancelar el timeout anterior
+  let currentTimeout = null;        // para auto-pausar al final del fragmento
+  let currentUtterance = null;      // para poder cancelar la voz
 
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       height: '360',
       width: '640',
       videoId: 'ocGJWc2F1Yk',
-      playerVars: { playsinline: 1, rel: 0, fs: 1 }
-    });
-
-    player.addEventListener('onStateChange', function(state) {
-      if (state.data === 0) { // 0 = vídeo terminado (por si llega al final del todo)
-        resetAllButtons();
-      }
+      playerVars: { playsinline: 1, rel: 0 }
     });
   }
 
-  // Cargar API de YouTube
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
   const firstScriptTag = document.getElementsByTagName('script')[0];
   firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  // ======================= PLAY + AUTO-PAUSE AL FINAL DEL FRAGMENTO =======================
+  // ==================== PLAY / PAUSE + AUTO-PAUSA AL FINAL DEL FRAGMENTO ====================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const startTime = parseFloat(line.dataset.time);
 
-      // Calcular cuándo termina este fragmento (inicio del siguiente o final del vídeo)
-      const allLines = Array.from(document.querySelectorAll(".line"));
-      const currentIndex = allLines.indexOf(line);
-      let endTime;
-
-      if (currentIndex < allLines.length - 1) {
-        endTime = parseFloat(allLines[currentIndex + 1].dataset.time);
-      } else {
-        endTime = player.getDuration() || 600; // si es el último, un margen grande
+      // ---- SI YA ESTÁ REPRODUCIENDO ESTE FRAGMENTO → PAUSAR ----
+      if (btn.dataset.playing === "true") {
+        player.pauseVideo();
+        btn.textContent = "Play";
+        delete btn.dataset.playing;
+        if (currentTimeout) clearTimeout(currentTimeout);
+        return;
       }
 
-      const duration = endTime - startTime; // segundos que debe durar este fragmento
-
-      // 1. Limpiar timeout anterior por si había otro reproduciéndose
+      // ---- SI ES UN NUEVO FRAGMENTO O ESTABA PAUSADO ----
+      // 1. Cancelar timeout anterior
       if (currentTimeout) clearTimeout(currentTimeout);
 
-      // 2. Reseteamos todos los botones
+      // 2. Resetear todos los botones
       document.querySelectorAll(".playBtn").forEach(b => {
         b.textContent = "Play";
         delete b.dataset.playing;
       });
 
-      // 3. Ir al segundo y reproducir
+      // 3. Calcular fin del fragmento
+      const allLines = Array.from(document.querySelectorAll(".line"));
+      const currentIndex = allLines.indexOf(line);
+      let endTime = currentIndex < allLines.length - 1 
+        ? parseFloat(allLines[currentIndex + 1].dataset.time)
+        : player.getDuration() || 700;
+
+      const duration = (endTime - startTime) * 1000 + 400; // margen pequeño
+
+      // 4. Reproducir
       player.seekTo(startTime, true);
       player.playVideo();
-
-      // 4. Marcar este botón como activo
       btn.textContent = "Pause";
       btn.dataset.playing = "true";
 
-      // 5. Programar la pausa automática al terminar el fragmento
+      // 5. Programar pausa automática al terminar el fragmento
       currentTimeout = setTimeout(() => {
         player.pauseVideo();
-        btn.textContent = "Replay";  // opcional: cambiar a "Replay" cuando termine
-      }, duration * 1000 + 300); // +300ms de margen por si acaso
+        btn.textContent = "Replay";
+        delete btn.dataset.playing;
+      }, duration);
     }
   });
 
-  // ======================= MOSTRAR/OCULTAR ESPAÑOL =======================
+  // ==================== MOSTRAR/OCULTAR ESPAÑOL ====================
   document.addEventListener("click", e => {
     const tb = e.target.closest(".text-block");
     if (tb && !e.target.closest(".controls")) {
@@ -623,24 +622,36 @@
     }
   });
 
-  // ======================= SPEAK =======================
+  // ==================== SPEAK + STOP AL VOLVER A PULSAR ====================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
-      const text = e.target.closest(".line").querySelector(".english").innerText;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "en-US";
-      u.rate = 0.9;
-      speechSynthesis.speak(u);
+      const btn = e.target;
+
+      // Si ya está hablando → parar
+      if (btn.dataset.speaking === "true") {
+        speechSynthesis.cancel();
+        btn.textContent = "Speak";
+        delete btn.dataset.speaking;
+        return;
+      }
+
+      // Si no está hablando → hablar
+      const text = btn.closest(".line").querySelector(".english").innerText;
+      currentUtterance = new SpeechSynthesisUtterance(text);
+      currentUtterance.lang = "en-US";
+      currentUtterance.rate = 0.9;
+
+      // Cuando termine de hablar, volver a "Speak"
+      currentUtterance.onend = () => {
+        btn.textContent = "Speak";
+        delete btn.dataset.speaking;
+      };
+
+      speechSynthesis.speak(currentUtterance);
+      btn.textContent = "Stop";
+      btn.dataset.speaking = "true";
     }
   });
-
-  // Función auxiliar para resetear todos los botones (por si el vídeo termina solo)
-  function resetAllButtons() {
-    document.querySelectorAll(".playBtn").forEach(b => {
-      b.textContent = "Play";
-      delete b.dataset.playing;
-    });
-  }
 </script>
 </body>
 </html>
