@@ -604,23 +604,23 @@
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       videoId: 'ocGJWc2F1Yk',
-      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-      events: { 'onReady': () => console.log("Player listo") }
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }
     });
   }
 
-  // Cargar API
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
-  document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+  const firstScriptTag = document.getElementsByTagName('script')[0];
+  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  // ==================== PLAY / PAUSE + RESALTADO + AUTO-PAUSA ====================
+  // ==================== PLAY / PAUSE + AUTO-PAUSA + DESACTIVAR SPEAK ====================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const startTime = parseFloat(line.dataset.time);
 
+      // SI YA ESTÁ REPRODUCIENDO → PAUSAR
       if (btn.dataset.playing === "true") {
         player.pauseVideo();
         btn.textContent = "Play";
@@ -630,6 +630,14 @@
         return;
       }
 
+      // NUEVA REPRODUCCIÓN → parar cualquier Speak activo
+      speechSynthesis.cancel();
+      document.querySelectorAll(".speakBtn").forEach(b => {
+        b.textContent = "Speak";
+        delete b.dataset.speaking;
+      });
+
+      // Resetear botones y calcular fin del fragmento
       if (currentTimeout) clearTimeout(currentTimeout);
       document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
       document.querySelectorAll(".playBtn").forEach(b => {
@@ -656,33 +664,46 @@
     }
   });
 
-  // ==================== ESPAÑOL CON ANIMACIÓN ====================
+  // ==================== MOSTRAR ESPAÑOL ====================
   document.addEventListener("click", e => {
     const tb = e.target.closest(".text-block");
     if (tb && !e.target.closest(".controls")) {
-      const spanish = tb.querySelector(".spanish");
-      spanish.classList.toggle("visible");
+      tb.querySelector(".spanish").classList.toggle("visible");
     }
   });
 
-  // ==================== SPEAK / STOP ====================
+  // ==================== SPEAK / STOP + DESACTIVAR VÍDEO SI ESTÁ SONANDO ====================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
       const btn = e.target;
+
+      // SI YA ESTÁ HABLANDO → parar
       if (btn.dataset.speaking === "true") {
         speechSynthesis.cancel();
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         return;
       }
+
+      // NUEVO SPEAK → pausar el vídeo si está reproduciéndose
+      player.pauseVideo();
+      document.querySelectorAll(".playBtn").forEach(b => {
+        b.textContent = "Play";
+        delete b.dataset.playing;
+      });
+      document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
+      if (currentTimeout) clearTimeout(currentTimeout);
+
       const text = btn.closest(".line").querySelector(".english").innerText;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "en-US";
       utter.rate = 0.9;
+
       utter.onend = () => {
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
       };
+
       speechSynthesis.speak(utter);
       btn.textContent = "Stop";
       btn.dataset.speaking = "true";
