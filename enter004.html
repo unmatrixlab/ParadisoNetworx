@@ -2113,11 +2113,12 @@
     </div> <!-- /.dialogue-container -->
   </div> <!-- /.page-max-width -->
 <script>
-  let firstSeekHandled = false;
 let player;
 let currentTimeout = null;
 let currentUtterance = null;
 let timeChecker = null;
+let firstSeekHandled = false;
+let lastPlayAction = "button"; // "video" o "button"
 
 // ====== AJUSTES DE CALIBRACIÓN ======
 const START_OFFSET = -1;
@@ -2132,41 +2133,26 @@ function onYouTubeIframeAPIReady() {
   });
 }
 
-  // ====== austo scroll======
-  function scrollLineToCenter(element) {
-  const rect = element.getBoundingClientRect();
-  const elementCenter = rect.top + rect.height / 2;
-  const screenCenter = window.innerHeight / 2;
-  const offset = elementCenter - screenCenter;
+// Script API
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+const firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  window.scrollBy({
-    top: offset,
-    behavior: 'smooth'
-  });
-}
-
-  // ====== AUTO PLAY → PAUSE AL CARGAR ======
+// ====== AUTO PLAY → PAUSE AL CARGAR ======
 function onPlayerReadyAutoKickstart() {
-  // Hacemos un play rápido para activar el iframe
   player.playVideo();
-
   setTimeout(() => {
     player.pauseVideo();
-  }, 300); // suficiente para activar el buffer interno
+  }, 300);
 }
 
-// Esperamos a que el player esté listo
 const checkReady = setInterval(() => {
   if (player && player.getPlayerState) {
     clearInterval(checkReady);
     onPlayerReadyAutoKickstart();
   }
 }, 200);
-
-const tag = document.createElement('script');
-tag.src = "https://www.youtube.com/iframe_api";
-const firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
 // ====== RESET GENERAL ======
 function resetAll(exceptBtn = null) {
@@ -2190,6 +2176,19 @@ function resetAll(exceptBtn = null) {
   });
 }
 
+// ====== SCROLL CENTRADO ======
+function scrollLineToCenter(element) {
+  const rect = element.getBoundingClientRect();
+  const elementCenter = rect.top + rect.height / 2;
+  const screenCenter = window.innerHeight / 2;
+  const offset = elementCenter - screenCenter;
+
+  window.scrollBy({
+    top: offset,
+    behavior: 'smooth'
+  });
+}
+
 // ====== SINCRONIZACIÓN AUTOMÁTICA ======
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
@@ -2202,6 +2201,7 @@ function onPlayerStateChange(event) {
   }
 }
 
+// ====== ACTUALIZAR LÍNEA ACTIVA ======
 function updateActiveLine(currentTime) {
   const lines = Array.from(document.querySelectorAll(".line"));
   let active = null;
@@ -2220,8 +2220,13 @@ function updateActiveLine(currentTime) {
   if (active) {
     active.classList.add("active");
 
-    if (player && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING) {
-      // Solo hacer scroll cuando el video está reproduciendo
+    // ⬅️ Solo hacer scroll si play viene del video
+    if (
+      lastPlayAction === "video" &&
+      player &&
+      player.getPlayerState &&
+      player.getPlayerState() === YT.PlayerState.PLAYING
+    ) {
       scrollLineToCenter(active);
     }
   }
@@ -2230,6 +2235,8 @@ function updateActiveLine(currentTime) {
 // ====== BOTONES PLAY ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("playBtn")) {
+    lastPlayAction = "button"; // marcar que fue un botón
+
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
@@ -2293,24 +2300,19 @@ document.addEventListener("click", e => {
 
     resetAll(btn);
 
-  if (!firstSeekHandled) {
-  firstSeekHandled = true;
-
-  // Activación real
-  player.playVideo();
-  setTimeout(() => {
-    player.pauseVideo();
-
-    // Ahora sí el seek real funciona
-    player.seekTo(startTime, true);
-    player.pauseVideo();
-  }, 250);
-
-} else {
-  // Ya activado, comportamiento normal
-  player.seekTo(startTime, true);
-  player.pauseVideo();
-}
+    // ====== Manejo primer seek para Speak ======
+    if (!firstSeekHandled) {
+      firstSeekHandled = true;
+      player.playVideo();
+      setTimeout(() => {
+        player.pauseVideo();
+        player.seekTo(startTime, true);
+        player.pauseVideo();
+      }, 250);
+    } else {
+      player.seekTo(startTime, true);
+      player.pauseVideo();
+    }
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
@@ -2351,6 +2353,15 @@ document.addEventListener("click", e => {
     if (span) span.classList.toggle("visible");
   }
 });
+
+// ====== DETECTAR INTERACCIÓN DIRECTA CON EL VIDEO ======
+const playerDiv = document.getElementById("player");
+if (playerDiv) {
+  playerDiv.setAttribute("tabindex", "0"); // necesario para focus
+  playerDiv.addEventListener("focus", () => {
+    lastPlayAction = "video";
+  });
+}
 </script>
 </body>
 </html>
