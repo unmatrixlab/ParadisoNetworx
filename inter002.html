@@ -2115,7 +2115,7 @@
 <script>
   let player;
   let currentTimeout = null;
-  let currentActiveLine = null; // ← NUEVO: para controlar la línea activa globalmente
+  let currentUtterance = null; // para poder cancelar el habla
 
   // ====== AJUSTES DE CALIBRACIÓN ======
   const START_OFFSET = -1;
@@ -2124,109 +2124,57 @@
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       videoId: '5MuIMqhT8DM',
-      playerVars: { playsinline: 1, rel: 0, modestbranding: 1, enablejsapi: 1 },
-      events: {
-        'onReady': onPlayerReady,
-        'onStateChange': onPlayerStateChange
-      }
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }
     });
   }
 
-  function onPlayerReady(event) {
-    // Opcional: empezar pausado
-    setInterval(updateHighlightFromTime, 300); // ← Cada 300ms comprobamos el tiempo actual
-  }
-
-  function onPlayerStateChange(event) {
-    // Si el usuario reproduce manualmente el vídeo, también queremos resaltar
-    if (event.data === YT.PlayerState.PLAYING) {
-      updateHighlightFromTime();
-    }
-  }
-
-  // ====== FUNCIÓN CLAVE: Resaltar línea según el tiempo actual del vídeo ======
-  function updateHighlightFromTime() {
-    if (!player || !player.getCurrentTime) return;
-    const currentTime = player.getCurrentTime();
-    const lines = Array.from(document.querySelectorAll(".line"));
-    
-    // Limpiar estado anterior solo si no estamos en modo "speak" o "play" manual
-    let shouldClear = true;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const start = parseFloat(line.dataset.time);
-      const end = i < lines.length - 1 ? parseFloat(lines[i + 1].dataset.time) : start + 30;
-
-      if (currentTime >= start + START_OFFSET && currentTime < end + END_PADDING) {
-        highlightLine(line);
-        shouldClear = false;
-        break;
-      }
-    }
-
-    if (shouldClear && !currentActiveLine?.querySelector('[data-speaking="true"], [data-playing="true"]')) {
-      clearAllHighlights();
-    }
-  }
-
-  function highlightLine(line) {
-    if (currentActiveLine === line) return;
-    clearAllHighlights();
-    currentActiveLine = line;
-    line.classList.add("active");
-  }
-
-  function clearAllHighlights() {
-    document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
-    currentActiveLine = null;
-  }
-
-  function resetAllButtons() {
-    document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
-      b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
-      delete b.dataset.playing;
-      delete b.dataset.speaking;
-    });
-  }
-
-  // Cargar API de YouTube
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
   const firstScriptTag = document.getElementsByTagName('script')[0];
   firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  // ====================== PLAY BUTTON ======================
+  // Función común para limpiar todo (vídeo y voz)
+  function resetAll(exceptBtn = null) {
+    speechSynthesis.cancel();
+    if (currentUtterance) currentUtterance = null;
+    if (currentTimeout) clearTimeout(currentTimeout);
+
+    document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
+    document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
+      if (b !== exceptBtn) {
+        b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
+        delete b.dataset.playing;
+        delete b.dataset.speaking;
+      }
+    });
+  }
+
+  // =============== PLAY BUTTON (sin cambios importantes) ===============
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const rawStartTime = parseFloat(line.dataset.time);
 
+      // Si ya está reproduciendo → pausar
       if (btn.dataset.playing === "true") {
         player.pauseVideo();
         btn.textContent = "Play";
         delete btn.dataset.playing;
+        line.classList.remove("active");
         if (currentTimeout) clearTimeout(currentTimeout);
-        if (!player.getCurrentTime || player.getCurrentTime() < rawStartTime || player.getCurrentTime() > rawStartTime + 20) {
-          line.classList.remove("active");
-          currentActiveLine = null;
-        }
         return;
       }
 
-      // Resetear todo
-      speechSynthesis.cancel();
-      resetAllButtons();
-      if (currentTimeout) clearTimeout(currentTimeout);
-      clearAllHighlights();
+      // Limpiar todo
+      resetAll(btn);
 
       const allLines = Array.from(document.querySelectorAll(".line"));
       const idx = allLines.indexOf(line);
-      const startTime = Math.max(0, rawStartTime + START_OFFSET);
 
+      const startTime = Math.max(0, rawStartTime + START_OFFSET);
       let rawEndTime = idx < allLines.length - 1 
-        ? parseFloat(allLines[idx + 1].dataset.time) 
+        ? parseFloat(allLines[idx + 1].dataset.time)
         : rawStartTime + 25;
       const endTime = rawEndTime + END_PADDING;
       const duration = (endTime - startTime) * 1000;
@@ -2236,7 +2184,7 @@
 
       btn.textContent = "Pause";
       btn.dataset.playing = "true";
-      highlightLine(line);
+      line.classList.add("active");
 
       currentTimeout = setTimeout(() => {
         player.pauseVideo();
@@ -2246,57 +2194,58 @@
     }
   });
 
-  // ====================== SPEAK BUTTON (AHORA SÍ FUNCIONA IGUAL) ======================
+  // =============== SPEAK BUTTON – ahora idéntico al Play ===============
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
+      const text = line.querySelector(".english").innerText;
 
+      // Si ya está hablando → detener
       if (btn.dataset.speaking === "true") {
         speechSynthesis.cancel();
-        btn.textContent = "Speak";
-        delete btn.dataset.speaking;
-        if (!line.querySelector('[data-playing="true"]')) {
-          line.classList.remove("active");
-          currentActiveLine = null;
-        }
-        return;
-      }
-
-      // Pausar vídeo y limpiar estados
-      player.pauseVideo();
-      resetAllButtons();
-      if (currentTimeout) clearTimeout(currentTimeout);
-      clearAllHighlights();
-
-      const text = line.querySelector(".english").innerText;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-US";
-      utter.rate = 0.88;
-      utter.pitch = 1;
-
-      utter.onend = () => {
+        if (currentUtterance) currentUtterance = null;
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         line.classList.remove("active");
-        currentActiveLine = null;
+        if (currentTimeout) clearTimeout(currentTimeout);
+        return;
+      }
+
+      // Limpiar todo (incluido vídeo)
+      resetAll(btn);
+      player.pauseVideo();
+
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "en-US";
+      utter.rate = 0.9;
+
+      utter.onstart = () => {
+        btn.textContent = "Pause";
+        btn.dataset.speaking = "true";
+        line.classList.add("active");
+      };
+
+      utter.onend = () => {
+        btn.textContent = "Replay";
+        delete btn.dataset.speaking;
+        line.classList.remove("active"); // opcional: quitar el resaltado al terminar
+        currentUtterance = null;
       };
 
       utter.onerror = () => {
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         line.classList.remove("active");
-        currentActiveLine = null;
+        currentUtterance = null;
       };
 
+      currentUtterance = utter;
       speechSynthesis.speak(utter);
-      btn.textContent = "Stop";
-      btn.dataset.speaking = "true";
-      highlightLine(line); // ← ¡AHORA SÍ se resalta!
     }
   });
 
-  // ====================== MOSTRAR TRADUCCIÓN ======================
+  // Mostrar/ocultar traducción
   document.addEventListener("click", e => {
     const tb = e.target.closest(".text-block");
     if (tb && !e.target.closest(".controls")) {
