@@ -2143,12 +2143,7 @@ function resetAll(exceptBtn = null) {
   if (currentTimeout) clearTimeout(currentTimeout);
   currentTimeout = null;
 
-  document.querySelectorAll(".line").forEach(l => {
-    if (!exceptBtn || !l.contains(exceptBtn)) {
-      l.classList.remove("active");
-    }
-  });
-
+  document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
   document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
     if (b !== exceptBtn) {
       b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
@@ -2163,13 +2158,15 @@ function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
     if (timeChecker) clearInterval(timeChecker);
     timeChecker = setInterval(() => {
-      updateActiveLine(player.getCurrentTime());
+      const current = player.getCurrentTime();
+      updateActiveLine(current);
     }, 200);
   } else {
     if (timeChecker) clearInterval(timeChecker);
   }
 }
 
+// NO usa offset → sincronización exacta
 function updateActiveLine(currentTime) {
   const lines = Array.from(document.querySelectorAll(".line"));
   let active = null;
@@ -2199,8 +2196,7 @@ document.addEventListener("click", e => {
       player.pauseVideo();
       btn.textContent = "Play";
       delete btn.dataset.playing;
-      resetAll(btn);
-      line.classList.add("active");
+      line.classList.remove("active");
       if (currentTimeout) clearTimeout(currentTimeout);
       return;
     }
@@ -2226,8 +2222,6 @@ document.addEventListener("click", e => {
       player.pauseVideo();
       btn.textContent = "Replay";
       delete btn.dataset.playing;
-      resetAll(btn);
-      line.classList.add("active");
     }, duration);
   }
 });
@@ -2241,21 +2235,28 @@ document.addEventListener("click", e => {
     const rawStartTime = parseFloat(line.dataset.time);
     const startTime = Math.max(0, rawStartTime + START_OFFSET);
 
+    // -------- FIX VIDEO NEGRO AL INICIAR --------
+    if (player && player.getPlayerState() === -1) {
+      player.playVideo();
+      setTimeout(() => player.pauseVideo(), 50);
+    }
+    // ---------------------------------------------
+
     if (btn.dataset.speaking === "true") {
       speechSynthesis.cancel();
       currentUtterance = null;
       btn.textContent = "Speak";
       delete btn.dataset.speaking;
-      resetAll(btn);
-      line.classList.add("active");
+      line.classList.remove("active");
       if (currentTimeout) clearTimeout(currentTimeout);
       return;
     }
 
     resetAll(btn);
 
+    // Mover video a la posición de la línea
     player.seekTo(startTime, true);
-    player.pauseVideo();
+    player.pauseVideo(); // no reproducir automáticamente
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
@@ -2270,16 +2271,14 @@ document.addEventListener("click", e => {
     utter.onend = () => {
       btn.textContent = "Replay";
       delete btn.dataset.speaking;
-      resetAll(btn);
-      line.classList.add("active");
+      line.classList.remove("active");
       currentUtterance = null;
     };
 
     utter.onerror = () => {
       btn.textContent = "Speak";
       delete btn.dataset.speaking;
-      resetAll(btn);
-      line.classList.add("active");
+      line.classList.remove("active");
       currentUtterance = null;
     };
 
