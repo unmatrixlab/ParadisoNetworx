@@ -2115,29 +2115,88 @@
 <script>
   let player;
   let currentTimeout = null;
+  let currentActiveLine = null; // ← NUEVO: para controlar la línea activa globalmente
 
-  // ====== AJUSTES DE CALIBRACIÓN (¡cámbialos aquí!) ======
-  const START_OFFSET = -1;   // segundos antes de empezar (negativo = empieza antes)
-  const END_PADDING  =  2.0;   // segundos extra al final (positivo = termina después)
-  // Ejemplos útiles:
-  // START_OFFSET = -0.8;  END_PADDING = 2.0;   → muy natural
-  // START_OFFSET = -1.5;  END_PADDING = 3.0;   → mucho margen
-  // START_OFFSET = 0;     END_PADDING = 1.0;   → casi sin ajuste
-  // ========================================================
+  // ====== AJUSTES DE CALIBRACIÓN ======
+  const START_OFFSET = -1;
+  const END_PADDING = 2.5;
 
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       videoId: '5MuIMqhT8DM',
-      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1, enablejsapi: 1 },
+      events: {
+        'onReady': onPlayerReady,
+        'onStateChange': onPlayerStateChange
+      }
     });
   }
 
+  function onPlayerReady(event) {
+    // Opcional: empezar pausado
+    setInterval(updateHighlightFromTime, 300); // ← Cada 300ms comprobamos el tiempo actual
+  }
+
+  function onPlayerStateChange(event) {
+    // Si el usuario reproduce manualmente el vídeo, también queremos resaltar
+    if (event.data === YT.PlayerState.PLAYING) {
+      updateHighlightFromTime();
+    }
+  }
+
+  // ====== FUNCIÓN CLAVE: Resaltar línea según el tiempo actual del vídeo ======
+  function updateHighlightFromTime() {
+    if (!player || !player.getCurrentTime) return;
+    const currentTime = player.getCurrentTime();
+    const lines = Array.from(document.querySelectorAll(".line"));
+    
+    // Limpiar estado anterior solo si no estamos en modo "speak" o "play" manual
+    let shouldClear = true;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const start = parseFloat(line.dataset.time);
+      const end = i < lines.length - 1 ? parseFloat(lines[i + 1].dataset.time) : start + 30;
+
+      if (currentTime >= start + START_OFFSET && currentTime < end + END_PADDING) {
+        highlightLine(line);
+        shouldClear = false;
+        break;
+      }
+    }
+
+    if (shouldClear && !currentActiveLine?.querySelector('[data-speaking="true"], [data-playing="true"]')) {
+      clearAllHighlights();
+    }
+  }
+
+  function highlightLine(line) {
+    if (currentActiveLine === line) return;
+    clearAllHighlights();
+    currentActiveLine = line;
+    line.classList.add("active");
+  }
+
+  function clearAllHighlights() {
+    document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
+    currentActiveLine = null;
+  }
+
+  function resetAllButtons() {
+    document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
+      b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
+      delete b.dataset.playing;
+      delete b.dataset.speaking;
+    });
+  }
+
+  // Cargar API de YouTube
   const tag = document.createElement('script');
   tag.src = "https://www.youtube.com/iframe_api";
   const firstScriptTag = document.getElementsByTagName('script')[0];
   firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  // PLAY / PAUSE + AUTO-PAUSA CON CALIBRACIÓN
+  // ====================== PLAY BUTTON ======================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
@@ -2148,47 +2207,37 @@
         player.pauseVideo();
         btn.textContent = "Play";
         delete btn.dataset.playing;
-        line.classList.remove("active");
         if (currentTimeout) clearTimeout(currentTimeout);
+        if (!player.getCurrentTime || player.getCurrentTime() < rawStartTime || player.getCurrentTime() > rawStartTime + 20) {
+          line.classList.remove("active");
+          currentActiveLine = null;
+        }
         return;
       }
 
-      // Limpiar todo antes de reproducir
+      // Resetear todo
       speechSynthesis.cancel();
+      resetAllButtons();
       if (currentTimeout) clearTimeout(currentTimeout);
-      document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
-      document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
-        b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
-        delete b.dataset.playing;
-        delete b.dataset.speaking;
-      });
+      clearAllHighlights();
 
       const allLines = Array.from(document.querySelectorAll(".line"));
       const idx = allLines.indexOf(line);
-
-      // Calcular tiempo de inicio con offset
       const startTime = Math.max(0, rawStartTime + START_OFFSET);
 
-      // Calcular tiempo de fin (siguiente línea o final del vídeo)
-      let rawEndTime;
-      if (idx < allLines.length - 1) {
-        rawEndTime = parseFloat(allLines[idx + 1].dataset.time);
-      } else {
-        // Última línea → estimamos duración larga (ej. 20 segundos más)
-        rawEndTime = rawStartTime + 25;
-      }
-
+      let rawEndTime = idx < allLines.length - 1 
+        ? parseFloat(allLines[idx + 1].dataset.time) 
+        : rawStartTime + 25;
       const endTime = rawEndTime + END_PADDING;
-      const duration = (endTime - startTime) * 1000; // en milisegundos
+      const duration = (endTime - startTime) * 1000;
 
-      // Reproducir
       player.seekTo(startTime, true);
       player.playVideo();
+
       btn.textContent = "Pause";
       btn.dataset.playing = "true";
-      line.classList.add("active");
+      highlightLine(line);
 
-      // Auto-pausa al final del segmento (con padding)
       currentTimeout = setTimeout(() => {
         player.pauseVideo();
         btn.textContent = "Replay";
@@ -2197,43 +2246,61 @@
     }
   });
 
-  // MOSTRAR/ESPANISH (sin cambios)
-  document.addEventListener("click", e => {
-    const tb = e.target.closest(".text-block");
-    if (tb && !e.target.closest(".controls")) {
-      tb.querySelector(".spanish").classList.toggle("visible");
-    }
-  });
-
-  // SPEAK (sin cambios importantes)
+  // ====================== SPEAK BUTTON (AHORA SÍ FUNCIONA IGUAL) ======================
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
       const btn = e.target;
+      const line = btn.closest(".line");
+
       if (btn.dataset.speaking === "true") {
         speechSynthesis.cancel();
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
+        if (!line.querySelector('[data-playing="true"]')) {
+          line.classList.remove("active");
+          currentActiveLine = null;
+        }
         return;
       }
-      player.pauseVideo();
-      document.querySelectorAll(".playBtn").forEach(b => {
-        b.textContent = "Play";
-        delete b.dataset.playing;
-      });
-      document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
-      if (currentTimeout) clearTimeout(currentTimeout);
 
-      const text = btn.closest(".line").querySelector(".english").innerText;
+      // Pausar vídeo y limpiar estados
+      player.pauseVideo();
+      resetAllButtons();
+      if (currentTimeout) clearTimeout(currentTimeout);
+      clearAllHighlights();
+
+      const text = line.querySelector(".english").innerText;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "en-US";
-      utter.rate = 0.9;
+      utter.rate = 0.88;
+      utter.pitch = 1;
+
       utter.onend = () => {
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
+        line.classList.remove("active");
+        currentActiveLine = null;
       };
+
+      utter.onerror = () => {
+        btn.textContent = "Speak";
+        delete btn.dataset.speaking;
+        line.classList.remove("active");
+        currentActiveLine = null;
+      };
+
       speechSynthesis.speak(utter);
       btn.textContent = "Stop";
       btn.dataset.speaking = "true";
+      highlightLine(line); // ← ¡AHORA SÍ se resalta!
+    }
+  });
+
+  // ====================== MOSTRAR TRADUCCIÓN ======================
+  document.addEventListener("click", e => {
+    const tb = e.target.closest(".text-block");
+    if (tb && !e.target.closest(".controls")) {
+      tb.querySelector(".spanish").classList.toggle("visible");
     }
   });
 </script>
