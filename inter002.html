@@ -2115,7 +2115,8 @@
 <script>
   let player;
   let currentTimeout = null;
-  let currentUtterance = null; // para poder cancelar el habla
+  let currentUtterance = null;
+  let highlightInterval = null; // para el chequeo cada 500ms
 
   // ====== AJUSTES DE CALIBRACIÓN ======
   const START_OFFSET = -1;
@@ -2124,16 +2125,64 @@
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       videoId: '5MuIMqhT8DM',
-      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        'onReady': onPlayerReady,
+        'onStateChange': onPlayerStateChange
+      }
     });
   }
 
-  const tag = document.createElement('script');
-  tag.src = "https://www.youtube.com/iframe_api";
-  const firstScriptTag = document.getElementsByTagName('script')[0];
-  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  function onPlayerReady(event) {
+    // Iniciar el sistema de resaltado automático
+    startTimeTracking();
+  }
 
-  // Función común para limpiar todo (vídeo y voz)
+  function onPlayerStateChange(event) {
+    // Si el usuario pausa o termina el vídeo manualmente
+    if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+      resetAll(); // limpia todo: botones, resaltado, voz
+    }
+  }
+
+  // ====== RESALTADO AUTOMÁTICO SEGÚN EL TIEMPO DEL VÍDEO ======
+  function startTimeTracking() {
+    if (highlightInterval) clearInterval(highlightInterval);
+
+    highlightInterval = setInterval(() => {
+      if (!player || !player.getCurrentTime) return;
+
+      const currentTime = player.getCurrentTime();
+      if (isNaN(currentTime)) return;
+
+      const lines = Array.from(document.querySelectorAll(".line"));
+      let activeLine = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const start = parseFloat(line.dataset.time);
+        const end = i < lines.length - 1 
+          ? parseFloat(lines[i + 1].dataset.time)
+          : start + 30; // margen final
+
+        if (currentTime >= start + START_OFFSET && currentTime < end + END_PADDING) {
+          activeLine = line;
+          break;
+        }
+      }
+
+      // Resaltar solo si hay una línea activa y el vídeo está reproduciéndose
+      const isPlaying = player.getPlayerState() === YT.PlayerState.PLAYING;
+
+      document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
+
+      if (activeLine && isPlaying) {
+        activeLine.classList.add("active");
+      }
+    }, 500); // chequea 2 veces por segundo → fluido y eficiente
+  }
+
+  // ====== LIMPIAR TODO ======
   function resetAll(exceptBtn = null) {
     speechSynthesis.cancel();
     if (currentUtterance) currentUtterance = null;
@@ -2149,14 +2198,18 @@
     });
   }
 
-  // =============== PLAY BUTTON (sin cambios importantes) ===============
+  const tag = document.createElement('script');
+  tag.src = "https://www.youtube.com/iframe_api";
+  const firstScriptTag = document.getElementsByTagName('script')[0];
+  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+  // =============== PLAY BUTTON ===============
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const rawStartTime = parseFloat(line.dataset.time);
 
-      // Si ya está reproduciendo → pausar
       if (btn.dataset.playing === "true") {
         player.pauseVideo();
         btn.textContent = "Play";
@@ -2166,14 +2219,12 @@
         return;
       }
 
-      // Limpiar todo
       resetAll(btn);
 
       const allLines = Array.from(document.querySelectorAll(".line"));
       const idx = allLines.indexOf(line);
-
       const startTime = Math.max(0, rawStartTime + START_OFFSET);
-      let rawEndTime = idx < allLines.length - 1 
+      let rawEndTime = idx < allLines.length - 1
         ? parseFloat(allLines[idx + 1].dataset.time)
         : rawStartTime + 25;
       const endTime = rawEndTime + END_PADDING;
@@ -2194,25 +2245,21 @@
     }
   });
 
-  // =============== SPEAK BUTTON – ahora idéntico al Play ===============
+  // =============== SPEAK BUTTON ===============
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const text = line.querySelector(".english").innerText;
 
-      // Si ya está hablando → detener
       if (btn.dataset.speaking === "true") {
         speechSynthesis.cancel();
-        if (currentUtterance) currentUtterance = null;
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         line.classList.remove("active");
-        if (currentTimeout) clearTimeout(currentTimeout);
         return;
       }
 
-      // Limpiar todo (incluido vídeo)
       resetAll(btn);
       player.pauseVideo();
 
@@ -2229,7 +2276,7 @@
       utter.onend = () => {
         btn.textContent = "Replay";
         delete btn.dataset.speaking;
-        line.classList.remove("active"); // opcional: quitar el resaltado al terminar
+        line.classList.remove("active");
         currentUtterance = null;
       };
 
@@ -2237,7 +2284,6 @@
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         line.classList.remove("active");
-        currentUtterance = null;
       };
 
       currentUtterance = utter;
