@@ -2118,7 +2118,7 @@ let player;
 let currentTimeout = null;
 let currentUtterance = null;
 let timeChecker = null;
-let lastPlayAction = null; // "video" o "button"
+let scrollEnabled = false; // Flag para scroll automático
 
 // ====== AJUSTES DE CALIBRACIÓN ======
 const START_OFFSET = -1;
@@ -2205,8 +2205,8 @@ function updateActiveLine(currentTime) {
   if (active) {
     active.classList.add("active");
 
-    // Solo hacer scroll si el play fue desde el reproductor
-    if (lastPlayAction === "video" && player && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING) {
+    // Scroll solo si fue play desde reproductor embebido
+    if (scrollEnabled) {
       scrollLineToCenter(active);
     }
   }
@@ -2215,7 +2215,7 @@ function updateActiveLine(currentTime) {
 // ====== SINCRONIZACIÓN AUTOMÁTICA ======
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
-    lastPlayAction = "video"; // detectamos que la reproducción vino del video
+    scrollEnabled = true; // scroll habilitado solo desde video
     if (timeChecker) clearInterval(timeChecker);
     timeChecker = setInterval(() => {
       updateActiveLine(player.getCurrentTime());
@@ -2228,7 +2228,7 @@ function onPlayerStateChange(event) {
 // ====== BOTONES PLAY ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("playBtn")) {
-    lastPlayAction = "button"; // detectamos que la acción vino de un botón
+    scrollEnabled = false; // scroll deshabilitado si play viene de botón
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
@@ -2294,7 +2294,6 @@ document.addEventListener("click", e => {
 
     if (!firstSeekHandled) {
       firstSeekHandled = true;
-
       player.playVideo();
       setTimeout(() => {
         player.pauseVideo();
