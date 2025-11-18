@@ -2115,16 +2115,19 @@
 <script>
   let player;
   let currentTimeout = null;
-  let currentUtterance = null; // para poder cancelar el habla
+  let currentUtterance = null;
+  let timeChecker = null;
 
   // ====== AJUSTES DE CALIBRACIÓN ======
   const START_OFFSET = -1;
   const END_PADDING = 2.5;
 
+  // ====== YouTube API ======
   function onYouTubeIframeAPIReady() {
     player = new YT.Player('player', {
       videoId: '5MuIMqhT8DM',
-      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 }
+      playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+      events: { onStateChange: onPlayerStateChange }
     });
   }
 
@@ -2133,12 +2136,15 @@
   const firstScriptTag = document.getElementsByTagName('script')[0];
   firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-  // Función común para limpiar todo (vídeo y voz)
+  // ====== RESET GENERAL ======
   function resetAll(exceptBtn = null) {
+    // detener voz
     speechSynthesis.cancel();
-    if (currentUtterance) currentUtterance = null;
+    currentUtterance = null;
     if (currentTimeout) clearTimeout(currentTimeout);
+    currentTimeout = null;
 
+    // limpiar selección
     document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
     document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
       if (b !== exceptBtn) {
@@ -2149,14 +2155,45 @@
     });
   }
 
-  // =============== PLAY BUTTON (sin cambios importantes) ===============
+  // ====== SINCRONIZACIÓN AUTOMÁTICA DE LÍNEAS ======
+  function onPlayerStateChange(event) {
+    if (event.data === YT.PlayerState.PLAYING) {
+      if (timeChecker) clearInterval(timeChecker);
+      timeChecker = setInterval(() => {
+        const current = player.getCurrentTime();
+        updateActiveLine(current);
+      }, 200);
+    } else {
+      if (timeChecker) clearInterval(timeChecker);
+    }
+  }
+
+  function updateActiveLine(currentTime) {
+    const lines = Array.from(document.querySelectorAll(".line"));
+    let active = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const t = parseFloat(lines[i].dataset.time);
+      const next = i < lines.length - 1 ? parseFloat(lines[i+1].dataset.time) : 99999;
+
+      if (currentTime >= t + START_OFFSET && currentTime < next + START_OFFSET) {
+        active = lines[i];
+        break;
+      }
+    }
+
+    lines.forEach(l => l.classList.remove("active"));
+    if (active) active.classList.add("active");
+  }
+
+  // ====== BOTONES PLAY ======
   document.addEventListener("click", e => {
     if (e.target.classList.contains("playBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const rawStartTime = parseFloat(line.dataset.time);
 
-      // Si ya está reproduciendo → pausar
+      // si ya reproduce → pausar
       if (btn.dataset.playing === "true") {
         player.pauseVideo();
         btn.textContent = "Play";
@@ -2166,16 +2203,13 @@
         return;
       }
 
-      // Limpiar todo
       resetAll(btn);
 
       const allLines = Array.from(document.querySelectorAll(".line"));
       const idx = allLines.indexOf(line);
 
       const startTime = Math.max(0, rawStartTime + START_OFFSET);
-      let rawEndTime = idx < allLines.length - 1 
-        ? parseFloat(allLines[idx + 1].dataset.time)
-        : rawStartTime + 25;
+      let rawEndTime = idx < allLines.length - 1 ? parseFloat(allLines[idx + 1].dataset.time) : rawStartTime + 25;
       const endTime = rawEndTime + END_PADDING;
       const duration = (endTime - startTime) * 1000;
 
@@ -2194,17 +2228,16 @@
     }
   });
 
-  // =============== SPEAK BUTTON – ahora idéntico al Play ===============
+  // ====== BOTONES SPEAK ======
   document.addEventListener("click", e => {
     if (e.target.classList.contains("speakBtn")) {
       const btn = e.target;
       const line = btn.closest(".line");
       const text = line.querySelector(".english").innerText;
 
-      // Si ya está hablando → detener
       if (btn.dataset.speaking === "true") {
         speechSynthesis.cancel();
-        if (currentUtterance) currentUtterance = null;
+        currentUtterance = null;
         btn.textContent = "Speak";
         delete btn.dataset.speaking;
         line.classList.remove("active");
@@ -2212,7 +2245,6 @@
         return;
       }
 
-      // Limpiar todo (incluido vídeo)
       resetAll(btn);
       player.pauseVideo();
 
@@ -2229,7 +2261,7 @@
       utter.onend = () => {
         btn.textContent = "Replay";
         delete btn.dataset.speaking;
-        line.classList.remove("active"); // opcional: quitar el resaltado al terminar
+        line.classList.remove("active");
         currentUtterance = null;
       };
 
@@ -2245,13 +2277,15 @@
     }
   });
 
-  // Mostrar/ocultar traducción
+  // ====== MOSTRAR/OCULTAR TRADUCCIÓN ======
   document.addEventListener("click", e => {
-    const tb = e.target.closest(".text-block");
+    const tb = e.target.closest(".text-block, .line");
     if (tb && !e.target.closest(".controls")) {
-      tb.querySelector(".spanish").classList.toggle("visible");
+      const span = tb.querySelector(".spanish");
+      if (span) span.classList.toggle("visible");
     }
   });
+
 </script>
 </body>
 </html>
