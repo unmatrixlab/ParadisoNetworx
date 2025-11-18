@@ -2143,7 +2143,11 @@ function resetAll(exceptBtn = null) {
   if (currentTimeout) clearTimeout(currentTimeout);
   currentTimeout = null;
 
-  document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
+  document.querySelectorAll(".line").forEach(l => {
+    if (!exceptBtn || !l.contains(exceptBtn)) {
+      l.classList.remove("active");
+    }
+  });
 
   document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
     if (b !== exceptBtn) {
@@ -2159,15 +2163,13 @@ function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
     if (timeChecker) clearInterval(timeChecker);
     timeChecker = setInterval(() => {
-      const current = player.getCurrentTime();
-      updateActiveLine(current);
+      updateActiveLine(player.getCurrentTime());
     }, 200);
   } else {
     if (timeChecker) clearInterval(timeChecker);
   }
 }
 
-// ====== MARCAR LÍNEA SEGÚN VIDEO ======
 function updateActiveLine(currentTime) {
   const lines = Array.from(document.querySelectorAll(".line"));
   let active = null;
@@ -2175,6 +2177,7 @@ function updateActiveLine(currentTime) {
   for (let i = 0; i < lines.length; i++) {
     const t = parseFloat(lines[i].dataset.time);
     const next = i < lines.length - 1 ? parseFloat(lines[i+1].dataset.time) : 99999;
+
     if (currentTime >= t && currentTime < next) {
       active = lines[i];
       break;
@@ -2185,35 +2188,30 @@ function updateActiveLine(currentTime) {
   if (active) active.classList.add("active");
 }
 
-// =============================
-// ====== BOTONES PLAY ========
-// =============================
+// ====== BOTONES PLAY ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("playBtn")) {
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
 
-    // toggle pausa
     if (btn.dataset.playing === "true") {
       player.pauseVideo();
       btn.textContent = "Play";
       delete btn.dataset.playing;
-      line.classList.remove("active");
+      resetAll(btn);
+      line.classList.add("active");
       if (currentTimeout) clearTimeout(currentTimeout);
       return;
     }
 
-    resetAll(btn); // ★ FIX: limpia siempre la selección previa
+    resetAll(btn);
 
     const allLines = Array.from(document.querySelectorAll(".line"));
     const idx = allLines.indexOf(line);
 
     const startTime = Math.max(0, rawStartTime + START_OFFSET);
-    const rawEndTime = idx < allLines.length - 1 ?
-      parseFloat(allLines[idx + 1].dataset.time) :
-      rawStartTime + 25;
-
+    const rawEndTime = idx < allLines.length - 1 ? parseFloat(allLines[idx + 1].dataset.time) : rawStartTime + 25;
     const endTime = rawEndTime + END_PADDING;
     const duration = (endTime - startTime) * 1000;
 
@@ -2222,22 +2220,19 @@ document.addEventListener("click", e => {
 
     btn.textContent = "Pause";
     btn.dataset.playing = "true";
-
-    // ★ FIX: esta línea siempre queda como la seleccionada
-    document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
     line.classList.add("active");
 
     currentTimeout = setTimeout(() => {
       player.pauseVideo();
       btn.textContent = "Replay";
       delete btn.dataset.playing;
+      resetAll(btn);
+      line.classList.add("active");
     }, duration);
   }
 });
 
-// =============================
-// ====== BOTONES SPEAK =======
-// =============================
+// ====== BOTONES SPEAK ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("speakBtn")) {
     const btn = e.target;
@@ -2246,26 +2241,21 @@ document.addEventListener("click", e => {
     const rawStartTime = parseFloat(line.dataset.time);
     const startTime = Math.max(0, rawStartTime + START_OFFSET);
 
-    // cancelar si estaba hablando
     if (btn.dataset.speaking === "true") {
       speechSynthesis.cancel();
       currentUtterance = null;
       btn.textContent = "Speak";
       delete btn.dataset.speaking;
-      line.classList.remove("active");
+      resetAll(btn);
+      line.classList.add("active");
       if (currentTimeout) clearTimeout(currentTimeout);
       return;
     }
 
-    resetAll(btn); 
+    resetAll(btn);
 
-    // ★ FIX: siempre se posiciona el video aunque esté pausado
     player.seekTo(startTime, true);
     player.pauseVideo();
-
-    // ★ FIX: SOLO esta línea queda seleccionada
-    document.querySelectorAll(".line").forEach(l => l.classList.remove("active"));
-    line.classList.add("active");
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
@@ -2274,19 +2264,22 @@ document.addEventListener("click", e => {
     utter.onstart = () => {
       btn.textContent = "Pause";
       btn.dataset.speaking = "true";
+      line.classList.add("active");
     };
 
     utter.onend = () => {
       btn.textContent = "Replay";
       delete btn.dataset.speaking;
-      line.classList.remove("active");
+      resetAll(btn);
+      line.classList.add("active");
       currentUtterance = null;
     };
 
     utter.onerror = () => {
       btn.textContent = "Speak";
       delete btn.dataset.speaking;
-      line.classList.remove("active");
+      resetAll(btn);
+      line.classList.add("active");
       currentUtterance = null;
     };
 
@@ -2295,9 +2288,7 @@ document.addEventListener("click", e => {
   }
 });
 
-// =============================
-// TRADUCCIÓN: TOCAR TEXTO
-// =============================
+// ====== MOSTRAR/OCULTAR TRADUCCIÓN ======
 document.addEventListener("click", e => {
   const tb = e.target.closest(".text-block, .line");
   if (tb && !e.target.closest(".controls")) {
