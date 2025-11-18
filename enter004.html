@@ -2118,7 +2118,7 @@ let player;
 let currentTimeout = null;
 let currentUtterance = null;
 let timeChecker = null;
-let scrollEnabled = false; // Flag para scroll automático
+let scrollEnabled = false; // scroll automático solo desde reproductor
 
 // ====== AJUSTES DE CALIBRACIÓN ======
 const START_OFFSET = -1;
@@ -2205,7 +2205,7 @@ function updateActiveLine(currentTime) {
   if (active) {
     active.classList.add("active");
 
-    // Scroll solo si fue play desde reproductor embebido
+    // Scroll solo si play vino del reproductor embebido
     if (scrollEnabled) {
       scrollLineToCenter(active);
     }
@@ -2215,11 +2215,19 @@ function updateActiveLine(currentTime) {
 // ====== SINCRONIZACIÓN AUTOMÁTICA ======
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
-    scrollEnabled = true; // scroll habilitado solo desde video
+    // Activamos scroll solo si el evento no fue iniciado por un botón
+    if (!scrollEnabled) {
+      // check si play fue desde reproductor
+      if (!event.target.dataset.fromButton) {
+        scrollEnabled = true;
+      }
+    }
+
     if (timeChecker) clearInterval(timeChecker);
     timeChecker = setInterval(() => {
       updateActiveLine(player.getCurrentTime());
     }, 200);
+
   } else {
     if (timeChecker) clearInterval(timeChecker);
   }
@@ -2228,10 +2236,12 @@ function onPlayerStateChange(event) {
 // ====== BOTONES PLAY ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("playBtn")) {
-    scrollEnabled = false; // scroll deshabilitado si play viene de botón
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
+
+    // marcar que este play vino de un botón para ignorar scroll
+    player.dataset.fromButton = true;
 
     if (btn.dataset.playing === "true") {
       player.pauseVideo();
@@ -2267,6 +2277,9 @@ document.addEventListener("click", e => {
       resetAll(btn);
       line.classList.add("active");
     }, duration);
+
+    // luego de iniciar desde botón, desmarcamos para futuros play del reproductor
+    setTimeout(() => delete player.dataset.fromButton, 50);
   }
 });
 
