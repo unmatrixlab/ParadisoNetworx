@@ -2215,19 +2215,20 @@ function updateActiveLine(currentTime) {
 // ====== SINCRONIZACIÓN AUTOMÁTICA ======
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
-    // Activamos scroll solo si el evento no fue iniciado por un botón
-    if (!scrollEnabled) {
-      // check si play fue desde reproductor
-      if (!event.target.dataset.fromButton) {
-        scrollEnabled = true;
-      }
+    // scrollEnabled permanece solo si fue activado por usuario en iframe (no botón)
+    if (scrollEnabled) {
+      // activamos timeChecker para sincronizar líneas
+      if (timeChecker) clearInterval(timeChecker);
+      timeChecker = setInterval(() => {
+        updateActiveLine(player.getCurrentTime());
+      }, 200);
+    } else {
+      // Si scrollDisabled (botón), igual sincronizamos líneas sin scroll
+      if (timeChecker) clearInterval(timeChecker);
+      timeChecker = setInterval(() => {
+        updateActiveLine(player.getCurrentTime());
+      }, 200);
     }
-
-    if (timeChecker) clearInterval(timeChecker);
-    timeChecker = setInterval(() => {
-      updateActiveLine(player.getCurrentTime());
-    }, 200);
-
   } else {
     if (timeChecker) clearInterval(timeChecker);
   }
@@ -2240,8 +2241,7 @@ document.addEventListener("click", e => {
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
 
-    // marcar que este play vino de un botón para ignorar scroll
-    player.dataset.fromButton = true;
+    scrollEnabled = false; // deshabilitar scroll si play desde botón
 
     if (btn.dataset.playing === "true") {
       player.pauseVideo();
@@ -2277,9 +2277,6 @@ document.addEventListener("click", e => {
       resetAll(btn);
       line.classList.add("active");
     }, duration);
-
-    // luego de iniciar desde botón, desmarcamos para futuros play del reproductor
-    setTimeout(() => delete player.dataset.fromButton, 50);
   }
 });
 
