@@ -2113,11 +2113,12 @@
     </div> <!-- /.dialogue-container -->
   </div> <!-- /.page-max-width -->
 <script>
-  let firstSeekHandled = false;
+let firstSeekHandled = false;
 let player;
 let currentTimeout = null;
 let currentUtterance = null;
 let timeChecker = null;
+let lastPlayAction = null; // "video" o "button"
 
 // ====== AJUSTES DE CALIBRACIÓN ======
 const START_OFFSET = -1;
@@ -2128,28 +2129,24 @@ function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
     videoId: '5MuIMqhT8DM',
     playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-    events: { onStateChange: onPlayerStateChange }
+    events: { 
+      onStateChange: onPlayerStateChange,
+      onReady: () => {
+        onPlayerReadyAutoKickstart();
+      }
+    }
   });
 }
 
-  // ====== AUTO PLAY → PAUSE AL CARGAR ======
+// ====== AUTO PLAY → PAUSE AL CARGAR ======
 function onPlayerReadyAutoKickstart() {
-  // Hacemos un play rápido para activar el iframe
   player.playVideo();
-
   setTimeout(() => {
     player.pauseVideo();
-  }, 300); // suficiente para activar el buffer interno
+  }, 300);
 }
 
-// Esperamos a que el player esté listo
-const checkReady = setInterval(() => {
-  if (player && player.getPlayerState) {
-    clearInterval(checkReady);
-    onPlayerReadyAutoKickstart();
-  }
-}, 200);
-
+// Cargar API
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -2177,16 +2174,17 @@ function resetAll(exceptBtn = null) {
   });
 }
 
-// ====== SINCRONIZACIÓN AUTOMÁTICA ======
-function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.PLAYING) {
-    if (timeChecker) clearInterval(timeChecker);
-    timeChecker = setInterval(() => {
-      updateActiveLine(player.getCurrentTime());
-    }, 200);
-  } else {
-    if (timeChecker) clearInterval(timeChecker);
-  }
+// ====== SCROLL AUTOMÁTICO ======
+function scrollLineToCenter(element) {
+  const rect = element.getBoundingClientRect();
+  const elementCenter = rect.top + rect.height / 2;
+  const screenCenter = window.innerHeight / 2;
+  const offset = elementCenter - screenCenter;
+
+  window.scrollBy({
+    top: offset,
+    behavior: 'smooth'
+  });
 }
 
 function updateActiveLine(currentTime) {
@@ -2204,12 +2202,33 @@ function updateActiveLine(currentTime) {
   }
 
   lines.forEach(l => l.classList.remove("active"));
-  if (active) active.classList.add("active");
+  if (active) {
+    active.classList.add("active");
+
+    // Solo hacer scroll si el play fue desde el reproductor
+    if (lastPlayAction === "video" && player && player.getPlayerState && player.getPlayerState() === YT.PlayerState.PLAYING) {
+      scrollLineToCenter(active);
+    }
+  }
+}
+
+// ====== SINCRONIZACIÓN AUTOMÁTICA ======
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.PLAYING) {
+    lastPlayAction = "video"; // detectamos que la reproducción vino del video
+    if (timeChecker) clearInterval(timeChecker);
+    timeChecker = setInterval(() => {
+      updateActiveLine(player.getCurrentTime());
+    }, 200);
+  } else {
+    if (timeChecker) clearInterval(timeChecker);
+  }
 }
 
 // ====== BOTONES PLAY ======
 document.addEventListener("click", e => {
   if (e.target.classList.contains("playBtn")) {
+    lastPlayAction = "button"; // detectamos que la acción vino de un botón
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
@@ -2273,24 +2292,19 @@ document.addEventListener("click", e => {
 
     resetAll(btn);
 
-  if (!firstSeekHandled) {
-  firstSeekHandled = true;
+    if (!firstSeekHandled) {
+      firstSeekHandled = true;
 
-  // Activación real
-  player.playVideo();
-  setTimeout(() => {
-    player.pauseVideo();
-
-    // Ahora sí el seek real funciona
-    player.seekTo(startTime, true);
-    player.pauseVideo();
-  }, 250);
-
-} else {
-  // Ya activado, comportamiento normal
-  player.seekTo(startTime, true);
-  player.pauseVideo();
-}
+      player.playVideo();
+      setTimeout(() => {
+        player.pauseVideo();
+        player.seekTo(startTime, true);
+        player.pauseVideo();
+      }, 250);
+    } else {
+      player.seekTo(startTime, true);
+      player.pauseVideo();
+    }
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
