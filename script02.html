@@ -235,7 +235,7 @@
             });
         }
 
-        // --- Lógica de Fusión ---
+        // --- Lógica de Fusión (SRT Processing) ---
 
         function getYouTubeVideoId(url) {
             const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/.+\/|embed\/|v\/|watch\?v=|[^#]*\??v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
@@ -248,7 +248,7 @@
                 const parts = timeString.split(':');
                 const hours = parseInt(parts[0]);
                 const minutes = parseInt(parts[1]);
-                const secondsPart = parts[2].split(/[,.]/); // Soporte para , y .
+                const secondsPart = parts[2].split(/[,.]/); 
                 const seconds = parseInt(secondsPart[0]);
                 const milliseconds = parseInt(secondsPart[1]) || 0;
                 return (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000);
@@ -257,18 +257,16 @@
 
         function parseSRT(text) {
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
-            // Expresión regular ajustada para capturar el texto de manera segura y eliminar tags HTML
             const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2}[,.]\d{3})\s-->\s(\d{2}:\d{2}:\d{2}[,.]\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
             const bloques = [];
             let match;
 
             while ((match = regex.exec(text)) !== null) {
-                // Limpiar texto: eliminar tags HTML y limpiar saltos de línea/espacios múltiples
                 const cleanText = match[4].replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, ' ').replace(/\s\s+/g, ' ').trim();
                 
                 bloques.push({
                     id: match[1],
-                    start: match[2].replace('.', ','), // Normalizar a coma si viene con punto
+                    start: match[2].replace('.', ','), 
                     text: cleanText
                 });
             }
@@ -281,7 +279,8 @@
             for (let i = 0; i < engBlocks.length; i++) {
                 const engItem = engBlocks[i];
                 const espText = espBlocks[i] ? espBlocks[i].text : "";
-                const seconds = timeToSeconds(engItem.start);
+                // Usamos la función original timeToSeconds para el data-time
+                const seconds = timeToSeconds(engItem.start); 
 
                 const htmlBlock = 
 `<div class="line" data-time="${seconds}">
@@ -301,30 +300,12 @@
             return htmlBlocksOutput;
         }
         
-        function generateFinalHTML(youtubeId, subtitleBlocksHtml, originalTemplate) {
-            // Reemplazar el ID de YouTube
-            let finalHtml = originalTemplate.replace(
-                /const YOUTUBE_ID\s*=\s*'.*?';\s*\/\/ CAMBIAR ID AQUÍ/,
-                `const YOUTUBE_ID = '${youtubeId}'; // ID DE YOUTUBE GENERADO`
-            );
-
-            // Insertar los bloques de subtítulos
-            finalHtml = finalHtml.replace(
-                '',
-                subtitleBlocksHtml
-            );
-
-            return finalHtml;
-        }
-
-
         function fusionar() {
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
             const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-            const originalTemplate = getOriginalTemplate(); // Obtener la plantilla completa
 
-            // 1. Validaciones
+            // 1. Validaciones y obtención de datos
             if (!rawEng.trim()) {
                 alert("⚠️ ¡Falta el archivo en Inglés!");
                 return;
@@ -346,9 +327,22 @@
             
             // 3. Generar bloques HTML de subtítulos fusionados
             const subtitleBlocks = generateSubtitleBlocks(engBlocks, espBlocks);
+            
+            // 4. Obtener Plantilla y Ensamblar
+            const template = getOriginalTemplate();
+            
+            // A. Reemplazar el ID de YouTube
+            let finalCode = template.replace(
+                /const YOUTUBE_ID\s*=\s*'.*?';\s*\/\/ CAMBIAR ID AQUÍ/,
+                `const YOUTUBE_ID = '${videoId}'; // ID DE YOUTUBE GENERADO`
+            );
 
-            // 4. Generar el código HTML FINAL completo
-            const finalCode = generateFinalHTML(videoId, subtitleBlocks, originalTemplate);
+            // B. Insertar los bloques de subtítulos
+            finalCode = finalCode.replace(
+                '',
+                '\n' + subtitleBlocks + '\n'
+            );
+
 
             document.getElementById('output').value = finalCode;
             
@@ -359,9 +353,8 @@
             }
         }
         
-        // --- PLANTILLA ORIGINAL COMPLETA (TU CÓDIGO FINAL DE REPRODUCTOR) ---
+        // --- PLANTILLA ORIGINAL COMPLETA (COMBINADA DE TUS DOS FRAGMENTOS) ---
         function getOriginalTemplate() {
-            // Este es tu código HTML + CSS + JS de reproductor que quieres generar
             return `<!doctype html>
 <html lang="es">
 <head>
@@ -594,13 +587,12 @@
       <div class="video-inner">
         <div id="player"></div>
       </div>
-      <div id="youtubePlayer"></div>
     </div>
 
     <div class="dialogue-container">
       
-     
-       </div>
+    
+      </div>
   </div>
 
   <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
@@ -640,8 +632,6 @@ function onYouTubeIframeAPIReady() {
       'onStateChange': onPlayerStateChange
     }
   });
-    // Inicializar listeners de líneas después de que el reproductor esté listo
-    initializeLineListeners();
 }
 
 /* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
@@ -652,11 +642,13 @@ function checkTime() {
   const currentTime = player.getCurrentTime();
 
   // 1. Control de Segmento (Play Button)
+  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
+  // No usamos setTimeout, así que si hay buffering, espera.
   if (isSegmentPlaying && currentTime >= segmentEndTime) {
     player.pauseVideo();
     isSegmentPlaying = false;
     resetButtons();
-    scrollEnabled = true; 
+    scrollEnabled = true; // Reactivar scroll automático global
     return; 
   }
 
@@ -703,7 +695,7 @@ function highlightCurrentLine(time) {
 
 function scrollToLine(element) {
   // Scroll suave para centrar el elemento, teniendo en cuenta el header y el video sticky
-  const headerOffset = 100;
+  const headerOffset = 100; // <--- ESTE ES EL PROBLEMA
   const elementPosition = element.getBoundingClientRect().top;
   const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
 
@@ -716,74 +708,57 @@ function scrollToLine(element) {
   }
 }
 
-/* ====== INICIALIZACIÓN DE LISTENERS (IMPORTANTE) ====== */
-// Esta función debe llamarse una vez que los subtítulos están en el DOM.
-function initializeLineListeners() {
-    // 1. BOTONES PLAY (SEGMENTOS) 
-    document.querySelectorAll('.playBtn').forEach(btn => {
-        // Asumiendo que el código FINAL no tiene el evento duplicado, 
-        // lo agregamos una vez aquí para el código FINAL.
-        btn.addEventListener('click', handlePlayClick);
-    });
-
-    // 2. BOTONES SPEAK (TTS MEJORADO)
-    document.querySelectorAll('.speakBtn').forEach(btn => {
-        btn.addEventListener('click', handleSpeakClick);
-    });
-    
-    // 3. Toggle de traducción individual
-    document.querySelectorAll('.text-block').forEach(block => {
-        block.addEventListener('click', handleTextToggleClick);
-    });
-    
-    // 4. Cargar voces (Para evitar errores si se llama antes de que estén listas)
-    if (window.speechSynthesis.getVoices().length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-             voices = window.speechSynthesis.getVoices();
-        };
-    } else {
-        voices = window.speechSynthesis.getVoices();
-    }
-}
-
-// HANDLERS PARA EVITAR PROBLEMAS DE REFERENCIA
-function handlePlayClick(e) {
-    e.stopPropagation(); 
-    const line = this.closest('.line');
+/* ====== BOTONES PLAY (SEGMENTOS) ====== */
+document.querySelectorAll('.playBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Evitar abrir traducción
+    const line = btn.closest('.line');
     const start = parseFloat(line.dataset.time) + TIME_OFFSET;
     
+    // Calcular fin basado en la siguiente línea
     const nextLine = line.nextElementSibling;
     const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
     const end = nextTime + END_PADDING;
 
-    if (this.dataset.state === 'playing') {
+    // Si ya está sonando este botón, paramos
+    if (btn.dataset.state === 'playing') {
       player.pauseVideo();
       isSegmentPlaying = false;
       resetButtons();
       return;
     }
 
-    resetButtons();
-    resetSynth(); 
+    // Iniciar reproducción
+    resetButtons(); // Limpiar otros
+    resetSynth();   // Calla la voz sintética si habla
     
-    scrollEnabled = false; 
+    scrollEnabled = false; // Desactivar scroll auto para que no salte
     isSegmentPlaying = true;
     segmentEndTime = end;
     
     player.seekTo(Math.max(0, start), true);
     player.playVideo();
     
-    this.textContent = "Stop";
-    this.dataset.state = 'playing';
+    btn.textContent = "Stop";
+    btn.dataset.state = 'playing';
     line.classList.add('active');
-}
+  });
+});
 
-function handleSpeakClick(e) {
+/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
+// Cargar voces
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => {
+  voices = window.speechSynthesis.getVoices();
+};
+
+document.querySelectorAll('.speakBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const line = this.closest('.line');
+    const line = btn.closest('.line');
     const text = line.querySelector('.english').innerText;
 
-    if (this.dataset.state === 'speaking') {
+    if (btn.dataset.state === 'speaking') {
       resetSynth();
       resetButtons();
       return;
@@ -791,10 +766,11 @@ function handleSpeakClick(e) {
 
     resetButtons();
     resetSynth();
-    player.pauseVideo(); 
+    player.pauseVideo(); // Callar video si suena
 
     const utter = new SpeechSynthesisUtterance(text);
     
+    // Intentar buscar una voz mejor (Google US o Samantha)
     const preferredVoice = voices.find(v => 
       v.name.includes('Google US English') || 
       v.name.includes('Samantha') || 
@@ -803,11 +779,11 @@ function handleSpeakClick(e) {
     
     if (preferredVoice) utter.voice = preferredVoice;
     utter.lang = 'en-US';
-    utter.rate = 0.9; 
+    utter.rate = 0.9; // Un poco más lento para claridad
 
     utter.onstart = () => {
-      this.textContent = "Stop";
-      this.dataset.state = 'speaking';
+      btn.textContent = "Stop";
+      btn.dataset.state = 'speaking';
       line.classList.add('active');
     };
     
@@ -816,19 +792,10 @@ function handleSpeakClick(e) {
     };
 
     window.speechSynthesis.speak(utter);
-}
-
-function handleTextToggleClick() {
-    const span = this.querySelector('.spanish');
-    span.classList.toggle('visible');
-}
+  });
+});
 
 /* ====== UTILIDADES ====== */
-let voices = [];
-window.speechSynthesis.onvoiceschanged = () => {
-  voices = window.speechSynthesis.getVoices();
-};
-
 function resetButtons() {
   document.querySelectorAll('.playBtn').forEach(b => {
     b.textContent = "Play";
@@ -838,11 +805,20 @@ function resetButtons() {
     b.textContent = "Speak";
     b.removeAttribute('data-state');
   });
+  // No quitamos la clase 'active' de la línea para no perder el foco visual
 }
 
 function resetSynth() {
   window.speechSynthesis.cancel();
 }
+
+// Toggle de traducción individual
+document.querySelectorAll('.text-block').forEach(block => {
+  block.addEventListener('click', () => {
+    const span = block.querySelector('.spanish');
+    span.classList.toggle('visible');
+  });
+});
 
 // Toggle global (Botón Flotante)
 let allVisible = false;
@@ -853,10 +829,6 @@ function toggleAllTranslations() {
     else span.classList.remove('visible');
   });
 }
-
-// Llamar a la inicialización de listeners en la plantilla final, NO en la herramienta.
-// La herramienta debe tener sus funciones de interfaz definidas:
-// Las funciones clearText, clearAll, pasteText y copyText están definidas arriba.
 </script>
 </body>
 </html>`;
