@@ -2195,204 +2195,212 @@ function onYouTubeIframeAPIReady() {
 /* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
 // Esta función se ejecuta cada 100ms cuando el video corre
 function checkTime() {
-  if (!player || !player.getCurrentTime) return;
-  
-  const currentTime = player.getCurrentTime();
+  if (!player || !player.getCurrentTime) return;
+  
+  const currentTime = player.getCurrentTime();
 
-  // 1. Control de Segmento (Play Button)
-  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
-  // No usamos setTimeout, así que si hay buffering, espera.
-  if (isSegmentPlaying && currentTime >= segmentEndTime) {
-    player.pauseVideo();
-    isSegmentPlaying = false;
-    resetButtons();
-    scrollEnabled = true; // Reactivar scroll automático global
-    return; 
-  }
+  // 1. Control de Segmento (Play Button)
+  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
+  // No usamos setTimeout, así que si hay buffering, espera.
+  if (isSegmentPlaying && currentTime >= segmentEndTime) {
+    player.pauseVideo();
+    isSegmentPlaying = false;
+    resetButtons(); // Solo resetea los textos de los botones ("Stop" -> "Play")
+    scrollEnabled = true; // Reactivar scroll automático global
+    return; 
+  }
 
-  // 2. Resaltado Automático (Scroll)
-  if (scrollEnabled) {
-    highlightCurrentLine(currentTime);
-  }
+  // 2. Resaltado Automático (Scroll)
+  if (scrollEnabled) {
+    highlightCurrentLine(currentTime);
+  }
 }
 
 function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.PLAYING) {
-    // Iniciar el monitor de tiempo
-    clearInterval(checkInterval);
-    checkInterval = setInterval(checkTime, 100);
-  } else {
-    clearInterval(checkInterval);
-  }
+  if (event.data === YT.PlayerState.PLAYING) {
+    // Iniciar el monitor de tiempo
+    clearInterval(checkInterval);
+    checkInterval = setInterval(checkTime, 100);
+  } else {
+    clearInterval(checkInterval);
+  }
 }
 
 /* ====== MANEJO DE DOM ====== */
 
 // Resaltar línea actual basada en el tiempo
 function highlightCurrentLine(time) {
-  const lines = document.querySelectorAll('.line');
-  let activeLine = null;
+  const lines = document.querySelectorAll('.line');
+  let activeLine = null;
 
-  lines.forEach((line, index) => {
-    const start = parseFloat(line.dataset.time);
-    // El fin es el inicio de la siguiente línea, o +10s si es la última
-    const nextLine = lines[index + 1];
-    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
+  lines.forEach((line, index) => {
+    const start = parseFloat(line.dataset.time);
+    // El fin es el inicio de la siguiente línea, o +10s si es la última
+    const nextLine = lines[index + 1];
+    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
 
-    if (time >= start && time < end) {
-      activeLine = line;
-    }
-    line.classList.remove('active');
-  });
+    if (time >= start && time < end) {
+      activeLine = line;
+    }
+    line.classList.remove('active');
+  });
 
-  if (activeLine) {
-    activeLine.classList.add('active');
-    scrollToLine(activeLine);
-  }
+  if (activeLine) {
+    activeLine.classList.add('active');
+    scrollToLine(activeLine);
+  }
 }
 
 function scrollToLine(element) {
-  // Obtiene la posición y dimensiones del elemento
-  const rect = element.getBoundingClientRect();
-  
-  // Calcula el centro vertical del elemento
-  const elementCenter = rect.top + rect.height / 2;
-  
-  // Calcula el centro vertical de la ventana visible (viewport)
-  const screenCenter = window.innerHeight / 2;
-  
-  // Calcula el desplazamiento necesario para mover el centro del elemento al centro de la pantalla.
-  // El window.pageYOffset es importante para que el desplazamiento sea relativo a la parte superior del documento.
-  // **Ajuste:** Se incluye un ajuste de -40 (similar al -40 en tu función de ejemplo) si se requiere que quede un poco más abajo del centro.
-  const offsetPosition = window.pageYOffset + elementCenter - screenCenter - 40; 
-  
-  // Se realiza el scroll suave
-  window.scrollTo({
-    top: offsetPosition,
-    behavior: "smooth"
-  });
+  // Obtiene la posición y dimensiones del elemento
+  const rect = element.getBoundingClientRect();
+  
+  // Calcula el centro vertical del elemento
+  const elementCenter = rect.top + rect.height / 2;
+  
+  // Calcula el centro vertical de la ventana visible (viewport)
+  const screenCenter = window.innerHeight / 2;
+  
+  // Calcula el desplazamiento necesario para mover el centro del elemento al centro de la pantalla.
+  const offsetPosition = window.pageYOffset + elementCenter - screenCenter - 40; 
+  
+  // Se realiza el scroll suave
+  window.scrollTo({
+    top: offsetPosition,
+    behavior: "smooth"
+  });
 }
 
 /* ====== BOTONES PLAY (SEGMENTOS) ====== */
 document.querySelectorAll('.playBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Evitar abrir traducción
-    const line = btn.closest('.line');
-    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
-    
-    // Calcular fin basado en la siguiente línea
-    const nextLine = line.nextElementSibling;
-    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
-    const end = nextTime + END_PADDING;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Evitar abrir traducción
+    const line = btn.closest('.line');
+    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
+    
+    // Calcular fin basado en la siguiente línea
+    const nextLine = line.nextElementSibling;
+    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
+    const end = nextTime + END_PADDING;
 
-    // Si ya está sonando este botón, paramos
-    if (btn.dataset.state === 'playing') {
-      player.pauseVideo();
-      isSegmentPlaying = false;
-      resetButtons();
-      return;
-    }
+    // Si ya está sonando este botón, paramos
+    if (btn.dataset.state === 'playing') {
+      player.pauseVideo();
+      isSegmentPlaying = false;
+      resetButtons();
+      return;
+    }
 
-    // Iniciar reproducción
-    resetButtons(); // Limpiar otros
-    resetSynth();   // Calla la voz sintética si habla
-    
-    scrollEnabled = false; // Desactivar scroll auto para que no salte
-    isSegmentPlaying = true;
-    segmentEndTime = end;
-    
-    player.seekTo(Math.max(0, start), true);
-    player.playVideo();
-    
-    btn.textContent = "Stop";
-    btn.dataset.state = 'playing';
-    line.classList.add('active');
-  });
+    // Iniciar reproducción
+    resetButtons(); // Limpiar otros botones
+    resetSynth();   // Calla la voz sintética si habla
+    clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
+    
+    scrollEnabled = false; // Desactivar scroll auto para que no salte
+    isSegmentPlaying = true;
+    segmentEndTime = end;
+    
+    player.seekTo(Math.max(0, start), true);
+    player.playVideo();
+    
+    btn.textContent = "Stop";
+    btn.dataset.state = 'playing';
+    line.classList.add('active'); // Activa la nueva línea
+  });
 });
 
 /* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
 // Cargar voces
 let voices = [];
 window.speechSynthesis.onvoiceschanged = () => {
-  voices = window.speechSynthesis.getVoices();
+  voices = window.speechSynthesis.getVoices();
 };
 
 document.querySelectorAll('.speakBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const line = btn.closest('.line');
-    const text = line.querySelector('.english').innerText;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const line = btn.closest('.line');
+    const text = line.querySelector('.english').innerText;
 
-    if (btn.dataset.state === 'speaking') {
-      resetSynth();
-      resetButtons();
-      return;
-    }
+    if (btn.dataset.state === 'speaking') {
+      resetSynth();
+      resetButtons();
+      return;
+    }
 
-    resetButtons();
-    resetSynth();
-    player.pauseVideo(); // Callar video si suena
+    resetButtons();
+    resetSynth();
+    player.pauseVideo(); // Callar video si suena
 
-    const utter = new SpeechSynthesisUtterance(text);
-    
-    // Intentar buscar una voz mejor (Google US o Samantha)
-    const preferredVoice = voices.find(v => 
-      v.name.includes('Google US English') || 
-      v.name.includes('Samantha') || 
-      v.lang === 'en-US'
-    );
-    
-    if (preferredVoice) utter.voice = preferredVoice;
-    utter.lang = 'en-US';
-    utter.rate = 0.9; // Un poco más lento para claridad
+    const utter = new SpeechSynthesisUtterance(text);
+    
+    // Intentar buscar una voz mejor (Google US o Samantha)
+    const preferredVoice = voices.find(v => 
+      v.name.includes('Google US English') || 
+      v.name.includes('Samantha') || 
+      v.lang === 'en-US'
+    );
+    
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.lang = 'en-US';
+    utter.rate = 0.9; // Un poco más lento para claridad
 
-    utter.onstart = () => {
-      btn.textContent = "Stop";
-      btn.dataset.state = 'speaking';
-      line.classList.add('active');
-    };
-    
-    utter.onend = () => {
-      resetButtons();
-    };
+    utter.onstart = () => {
+      btn.textContent = "Stop";
+      btn.dataset.state = 'speaking';
+      clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
+      line.classList.add('active'); // Activa la nueva línea
+    };
+    
+    utter.onend = () => {
+      resetButtons();
+    };
 
-    window.speechSynthesis.speak(utter);
-  });
+    window.speechSynthesis.speak(utter);
+  });
 });
 
 /* ====== UTILIDADES ====== */
+
+// Función auxiliar para quitar la selección de todas las líneas.
+function clearActiveLines() {
+  document.querySelectorAll('.line.active').forEach(line => {
+    line.classList.remove('active');
+  });
+}
+
 function resetButtons() {
-  document.querySelectorAll('.playBtn').forEach(b => {
-    b.textContent = "Play";
-    b.removeAttribute('data-state');
-  });
-  document.querySelectorAll('.speakBtn').forEach(b => {
-    b.textContent = "Speak";
-    b.removeAttribute('data-state');
-  });
-  // No quitamos la clase 'active' de la línea para no perder el foco visual
+  document.querySelectorAll('.playBtn').forEach(b => {
+    b.textContent = "Play";
+    b.removeAttribute('data-state');
+  });
+  document.querySelectorAll('.speakBtn').forEach(b => {
+    b.textContent = "Speak";
+    b.removeAttribute('data-state');
+  });
+  // No se toca la clase 'active' aquí, lo que garantiza que la línea se mantenga seleccionada al finalizar el Play.
 }
 
 function resetSynth() {
-  window.speechSynthesis.cancel();
+  window.speechSynthesis.cancel();
 }
 
 // Toggle de traducción individual
 document.querySelectorAll('.text-block').forEach(block => {
-  block.addEventListener('click', () => {
-    const span = block.querySelector('.spanish');
-    span.classList.toggle('visible');
-  });
+  block.addEventListener('click', () => {
+    const span = block.querySelector('.spanish');
+    span.classList.toggle('visible');
+  });
 });
 
 // Toggle global (Botón Flotante)
 let allVisible = false;
 function toggleAllTranslations() {
-  allVisible = !allVisible;
-  document.querySelectorAll('.spanish').forEach(span => {
-    if (allVisible) span.classList.add('visible');
-    else span.classList.remove('visible');
-  });
+  allVisible = !allVisible;
+  document.querySelectorAll('.spanish').forEach(span => {
+    if (allVisible) span.classList.add('visible');
+    else span.classList.remove('visible');
+  });
 }
 </script>
 </body>
