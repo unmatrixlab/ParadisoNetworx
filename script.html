@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fusionador de Subtítulos ING/ESP</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 10px; }
+        p.desc { text-align: center; color: #666; margin-bottom: 30px; }
+        
+        .container { display: flex; gap: 15px; height: 70vh; }
+        .column { flex: 1; display: flex; flex-direction: column; }
+        
+        label { font-weight: bold; margin-bottom: 8px; color: #444; display: block; }
+        
+        textarea {
+            flex: 1; padding: 15px;
+            border: 1px solid #ccc; border-radius: 8px;
+            font-family: monospace; font-size: 12px; resize: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        textarea:focus { border-color: #3498db; outline: none; }
+
+        .btn-container { text-align: center; margin: 20px 0; }
+        
+        button {
+            padding: 15px 40px;
+            background: #3498db; color: white; border: none;
+            border-radius: 30px; cursor: pointer; font-size: 18px;
+            font-weight: bold; transition: 0.3s;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+        button:hover { background: #2980b9; transform: translateY(-2px); }
+
+        /* Estilo para la columna de resultado */
+        #output { background: #2c3e50; color: #ecf0f1; border: none; }
+    </style>
+</head>
+<body>
+
+    <h2>Fusionador de Subtítulos a HTML</h2>
+    <p class="desc">Pega los dos SRT (Inglés y Español) y obtén el código HTML combinado.</p>
+
+    <div class="container">
+        <div class="column">
+            <label for="inputEng">1. Texto INGLÉS (SRT)</label>
+            <textarea id="inputEng" placeholder="1
+00:00:12,760 --> 00:00:14,616
+When I was first learning..."></textarea>
+        </div>
+
+        <div class="column">
+            <label for="inputEsp">2. Texto ESPAÑOL (SRT)</label>
+            <textarea id="inputEsp" placeholder="1
+00:00:12,760 --> 00:00:14,616
+Cuando estaba aprendiendo..."></textarea>
+        </div>
+
+        <div class="column">
+            <label for="output">3. Resultado HTML</label>
+            <textarea id="output" readonly placeholder="Aquí aparecerá el código mágico..."></textarea>
+        </div>
+    </div>
+
+    <div class="btn-container">
+        <button onclick="fusionar()">FUSIONAR Y GENERAR CÓDIGO</button>
+    </div>
+
+    <script>
+        // Función para convertir tiempo a segundos
+        function timeToSeconds(timeString) {
+            try {
+                const parts = timeString.split(':');
+                const hours = parseInt(parts[0]);
+                const minutes = parseInt(parts[1]);
+                const secondsPart = parts[2].split(','); 
+                const seconds = parseInt(secondsPart[0]);
+                return (hours * 3600) + (minutes * 60) + seconds;
+            } catch (e) { return 0; }
+        }
+
+        // Función para parsear (leer) un SRT y convertirlo en un array de objetos
+        function parseSRT(text) {
+            // Normalizar saltos de línea
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
+            
+            const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2},\d{3})\s-->\s(\d{2}:\d{2}:\d{2},\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
+            const bloques = [];
+            let match;
+
+            while ((match = regex.exec(text)) !== null) {
+                bloques.push({
+                    id: match[1],
+                    start: match[2], // Tiempo inicio
+                    text: match[4].replace(/\n/g, ' ').trim() // Texto limpio sin saltos
+                });
+            }
+            return bloques;
+        }
+
+        function fusionar() {
+            const rawEng = document.getElementById('inputEng').value;
+            const rawEsp = document.getElementById('inputEsp').value;
+
+            const engBlocks = parseSRT(rawEng);
+            const espBlocks = parseSRT(rawEsp);
+
+            if (engBlocks.length === 0) {
+                alert("No se detectó texto en el campo de INGLÉS.");
+                return;
+            }
+
+            let htmlOutput = "";
+
+            // Recorremos los bloques en inglés
+            for (let i = 0; i < engBlocks.length; i++) {
+                const engItem = engBlocks[i];
+                
+                // Buscamos el bloque español correspondiente por índice (posición)
+                // Si no existe (porque hay menos líneas en español), ponemos un texto vacío
+                const espText = espBlocks[i] ? espBlocks[i].text : "";
+
+                // Calculamos segundos basados en el tiempo del INGLÉS
+                const seconds = timeToSeconds(engItem.start);
+
+                // Creamos el HTML
+                const htmlBlock = 
+`<div class="line" data-time="${seconds}">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">${engItem.text}</div>
+      <div class="spanish">${espText}</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>`;
+
+                htmlOutput += htmlBlock + "\n\n";
+            }
+
+            document.getElementById('output').value = htmlOutput;
+
+            // Advertencia si las longitudes no coinciden
+            if (engBlocks.length !== espBlocks.length) {
+                alert(`¡Ojo! Hay ${engBlocks.length} bloques en inglés y ${espBlocks.length} en español. Se han unido los que coincidían.`);
+            }
+        }
+    </script>
+
+</body>
+</html>
