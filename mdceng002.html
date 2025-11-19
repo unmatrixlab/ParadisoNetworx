@@ -1,0 +1,3261 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>MDC ENG - Video Learning</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4f46e5;       /* Índigo profesional */
+    --primary-hover: #4338ca;
+    --accent: #ec4899;        /* Rosa para destaques */
+    --bg-body: #f3f4f6;
+    --card-bg: #ffffff;
+    --text-main: #1f2937;
+    --text-sec: #6b7280;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --radius: 12px;
+    --header-height: 50px;    /* Altura fija para cálculos */
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+    padding-top: var(--header-height); /* Espacio para el header fijo */
+  }
+
+  /* ====== HEADER MEJORADO (Estilo App) ====== */
+  #mdc-header {
+    position: fixed;
+    top: 0; left: 0; width: 100%;
+    height: var(--header-height);
+    background: rgba(31, 41, 55, 0.95); /* Oscuro casi opaco */
+    backdrop-filter: blur(10px);        /* Efecto vidrio */
+    color: white;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  #mdc-header a {
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ====== CONTENEDOR PRINCIPAL ====== */
+  .page-max-width {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+    position: relative;
+  }
+
+  /* ====== VIDEO STICKY (Optimizado) ====== */
+  .video-wrapper {
+    position: sticky;
+    top: var(--header-height); /* Se pega justo debajo del header */
+    width: 100%;
+    background: #000;
+    z-index: 500;
+    box-shadow: var(--shadow);
+  }
+  .video-inner {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    height: 0;
+    overflow: hidden;
+  }
+  .video-inner iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: 0;
+  }
+
+  /* ====== LISTA DE DIÁLOGOS ====== */
+  .dialogue-container {
+    padding: 20px 15px 80px 15px; /* Padding bottom extra para botón flotante */
+  }
+
+  .line {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid transparent;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+  }
+
+  /* Estado Activo */
+  .line.active {
+    border-left-color: var(--primary);
+    background-color: #eef2ff; /* Azul muy suave */
+    transform: scale(1.02);
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+  }
+
+  .line-content {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  /* Textos */
+  .text-block {
+    flex: 1;
+    cursor: pointer;
+  }
+  .english {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+  .spanish {
+    font-size: 0.95rem;
+    color: var(--text-sec);
+    border-top: 1px solid #eee;
+    padding-top: 6px;
+    display: none; /* Oculto por defecto */
+    line-height: 1.4;
+  }
+  .spanish.visible {
+    display: block;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Botones de Línea */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 80px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: 100%;
+  }
+
+  .playBtn {
+    background-color: var(--primary);
+    color: white;
+  }
+  .playBtn:hover { background-color: var(--primary-hover); }
+  
+  /* Estado Reproduciendo (Rojo Stop) */
+  .playBtn[data-state="playing"] {
+    background-color: #ef4444;
+    animation: pulse 1.5s infinite;
+  }
+
+  .speakBtn {
+    background-color: #e5e7eb;
+    color: var(--text-main);
+  }
+  .speakBtn:hover { background-color: #d1d5db; }
+  
+  /* Estado Hablando */
+  .speakBtn[data-state="speaking"] {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  /* ====== BOTÓN FLOTANTE (Global Toggle) ====== */
+  .fab-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: var(--text-main);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    cursor: pointer;
+    z-index: 100;
+    transition: transform 0.2s;
+  }
+  .fab-toggle:active { transform: scale(0.9); }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  /* Media Queries */
+  @media (max-width: 640px) {
+    .line { padding: 15px; }
+    .english { font-size: 1rem; }
+    .controls { min-width: 70px; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="mdc-header">
+    <a href="https://paradisonetworx.com/mdceng">MDC ENG</a>
+  </div>
+
+  <div class="page-max-width">
+    
+    <div class="video-wrapper">
+      <div class="video-inner">
+        <div id="player"></div>
+      </div>
+    </div>
+
+    <div class="dialogue-container">
+      
+<!-- PEGAR TEXTO DEBAJO -->
+<div class="line" data-time="12">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">When I was first learning to meditate,</div>
+      <div class="spanish">Cuando empecé a aprender a meditar,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="14">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">the instruction was to simply pay attention to my breath,</div>
+      <div class="spanish">La instrucción era simplemente prestar atención a mi respiración.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="17">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and when my mind wandered, to bring it back.</div>
+      <div class="spanish">y cuando mi mente divagaba, traerla de vuelta.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="20">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Sounded simple enough.</div>
+      <div class="spanish">Parecía bastante sencillo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="22">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Yet I'd sit on these silent retreats,</div>
+      <div class="spanish">Sin embargo, participaba en esos retiros de silencio.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="25">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">sweating through T-shirts in the middle of winter.</div>
+      <div class="spanish">Sudar a mares empapando camisetas en pleno invierno.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="29">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I'd take naps every chance I got because it was really hard work.</div>
+      <div class="spanish">Aprovechaba cada oportunidad para echarme una siesta porque era un trabajo muy duro.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="32">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Actually, it was exhausting.</div>
+      <div class="spanish">La verdad es que fue agotador.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="35">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The instruction was simple enough</div>
+      <div class="spanish">La instrucción era bastante sencilla.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="37">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but I was missing something really important.</div>
+      <div class="spanish">pero me estaba perdiendo algo realmente importante.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="40">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So why is it so hard to pay attention?</div>
+      <div class="spanish">¿Por qué es tan difícil prestar atención?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="43">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Well, studies show</div>
+      <div class="spanish">Bueno, los estudios lo demuestran.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="44">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that even when we're really trying to pay attention to something --</div>
+      <div class="spanish">que incluso cuando realmente estamos intentando prestar atención a algo...</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="47">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">like maybe this talk --</div>
+      <div class="spanish">como tal vez esta charla...</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="49">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">at some point,</div>
+      <div class="spanish">en algún momento,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="50">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">about half of us will drift off into a daydream,</div>
+      <div class="spanish">Aproximadamente la mitad de nosotros nos perderemos en un mundo de ensueño.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="52">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or have this urge to check our Twitter feed.</div>
+      <div class="spanish">o tener la necesidad imperiosa de consultar nuestro feed de Twitter.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="56">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So what's going on here?</div>
+      <div class="spanish">¿Qué está pasando aquí?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="59">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It turns out that we're fighting one of the most evolutionarily-conserved</div>
+      <div class="spanish">Resulta que estamos luchando contra uno de los organismos más conservados evolutivamente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="62">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">learning processes currently known in science,</div>
+      <div class="spanish">procesos de aprendizaje actualmente conocidos en la ciencia,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="65">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">one that's conserved</div>
+      <div class="spanish">uno que se conserva</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="66">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">back to the most basic nervous systems known to man.</div>
+      <div class="spanish">Volvamos a los sistemas nerviosos más básicos conocidos por el hombre.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="69">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">This reward-based learning process</div>
+      <div class="spanish">Este proceso de aprendizaje basado en recompensas</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="71">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">is called positive and negative reinforcement,</div>
+      <div class="spanish">se denomina refuerzo positivo y negativo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="73">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and basically goes like this.</div>
+      <div class="spanish">y básicamente funciona así.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="76">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We see some food that looks good,</div>
+      <div class="spanish">Vemos algunos alimentos que tienen buen aspecto,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="77">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">our brain says, "Calories! ... Survival!"</div>
+      <div class="spanish">Nuestro cerebro dice: "¡Calorías!... ¡Supervivencia!"</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="80">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We eat the food, we taste it --</div>
+      <div class="spanish">Comemos la comida, la saboreamos --</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="82">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">it tastes good.</div>
+      <div class="spanish">Tiene buen sabor.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="83">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And especially with sugar,</div>
+      <div class="spanish">Y especialmente con el azúcar,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="84">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">our bodies send a signal to our brain that says,</div>
+      <div class="spanish">Nuestros cuerpos envían una señal a nuestro cerebro que dice:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="87">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">"Remember what you're eating and where you found it."</div>
+      <div class="spanish">"Recuerda lo que comes y dónde lo encontraste."</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="91">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We lay down this context-dependent memory</div>
+      <div class="spanish">Establecemos esta memoria dependiente del contexto</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="94">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and learn to repeat the process next time.</div>
+      <div class="spanish">y aprende a repetir el proceso la próxima vez.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="96">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">See food,</div>
+      <div class="spanish">Ver comida,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="97">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">eat food, feel good,</div>
+      <div class="spanish">comer, sentirse bien,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="99">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">repeat.</div>
+      <div class="spanish">repetir.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="100">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Trigger, behavior, reward.</div>
+      <div class="spanish">Desencadenante, comportamiento, recompensa.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="103">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Simple, right?</div>
+      <div class="spanish">Sencillo, ¿verdad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="105">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Well, after a while, our creative brains say,</div>
+      <div class="spanish">Bueno, después de un tiempo, nuestro cerebro creativo dice:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="108">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">"You know what?</div>
+      <div class="spanish">"¿Sabes que?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="109">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">You can use this for more than just remembering where food is.</div>
+      <div class="spanish">Puedes usarlo para mucho más que solo recordar dónde está la comida.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="112">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">You know, next time you feel bad,</div>
+      <div class="spanish">Ya sabes, la próxima vez que te sientas mal,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="115">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">why don't you try eating something good so you'll feel better?"</div>
+      <div class="spanish">¿Por qué no intentas comer algo rico para que te sientas mejor?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="119">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We thank our brains for the great idea,</div>
+      <div class="spanish">Agradecemos a nuestros cerebros por la gran idea.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="121">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">try this and quickly learn</div>
+      <div class="spanish">Prueba esto y aprenderás rápidamente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="123">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that if we eat chocolate or ice cream when we're mad or sad,</div>
+      <div class="spanish">que si comemos chocolate o helado cuando estamos enojados o tristes,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="126">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we feel better.</div>
+      <div class="spanish">Nos sentimos mejor.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="128">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Same process,</div>
+      <div class="spanish">El mismo proceso,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="130">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">just a different trigger.</div>
+      <div class="spanish">Simplemente un desencadenante diferente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="131">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Instead of this hunger signal coming from our stomach,</div>
+      <div class="spanish">En lugar de que esta señal de hambre provenga de nuestro estómago,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="134">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">this emotional signal -- feeling sad --</div>
+      <div class="spanish">esta señal emocional -- sentirse triste --</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="136">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">triggers that urge to eat.</div>
+      <div class="spanish">desencadena ese impulso de comer.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="139">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Maybe in our teenage years,</div>
+      <div class="spanish">Tal vez en nuestra adolescencia,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="141">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we were a nerd at school,</div>
+      <div class="spanish">Éramos unos empollones en el colegio,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="143">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and we see those rebel kids outside smoking and we think,</div>
+      <div class="spanish">Y vemos a esos chicos rebeldes fumando afuera y pensamos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="146">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">"Hey, I want to be cool."</div>
+      <div class="spanish">"Oye, quiero ser genial."</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="147">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So we start smoking.</div>
+      <div class="spanish">Así que empezamos a fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="149">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The Marlboro Man wasn't a dork, and that was no accident.</div>
+      <div class="spanish">El hombre Marlboro no era un tonto, y eso no fue casualidad.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="153">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">See cool,</div>
+      <div class="spanish">Mira, genial.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="154">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">smoke to be cool,</div>
+      <div class="spanish">fumar para estar fresco,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="156">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">feel good. Repeat.</div>
+      <div class="spanish">Siéntete bien. Repite.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="157">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Trigger, behavior, reward.</div>
+      <div class="spanish">Desencadenante, comportamiento, recompensa.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="160">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And each time we do this,</div>
+      <div class="spanish">Y cada vez que hacemos esto,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="161">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we learn to repeat the process</div>
+      <div class="spanish">Aprendemos a repetir el proceso</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="163">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and it becomes a habit.</div>
+      <div class="spanish">y se convierte en un hábito.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="165">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So later,</div>
+      <div class="spanish">Así que más tarde,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="167">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">feeling stressed out triggers that urge to smoke a cigarette</div>
+      <div class="spanish">Sentirse estresado desencadena las ganas de fumar un cigarrillo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="170">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or to eat something sweet.</div>
+      <div class="spanish">o comer algo dulce.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="173">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, with these same brain processes,</div>
+      <div class="spanish">Ahora bien, con estos mismos procesos cerebrales,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="176">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we've gone from learning to survive</div>
+      <div class="spanish">Hemos pasado de aprender a sobrevivir</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="178">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to literally killing ourselves with these habits.</div>
+      <div class="spanish">hasta literalmente matarnos con estos hábitos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="180">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Obesity and smoking</div>
+      <div class="spanish">Obesidad y tabaquismo</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="182">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">are among the leading preventable causes of morbidity and mortality in the world.</div>
+      <div class="spanish">Se encuentran entre las principales causas prevenibles de morbilidad y mortalidad en el mundo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="187">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So back to my breath.</div>
+      <div class="spanish">Volvamos a mi respiración.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="189">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What if instead of fighting our brains,</div>
+      <div class="spanish">¿Y si en lugar de luchar contra nuestro cerebro,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="192">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or trying to force ourselves to pay attention,</div>
+      <div class="spanish">o intentando obligarnos a prestar atención,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="194">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we instead tapped into this natural, reward-based learning process ...</div>
+      <div class="spanish">En cambio, aprovechamos este proceso de aprendizaje natural basado en recompensas...</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="198">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but added a twist?</div>
+      <div class="spanish">¿Pero con un giro inesperado?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="200">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What if instead we just got really curious</div>
+      <div class="spanish">¿Y si, en cambio, simplemente nos sintiéramos realmente curiosos?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="202">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">about what was happening in our momentary experience?</div>
+      <div class="spanish">¿Sobre qué estaba sucediendo en nuestra experiencia momentánea?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="205">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I'll give you an example.</div>
+      <div class="spanish">Te daré un ejemplo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="206">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">In my lab,</div>
+      <div class="spanish">En mi laboratorio,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="207">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we studied whether mindfulness training could help people quit smoking.</div>
+      <div class="spanish">Estudiamos si el entrenamiento en atención plena podría ayudar a las personas a dejar de fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="211">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, just like trying to force myself to pay attention to my breath,</div>
+      <div class="spanish">Ahora, al igual que cuando intento obligarme a prestar atención a mi respiración,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="214">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">they could try to force themselves to quit smoking.</div>
+      <div class="spanish">Podrían intentar obligarse a dejar de fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="218">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And the majority of them had tried this before and failed --</div>
+      <div class="spanish">Y la mayoría de ellos ya lo habían intentado antes y habían fracasado.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="221">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">on average, six times.</div>
+      <div class="spanish">En promedio, seis veces.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="223">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, with mindfulness training,</div>
+      <div class="spanish">Ahora, con el entrenamiento en atención plena,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="225">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we dropped the bit about forcing and instead focused on being curious.</div>
+      <div class="spanish">Dejamos de lado la idea de forzar las cosas y, en cambio, nos centramos en la curiosidad.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="229">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">In fact, we even told them to smoke.</div>
+      <div class="spanish">De hecho, incluso les dijimos que fumaran.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="232">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What? Yeah, we said, "Go ahead and smoke,</div>
+      <div class="spanish">¿Qué? Sí, dijimos: "Adelante, fuma,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="234">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">just be really curious about what it's like when you do."</div>
+      <div class="spanish">Simplemente, ten mucha curiosidad por saber qué se siente al hacerlo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="238">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And what did they notice?</div>
+      <div class="spanish">¿Y qué observaron?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="240">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Well here's an example from one of our smokers.</div>
+      <div class="spanish">Bueno, aquí tenéis un ejemplo de uno de nuestros fumadores.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="242">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She said, "Mindful smoking:</div>
+      <div class="spanish">Ella dijo: "Fumar con atención plena:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="244">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">smells like stinky cheese</div>
+      <div class="spanish">Huele a queso rancio</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="246">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and tastes like chemicals,</div>
+      <div class="spanish">y sabe a productos químicos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="247">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">YUCK!"</div>
+      <div class="spanish">¡PUAJ!</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="249">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, she knew, cognitively that smoking was bad for her,</div>
+      <div class="spanish">Ahora, ella sabía, cognitivamente, que fumar era malo para su salud.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="253">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that's why she joined our program.</div>
+      <div class="spanish">Por eso se unió a nuestro programa.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="255">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What she discovered just by being curiously aware when she smoked</div>
+      <div class="spanish">Lo que descubrió simplemente prestando atención, por curiosidad, cuando fumaba</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="260">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">was that smoking tastes like shit.</div>
+      <div class="spanish">que fumar sabe a mierda.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="263">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="266">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, she moved from knowledge to wisdom.</div>
+      <div class="spanish">Ahora, ella pasó del conocimiento a la sabiduría.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="270">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She moved from knowing in her head that smoking was bad for her</div>
+      <div class="spanish">Pasó de saber intelectualmente que fumar era malo para ella</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="273">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to knowing it in her bones,</div>
+      <div class="spanish">para saberlo en sus huesos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="276">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and the spell of smoking was broken.</div>
+      <div class="spanish">Y se rompió el hechizo del tabaco.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="278">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She started to become disenchanted with her behavior.</div>
+      <div class="spanish">Comenzó a sentirse desencantada con su comportamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="282">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, the prefrontal cortex,</div>
+      <div class="spanish">Ahora bien, la corteza prefrontal,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="285">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that youngest part of our brain from an evolutionary perspective,</div>
+      <div class="spanish">esa parte más joven de nuestro cerebro desde una perspectiva evolutiva,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="288">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">it understands on an intellectual level that we shouldn't smoke.</div>
+      <div class="spanish">Entiende a nivel intelectual que no debemos fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="292">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And it tries its hardest to help us change our behavior,</div>
+      <div class="spanish">Y se esfuerza al máximo por ayudarnos a cambiar nuestro comportamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="296">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to help us stop smoking,</div>
+      <div class="spanish">para ayudarnos a dejar de fumar,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="297">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to help us stop eating that second, that third, that fourth cookie.</div>
+      <div class="spanish">para ayudarnos a dejar de comer esa segunda, esa tercera, esa cuarta galleta.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="302">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We call this cognitive control.</div>
+      <div class="spanish">A esto lo llamamos control cognitivo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="304">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We're using cognition to control our behavior.</div>
+      <div class="spanish">Utilizamos la cognición para controlar nuestro comportamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="307">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Unfortunately,</div>
+      <div class="spanish">Desafortunadamente,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="309">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">this is also the first part of our brain</div>
+      <div class="spanish">Esta es también la primera parte de nuestro cerebro</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="311">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that goes offline when we get stressed out,</div>
+      <div class="spanish">que se desconecta cuando nos estresamos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="313">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which isn't that helpful.</div>
+      <div class="spanish">lo cual no es de mucha ayuda.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="314">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, we can all relate to this in our own experience.</div>
+      <div class="spanish">Ahora bien, todos podemos identificarnos con esto en nuestra propia experiencia.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="316">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We're much more likely to do things like yell at our spouse or kids</div>
+      <div class="spanish">Es mucho más probable que hagamos cosas como gritarle a nuestra pareja o a nuestros hijos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="320">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">when we're stressed out or tired,</div>
+      <div class="spanish">cuando estamos estresados ​​o cansados,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="321">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">even though we know it's not going to be helpful.</div>
+      <div class="spanish">aunque sabemos que no va a ser útil.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="324">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We just can't help ourselves.</div>
+      <div class="spanish">Simplemente no podemos evitarlo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="327">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">When the prefrontal cortex goes offline,</div>
+      <div class="spanish">Cuando la corteza prefrontal deja de funcionar,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="329">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we fall back into our old habits,</div>
+      <div class="spanish">Volvemos a nuestros viejos hábitos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="331">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which is why this disenchantment is so important.</div>
+      <div class="spanish">Por eso este desencanto es tan importante.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="334">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Seeing what we get from our habits</div>
+      <div class="spanish">Ver qué obtenemos de nuestros hábitos</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="336">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">helps us understand them at a deeper level --</div>
+      <div class="spanish">nos ayuda a comprenderlos a un nivel más profundo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="338">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to know it in our bones</div>
+      <div class="spanish">Saberlo en lo más profundo de nuestro ser.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="339">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">so we don't have to force ourselves to hold back</div>
+      <div class="spanish">así no tenemos que obligarnos a contenernos</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="341">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or restrain ourselves from behavior.</div>
+      <div class="spanish">o refrenarnos de nuestro comportamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="343">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We're just less interested in doing it in the first place.</div>
+      <div class="spanish">Simplemente, nos interesa menos hacerlo desde el principio.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="346">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And this is what mindfulness is all about:</div>
+      <div class="spanish">Y de eso se trata la atención plena:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="349">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Seeing really clearly what we get when we get caught up in our behaviors,</div>
+      <div class="spanish">Al ver con claridad lo que obtenemos cuando nos dejamos llevar por nuestros comportamientos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="353">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">becoming disenchanted on a visceral level</div>
+      <div class="spanish">desencantarse a nivel visceral</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="357">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and from this disenchanted stance, naturally letting go.</div>
+      <div class="spanish">y desde esta postura desencantada, naturalmente, dejarlo ir.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="360">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">This isn't to say that, poof, magically we quit smoking.</div>
+      <div class="spanish">Esto no quiere decir que, ¡puf!, mágicamente dejemos de fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="364">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But over time, as we learn to see more and more clearly</div>
+      <div class="spanish">Pero con el tiempo, a medida que aprendemos a ver con mayor claridad</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="367">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">the results of our actions,</div>
+      <div class="spanish">los resultados de nuestras acciones,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="368">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we let go of old habits and form new ones.</div>
+      <div class="spanish">Dejamos atrás los viejos hábitos y formamos otros nuevos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="372">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The paradox here</div>
+      <div class="spanish">La paradoja aquí</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="373">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">is that mindfulness is just about being really interested</div>
+      <div class="spanish">¿Es que la atención plena se trata simplemente de estar realmente interesado?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="376">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">in getting close and personal</div>
+      <div class="spanish">al acercarse y ser personal</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="377">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">with what's actually happening in our bodies and minds</div>
+      <div class="spanish">con lo que realmente está sucediendo en nuestros cuerpos y mentes</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="380">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">from moment to moment.</div>
+      <div class="spanish">Momento a momento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="382">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">This willingness to turn toward our experience</div>
+      <div class="spanish">Esta disposición a recurrir a nuestra experiencia</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="384">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">rather than trying to make unpleasant cravings go away as quickly as possible.</div>
+      <div class="spanish">en lugar de intentar hacer desaparecer los antojos desagradables lo más rápido posible.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="388">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And this willingness to turn toward our experience</div>
+      <div class="spanish">Y esta voluntad de volvernos hacia nuestra experiencia</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="391">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">is supported by curiosity,</div>
+      <div class="spanish">está sustentada por la curiosidad,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="393">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which is naturally rewarding.</div>
+      <div class="spanish">lo cual resulta naturalmente gratificante.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="395">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What does curiosity feel like?</div>
+      <div class="spanish">¿Qué se siente al tener curiosidad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="396">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It feels good.</div>
+      <div class="spanish">Se siente bien.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="399">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And what happens when we get curious?</div>
+      <div class="spanish">¿Y qué sucede cuando nos invade la curiosidad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="401">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We start to notice that cravings are simply made up of body sensations --</div>
+      <div class="spanish">Comenzamos a notar que los antojos se componen simplemente de sensaciones corporales.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="404">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">oh, there's tightness, there's tension,</div>
+      <div class="spanish">Oh, hay tensión, hay rigidez.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="407">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">there's restlessness --</div>
+      <div class="spanish">Hay inquietud --</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="408">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and that these body sensations come and go.</div>
+      <div class="spanish">y que estas sensaciones corporales van y vienen.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="411">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">These are bite-size pieces of experiences</div>
+      <div class="spanish">Son pequeñas dosis de experiencias.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="414">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that we can manage from moment to moment</div>
+      <div class="spanish">que podemos manejar momento a momento</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="416">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">rather than getting clobbered by this huge, scary craving</div>
+      <div class="spanish">en lugar de ser aplastado por este enorme y aterrador antojo</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="421">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that we choke on.</div>
+      <div class="spanish">que nos atragantamos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="422">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">In other words, when we get curious,</div>
+      <div class="spanish">En otras palabras, cuando sentimos curiosidad,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="425">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we step out of our old, fear-based, reactive habit patterns,</div>
+      <div class="spanish">Dejamos atrás nuestros viejos patrones de hábitos reactivos basados ​​en el miedo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="429">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and we step into being.</div>
+      <div class="spanish">Y entramos en el ser.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="432">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We become this inner scientist</div>
+      <div class="spanish">Nos convertimos en ese científico interior.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="434">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">where we're eagerly awaiting that next data point.</div>
+      <div class="spanish">donde esperamos con impaciencia ese próximo dato.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="438">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, this might sound too simplistic to affect behavior.</div>
+      <div class="spanish">Ahora bien, esto puede parecer demasiado simplista para influir en el comportamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="442">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But in one study, we found that mindfulness training</div>
+      <div class="spanish">Pero en un estudio, descubrimos que el entrenamiento en atención plena</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="445">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">was twice as good as gold standard therapy at helping people quit smoking.</div>
+      <div class="spanish">Fue dos veces más eficaz que la terapia estándar de oro para ayudar a las personas a dejar de fumar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="449">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So it actually works.</div>
+      <div class="spanish">Así que en realidad funciona.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="451">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And when we studied the brains of experienced meditators,</div>
+      <div class="spanish">Y cuando estudiamos los cerebros de meditadores experimentados,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="454">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we found that parts of a neural network of self-referential processing</div>
+      <div class="spanish">Descubrimos que partes de una red neuronal de procesamiento autorreferencial</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="458">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">called the default mode network</div>
+      <div class="spanish">llamada red de modo predeterminado</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="460">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">were at play.</div>
+      <div class="spanish">estaban jugando.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="461">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, one current hypothesis is that a region of this network,</div>
+      <div class="spanish">Ahora bien, una hipótesis actual es que una región de esta red,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="464">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">called the posterior cingulate cortex,</div>
+      <div class="spanish">llamada corteza cingulada posterior,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="466">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">is activated not necessarily by craving itself</div>
+      <div class="spanish">se activa no necesariamente por el deseo en sí mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="469">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but when we get caught up in it, when we get sucked in,</div>
+      <div class="spanish">pero cuando nos dejamos atrapar por ello, cuando nos dejamos absorber,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="471">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and it takes us for a ride.</div>
+      <div class="spanish">y nos lleva de paseo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="473">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">In contrast, when we let go --</div>
+      <div class="spanish">En cambio, cuando dejamos ir...</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="475">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">step out of the process</div>
+      <div class="spanish">salir del proceso</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="477">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">just by being curiously aware of what's happening --</div>
+      <div class="spanish">simplemente prestando atención con curiosidad a lo que está sucediendo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="479">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">this same brain region quiets down.</div>
+      <div class="spanish">Esta misma región del cerebro se calma.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="483">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now we're testing app and online-based mindfulness training programs</div>
+      <div class="spanish">Ahora estamos probando programas de entrenamiento de mindfulness basados ​​en aplicaciones y en línea.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="487">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that target these core mechanisms</div>
+      <div class="spanish">que se dirigen a estos mecanismos centrales</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="490">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and, ironically, use the same technology that's driving us to distraction</div>
+      <div class="spanish">Y, paradójicamente, utilizan la misma tecnología que nos está distrayendo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="495">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to help us step out of our unhealthy habit patterns</div>
+      <div class="spanish">para ayudarnos a abandonar nuestros patrones de hábitos poco saludables</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="497">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">of smoking, of stress eating and other addictive behaviors.</div>
+      <div class="spanish">del tabaquismo, de comer por estrés y otros comportamientos adictivos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="501">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, remember that bit about context-dependent memory?</div>
+      <div class="spanish">¿Recuerdan aquello sobre la memoria dependiente del contexto?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="504">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We can deliver these tools to peoples' fingertips</div>
+      <div class="spanish">Podemos poner estas herramientas al alcance de la mano de las personas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="507">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">in the contexts that matter most.</div>
+      <div class="spanish">en los contextos que más importan.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="509">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So we can help them</div>
+      <div class="spanish">Para que podamos ayudarlos</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="510">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">tap into their inherent capacity to be curiously aware</div>
+      <div class="spanish">aprovechar su capacidad inherente para ser curiosamente conscientes</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="513">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">right when that urge to smoke or stress eat or whatever arises.</div>
+      <div class="spanish">justo cuando surge ese impulso de fumar, comer por ansiedad o lo que sea.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="518">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So if you don't smoke or stress eat,</div>
+      <div class="spanish">Así que si no fumas ni comes por estrés,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="520">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">maybe the next time you feel this urge to check your email when you're bored,</div>
+      <div class="spanish">Quizás la próxima vez que sientas esa necesidad de revisar tu correo electrónico cuando estés aburrido,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="524">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or you're trying to distract yourself from work,</div>
+      <div class="spanish">o estás intentando distraerte del trabajo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="526">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or maybe to compulsively respond to that text message when you're driving,</div>
+      <div class="spanish">o quizás para responder compulsivamente a ese mensaje de texto mientras conduces,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="531">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">see if you can tap into this natural capacity,</div>
+      <div class="spanish">Veamos si puedes aprovechar esta capacidad natural.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="534">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">just be curiously aware</div>
+      <div class="spanish">Simplemente mantén una actitud curiosa y consciente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="536">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">of what's happening in your body and mind in that moment.</div>
+      <div class="spanish">de lo que está sucediendo en tu cuerpo y mente en ese momento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="539">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It will just be another chance</div>
+      <div class="spanish">Será simplemente otra oportunidad.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="540">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to perpetuate one of our endless and exhaustive habit loops ...</div>
+      <div class="spanish">para perpetuar uno de nuestros interminables y agotadores ciclos de hábitos...</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="544">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or step out of it.</div>
+      <div class="spanish">o salir de ello.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="546">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Instead of see text message, compulsively text back,</div>
+      <div class="spanish">En lugar de leer el mensaje de texto, responde compulsivamente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="549">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">feel a little bit better --</div>
+      <div class="spanish">Me siento un poco mejor.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="550">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">notice the urge,</div>
+      <div class="spanish">nota la urgencia,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="552">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">get curious,</div>
+      <div class="spanish">Siente curiosidad,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="553">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">feel the joy of letting go</div>
+      <div class="spanish">Siente la alegría de dejar ir</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="555">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and repeat.</div>
+      <div class="spanish">y repetir.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="557">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Thank you.</div>
+      <div class="spanish">Gracias.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+   <!-- PEGAR TEXTO ARRIBA -->
+    
+      </div>
+  </div>
+
+  <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
+    👁️
+  </div>
+
+<script>
+/* ====== CONFIGURACIÓN ====== */
+// Ajuste fino: Si la frase empieza muy rápido, resta 0.5s. Si acaba abruptamente, suma 1.5s
+const TIME_OFFSET = -0.2; 
+const END_PADDING = 1.5; 
+const YOUTUBE_ID  = '5MuIMqhT8DM'; // CAMBIAR ID AQUÍ
+
+/* ====== VARIABLES GLOBALES ====== */
+let player;
+let checkInterval;
+let isSegmentPlaying = false;
+let segmentEndTime = 0;
+let currentSynth = null;
+let scrollEnabled = true;
+
+// ====== YOUTUBE API ======
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('player', {
+    videoId: YOUTUBE_ID,
+    playerVars: { 
+      playsinline: 1, 
+      rel: 0, 
+      modestbranding: 1,
+      controls: 1
+    },
+    events: {
+      'onStateChange': onPlayerStateChange
+    }
+  });
+}
+
+/* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
+// Esta función se ejecuta cada 100ms cuando el video corre
+function checkTime() {
+  if (!player || !player.getCurrentTime) return;
+  
+  const currentTime = player.getCurrentTime();
+
+  // 1. Control de Segmento (Play Button)
+  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
+  // No usamos setTimeout, así que si hay buffering, espera.
+  if (isSegmentPlaying && currentTime >= segmentEndTime) {
+    player.pauseVideo();
+    isSegmentPlaying = false;
+    resetButtons();
+    scrollEnabled = true; // Reactivar scroll automático global
+    return; 
+  }
+
+  // 2. Resaltado Automático (Scroll)
+  if (scrollEnabled) {
+    highlightCurrentLine(currentTime);
+  }
+}
+
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.PLAYING) {
+    // Iniciar el monitor de tiempo
+    clearInterval(checkInterval);
+    checkInterval = setInterval(checkTime, 100);
+  } else {
+    clearInterval(checkInterval);
+  }
+}
+
+/* ====== MANEJO DE DOM ====== */
+
+// Resaltar línea actual basada en el tiempo
+function highlightCurrentLine(time) {
+  const lines = document.querySelectorAll('.line');
+  let activeLine = null;
+
+  lines.forEach((line, index) => {
+    const start = parseFloat(line.dataset.time);
+    // El fin es el inicio de la siguiente línea, o +10s si es la última
+    const nextLine = lines[index + 1];
+    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
+
+    if (time >= start && time < end) {
+      activeLine = line;
+    }
+    line.classList.remove('active');
+  });
+
+  if (activeLine) {
+    activeLine.classList.add('active');
+    scrollToLine(activeLine);
+  }
+}
+
+function scrollToLine(element) {
+  // Scroll suave para centrar el elemento, teniendo en cuenta el header y el video sticky
+  const headerOffset = 320; // Ajuste a ojo para que quede debajo del video
+  const elementPosition = element.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+  // Solo hacemos scroll si está muy lejos del foco (para no marear)
+  if (elementPosition < 150 || elementPosition > window.innerHeight - 150) {
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth"
+    });
+  }
+}
+
+/* ====== BOTONES PLAY (SEGMENTOS) ====== */
+document.querySelectorAll('.playBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Evitar abrir traducción
+    const line = btn.closest('.line');
+    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
+    
+    // Calcular fin basado en la siguiente línea
+    const nextLine = line.nextElementSibling;
+    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
+    const end = nextTime + END_PADDING;
+
+    // Si ya está sonando este botón, paramos
+    if (btn.dataset.state === 'playing') {
+      player.pauseVideo();
+      isSegmentPlaying = false;
+      resetButtons();
+      return;
+    }
+
+    // Iniciar reproducción
+    resetButtons(); // Limpiar otros
+    resetSynth();   // Calla la voz sintética si habla
+    
+    scrollEnabled = false; // Desactivar scroll auto para que no salte
+    isSegmentPlaying = true;
+    segmentEndTime = end;
+    
+    player.seekTo(Math.max(0, start), true);
+    player.playVideo();
+    
+    btn.textContent = "Stop";
+    btn.dataset.state = 'playing';
+    line.classList.add('active');
+  });
+});
+
+/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
+// Cargar voces
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => {
+  voices = window.speechSynthesis.getVoices();
+};
+
+document.querySelectorAll('.speakBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const line = btn.closest('.line');
+    const text = line.querySelector('.english').innerText;
+
+    if (btn.dataset.state === 'speaking') {
+      resetSynth();
+      resetButtons();
+      return;
+    }
+
+    resetButtons();
+    resetSynth();
+    player.pauseVideo(); // Callar video si suena
+
+    const utter = new SpeechSynthesisUtterance(text);
+    
+    // Intentar buscar una voz mejor (Google US o Samantha)
+    const preferredVoice = voices.find(v => 
+      v.name.includes('Google US English') || 
+      v.name.includes('Samantha') || 
+      v.lang === 'en-US'
+    );
+    
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.lang = 'en-US';
+    utter.rate = 0.9; // Un poco más lento para claridad
+
+    utter.onstart = () => {
+      btn.textContent = "Stop";
+      btn.dataset.state = 'speaking';
+      line.classList.add('active');
+    };
+    
+    utter.onend = () => {
+      resetButtons();
+    };
+
+    window.speechSynthesis.speak(utter);
+  });
+});
+
+/* ====== UTILIDADES ====== */
+function resetButtons() {
+  document.querySelectorAll('.playBtn').forEach(b => {
+    b.textContent = "Play";
+    b.removeAttribute('data-state');
+  });
+  document.querySelectorAll('.speakBtn').forEach(b => {
+    b.textContent = "Speak";
+    b.removeAttribute('data-state');
+  });
+  // No quitamos la clase 'active' de la línea para no perder el foco visual
+}
+
+function resetSynth() {
+  window.speechSynthesis.cancel();
+}
+
+// Toggle de traducción individual
+document.querySelectorAll('.text-block').forEach(block => {
+  block.addEventListener('click', () => {
+    const span = block.querySelector('.spanish');
+    span.classList.toggle('visible');
+  });
+});
+
+// Toggle global (Botón Flotante)
+let allVisible = false;
+function toggleAllTranslations() {
+  allVisible = !allVisible;
+  document.querySelectorAll('.spanish').forEach(span => {
+    if (allVisible) span.classList.add('visible');
+    else span.classList.remove('visible');
+  });
+}
+</script>
+</body>
+</html>
