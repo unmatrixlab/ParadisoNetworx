@@ -1,0 +1,4186 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>MDC ENG - Video Learning</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4f46e5;       /* Índigo profesional */
+    --primary-hover: #4338ca;
+    --accent: #ec4899;        /* Rosa para destaques */
+    --bg-body: #f3f4f6;
+    --card-bg: #ffffff;
+    --text-main: #1f2937;
+    --text-sec: #6b7280;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --radius: 12px;
+    --header-height: 50px;    /* Altura fija para cálculos */
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+    padding-top: var(--header-height); /* Espacio para el header fijo */
+  }
+
+  /* ====== HEADER MEJORADO (Estilo App) ====== */
+  #mdc-header {
+    position: fixed;
+    top: 0; left: 0; width: 100%;
+    height: var(--header-height);
+    background: rgba(31, 41, 55, 0.95); /* Oscuro casi opaco */
+    backdrop-filter: blur(10px);        /* Efecto vidrio */
+    color: white;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  #mdc-header a {
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ====== CONTENEDOR PRINCIPAL ====== */
+  .page-max-width {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+    position: relative;
+  }
+
+  /* ====== VIDEO STICKY (Optimizado) ====== */
+  .video-wrapper {
+    position: sticky;
+    top: var(--header-height); /* Se pega justo debajo del header */
+    width: 100%;
+    background: #000;
+    z-index: 500;
+    box-shadow: var(--shadow);
+  }
+  .video-inner {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    height: 0;
+    overflow: hidden;
+  }
+  .video-inner iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: 0;
+  }
+
+  /* ====== LISTA DE DIÁLOGOS ====== */
+  .dialogue-container {
+    padding: 20px 15px 80px 15px; /* Padding bottom extra para botón flotante */
+  }
+
+  .line {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid transparent;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+  }
+
+  /* Estado Activo */
+  .line.active {
+    border-left-color: var(--primary);
+    background-color: #eef2ff; /* Azul muy suave */
+    transform: scale(1.02);
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+  }
+
+  .line-content {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  /* Textos */
+  .text-block {
+    flex: 1;
+    cursor: pointer;
+  }
+  .english {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+  .spanish {
+    font-size: 0.95rem;
+    color: var(--text-sec);
+    border-top: 1px solid #eee;
+    padding-top: 6px;
+    display: none; /* Oculto por defecto */
+    line-height: 1.4;
+  }
+  .spanish.visible {
+    display: block;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Botones de Línea */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 80px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: 100%;
+  }
+
+  .playBtn {
+    background-color: var(--primary);
+    color: white;
+  }
+  .playBtn:hover { background-color: var(--primary-hover); }
+  
+  /* Estado Reproduciendo (Rojo Stop) */
+  .playBtn[data-state="playing"] {
+    background-color: #ef4444;
+    animation: pulse 1.5s infinite;
+  }
+
+  .speakBtn {
+    background-color: #e5e7eb;
+    color: var(--text-main);
+  }
+  .speakBtn:hover { background-color: #d1d5db; }
+  
+  /* Estado Hablando */
+  .speakBtn[data-state="speaking"] {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  /* ====== BOTÓN FLOTANTE (Global Toggle) ====== */
+  .fab-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: var(--text-main);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    cursor: pointer;
+    z-index: 100;
+    transition: transform 0.2s;
+  }
+  .fab-toggle:active { transform: scale(0.9); }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  /* Media Queries */
+  @media (max-width: 640px) {
+    .line { padding: 15px; }
+    .english { font-size: 1rem; }
+    .controls { min-width: 70px; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="mdc-header">
+    <a href="https://paradisonetworx.com/mdceng">MDC ENG</a>
+  </div>
+
+  <div class="page-max-width">
+    
+    <div class="video-wrapper">
+      <div class="video-inner">
+        <div id="player"></div>
+      </div>
+    </div>
+
+    <div class="dialogue-container">
+      
+<!-- PEGAR TEXTO DEBAJO -->
+<div class="line" data-time="18">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It isn’t true what they say,</div>
+      <div class="spanish">No es cierto lo que dicen.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="20">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that you can’t love anyone until you love yourself.</div>
+      <div class="spanish">que no puedes amar a nadie hasta que te ames a ti mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="24">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Have you heard that?</div>
+      <div class="spanish">¿Has oído eso?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="25">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">People say you have to learn to love yourself</div>
+      <div class="spanish">Dicen que tienes que aprender a quererte a ti mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="27">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">before you can love anybody else.</div>
+      <div class="spanish">antes de poder amar a nadie más.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="29">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But it’s not true.</div>
+      <div class="spanish">Pero no es cierto.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="30">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I loved everybody before I loved myself.</div>
+      <div class="spanish">Amé a todos antes de amarme a mí misma.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="34">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Love doesn’t care which way you come or what state you’re in when you get here.</div>
+      <div class="spanish">Al amor no le importa de dónde vengas ni en qué estado te encuentres cuando llegues aquí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="39">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Love welcomes everyone unconditionally.</div>
+      <div class="spanish">El amor acoge a todos incondicionalmente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="44">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Oddly, so do focus group moderators -</div>
+      <div class="spanish">Curiosamente, también lo hacen los moderadores de grupos focales.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="47">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="48">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which is how and why I learned to do it.</div>
+      <div class="spanish">Así y por eso aprendí a hacerlo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="51">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">If you’ve never been a part of a focus group,</div>
+      <div class="spanish">Si nunca has participado en un grupo focal,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="53">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">you’re missing a really special cultural experience.</div>
+      <div class="spanish">Te estás perdiendo una experiencia cultural realmente especial.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="55">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So, in every focus group, there’s a range of characters, right?</div>
+      <div class="spanish">Entonces, en cada grupo focal hay una variedad de personajes, ¿verdad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="60">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There’s always a shy one and a chatty one,</div>
+      <div class="spanish">Siempre hay uno tímido y otro hablador.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="63">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">a grumpy one that doesn’t want to do any of the exercises,</div>
+      <div class="spanish">uno gruñón que no quiere hacer ninguno de los ejercicios,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="66">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and a very excited mom with a notebook,</div>
+      <div class="spanish">y una mamá muy emocionada con una libreta,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="69">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">who wants to get an A plus in all of the exercises.</div>
+      <div class="spanish">que quiera obtener una calificación de A+ en todos los ejercicios.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="72">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="73">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There’s a student who lied on the intake because they need the money,</div>
+      <div class="spanish">Hay un estudiante que mintió en su solicitud de admisión porque necesita el dinero.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="78">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and a dad full of jokes who can’t read the room.</div>
+      <div class="spanish">y un padre lleno de chistes que no sabe leer el ambiente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="82">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="83">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And usually,</div>
+      <div class="spanish">Y normalmente,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="85">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">there’s one ex-military guy</div>
+      <div class="spanish">Hay un exmilitar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="88">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">who keeps staring at the two-way mirror suspiciously.</div>
+      <div class="spanish">quien sigue mirando con recelo el espejo unidireccional.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="91">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="94">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It’s a situation</div>
+      <div class="spanish">Es una situación</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="95">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">where a group of people that may not otherwise ever meet</div>
+      <div class="spanish">donde un grupo de personas que de otro modo quizá nunca se encontrarían</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="99">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">have the chance to share their perspectives.</div>
+      <div class="spanish">tener la oportunidad de compartir sus puntos de vista.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="102">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And it’s my job as the moderator to make sure that they all get heard.</div>
+      <div class="spanish">Y mi trabajo como moderadora es asegurarme de que todos sean escuchados.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="106">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, it’s not quite a classroom.</div>
+      <div class="spanish">Ahora bien, esto no es exactamente un aula.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="109">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It’s not group therapy.</div>
+      <div class="spanish">No es terapia de grupo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="110">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And while the community feel has some elements of holiness,</div>
+      <div class="spanish">Y si bien el ambiente comunitario tiene algunos elementos de santidad,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="113">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">probably no one would call it a spiritual experience.</div>
+      <div class="spanish">Probablemente nadie lo llamaría una experiencia espiritual.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="118">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I mean, no one else.</div>
+      <div class="spanish">Es decir, nadie más.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="120">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Because moderating rooms of strange and difficult voices</div>
+      <div class="spanish">Porque moderar salas de voces extrañas y difíciles</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="124">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">is what taught me to welcome</div>
+      <div class="spanish">Eso es lo que me enseñó a dar la bienvenida</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="126">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">all the strange and difficult parts of myself.</div>
+      <div class="spanish">Todas las partes extrañas y difíciles de mí mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="129">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">No kidding.</div>
+      <div class="spanish">En serio.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="131">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I start every morning meditation</div>
+      <div class="spanish">Comienzo cada mañana meditando</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="132">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">with the same opener I use as a focus group moderator:</div>
+      <div class="spanish">Con la misma frase introductoria que uso como moderadora de grupos focales:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="136">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">“Thanks, everyone, for being here.”</div>
+      <div class="spanish">“Gracias a todos por estar aquí.”</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="139">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="142">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">“Your input is valued.”</div>
+      <div class="spanish">“Valoramos su opinión.”</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="143">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="145">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">“I’m going to hear from each of you. I’ll give you all the chance to speak.</div>
+      <div class="spanish">“Voy a escuchar a cada uno de ustedes. Les daré a todos la oportunidad de hablar.”</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="149">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Just do your best to be completely present, honest,</div>
+      <div class="spanish">Simplemente haz todo lo posible por estar completamente presente, honesto.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="152">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and try to make any requests reasonable.”</div>
+      <div class="spanish">y procure que todas sus peticiones sean razonables.”</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="157">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So I don’t know about you, but there are a lot of me in here,</div>
+      <div class="spanish">No sé ustedes, pero aquí hay mucho de mí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="161">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">in the mind of Karen Faith.</div>
+      <div class="spanish">en la mente de Karen Faith.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="163">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I’m not referring to psychiatric illness specifically,</div>
+      <div class="spanish">No me refiero específicamente a las enfermedades psiquiátricas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="167">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but I don’t exclude that.</div>
+      <div class="spanish">pero no lo excluyo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="169">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="171">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">My mind has plenty of quirks,</div>
+      <div class="spanish">Mi mente tiene muchas peculiaridades.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="173">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but what I have to share is for anyone with an inner dialogue.</div>
+      <div class="spanish">Pero lo que tengo que compartir es para cualquiera que tenga un diálogo interno.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="177">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Though I admit, it’s especially for those of us with a really noisy one.</div>
+      <div class="spanish">Aunque admito que es especialmente para aquellos de nosotros que tenemos uno realmente ruidoso.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="183">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So I noticed some time ago that I was arguing with myself.</div>
+      <div class="spanish">Hace algún tiempo me di cuenta de que estaba discutiendo conmigo mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="186">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And then I wondered:</div>
+      <div class="spanish">Y entonces me pregunté:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="187">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">If I didn’t agree with me,</div>
+      <div class="spanish">Si no estaba de acuerdo conmigo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="190">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">who is I, and who is me in that scenario?</div>
+      <div class="spanish">¿Quién soy yo, y quién soy yo en ese escenario?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="194">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And it turned out that there are quite a few of me.</div>
+      <div class="spanish">Y resulta que soy bastante.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="197">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There’s a really sentimental, emotional me,</div>
+      <div class="spanish">Hay una parte de mí que es muy sentimental y emotiva.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="200">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">an intellectual, analytical me.</div>
+      <div class="spanish">Una persona intelectual y analítica.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="203">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Those two argue a lot.</div>
+      <div class="spanish">Esos dos discuten mucho.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="205">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There’s a me who loves being on stage.</div>
+      <div class="spanish">Hay una parte de mí que adora estar en el escenario.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="209">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There’s another one who is pretty shaky at the moment.</div>
+      <div class="spanish">Hay otro que está bastante inestable en este momento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="214">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Some of us - at this time, I include you -</div>
+      <div class="spanish">Algunos de nosotros —en este momento, te incluyo a ti—</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="217">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">some of us regard these as feelings or thoughts.</div>
+      <div class="spanish">Algunos de nosotros consideramos estas cosas como sentimientos o pensamientos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="220">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And maybe we’ve done our personal homework,</div>
+      <div class="spanish">Y tal vez hayamos hecho nuestra tarea personal,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="222">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">accepting that we can have conflicting feelings at the same time.</div>
+      <div class="spanish">Aceptar que podemos tener sentimientos contradictorios al mismo tiempo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="226">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We can be excited about a new job</div>
+      <div class="spanish">Podemos estar entusiasmados con un nuevo trabajo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="228">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and also dread going back to work.</div>
+      <div class="spanish">y también les aterra volver al trabajo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="230">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We can be tired and want to stay up.</div>
+      <div class="spanish">Podemos estar cansados ​​y querer quedarnos despiertos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="232">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We can adore someone who also annoys us.</div>
+      <div class="spanish">Podemos adorar a alguien que también nos irrita.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="235">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We can love someone who has badly betrayed us.</div>
+      <div class="spanish">Podemos amar a alguien que nos ha traicionado profundamente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="239">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We know this.</div>
+      <div class="spanish">Lo sabemos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="240">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And when we’re honest and rational,</div>
+      <div class="spanish">Y cuando somos honestos y racionales,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="242">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we can see that these are common experiences.</div>
+      <div class="spanish">Podemos ver que se trata de experiencias comunes.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="244">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But we’re not crazy to both love and hate camping.</div>
+      <div class="spanish">Pero no estamos locos por amar y odiar acampar al mismo tiempo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="248">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="251">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It does me no harm to embrace that I feel both ways about it.</div>
+      <div class="spanish">No me hace daño aceptar que siento ambas cosas al respecto.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="258">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But what about the thought that I’m worthless,</div>
+      <div class="spanish">Pero ¿qué pasa con la idea de que no valgo nada?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="261">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that I don’t belong here?</div>
+      <div class="spanish">¿Que no pertenezco aquí?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="264">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The mistakes I’ve made are unforgivable,</div>
+      <div class="spanish">Los errores que he cometido son imperdonables.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="267">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that the bad things that happened in my life were my fault.</div>
+      <div class="spanish">que las cosas malas que me sucedieron en la vida fueron culpa mía.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="271">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Those thoughts are just as real as the rest of them,</div>
+      <div class="spanish">Esos pensamientos son tan reales como los demás.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="274">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but they're harder to live with.</div>
+      <div class="spanish">pero son más difíciles de sobrellevar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="276">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And they send many of us to therapy or to yoga or the nearest bar,</div>
+      <div class="spanish">Y a muchos de nosotros nos mandan a terapia, o a yoga, o al bar más cercano.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="281">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which more or less describes my daily commute for many years.</div>
+      <div class="spanish">lo cual describe, más o menos, mi trayecto diario al trabajo durante muchos años.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="285">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="286">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Because I wanted to silence those thoughts completely.</div>
+      <div class="spanish">Porque quería acallar esos pensamientos por completo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="290">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And let me tell you: I tried.</div>
+      <div class="spanish">Y déjenme decirles: lo intenté.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="291">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I have done every kind of therapy I have ever heard of.</div>
+      <div class="spanish">He probado todo tipo de terapia que he podido conocer.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="295">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I have done talk therapy, energy healing,</div>
+      <div class="spanish">He practicado terapia conversacional y sanación energética.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="298">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">body work, hypnotherapy, soul retrieval,</div>
+      <div class="spanish">trabajo corporal, hipnoterapia, recuperación del alma,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="301">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">the tapping stuff, the thing with the lights.</div>
+      <div class="spanish">Lo de los golpecitos, lo de las luces.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="304">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I did seven kinds of yoga.</div>
+      <div class="spanish">Practiqué siete tipos de yoga.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="306">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I drank the “special tea” with the shaman in the forest.</div>
+      <div class="spanish">Bebí el “té especial” con el chamán en el bosque.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="309">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="312">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I admit I did pass on the acupuncture they do with live honeybees -</div>
+      <div class="spanish">Admito que rechacé la acupuntura que hacen con abejas vivas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="316">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="319">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">people do that.</div>
+      <div class="spanish">La gente hace eso.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="320">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="321">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Suffice to say, I tried.</div>
+      <div class="spanish">Baste decir que lo intenté.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="325">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And still sometimes, when I was alone, I would hear myself shouting: “Shut up!”</div>
+      <div class="spanish">Y aún a veces, cuando estaba solo, me oía gritar: “¡Cállate!”.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="329">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or worse to my own mind.</div>
+      <div class="spanish">o peor aún, en mi opinión.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="334">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">In my work as a people researcher,</div>
+      <div class="spanish">En mi trabajo como investigadora de personas,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="336">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">it’s my job to practice empathy with strangers,</div>
+      <div class="spanish">Mi trabajo consiste en practicar la empatía con desconocidos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="339">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to receive everything I can about their world</div>
+      <div class="spanish">para recibir todo lo que pueda sobre su mundo</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="342">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">in order to understand them as deeply as possible.</div>
+      <div class="spanish">para comprenderlos lo más profundamente posible.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="345">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, it’s noteworthy</div>
+      <div class="spanish">Ahora bien, es digno de mención.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="347">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that I found this career at a temp job, writing meeting notes,</div>
+      <div class="spanish">que encontré esta carrera en un trabajo temporal, escribiendo notas de reuniones,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="350">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">when my supervisor noticed</div>
+      <div class="spanish">cuando mi supervisor se dio cuenta</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="352">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that I wasn’t just paraphrasing conversation,</div>
+      <div class="spanish">que no me limitaba a parafrasear la conversación,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="354">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I was recording body language, micro-expressions, tonal shifts,</div>
+      <div class="spanish">Estaba registrando el lenguaje corporal, las microexpresiones, los cambios tonales,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="359">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">specific verb choices.</div>
+      <div class="spanish">Elección específica de verbos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="362">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">What neither of us knew then is that the qualities</div>
+      <div class="spanish">Lo que ninguno de los dos sabíamos entonces es que las cualidades</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="364">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which made me seem skillful</div>
+      <div class="spanish">lo cual me hizo parecer hábil</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="366">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">were the symptoms of complex post-traumatic stress.</div>
+      <div class="spanish">fueron los síntomas del estrés postraumático complejo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="369">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The most reasonable results of an appalling upbringing,</div>
+      <div class="spanish">Los resultados más razonables de una crianza terrible,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="372">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and a fact I share not to set me apart from you</div>
+      <div class="spanish">Y un hecho que comparto no para diferenciarme de ti.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="376">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but to welcome you in here with me.</div>
+      <div class="spanish">pero para darte la bienvenida aquí conmigo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="378">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Everyone in this room has walked through something difficult</div>
+      <div class="spanish">Todos los que estamos en esta sala hemos pasado por algo difícil.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="381">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">in order to be here.</div>
+      <div class="spanish">para estar aquí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="382">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And I want you to know that whatever path you’ve taken</div>
+      <div class="spanish">Y quiero que sepas que, sea cual sea el camino que hayas elegido, no importa cuál sea.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="385">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">to get through it is honorable.</div>
+      <div class="spanish">Superarlo es honorable.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="387">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Whether you never talk about it, or you write bad poetry about it,</div>
+      <div class="spanish">Ya sea que nunca hables de ello o que escribas malos poemas al respecto,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="390">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whether you make tons of money prosecuting it,</div>
+      <div class="spanish">ya sea que ganes muchísimo dinero procesándolo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="392">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">or if you just hit the gym like a champ to sweat it out of your body,</div>
+      <div class="spanish">o si simplemente te vas al gimnasio como un campeón para sudar y eliminar todo tu cuerpo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="396">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">there is truly no wrong way.</div>
+      <div class="spanish">Realmente no hay una forma incorrecta.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="399">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">There are some ways that cause other problems.</div>
+      <div class="spanish">Existen algunos métodos que causan otros problemas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="402">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">You know the ones.</div>
+      <div class="spanish">Ya sabes a cuáles me refiero.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="404">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="408">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I’ve done some of those.</div>
+      <div class="spanish">He hecho algunas de esas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="409">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I still do some of those.</div>
+      <div class="spanish">Todavía hago algunas de esas cosas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="412">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And I don’t judge those either,</div>
+      <div class="spanish">Y tampoco los juzgo a ellos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="415">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">because gifts and curses are “buy one, get one.”</div>
+      <div class="spanish">porque los regalos y las maldiciones son del tipo “compra uno y llévate otro”.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="419">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And mine were no exception.</div>
+      <div class="spanish">Y las mías no fueron una excepción.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="421">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">My early life gave me heaps of shame and a splintered sense of self -</div>
+      <div class="spanish">Mi infancia me dejó mucha vergüenza y una identidad fragmentada.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="425">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">hence all the different mes -</div>
+      <div class="spanish">de ahí todos los diferentes me-</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="427">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but it also gave me super antennas for the emotions of others.</div>
+      <div class="spanish">pero también me dio una gran sensibilidad para las emociones de los demás.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="431">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">This hypervigilance made me a certified mess of a person</div>
+      <div class="spanish">Esta hipervigilancia me convirtió en un auténtico desastre.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="436">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but a damn near-wizard-level observer.</div>
+      <div class="spanish">pero un observador casi de nivel mago.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="439">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So I got to work.</div>
+      <div class="spanish">Así que me puse a trabajar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="440">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The last 20 years I’ve shadowed people in their homes, at their jobs,</div>
+      <div class="spanish">Durante los últimos 20 años he seguido de cerca a personas en sus hogares, en sus trabajos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="444">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">while they shop and drive,</div>
+      <div class="spanish">mientras compran y conducen,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="445">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and go on dates.</div>
+      <div class="spanish">y tener citas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="448">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I ask them to be honest and vulnerable with me,</div>
+      <div class="spanish">Les pido que sean honestos y vulnerables conmigo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="451">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and to do this, I practice something that I call unconditional welcome,</div>
+      <div class="spanish">Y para ello, practico algo que llamo bienvenida incondicional.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="456">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which is like a researcher’s neutrality, but a little extra.</div>
+      <div class="spanish">que es como la neutralidad de un investigador, pero con un pequeño añadido.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="462">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">The day I discovered it, I was sitting in the living room of a research subject.</div>
+      <div class="spanish">El día que lo descubrí, estaba sentado en la sala de estar de un sujeto de investigación.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="467">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She was a very unpleasant woman, if I’m honest.</div>
+      <div class="spanish">Siendo sincera, era una mujer muy desagradable.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="470">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Feeding french fries to an infant, as she snapped at me</div>
+      <div class="spanish">Le estaba dando patatas fritas a un bebé, mientras ella me gritaba.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="473">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that she would never have her children vaccinated,</div>
+      <div class="spanish">que nunca vacunaría a sus hijos,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="476">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">not even to protect them from polio</div>
+      <div class="spanish">Ni siquiera para protegerlos de la polio</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="478">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">because she didn’t know it was in those shots.</div>
+      <div class="spanish">porque ella no sabía que estaba en esas tomas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="481">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now never mind that she said this</div>
+      <div class="spanish">Ahora, no importa lo que ella haya dicho.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="482">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">an inch of ash deep into a Virginia Slim, right.</div>
+      <div class="spanish">una pulgada de ceniza de profundidad en un Virginia Slim, ¿verdad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="485">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="487">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I was judging her, I know.</div>
+      <div class="spanish">Lo sé, la estaba juzgando.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="489">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I’m not proud of it, but at least one of me is a jerk.</div>
+      <div class="spanish">No estoy orgulloso de ello, pero al menos uno de mí es un imbécil.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="492">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="497">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I needed to connect with her, and I didn’t want to.</div>
+      <div class="spanish">Necesitaba conectar con ella, y no quería hacerlo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="501">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I didn't like her. I didn't respect her.</div>
+      <div class="spanish">No me caía bien. No la respetaba.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="504">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I didn’t want to spend a single moment with her.</div>
+      <div class="spanish">No quería pasar ni un solo momento con ella.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="506">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And the project required that I spend hours.</div>
+      <div class="spanish">Y el proyecto requería que le dedicara horas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="509">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And that I used that time to get to know her:</div>
+      <div class="spanish">Y que utilicé ese tiempo para conocerla:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="512">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">what she values, what she believes, where she finds strength.</div>
+      <div class="spanish">lo que valora, en lo que cree, dónde encuentra fuerza.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="516">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Researcher neutrality was unavailable to me at the time,</div>
+      <div class="spanish">En aquel momento no tenía acceso a la neutralidad del investigador.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="520">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">so I had to get out the big guns.</div>
+      <div class="spanish">Así que tuve que sacar la artillería pesada.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="522">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I called up my New Age visualization skills,</div>
+      <div class="spanish">Recurrí a mis habilidades de visualización de la Nueva Era.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="525">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and I took a deep breath,</div>
+      <div class="spanish">y respiré hondo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="527">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">secondhand smoke and all.</div>
+      <div class="spanish">Humo de segunda mano y todo lo demás.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="529">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And I imagined that my breath was inflating a shiny soap bubble</div>
+      <div class="spanish">E imaginé que mi aliento inflaba una brillante burbuja de jabón.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="533">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">filled with unconditional welcome.</div>
+      <div class="spanish">lleno de una bienvenida incondicional.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="536">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Not tolerance.</div>
+      <div class="spanish">No es tolerancia.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="538">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Not even compassion.</div>
+      <div class="spanish">Ni siquiera compasión.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="541">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Total welcome as is - no comments, no notes.</div>
+      <div class="spanish">Bienvenidos tal cual, sin comentarios ni notas.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="544">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And as I inflated the bubble,</div>
+      <div class="spanish">Y mientras inflaba la burbuja,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="546">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">it became big enough to contain my whole body.</div>
+      <div class="spanish">Llegó a ser lo suficientemente grande como para contener todo mi cuerpo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="549">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And then hers.</div>
+      <div class="spanish">Y luego la suya.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="552">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And in that moment,</div>
+      <div class="spanish">Y en ese momento,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="555">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I saw a mother feeding her baby in a world that she didn’t trust.</div>
+      <div class="spanish">Vi a una madre dando el pecho a su bebé en un mundo en el que no confiaba.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="561">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I told her that I could see that she cared about protecting her son,</div>
+      <div class="spanish">Le dije que podía ver que le importaba proteger a su hijo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="565">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and I asked her if she got that from her parents.</div>
+      <div class="spanish">Y le pregunté si eso lo había heredado de sus padres.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="568">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And then we had a conversation.</div>
+      <div class="spanish">Y entonces tuvimos una conversación.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="571">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And I learned about her.</div>
+      <div class="spanish">Y así supe de ella.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="572">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I learned why she was afraid and angry,</div>
+      <div class="spanish">Comprendí por qué tenía miedo y estaba enfadada.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="575">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and how she fought through that fear to make a family.</div>
+      <div class="spanish">y cómo superó ese miedo para formar una familia.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="578">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">When I welcomed this woman unconditionally,</div>
+      <div class="spanish">Cuando acogí a esta mujer incondicionalmente,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="581">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I saw her more clearly,</div>
+      <div class="spanish">La vi con más claridad.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="584">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but I also loved her instantly.</div>
+      <div class="spanish">Pero también me enamoré de ella al instante.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="588">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We have been told too often that love is hard.</div>
+      <div class="spanish">Nos han dicho demasiadas veces que el amor es difícil.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="591">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It’s not.</div>
+      <div class="spanish">Que no es.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="592">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Love is what happens when we stop trying to figure out who deserves it.</div>
+      <div class="spanish">El amor es lo que sucede cuando dejamos de intentar averiguar quién lo merece.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="596">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It’s right there</div>
+      <div class="spanish">Está justo ahí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="598">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">when we stop trying to figure out who deserves it,</div>
+      <div class="spanish">cuando dejemos de intentar averiguar quién lo merece,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="601">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and we welcome someone, anyone, exactly as they are, in the moment.</div>
+      <div class="spanish">Y damos la bienvenida a cualquiera, exactamente como es, en este momento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="609">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It’ll be two more years before I learn to do this with all the parts of myself.</div>
+      <div class="spanish">Me llevará dos años más aprender a hacer esto con todas las partes de mí misma.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="614">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But it started just as simply; a part of me had become very chatty -</div>
+      <div class="spanish">Pero todo empezó de forma igual de sencilla; una parte de mí se había vuelto muy charlatana.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="619">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">a part that was afraid and angry,</div>
+      <div class="spanish">una parte que tenía miedo y estaba enfadada,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="621">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whiny, demanding,</div>
+      <div class="spanish">quejumbroso, exigente,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="623">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">unreasonable and relentless.</div>
+      <div class="spanish">irrazonable e implacable.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="626">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She told me that we were never going to get better.</div>
+      <div class="spanish">Me dijo que nunca íbamos a mejorar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="629">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She wanted out of here.</div>
+      <div class="spanish">Ella quería irse de allí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="630">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I asked her what I could do.</div>
+      <div class="spanish">Le pregunté qué podía hacer.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="632">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She only told me she wanted to die, over and over and over and over.</div>
+      <div class="spanish">Ella solo me decía que quería morir, una y otra y otra vez.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="637">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I begged her to shut up, and she did not.</div>
+      <div class="spanish">Le rogué que se callara, pero no lo hizo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="641">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Finally, after weeks of harassment,</div>
+      <div class="spanish">Finalmente, tras semanas de acoso,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="644">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whether out of exhaustion or epiphany,</div>
+      <div class="spanish">ya sea por agotamiento o por epifanía,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="647">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">instead of shouting back, I took a deep breath.</div>
+      <div class="spanish">En lugar de responder a gritos, respiré hondo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="651">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I became my own moderator.</div>
+      <div class="spanish">Me convertí en mi propio moderador.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="653">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I said out loud in a voice that surprised me:</div>
+      <div class="spanish">Lo dije en voz alta con una voz que me sorprendió:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="657">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">“Thank you for sharing.</div>
+      <div class="spanish">“Gracias por compartir.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="660">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I’m going to remind you of our agreement to be honest and reasonable.”</div>
+      <div class="spanish">Voy a recordarles nuestro acuerdo de ser honestos y razonables.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="666">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And she answered me - that voice.</div>
+      <div class="spanish">Y ella me respondió, esa voz.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="668">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Now, don’t get spooked. This is all just thinking happening.</div>
+      <div class="spanish">Ahora, no se asusten. Todo esto es solo un efecto de la mente.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="671">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Laughter)</div>
+      <div class="spanish">(Risa)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="673">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But the part of me asking and the part answering</div>
+      <div class="spanish">Pero la parte de mí que pregunta y la parte que responde</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="675">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">did in fact seem like different parts.</div>
+      <div class="spanish">En efecto, parecían partes diferentes.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="678">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">She told me that she was in a lot of pain. And I told her: “I know.</div>
+      <div class="spanish">Me dijo que tenía mucho dolor. Y yo le dije: “Lo sé”.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="681">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And I promise you I’m going to take care of you.</div>
+      <div class="spanish">Y te prometo que voy a cuidarte.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="683">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But I need you to get on board.</div>
+      <div class="spanish">Pero necesito que te unas a nosotros.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="685">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I will listen to you, but I will not obey you.”</div>
+      <div class="spanish">Te escucharé, pero no te obedeceré.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="689">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And as clearly as I’m speaking to you now, she said okay.</div>
+      <div class="spanish">Y tan claramente como te lo estoy diciendo ahora, ella dijo que sí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="693">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And then we started to talk.</div>
+      <div class="spanish">Y entonces empezamos a hablar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="696">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">As I continue the dialogue with myself, I found more of me,</div>
+      <div class="spanish">A medida que continúo el diálogo conmigo misma, descubrí más de mí misma.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="699">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">more voices with more points of view,</div>
+      <div class="spanish">más voces con más puntos de vista,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="701">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">some of them more fun than others.</div>
+      <div class="spanish">Algunos son más divertidos que otros.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="705">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And the imagined landscape of my mind began to look a lot like a focus group.</div>
+      <div class="spanish">Y el paisaje imaginado de mi mente comenzó a parecerse mucho a un grupo de discusión.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="710">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">This round table of wildly mixed characters</div>
+      <div class="spanish">Esta mesa redonda de personajes muy diversos</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="713">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and one moderator keeping some kind of order</div>
+      <div class="spanish">y un moderador que mantuviera algún tipo de orden</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="716">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">with honesty, boundaries, kindness,</div>
+      <div class="spanish">con honestidad, límites, amabilidad,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="720">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and most importantly, gratitude.</div>
+      <div class="spanish">Y, lo más importante, gratitud.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="723">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I thank my selves for their contributions.</div>
+      <div class="spanish">Agradezco a todos sus contribuciones.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="725">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">No matter how bonkers or twisted they may seem,</div>
+      <div class="spanish">Por muy descabelladas o retorcidas que parezcan,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="728">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">because we’re all me.</div>
+      <div class="spanish">Porque todos somos yo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="731">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">I think of my fragmented self less like broken mirror</div>
+      <div class="spanish">Pienso en mi yo fragmentado menos como un espejo roto</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="734">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and more like a prism.</div>
+      <div class="spanish">y más bien como un prisma.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="736">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We’re full spectrum.</div>
+      <div class="spanish">Somos un espectro completo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="738">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Today, there isn’t a voice in my head that I don’t welcome.</div>
+      <div class="spanish">Hoy, no hay voz en mi cabeza a la que no dé la bienvenida.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="741">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And while some of us are occasionally unreasonable,</div>
+      <div class="spanish">Y aunque algunos de nosotros a veces somos irracionales,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="743">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">we’re not mean.</div>
+      <div class="spanish">No somos malos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="745">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Even my whiny, shamey voice is trying to help in her weird way.</div>
+      <div class="spanish">Incluso mi voz quejumbrosa y avergonzada intenta ayudar a su manera extraña.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="749">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But when I ask her to be clear and kind,</div>
+      <div class="spanish">Pero cuando le pido que sea clara y amable,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="752">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">she tells me exactly what I need to know:</div>
+      <div class="spanish">Ella me dice exactamente lo que necesito saber:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="754">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">what she needs to feel better and what she’d like for me to learn.</div>
+      <div class="spanish">lo que ella necesita para sentirse mejor y lo que le gustaría que yo aprendiera.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="758">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But just like the scared and angry mother,</div>
+      <div class="spanish">Pero al igual que la madre asustada y enfadada,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="760">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">she only does this when I accept her exactly as she is in the moment.</div>
+      <div class="spanish">Ella solo hace esto cuando la acepto exactamente como es en ese momento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="766">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">So while my openings for self-talk and focus groups sound almost identical,</div>
+      <div class="spanish">Así que, aunque mis introducciones para el diálogo interno y los grupos de discusión suenan casi idénticas,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="772">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">the closings are a little different.</div>
+      <div class="spanish">Los cierres son un poco diferentes.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="774">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">At the round table, I would hand out parking validation,</div>
+      <div class="spanish">En la mesa redonda, yo repartía los vales de aparcamiento.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="777">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">remind everyone to sign for their cash,</div>
+      <div class="spanish">Recuerden a todos que firmen para recibir su dinero.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="780">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">but when I’m with all of me, I say:</div>
+      <div class="spanish">Pero cuando estoy conmigo misma por completo, digo:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="782">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">“I love you.</div>
+      <div class="spanish">"Te amo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="783">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Thank you for helping me see what you see” -</div>
+      <div class="spanish">“Gracias por ayudarme a ver lo que tú ves” -</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="786">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">which is why this practice is so useful</div>
+      <div class="spanish">Por eso esta práctica es tan útil.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="789">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">for all of us here with our different perspectives,</div>
+      <div class="spanish">para todos nosotros aquí con nuestras diferentes perspectivas,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="791">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">inside and outside of one another.</div>
+      <div class="spanish">dentro y fuera el uno del otro.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="793">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">If we can receive one another</div>
+      <div class="spanish">Si podemos recibirnos mutuamente</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="795">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">with the curiosity and welcome of a focus group moderator,</div>
+      <div class="spanish">Con la curiosidad y la acogida de un moderador de grupo focal,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="800">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">perhaps we can do a better job of love.</div>
+      <div class="spanish">Quizás podamos hacer un mejor trabajo amando.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="803">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Because it is not true what they say:</div>
+      <div class="spanish">Porque no es cierto lo que dicen:</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="805">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">that you can’t love anyone until you love yourself.</div>
+      <div class="spanish">que no puedes amar a nadie hasta que te ames a ti mismo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="808">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Love is a house you can crawl in through a window.</div>
+      <div class="spanish">El amor es una casa a la que puedes entrar gateando por una ventana.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="811">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">If you can’t start with yourself,</div>
+      <div class="spanish">Si no puedes empezar por ti mismo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="813">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">start with the person next to you right now</div>
+      <div class="spanish">Empieza ahora mismo con la persona que está a tu lado.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="815">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whether you know them or not.</div>
+      <div class="spanish">Ya sea que los conozcas o no.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="817">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">All you have to do is let them be here.</div>
+      <div class="spanish">Lo único que tienes que hacer es dejarlos estar aquí.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="820">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">It's easy, isn't it?</div>
+      <div class="spanish">Es fácil, ¿verdad?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="822">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Wherever they’ve been, whatever they’re carrying,</div>
+      <div class="spanish">Dondequiera que hayan estado, lleven lo que lleven consigo,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="825">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whatever talents they have or don’t have,</div>
+      <div class="spanish">Sean cuales sean los talentos que tengan o no tengan,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="828">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">whatever mistakes they’ve made,</div>
+      <div class="spanish">cualesquiera que sean los errores que hayan cometido,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="829">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">can you just welcome them here?</div>
+      <div class="spanish">¿Podrías simplemente darles la bienvenida aquí?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="833">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Can you welcome you?</div>
+      <div class="spanish">¿Puedes darte la bienvenida?</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="836">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We’re here right now, like this.</div>
+      <div class="spanish">Estamos aquí ahora mismo, así.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="840">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">We’re beautiful and strange and complicated and scared</div>
+      <div class="spanish">Somos hermosos, extraños, complicados y tenemos miedo.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="844">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">and sometimes kind of horrible.</div>
+      <div class="spanish">y a veces bastante horrible.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="847">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">But all of us are worthy of welcome.</div>
+      <div class="spanish">Pero todos merecemos ser bienvenidos.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="850">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">And everyone that you show unconditional welcome</div>
+      <div class="spanish">Y a todos aquellos a quienes les brindes una bienvenida incondicional</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="853">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">may show you a part of yourself to love.</div>
+      <div class="spanish">Puede mostrarte una parte de ti mismo que debes amar.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="857">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">You are welcome.</div>
+      <div class="spanish">De nada.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="859">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">Thank you.</div>
+      <div class="spanish">Gracias.</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+<div class="line" data-time="861">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">(Applause)</div>
+      <div class="spanish">(Aplausos)</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+
+
+   <!-- PEGAR TEXTO ARRIBA -->
+    
+      </div>
+  </div>
+
+  <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
+    👁️
+  </div>
+
+<script>
+/* ====== CONFIGURACIÓN ====== */
+// Ajuste fino: Si la frase empieza muy rápido, resta 0.5s. Si acaba abruptamente, suma 1.5s
+const TIME_OFFSET = -0.2; 
+const END_PADDING = 0.5; 
+const YOUTUBE_ID  = 'gUV5DJb6KGs'; // CAMBIAR ID AQUÍ
+
+/* ====== VARIABLES GLOBALES ====== */
+let player;
+let checkInterval;
+let isSegmentPlaying = false;
+let segmentEndTime = 0;
+let currentSynth = null;
+let scrollEnabled = true;
+
+// ====== YOUTUBE API ======
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('player', {
+    videoId: YOUTUBE_ID,
+    playerVars: { 
+      playsinline: 1, 
+      rel: 0, 
+      modestbranding: 1,
+      controls: 1
+    },
+    events: {
+      'onStateChange': onPlayerStateChange
+    }
+  });
+}
+
+/* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
+// Esta función se ejecuta cada 100ms cuando el video corre
+function checkTime() {
+  if (!player || !player.getCurrentTime) return;
+  
+  const currentTime = player.getCurrentTime();
+
+  // 1. Control de Segmento (Play Button)
+  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
+  // No usamos setTimeout, así que si hay buffering, espera.
+  if (isSegmentPlaying && currentTime >= segmentEndTime) {
+    player.pauseVideo();
+    isSegmentPlaying = false;
+    resetButtons();
+    scrollEnabled = true; // Reactivar scroll automático global
+    return; 
+  }
+
+  // 2. Resaltado Automático (Scroll)
+  if (scrollEnabled) {
+    highlightCurrentLine(currentTime);
+  }
+}
+
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.PLAYING) {
+    // Iniciar el monitor de tiempo
+    clearInterval(checkInterval);
+    checkInterval = setInterval(checkTime, 100);
+  } else {
+    clearInterval(checkInterval);
+  }
+}
+
+/* ====== MANEJO DE DOM ====== */
+
+// Resaltar línea actual basada en el tiempo
+function highlightCurrentLine(time) {
+  const lines = document.querySelectorAll('.line');
+  let activeLine = null;
+
+  lines.forEach((line, index) => {
+    const start = parseFloat(line.dataset.time);
+    // El fin es el inicio de la siguiente línea, o +10s si es la última
+    const nextLine = lines[index + 1];
+    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
+
+    if (time >= start && time < end) {
+      activeLine = line;
+    }
+    line.classList.remove('active');
+  });
+
+  if (activeLine) {
+    activeLine.classList.add('active');
+    scrollToLine(activeLine);
+  }
+}
+
+function scrollToLine(element) {
+  // Scroll suave para centrar el elemento, teniendo en cuenta el header y el video sticky
+  const headerOffset = 100; // <--- ESTE ES EL PROBLEMA
+  const elementPosition = element.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+  // Solo hacemos scroll si está muy lejos del foco (para no marear)
+  if (elementPosition < 150 || elementPosition > window.innerHeight - 150) {
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: "smooth"
+    });
+  }
+}
+
+/* ====== BOTONES PLAY (SEGMENTOS) ====== */
+document.querySelectorAll('.playBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Evitar abrir traducción
+    const line = btn.closest('.line');
+    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
+    
+    // Calcular fin basado en la siguiente línea
+    const nextLine = line.nextElementSibling;
+    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
+    const end = nextTime + END_PADDING;
+
+    // Si ya está sonando este botón, paramos
+    if (btn.dataset.state === 'playing') {
+      player.pauseVideo();
+      isSegmentPlaying = false;
+      resetButtons();
+      return;
+    }
+
+    // Iniciar reproducción
+    resetButtons(); // Limpiar otros
+    resetSynth();   // Calla la voz sintética si habla
+    
+    scrollEnabled = false; // Desactivar scroll auto para que no salte
+    isSegmentPlaying = true;
+    segmentEndTime = end;
+    
+    player.seekTo(Math.max(0, start), true);
+    player.playVideo();
+    
+    btn.textContent = "Stop";
+    btn.dataset.state = 'playing';
+    line.classList.add('active');
+  });
+});
+
+/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
+// Cargar voces
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => {
+  voices = window.speechSynthesis.getVoices();
+};
+
+document.querySelectorAll('.speakBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const line = btn.closest('.line');
+    const text = line.querySelector('.english').innerText;
+
+    if (btn.dataset.state === 'speaking') {
+      resetSynth();
+      resetButtons();
+      return;
+    }
+
+    resetButtons();
+    resetSynth();
+    player.pauseVideo(); // Callar video si suena
+
+    const utter = new SpeechSynthesisUtterance(text);
+    
+    // Intentar buscar una voz mejor (Google US o Samantha)
+    const preferredVoice = voices.find(v => 
+      v.name.includes('Google US English') || 
+      v.name.includes('Samantha') || 
+      v.lang === 'en-US'
+    );
+    
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.lang = 'en-US';
+    utter.rate = 0.9; // Un poco más lento para claridad
+
+    utter.onstart = () => {
+      btn.textContent = "Stop";
+      btn.dataset.state = 'speaking';
+      line.classList.add('active');
+    };
+    
+    utter.onend = () => {
+      resetButtons();
+    };
+
+    window.speechSynthesis.speak(utter);
+  });
+});
+
+/* ====== UTILIDADES ====== */
+function resetButtons() {
+  document.querySelectorAll('.playBtn').forEach(b => {
+    b.textContent = "Play";
+    b.removeAttribute('data-state');
+  });
+  document.querySelectorAll('.speakBtn').forEach(b => {
+    b.textContent = "Speak";
+    b.removeAttribute('data-state');
+  });
+  // No quitamos la clase 'active' de la línea para no perder el foco visual
+}
+
+function resetSynth() {
+  window.speechSynthesis.cancel();
+}
+
+// Toggle de traducción individual
+document.querySelectorAll('.text-block').forEach(block => {
+  block.addEventListener('click', () => {
+    const span = block.querySelector('.spanish');
+    span.classList.toggle('visible');
+  });
+});
+
+// Toggle global (Botón Flotante)
+let allVisible = false;
+function toggleAllTranslations() {
+  allVisible = !allVisible;
+  document.querySelectorAll('.spanish').forEach(span => {
+    if (allVisible) span.classList.add('visible');
+    else span.classList.remove('visible');
+  });
+}
+</script>
+</body>
+</html>
