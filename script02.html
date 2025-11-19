@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fusionador Pro v5: Subtítulos a HTML Final</title>
+    <title>Fusionador v4 - Generador de HTML Final</title>
     <style>
         :root {
             --primary: #3498db;
@@ -32,26 +32,8 @@
         .resource-link:hover { background: #34495e; transform: translateY(-2px); }
         .resource-link.blue { background: var(--primary); }
 
-        /* Opciones Adicionales (NUEVO: URL de YouTube) */
-        .options {
-            display: flex; gap: 15px; margin-bottom: 15px; padding: 15px;
-            background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        .option-field {
-            flex: 1; display: flex; flex-direction: column; 
-        }
-        .option-field label {
-            font-weight: bold; color: var(--secondary); margin-bottom: 5px; font-size: 0.95em;
-        }
-        .option-field input {
-            padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px;
-            font-size: 14px;
-        }
-        .option-field input:focus { border-color: var(--primary); outline: none; }
-        /* FIN NUEVO */
-
-        /* Contenedor Principal (ajustado para dar espacio a la URL) */
-        .container { display: flex; gap: 15px; height: 60vh; }
+        /* Contenedor Principal */
+        .container { display: flex; gap: 15px; height: 70vh; }
         .column { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 8px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         
         .toolbar {
@@ -105,7 +87,7 @@
 <body>
 
     <div class="header">
-        <h2>Fusionador de Subtítulos Ultimate v5</h2>
+        <h2>Fusionador de Subtítulos v4 (Generador de HTML Final)</h2>
         <div class="resources">
             <span>Herramientas:</span>
             <a href="https://downsub.com/" target="_blank" class="resource-link">⬇️ DownSub</a>
@@ -113,12 +95,6 @@
         </div>
     </div>
     
-    <div class="options">
-        <div class="option-field">
-            <label for="youtubeUrl">URL de YouTube:</label>
-            <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=XXXXXXXXXXX" value="https://www.youtube.com/watch?v=-moW9jvvMr4">
-        </div>
-    </div>
     <div class="container">
         <div class="column">
             <div class="toolbar">
@@ -188,7 +164,6 @@
                 };
                 reader.readAsText(file);
                 
-                // Resetear el input para permitir subir el mismo archivo de nuevo si se borra
                 this.value = null; 
             });
         }
@@ -211,8 +186,6 @@
                 clearText('inputEng');
                 clearText('inputEsp');
                 clearText('output');
-                // Resetear el valor de ejemplo en la URL
-                document.getElementById('youtubeUrl').value = "https://www.youtube.com/watch?v=-moW9jvvMr4";
             }
         }
 
@@ -236,12 +209,6 @@
         }
 
         // --- Lógica de Fusión (SRT Processing) ---
-
-        function getYouTubeVideoId(url) {
-            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/.+\/|embed\/|v\/|watch\?v=|[^#]*\??v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
-            const match = url.match(regex);
-            return (match && match[1].length === 11) ? match[1] : null;
-        }
 
         function timeToSeconds(timeString) {
             try {
@@ -278,8 +245,8 @@
 
             for (let i = 0; i < engBlocks.length; i++) {
                 const engItem = engBlocks[i];
-                const espText = espBlocks[i] ? espBlocks[i].text : "";
-                // Usamos la función original timeToSeconds para el data-time
+                // Intentar obtener la traducción, si no existe, se queda vacío.
+                const espText = espBlocks[i] ? espBlocks[i].text : ""; 
                 const seconds = timeToSeconds(engItem.start); 
 
                 const htmlBlock = 
@@ -303,21 +270,10 @@
         function fusionar() {
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
-            const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
 
-            // 1. Validaciones y obtención de datos
+            // 1. Validaciones
             if (!rawEng.trim()) {
                 alert("⚠️ ¡Falta el archivo en Inglés!");
-                return;
-            }
-            if (!youtubeUrl) {
-                alert("⚠️ ¡Falta la URL de YouTube!");
-                return;
-            }
-            
-            const videoId = getYouTubeVideoId(youtubeUrl);
-            if (!videoId) {
-                 alert("⚠️ ¡La URL de YouTube no es válida o está incompleta!");
                 return;
             }
 
@@ -331,23 +287,16 @@
             // 4. Obtener Plantilla y Ensamblar
             const template = getOriginalTemplate();
             
-            // A. Reemplazar el ID de YouTube
-            let finalCode = template.replace(
-                /const YOUTUBE_ID\s*=\s*'.*?';\s*\/\/ CAMBIAR ID AQUÍ/,
-                `const YOUTUBE_ID = '${videoId}'; // ID DE YOUTUBE GENERADO`
-            );
-
-            // B. Insertar los bloques de subtítulos
-            finalCode = finalCode.replace(
+            // Reemplazar la marca de inserción con los subtítulos
+            const finalCode = template.replace(
                 '',
                 '\n' + subtitleBlocks + '\n'
             );
 
-
             document.getElementById('output').value = finalCode;
             
             if (engBlocks.length !== espBlocks.length && rawEsp.trim()) {
-                alert(`ℹ️ Proceso completado. Nota: Inglés tiene ${engBlocks.length} líneas y Español ${espBlocks.length}. El código completo ya está en el campo de resultado.`);
+                alert(`ℹ️ Proceso completado. Nota: Inglés tiene ${engBlocks.length} líneas y Español ${espBlocks.length}. El código COMPLETO ya está en el campo de resultado.`);
             } else {
                 alert("✅ ¡Código generado con éxito! El HTML completo ya está en el campo de Resultado (3).");
             }
@@ -604,7 +553,7 @@
 // Ajuste fino: Si la frase empieza muy rápido, resta 0.5s. Si acaba abruptamente, suma 1.5s
 const TIME_OFFSET = -0.2; 
 const END_PADDING = 0.5; 
-const YOUTUBE_ID  = '-moW9jvvMr4'; // CAMBIAR ID AQUÍ
+const YOUTUBE_ID  = '-moW9jvvMr4'; // CAMBIAR ID AQUÍ (ID FIJO DEL CÓDIGO ORIGINAL)
 
 /* ====== VARIABLES GLOBALES ====== */
 let player;
