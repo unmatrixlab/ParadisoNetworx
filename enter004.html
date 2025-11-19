@@ -2118,8 +2118,8 @@ let player;
 let currentTimeout = null;
 let currentUtterance = null;
 let timeChecker = null;
-let scrollEnabled = false;     // scroll automático solo desde el reproductor
-let playFromButton = false;    // para diferenciar botones de línea del reproductor
+let scrollEnabled = false; // scroll automático solo desde el reproductor
+let playFromButton = false; // para diferenciar botones de línea del reproductor
 
 // ====== AJUSTES DE CALIBRACIÓN ======
 const START_OFFSET = -1;
@@ -2129,18 +2129,23 @@ const END_PADDING = 2.5;
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
     videoId: '5MuIMqhT8DM',
-    playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-    events: { 
+    playerVars: { 
+      playsinline: 1, 
+      rel: 0, 
+      modestbranding: 1,
+      controls: 1,        // ← importante: fuerza que se vean los controles
+      enablejsapi: 1
+    },
+    events: {
       onStateChange: onPlayerStateChange,
-      onReady: () => { onPlayerReadyAutoKickstart(); }
+      onReady: onPlayerReady  // ← ahora solo llamamos a una función limpia
     }
   });
 }
 
-// ====== AUTO PLAY → PAUSE AL CARGAR ======
-function onPlayerReadyAutoKickstart() {
-  player.playVideo();
-  setTimeout(() => player.pauseVideo(), 300);
+// ====== AL CARGAR: solo pausamos (nada de play+pause automático) ======
+function onPlayerReady(event) {
+  player.pauseVideo(); // asegura que esté parado y con controles visibles
 }
 
 // Cargar API
@@ -2154,11 +2159,9 @@ function resetAll(exceptBtn = null) {
   currentUtterance = null;
   if (currentTimeout) clearTimeout(currentTimeout);
   currentTimeout = null;
-
   document.querySelectorAll(".line").forEach(l => {
     if (!exceptBtn || !l.contains(exceptBtn)) l.classList.remove("active");
   });
-
   document.querySelectorAll(".playBtn, .speakBtn").forEach(b => {
     if (b !== exceptBtn) {
       b.textContent = b.classList.contains("playBtn") ? "Play" : "Speak";
@@ -2173,16 +2176,13 @@ function scrollLineToCenter(element) {
   const rect = element.getBoundingClientRect();
   const elementCenter = rect.top + rect.height / 2;
   const screenCenter = window.innerHeight / 2;
-  //const offset = elementCenter - screenCenter;
   const offset = elementCenter - screenCenter - 40; // +30px más abajo
-
   window.scrollBy({ top: offset, behavior: 'smooth' });
 }
 
 function updateActiveLine(currentTime) {
   const lines = Array.from(document.querySelectorAll(".line"));
   let active = null;
-
   for (let i = 0; i < lines.length; i++) {
     const t = parseFloat(lines[i].dataset.time);
     const next = i < lines.length - 1 ? parseFloat(lines[i+1].dataset.time) : 99999;
@@ -2191,7 +2191,6 @@ function updateActiveLine(currentTime) {
       break;
     }
   }
-
   lines.forEach(l => l.classList.remove("active"));
   if (active) {
     active.classList.add("active");
@@ -2202,10 +2201,8 @@ function updateActiveLine(currentTime) {
 // ====== SINCRONIZACIÓN AUTOMÁTICA ======
 function onPlayerStateChange(event) {
   if (event.data === YT.PlayerState.PLAYING) {
-    // scroll se activa solo si NO viene de un botón
     if (!playFromButton) scrollEnabled = true;
-    playFromButton = false; // reset para la próxima acción
-
+    playFromButton = false;
     if (timeChecker) clearInterval(timeChecker);
     timeChecker = setInterval(() => updateActiveLine(player.getCurrentTime()), 200);
   } else {
@@ -2219,9 +2216,8 @@ document.addEventListener("click", e => {
     const btn = e.target;
     const line = btn.closest(".line");
     const rawStartTime = parseFloat(line.dataset.time);
-
-    scrollEnabled = false;   // desactivar scroll si play desde botón
-    playFromButton = true;    // marcar que esta reproducción viene de botón
+    scrollEnabled = false;
+    playFromButton = true;
 
     if (btn.dataset.playing === "true") {
       player.pauseVideo();
@@ -2243,7 +2239,6 @@ document.addEventListener("click", e => {
 
     player.seekTo(startTime, true);
     player.playVideo();
-
     btn.textContent = "Pause";
     btn.dataset.playing = "true";
     line.classList.add("active");
@@ -2295,14 +2290,12 @@ document.addEventListener("click", e => {
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
-    utter.rate = 0.9;
-
+    uttertabs.rate = 0.9;
     utter.onstart = () => {
       btn.textContent = "Pause";
       btn.dataset.speaking = "true";
       line.classList.add("active");
     };
-
     utter.onend = () => {
       btn.textContent = "Replay";
       delete btn.dataset.speaking;
@@ -2310,7 +2303,6 @@ document.addEventListener("click", e => {
       line.classList.add("active");
       currentUtterance = null;
     };
-
     utter.onerror = () => {
       btn.textContent = "Speak";
       delete btn.dataset.speaking;
@@ -2318,7 +2310,6 @@ document.addEventListener("click", e => {
       line.classList.add("active");
       currentUtterance = null;
     };
-
     currentUtterance = utter;
     speechSynthesis.speak(utter);
   }
