@@ -5,71 +5,86 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Convertidor de subtítulos bilingües</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
-    textarea { width: 100%; height: 300px; margin-bottom: 20px; }
-    .output { background: white; padding: 20px; border: 1px solid #ddd; }
-    .line { margin: 15px 0; padding: 10px; background: #fff; border-left: 4px solid #007cba; }
-    .text-block { margin-bottom: 10px; }
-    .english { color: #2c3e50; font-weight: bold; }
-    .spanish { color: #e74c3c; }
-    .controls button { margin-right: 10px; padding: 5px 10px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+    textarea { width: 100%; height: 300px; font-size: 16px; padding: 10px; }
+    button { padding: 10px 20px; margin: 10px 5px 20px 0; font-size: 16px; }
+    .output { background: white; padding: 20px; border: 1px solid #ddd; min-height: 100px; }
+    .line { 
+      margin: 20px 0; 
+      padding: 15px; 
+      background: #fff; 
+      border-left: 5px solid #007cba; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .english { color: #2c3e50; font-weight: bold; margin-bottom: 8px; }
+    .spanish { color: #c0392b; }
+    .controls button { margin-right: 8px; padding: 6px 12px; }
   </style>
 </head>
 <body>
 
-  <h1>Convertidor de subtítulos inglés-español con timestamp</h1>
-  
-  <textarea id id="inputText" placeholder="Pega aquí el texto con timestamps...">[00:00](https://youtu.be/HAnw168huqA?t=0.091) [MUSIC] Welcome. I'm very excited today to talk about effective speaking in spontaneous situations. I thank you all for joining us, even though the title of my talk is grammatically incorrect.
+  <h1>Convertidor rápido a formato bilingüe</h1>
+  <p>Pega tu texto con timestamps y pulsa “Convertir”.</p>
 
-[00:16](https://youtu.be/HAnw168huqA?t=16.83) I thought that might scare a few of you away. But I learned teaching here at the business school, catching people's attention is hard. So, something as simple as that, I thought, might draw a few of you here, so this is going to be a highly interactive and participative workshop today.</textarea>
+  <textarea id="inputText">[00:00](https://youtu.be/HAnw168huqA?t=0.091) [MUSIC] Welcome. I'm very excited today to talk about effective speaking in spontaneous situations. I thank you all for joining us, even though the title of my talk is grammatically incorrect.
 
+[00:16](https://youtu.be/HAnw168huqA?t=16.83) I thought that might scare a few of you away. But I learned teaching here at the business school, catching people's attention is hard. So, something as simple as that, I thought, might draw a few of you here, so this is going to be a highly interactive and participative workshop today.
+
+[00:35] Another paragraph example just to test multiple lines.
+
+[01:12] And one more with a longer text that spans several sentences and even has a line break inside.</textarea>
+
+  <br>
   <button onclick="convertir()">Convertir a formato HTML</button>
   <button onclick="document.getElementById('inputText').value = ''">Limpiar</button>
+  <button onclick="copiar()">Copiar resultado</button>
 
-  <h2>Resultado:</h2>
+  <h2>Resultado listo para copiar:</h2>
   <div id="resultado" class="output"></div>
 
   <script>
-    function timeToSeconds(time) {
-      const parts = time.split(':').map(Number);
-      if (parts.length === 3) {
-        return parts[0] * 3600 + parts[1] * 60 + parts[2];
-      } else {
-        return parts[0] * 60 + parts[1];
-      }
+    function timeToSeconds(t) {
+      const p = t.split(':').map(Number);
+      if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+      if (p.length === 2) return p[0]*60 + p[1];
+      return 0;
     }
 
     function convertir() {
-      const input = document.getElementById('inputText').value;
-      const lines = input.trim().split('\n\n');
+      const texto = document.getElementById('inputText').value;
+      const bloques = texto.trim().split(/\n{2,}/); // separa por párrafos vacíos
       let html = '';
 
-      lines.forEach(block => {
-        const firstLine = block.trim().split('\n')[0];
-        const timeMatch = firstLine.match(/\[((\d+:)?\d+:\d+)\]/);
-        
-        if (!timeMatch) return;
+      bloques.forEach(bloque => {
+        const lineas = bloque.trim().split('\n');
+        const primeraLinea = lineas[0];
 
-        const timeStr = timeMatch[1];
-        const seconds = timeToSeconds(timeStr);
+        // Busca [00:00] o [00:00:00]
+        const match = primeraLinea.match(/\[((\d+:)?\d+:\d+)\]/);
+        if (!match) return; // si no hay timestamp, ignora
 
-        // Extrae el texto limpio (sin el timestamp ni el link)
-        let text = block.replace(/^\[.*?\].*$/m, '').trim();
-        text = text.replace(/\[MUSIC\]/gi, '').trim();
+        const tiempo = match[1];
+        const segundos = timeToSeconds(tiempo);
 
-        // Aquí debes colocar la traducción al español correspondiente
-        // Por ahora pongo un ejemplo, tú tendrás que escribirla manualmente o usar otro método
-        const translations = {
-          "Welcome. I'm very excited today to talk about effective speaking in spontaneous situations. I thank you all for joining us, even though the title of my talk is grammatically incorrect.": "Bienvenidos. Estoy muy emocionado hoy de hablar sobre cómo hablar efectivamente en situaciones espontáneas. Gracias a todos por acompañarnos, aunque el título de mi charla está gramaticalmente incorrecto.",
-          "I thought that might scare a few of you away. But I learned teaching here at the business school, catching people's attention is hard. So, something as simple as that, I thought, might draw a few of you here, so this is going to be a highly interactive and participative workshop today.": "Pensé que eso podría ahuyentar a algunos de ustedes. Pero aprendí enseñando aquí en la escuela de negocios que captar la atención de la gente es difícil. Así que algo tan simple como eso, pensé, podría atraer a algunos de ustedes aquí, así que este va a ser un taller muy interactivo y participativo hoy."
+        // Quita la primera línea (timestamp + posible link + [MUSIC])
+        let ingles = bloque.replace(primeraLinea, '').trim();
+        ingles = ingles.replace(/\[MUSIC\]/gi, '').replace(/^\s*[\r\n]/gm, '').trim();
+
+        // Aquí debes escribir tú la traducción española correspondiente
+        // (o usaré un diccionario simple para este ejemplo)
+        const traducciones = {
+          "Welcome. I'm very excited today to talk about effective speaking in spontaneous situations. I thank you all for joining us, even though the title of my talk is grammatically incorrect.": "Bienvenidos. Estoy muy emocionado hoy de hablar hoy sobre cómo hablar de forma efectiva en situaciones espontáneas. Gracias a todos por acompañarnos, aunque el título de mi charla esté gramaticalmente incorrecto.",
+          "I thought that might scare a few of you away. But I learned teaching here at the business school, catching people's attention is hard. So, something as simple as that, I thought, might draw a few of you here, so this is going to be a highly interactive and participative workshop today.": "Pensé que eso podría ahuyentar a algunos. Pero aprendí enseñando en la escuela de negocios que captar la atención es difícil. Así que algo tan simple, pensé, podría atraer a algunos aquí. Será un taller muy interactivo y participativo.",
+          "Another paragraph example just to test multiple lines.": "Otro ejemplo de párrafo solo para probar varias líneas.",
+          "And one more with a longer text that spans several sentences and even has a line break inside.": "Y uno más con un texto más largo que abarca varias oraciones y hasta tiene un salto de línea dentro."
         };
 
-        let spanish = translations[text] || "[Falta traducción]";
+        const spanish = traducciones[ingles] || "[Aquí va la traducción al español]";
 
-        html += `<div class="line" data-time="${seconds}">
+        html += `<div class="line" data-time="${segundos}">
   <div class="line-content">
     <div class="text-block">
-      <div class="english">${text.replace(/\n/g, '<br>')}</div>
+      <div class="english">${ingles.replace(/\n/g, '<br>')}</div>
       <div class="spanish">${spanish.replace(/\n/g, '<br>')}</div>
     </div>
     <div class="controls">
@@ -82,8 +97,17 @@
 
       document.getElementById('resultado').innerHTML = html;
     }
+
+    function copiar() {
+      const rango = document.createRange();
+      rango.selectNode(document.getElementById('resultado'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(rango);
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+      alert('¡Copiado al portapapeles!');
+    }
   </script>
 
-<p><strong>Nota:</strong> Este script detecta automáticamente los timestamps y genera el HTML exacto que necesitas. La traducción al español la tienes que poner tú (o puedes integrarle después una API de traducción como DeepL o Google Translate si quieres automatizarlo).</p>
-
-¿Quieres que te haga una versión que incluya automáticamente traducción con DeepL o Google Translate API? También puedo darte una versión que funcione con archivos .srt directamente.
+</body>
+</html>
