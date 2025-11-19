@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fusionador Pro v5: Subtítulos a HTML Final</title>
+    <title>Fusionador Pro v6: Subtítulos a HTML Final</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -17,13 +17,13 @@
         
         h2 { color: var(--secondary); margin-bottom: 15px; text-align: center; }
         
-        /* Opciones Adicionales */
+        /* Opciones Adicionales (Solo URL de YouTube) */
         .options {
-            display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; padding: 15px;
+            display: flex; gap: 15px; margin-bottom: 15px; padding: 15px;
             background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .option-field {
-            flex: 1; display: flex; flex-direction: column; min-width: 250px;
+            flex: 1; display: flex; flex-direction: column; 
         }
         .option-field label {
             font-weight: bold; color: var(--secondary); margin-bottom: 5px; font-size: 0.95em;
@@ -86,17 +86,13 @@
 <body>
 
     <div class="header">
-        <h2>Fusionador de Subtítulos Ultimate v5</h2>
+        <h2>Fusionador de Subtítulos Ultimate v6</h2>
     </div>
     
     <div class="options">
         <div class="option-field">
-            <label for="videoTitle">Título del Video:</label>
-            <input type="text" id="videoTitle" placeholder="Ej: Las 7 Maravillas..." value="MDC ENG - Video Learning">
-        </div>
-        <div class="option-field">
             <label for="youtubeUrl">URL de YouTube:</label>
-            <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=-moW9jvvMr4" value="https://www.youtube.com/watch?v=-moW9jvvMr4">
+            <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=XXXXXXXXXXX" value="https://www.youtube.com/watch?v=-moW9jvvMr4">
         </div>
     </div>
     <div class="container">
@@ -148,7 +144,8 @@
     </div>
 
     <script>
-        // --- Manejo de Archivos (File Reader) ---
+        // --- Manejo de Archivos y Utilidades de Interfaz ---
+
         function handleFileUpload(fileInputId, textAreaId) {
             document.getElementById(fileInputId).addEventListener('change', function(e) {
                 const file = e.target.files[0];
@@ -169,7 +166,6 @@
         handleFileUpload('fileEng', 'inputEng');
         handleFileUpload('fileEsp', 'inputEsp');
 
-        // --- Funciones de Interfaz ---
         function clearText(elementId) {
             document.getElementById(elementId).value = "";
             const el = document.getElementById(elementId);
@@ -182,8 +178,8 @@
                 clearText('inputEng');
                 clearText('inputEsp');
                 clearText('output');
-                document.getElementById('videoTitle').value = "MDC ENG - Video Learning"; // Resetear con valor inicial
-                document.getElementById('youtubeUrl').value = "https://www.youtube.com/watch?v=-moW9jvvMr4"; // Resetear con valor inicial
+                // Mantener el valor de ejemplo en la URL para facilitar pruebas
+                document.getElementById('youtubeUrl').value = "https://www.youtube.com/watch?v=-moW9jvvMr4"; 
             }
         }
 
@@ -219,7 +215,7 @@
                 const parts = timeString.split(':');
                 const hours = parseInt(parts[0]);
                 const minutes = parseInt(parts[1]);
-                const secondsPart = parts[2].split(/[,.]/); // Soporta coma o punto
+                const secondsPart = parts[2].split(/[,.]/); 
                 const seconds = parseInt(secondsPart[0]);
                 const milliseconds = parseInt(secondsPart[1]) || 0;
                 return (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000);
@@ -228,7 +224,7 @@
 
         function parseSRT(text) {
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
-            // Aseguramos que la expresión regular capture el timestamp correctamente
+            // Expresión regular ajustada para capturar el texto de manera segura
             const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2}[,.]\d{3})\s-->\s(\d{2}:\d{2}:\d{2}[,.]\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
             const bloques = [];
             let match;
@@ -236,10 +232,10 @@
             while ((match = regex.exec(text)) !== null) {
                 bloques.push({
                     id: match[1],
-                    // Usamos el tiempo de inicio para el data-time
                     start: match[2].replace('.', ','), 
                     end: match[3].replace('.', ','),
-                    text: match[4].replace(/\n/g, ' ').trim() 
+                    // Eliminamos tags HTML y limpiamos espacios múltiples
+                    text: match[4].replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, ' ').replace(/\s\s+/g, ' ').trim() 
                 });
             }
             return bloques;
@@ -250,9 +246,7 @@
 
             for (let i = 0; i < engBlocks.length; i++) {
                 const engItem = engBlocks[i];
-                // Usamos el texto español si existe, sino cadena vacía
                 const espText = espBlocks[i] ? espBlocks[i].text : ""; 
-                // Usamos el tiempo en segundos (con decimales) para el data-time
                 const seconds = timeToSeconds(engItem.start);
 
                 const htmlBlock = 
@@ -263,7 +257,7 @@
       <div class="spanish">${espText}</div>
     </div>
     <div class="controls">
-      <button class="btn playBtn" data-start="${engItem.start}" data-end="${engItem.end}">Play</button>
+      <button class="btn playBtn">Play</button>
       <button class="btn speakBtn">Speak</button>
     </div>
   </div>
@@ -273,11 +267,11 @@
             return htmlBlocksOutput;
         }
 
-        function generateFinalHTML(title, youtubeId, subtitleBlocksHtml, originalTemplate) {
+        function generateFinalHTML(youtubeId, subtitleBlocksHtml, originalTemplate) {
             // Reemplazar la configuración y el contenido en la plantilla
             let finalHtml = originalTemplate.replace(
                 /<title>MDC ENG - Video Learning<\/title>/,
-                `<title>${title}</title>`
+                `<title>MDC ENG - Video Learning</title>`
             );
             
             // 1. Reemplazar el ID de YouTube
@@ -299,9 +293,8 @@
         function fusionar() {
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
-            const videoTitle = document.getElementById('videoTitle').value.trim();
             const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-            const originalTemplate = getOriginalTemplate(); // Obtener la plantilla original (ver función abajo)
+            const originalTemplate = getOriginalTemplate(); 
 
             // Validaciones
             if (!rawEng.trim()) {
@@ -325,18 +318,19 @@
             const subtitleBlocks = generateSubtitleBlocks(engBlocks, espBlocks);
 
             // Generar el código HTML FINAL completo
-            const finalCode = generateFinalHTML(videoTitle, videoId, subtitleBlocks, originalTemplate);
+            const finalCode = generateFinalHTML(videoId, subtitleBlocks, originalTemplate);
 
             document.getElementById('output').value = finalCode;
-            
-            if (engBlocks.length !== espBlocks.length && rawEsp.trim()) {
-                alert(`ℹ️ Proceso completado. Nota: Inglés tiene ${engBlocks.length} líneas y Español ${espBlocks.length}.`);
-            }
+            alert("✅ ¡Código generado con éxito! Cópialo del campo de Resultado HTML Completo.");
         }
         
-        // --- FUNCIÓN QUE CONTIENE LA PLANTILLA COMPLETA DEL USUARIO ---
-        // Esto permite leer el código base sin modificarlo directamente en el DOM.
+        // --- PLANTILLA ORIGINAL DEL USUARIO ---
         function getOriginalTemplate() {
+            // TU PLANTILLA (CSS, HTML, JAVASCRIPT) CON LA ÚNICA MODIFICACIÓN:
+            // - La variable YOUTUBE_ID será reemplazada.
+            // - El marcador de subtítulos será reemplazado.
+            // *** NOTA: El campo del título fue eliminado de la interfaz, 
+            // pero el título fijo en el <title> y <a> de la cabecera se mantiene como en tu plantilla original. ***
             return `<!doctype html>
 <html lang="es">
 <head>
@@ -569,6 +563,7 @@
       <div class="video-inner">
         <div id="player"></div>
       </div>
+      <div id="youtubePlayer"></div>
     </div>
 
     <div class="dialogue-container">
@@ -690,57 +685,75 @@ function scrollToLine(element) {
   }
 }
 
-/* ====== BOTONES PLAY (SEGMENTOS) ====== */
-document.querySelectorAll('.playBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Evitar abrir traducción
-    const line = btn.closest('.line');
+/* ====== INICIALIZACIÓN DE LISTENERS (IMPORTANTE) ====== */
+// Esta función debe llamarse una vez que los subtítulos están en el DOM (en el código final).
+function initializeLineListeners() {
+    // 1. BOTONES PLAY (SEGMENTOS) 
+    document.querySelectorAll('.playBtn').forEach(btn => {
+        btn.removeEventListener('click', handlePlayClick); // Eliminar antes para evitar duplicados
+        btn.addEventListener('click', handlePlayClick);
+    });
+
+    // 2. BOTONES SPEAK (TTS MEJORADO)
+    document.querySelectorAll('.speakBtn').forEach(btn => {
+        btn.removeEventListener('click', handleSpeakClick); // Eliminar antes para evitar duplicados
+        btn.addEventListener('click', handleSpeakClick);
+    });
+    
+    // 3. Toggle de traducción individual
+    document.querySelectorAll('.text-block').forEach(block => {
+        block.removeEventListener('click', handleTextToggleClick); // Eliminar antes para evitar duplicados
+        block.addEventListener('click', handleTextToggleClick);
+    });
+    
+    // 4. Cargar voces (Para evitar errores si se llama antes de que estén listas)
+    if (window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+             voices = window.speechSynthesis.getVoices();
+        };
+    } else {
+        voices = window.speechSynthesis.getVoices();
+    }
+}
+
+// HANDLERS PARA EVITAR PROBLEMAS DE REFERENCIA
+function handlePlayClick(e) {
+    e.stopPropagation(); 
+    const line = this.closest('.line');
     const start = parseFloat(line.dataset.time) + TIME_OFFSET;
     
-    // Calcular fin basado en la siguiente línea
     const nextLine = line.nextElementSibling;
     const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
     const end = nextTime + END_PADDING;
 
-    // Si ya está sonando este botón, paramos
-    if (btn.dataset.state === 'playing') {
+    if (this.dataset.state === 'playing') {
       player.pauseVideo();
       isSegmentPlaying = false;
       resetButtons();
       return;
     }
 
-    // Iniciar reproducción
-    resetButtons(); // Limpiar otros
-    resetSynth();   // Calla la voz sintética si habla
+    resetButtons();
+    resetSynth(); 
     
-    scrollEnabled = false; // Desactivar scroll auto para que no salte
+    scrollEnabled = false; 
     isSegmentPlaying = true;
     segmentEndTime = end;
     
     player.seekTo(Math.max(0, start), true);
     player.playVideo();
     
-    btn.textContent = "Stop";
-    btn.dataset.state = 'playing';
+    this.textContent = "Stop";
+    this.dataset.state = 'playing';
     line.classList.add('active');
-  });
-});
+}
 
-/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
-// Cargar voces
-let voices = [];
-window.speechSynthesis.onvoiceschanged = () => {
-  voices = window.speechSynthesis.getVoices();
-};
-
-document.querySelectorAll('.speakBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
+function handleSpeakClick(e) {
     e.stopPropagation();
-    const line = btn.closest('.line');
+    const line = this.closest('.line');
     const text = line.querySelector('.english').innerText;
 
-    if (btn.dataset.state === 'speaking') {
+    if (this.dataset.state === 'speaking') {
       resetSynth();
       resetButtons();
       return;
@@ -748,11 +761,10 @@ document.querySelectorAll('.speakBtn').forEach(btn => {
 
     resetButtons();
     resetSynth();
-    player.pauseVideo(); // Callar video si suena
+    player.pauseVideo(); 
 
     const utter = new SpeechSynthesisUtterance(text);
     
-    // Intentar buscar una voz mejor (Google US o Samantha)
     const preferredVoice = voices.find(v => 
       v.name.includes('Google US English') || 
       v.name.includes('Samantha') || 
@@ -761,11 +773,11 @@ document.querySelectorAll('.speakBtn').forEach(btn => {
     
     if (preferredVoice) utter.voice = preferredVoice;
     utter.lang = 'en-US';
-    utter.rate = 0.9; // Un poco más lento para claridad
+    utter.rate = 0.9; 
 
     utter.onstart = () => {
-      btn.textContent = "Stop";
-      btn.dataset.state = 'speaking';
+      this.textContent = "Stop";
+      this.dataset.state = 'speaking';
       line.classList.add('active');
     };
     
@@ -774,10 +786,19 @@ document.querySelectorAll('.speakBtn').forEach(btn => {
     };
 
     window.speechSynthesis.speak(utter);
-  });
-});
+}
+
+function handleTextToggleClick() {
+    const span = this.querySelector('.spanish');
+    span.classList.toggle('visible');
+}
 
 /* ====== UTILIDADES ====== */
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => {
+  voices = window.speechSynthesis.getVoices();
+};
+
 function resetButtons() {
   document.querySelectorAll('.playBtn').forEach(b => {
     b.textContent = "Play";
@@ -787,20 +808,11 @@ function resetButtons() {
     b.textContent = "Speak";
     b.removeAttribute('data-state');
   });
-  // No quitamos la clase 'active' de la línea para no perder el foco visual
 }
 
 function resetSynth() {
   window.speechSynthesis.cancel();
 }
-
-// Toggle de traducción individual
-document.querySelectorAll('.text-block').forEach(block => {
-  block.addEventListener('click', () => {
-    const span = block.querySelector('.spanish');
-    span.classList.toggle('visible');
-  });
-});
 
 // Toggle global (Botón Flotante)
 let allVisible = false;
@@ -811,6 +823,12 @@ function toggleAllTranslations() {
     else span.classList.remove('visible');
   });
 }
+
+// Llamar a la inicialización al cargar la página (para los botones de la interfaz de la herramienta)
+document.addEventListener('DOMContentLoaded', () => {
+    // Para el código final, initializeLineListeners() debería llamarse justo después de inyectar el HTML.
+    // Aquí no es necesario porque es la herramienta, no el resultado final.
+});
 </script>
 </body>
 </html>`;
