@@ -3,21 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fusionador Pro v6: Subtítulos a HTML Final</title>
+    <title>Fusionador Pro v5: Subtítulos a HTML Final</title>
     <style>
         :root {
-            --primary: #4f46e5;
+            --primary: #3498db;
             --secondary: #2c3e50;
-            --accent: #ec4899; 
+            --accent: #27ae60;
             --danger: #e74c3c;
-            --upload: #8e44ad; 
+            --upload: #8e44ad;
             --bg: #f4f7f6;
         }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); padding: 20px; color: #333; }
         
-        h2 { color: var(--secondary); margin-bottom: 15px; text-align: center; }
+        /* Cabecera y Links */
+        .header { text-align: center; margin-bottom: 20px; }
+        h2 { color: var(--secondary); margin-bottom: 15px; }
         
-        /* Opciones Adicionales (Solo URL de YouTube) */
+        .resources {
+            background: #fff; padding: 10px 20px; border-radius: 50px;
+            display: inline-flex; gap: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            align-items: center; font-size: 0.9rem;
+        }
+        .resource-link {
+            text-decoration: none; color: #fff; background: var(--secondary);
+            padding: 8px 16px; border-radius: 20px; font-weight: bold; transition: 0.3s;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .resource-link:hover { background: #34495e; transform: translateY(-2px); }
+        .resource-link.blue { background: var(--primary); }
+
+        /* Opciones Adicionales (NUEVO: URL de YouTube) */
         .options {
             display: flex; gap: 15px; margin-bottom: 15px; padding: 15px;
             background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
@@ -33,8 +48,9 @@
             font-size: 14px;
         }
         .option-field input:focus { border-color: var(--primary); outline: none; }
+        /* FIN NUEVO */
 
-        /* Contenedores de Texto */
+        /* Contenedor Principal (ajustado para dar espacio a la URL) */
         .container { display: flex; gap: 15px; height: 60vh; }
         .column { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 8px; padding: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         
@@ -53,10 +69,13 @@
             display: flex; align-items: center; gap: 4px; font-weight: 600;
         }
         .mini-btn:hover { background: #e2e6ea; }
-        .mini-btn.copy { color: var(--primary); border-color: var(--primary); }
-        .mini-btn.paste { color: #27ae60; border-color: #27ae60; }
-        .mini-btn.clear { color: var(--danger); border-color: var(--danger); }
         
+        .mini-btn.copy { color: var(--primary); border-color: var(--primary); }
+        .mini-btn.paste { color: var(--accent); border-color: var(--accent); }
+        .mini-btn.clear { color: var(--danger); border-color: var(--danger); }
+        .mini-btn.clear:hover { background: #fdedec; }
+        
+        /* Botón de subir archivo (Label estilizado) */
         .upload-label { color: white; background-color: var(--upload); border-color: var(--upload); }
         .upload-label:hover { background-color: #732d91; color: white; }
         input[type="file"] { display: none; }
@@ -75,7 +94,7 @@
             font-size: 16px; font-weight: bold; transition: 0.3s; display: flex; align-items: center; gap: 10px;
             color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
-        .btn-generate { background: #27ae60; }
+        .btn-generate { background: var(--accent); }
         .btn-generate:hover { background: #219150; transform: translateY(-2px); }
         .btn-clear-all { background: var(--danger); }
         .btn-clear-all:hover { background: #c0392b; transform: translateY(-2px); }
@@ -86,7 +105,12 @@
 <body>
 
     <div class="header">
-        <h2>Fusionador de Subtítulos Ultimate v6</h2>
+        <h2>Fusionador de Subtítulos Ultimate v5</h2>
+        <div class="resources">
+            <span>Herramientas:</span>
+            <a href="https://downsub.com/" target="_blank" class="resource-link">⬇️ DownSub</a>
+            <a href="https://translatesubtitles.co" target="_blank" class="resource-link blue">🌐 TranslateSubtitles</a>
+        </div>
     </div>
     
     <div class="options">
@@ -103,6 +127,7 @@
                     <input type="file" id="fileEng" accept=".srt,.txt">
                     <label for="fileEng" class="mini-btn upload-label" title="Subir archivo SRT">📂 Subir</label>
                     <button class="mini-btn paste" onclick="pasteText('inputEng')" title="Pegar">📋</button>
+                    <button class="mini-btn copy" onclick="copyText('inputEng')" title="Copiar">📑</button>
                     <button class="mini-btn clear" onclick="clearText('inputEng')" title="Borrar">❌</button>
                 </div>
             </div>
@@ -116,6 +141,7 @@
                     <input type="file" id="fileEsp" accept=".srt,.txt">
                     <label for="fileEsp" class="mini-btn upload-label" title="Subir archivo SRT">📂 Subir</label>
                     <button class="mini-btn paste" onclick="pasteText('inputEsp')" title="Pegar">📋</button>
+                    <button class="mini-btn copy" onclick="copyText('inputEsp')" title="Copiar">📑</button>
                     <button class="mini-btn clear" onclick="clearText('inputEsp')" title="Borrar">❌</button>
                 </div>
             </div>
@@ -144,8 +170,7 @@
     </div>
 
     <script>
-        // --- Manejo de Archivos y Utilidades de Interfaz ---
-
+        // --- Manejo de Archivos (File Reader) ---
         function handleFileUpload(fileInputId, textAreaId) {
             document.getElementById(fileInputId).addEventListener('change', function(e) {
                 const file = e.target.files[0];
@@ -156,16 +181,24 @@
                     const content = e.target.result;
                     const textArea = document.getElementById(textAreaId);
                     textArea.value = content;
+                    
+                    // Efecto visual de éxito
                     textArea.style.backgroundColor = "#e8f5e9";
                     setTimeout(() => textArea.style.backgroundColor = "", 500);
                 };
                 reader.readAsText(file);
+                
+                // Resetear el input para permitir subir el mismo archivo de nuevo si se borra
                 this.value = null; 
             });
         }
+
+        // Inicializar los escuchadores de eventos para subir archivos
         handleFileUpload('fileEng', 'inputEng');
         handleFileUpload('fileEsp', 'inputEsp');
 
+
+        // --- Funciones de Interfaz ---
         function clearText(elementId) {
             document.getElementById(elementId).value = "";
             const el = document.getElementById(elementId);
@@ -178,8 +211,8 @@
                 clearText('inputEng');
                 clearText('inputEsp');
                 clearText('output');
-                // Mantener el valor de ejemplo en la URL para facilitar pruebas
-                document.getElementById('youtubeUrl').value = "https://www.youtube.com/watch?v=-moW9jvvMr4"; 
+                // Resetear el valor de ejemplo en la URL
+                document.getElementById('youtubeUrl').value = "https://www.youtube.com/watch?v=-moW9jvvMr4";
             }
         }
 
@@ -202,10 +235,10 @@
             });
         }
 
-        // --- Lógica de Fusión y Generación ---
+        // --- Lógica de Fusión ---
 
         function getYouTubeVideoId(url) {
-            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/.+\/|embed\/|v\/|watch\?v=|[^#]*\??v=)|youtu\.be\/|y2u\.be\/)([a-zA-Z0-9_-]{11})/;
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/.+\/|embed\/|v\/|watch\?v=|[^#]*\??v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
             const match = url.match(regex);
             return (match && match[1].length === 11) ? match[1] : null;
         }
@@ -215,7 +248,7 @@
                 const parts = timeString.split(':');
                 const hours = parseInt(parts[0]);
                 const minutes = parseInt(parts[1]);
-                const secondsPart = parts[2].split(/[,.]/); 
+                const secondsPart = parts[2].split(/[,.]/); // Soporte para , y .
                 const seconds = parseInt(secondsPart[0]);
                 const milliseconds = parseInt(secondsPart[1]) || 0;
                 return (hours * 3600) + (minutes * 60) + seconds + (milliseconds / 1000);
@@ -224,29 +257,30 @@
 
         function parseSRT(text) {
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
-            // Expresión regular ajustada para capturar el texto de manera segura
+            // Expresión regular ajustada para capturar el texto de manera segura y eliminar tags HTML
             const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2}[,.]\d{3})\s-->\s(\d{2}:\d{2}:\d{2}[,.]\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
             const bloques = [];
             let match;
 
             while ((match = regex.exec(text)) !== null) {
+                // Limpiar texto: eliminar tags HTML y limpiar saltos de línea/espacios múltiples
+                const cleanText = match[4].replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, ' ').replace(/\s\s+/g, ' ').trim();
+                
                 bloques.push({
                     id: match[1],
-                    start: match[2].replace('.', ','), 
-                    end: match[3].replace('.', ','),
-                    // Eliminamos tags HTML y limpiamos espacios múltiples
-                    text: match[4].replace(/<\/?[^>]+(>|$)/g, "").replace(/\n/g, ' ').replace(/\s\s+/g, ' ').trim() 
+                    start: match[2].replace('.', ','), // Normalizar a coma si viene con punto
+                    text: cleanText
                 });
             }
             return bloques;
         }
-        
+
         function generateSubtitleBlocks(engBlocks, espBlocks) {
             let htmlBlocksOutput = "";
 
             for (let i = 0; i < engBlocks.length; i++) {
                 const engItem = engBlocks[i];
-                const espText = espBlocks[i] ? espBlocks[i].text : ""; 
+                const espText = espBlocks[i] ? espBlocks[i].text : "";
                 const seconds = timeToSeconds(engItem.start);
 
                 const htmlBlock = 
@@ -266,21 +300,15 @@
             }
             return htmlBlocksOutput;
         }
-
+        
         function generateFinalHTML(youtubeId, subtitleBlocksHtml, originalTemplate) {
-            // Reemplazar la configuración y el contenido en la plantilla
+            // Reemplazar el ID de YouTube
             let finalHtml = originalTemplate.replace(
-                /<title>MDC ENG - Video Learning<\/title>/,
-                `<title>MDC ENG - Video Learning</title>`
-            );
-            
-            // 1. Reemplazar el ID de YouTube
-            finalHtml = finalHtml.replace(
                 /const YOUTUBE_ID\s*=\s*'.*?';\s*\/\/ CAMBIAR ID AQUÍ/,
                 `const YOUTUBE_ID = '${youtubeId}'; // ID DE YOUTUBE GENERADO`
             );
 
-            // 2. Insertar los bloques de subtítulos
+            // Insertar los bloques de subtítulos
             finalHtml = finalHtml.replace(
                 '',
                 subtitleBlocksHtml
@@ -294,9 +322,9 @@
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
             const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-            const originalTemplate = getOriginalTemplate(); 
+            const originalTemplate = getOriginalTemplate(); // Obtener la plantilla completa
 
-            // Validaciones
+            // 1. Validaciones
             if (!rawEng.trim()) {
                 alert("⚠️ ¡Falta el archivo en Inglés!");
                 return;
@@ -312,25 +340,28 @@
                 return;
             }
 
+            // 2. Procesar Subtítulos
             const engBlocks = parseSRT(rawEng);
             const espBlocks = parseSRT(rawEsp);
-
+            
+            // 3. Generar bloques HTML de subtítulos fusionados
             const subtitleBlocks = generateSubtitleBlocks(engBlocks, espBlocks);
 
-            // Generar el código HTML FINAL completo
+            // 4. Generar el código HTML FINAL completo
             const finalCode = generateFinalHTML(videoId, subtitleBlocks, originalTemplate);
 
             document.getElementById('output').value = finalCode;
-            alert("✅ ¡Código generado con éxito! Cópialo del campo de Resultado HTML Completo.");
+            
+            if (engBlocks.length !== espBlocks.length && rawEsp.trim()) {
+                alert(`ℹ️ Proceso completado. Nota: Inglés tiene ${engBlocks.length} líneas y Español ${espBlocks.length}. El código completo ya está en el campo de resultado.`);
+            } else {
+                alert("✅ ¡Código generado con éxito! El HTML completo ya está en el campo de Resultado (3).");
+            }
         }
         
-        // --- PLANTILLA ORIGINAL DEL USUARIO ---
+        // --- PLANTILLA ORIGINAL COMPLETA (TU CÓDIGO FINAL DE REPRODUCTOR) ---
         function getOriginalTemplate() {
-            // TU PLANTILLA (CSS, HTML, JAVASCRIPT) CON LA ÚNICA MODIFICACIÓN:
-            // - La variable YOUTUBE_ID será reemplazada.
-            // - El marcador de subtítulos será reemplazado.
-            // *** NOTA: El campo del título fue eliminado de la interfaz, 
-            // pero el título fijo en el <title> y <a> de la cabecera se mantiene como en tu plantilla original. ***
+            // Este es tu código HTML + CSS + JS de reproductor que quieres generar
             return `<!doctype html>
 <html lang="es">
 <head>
@@ -569,7 +600,7 @@
     <div class="dialogue-container">
       
      
-      </div>
+       </div>
   </div>
 
   <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
@@ -609,6 +640,8 @@ function onYouTubeIframeAPIReady() {
       'onStateChange': onPlayerStateChange
     }
   });
+    // Inicializar listeners de líneas después de que el reproductor esté listo
+    initializeLineListeners();
 }
 
 /* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
@@ -619,13 +652,11 @@ function checkTime() {
   const currentTime = player.getCurrentTime();
 
   // 1. Control de Segmento (Play Button)
-  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
-  // No usamos setTimeout, así que si hay buffering, espera.
   if (isSegmentPlaying && currentTime >= segmentEndTime) {
     player.pauseVideo();
     isSegmentPlaying = false;
     resetButtons();
-    scrollEnabled = true; // Reactivar scroll automático global
+    scrollEnabled = true; 
     return; 
   }
 
@@ -672,7 +703,7 @@ function highlightCurrentLine(time) {
 
 function scrollToLine(element) {
   // Scroll suave para centrar el elemento, teniendo en cuenta el header y el video sticky
-  const headerOffset = 100; // <--- ESTE ES EL PROBLEMA
+  const headerOffset = 100;
   const elementPosition = element.getBoundingClientRect().top;
   const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
 
@@ -686,23 +717,22 @@ function scrollToLine(element) {
 }
 
 /* ====== INICIALIZACIÓN DE LISTENERS (IMPORTANTE) ====== */
-// Esta función debe llamarse una vez que los subtítulos están en el DOM (en el código final).
+// Esta función debe llamarse una vez que los subtítulos están en el DOM.
 function initializeLineListeners() {
     // 1. BOTONES PLAY (SEGMENTOS) 
     document.querySelectorAll('.playBtn').forEach(btn => {
-        btn.removeEventListener('click', handlePlayClick); // Eliminar antes para evitar duplicados
+        // Asumiendo que el código FINAL no tiene el evento duplicado, 
+        // lo agregamos una vez aquí para el código FINAL.
         btn.addEventListener('click', handlePlayClick);
     });
 
     // 2. BOTONES SPEAK (TTS MEJORADO)
     document.querySelectorAll('.speakBtn').forEach(btn => {
-        btn.removeEventListener('click', handleSpeakClick); // Eliminar antes para evitar duplicados
         btn.addEventListener('click', handleSpeakClick);
     });
     
     // 3. Toggle de traducción individual
     document.querySelectorAll('.text-block').forEach(block => {
-        block.removeEventListener('click', handleTextToggleClick); // Eliminar antes para evitar duplicados
         block.addEventListener('click', handleTextToggleClick);
     });
     
@@ -824,11 +854,9 @@ function toggleAllTranslations() {
   });
 }
 
-// Llamar a la inicialización al cargar la página (para los botones de la interfaz de la herramienta)
-document.addEventListener('DOMContentLoaded', () => {
-    // Para el código final, initializeLineListeners() debería llamarse justo después de inyectar el HTML.
-    // Aquí no es necesario porque es la herramienta, no el resultado final.
-});
+// Llamar a la inicialización de listeners en la plantilla final, NO en la herramienta.
+// La herramienta debe tener sus funciones de interfaz definidas:
+// Las funciones clearText, clearAll, pasteText y copyText están definidas arriba.
 </script>
 </body>
 </html>`;
