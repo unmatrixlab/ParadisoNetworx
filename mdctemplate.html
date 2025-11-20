@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>MDC ENG - Video Learning</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4f46e5;       /* Índigo profesional */
+    --primary-hover: #4338ca;
+    --accent: #ec4899;        /* Rosa para destaques */
+    --bg-body: #f3f4f6;
+    --card-bg: #ffffff;
+    --text-main: #1f2937;
+    --text-sec: #6b7280;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --radius: 12px;
+    --header-height: 50px;    /* Altura fija para cálculos */
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+    padding-top: var(--header-height); /* Espacio para el header fijo */
+  }
+
+  /* ====== HEADER MEJORADO (Estilo App) ====== */
+  #mdc-header {
+    position: fixed;
+    top: 0; left: 0; width: 100%;
+    height: var(--header-height);
+    background: rgba(31, 41, 55, 0.95); /* Oscuro casi opaco */
+    backdrop-filter: blur(10px);        /* Efecto vidrio */
+    color: white;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  #mdc-header a {
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  /* ====== CONTENEDOR PRINCIPAL ====== */
+  .page-max-width {
+    max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+    position: relative;
+  }
+
+  /* ====== VIDEO STICKY (Optimizado) ====== */
+  .video-wrapper {
+    position: sticky;
+    top: var(--header-height); /* Se pega justo debajo del header */
+    width: 100%;
+    background: #000;
+    z-index: 500;
+    box-shadow: var(--shadow);
+  }
+  .video-inner {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    height: 0;
+    overflow: hidden;
+  }
+  .video-inner iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: 0;
+  }
+
+  /* ====== LISTA DE DIÁLOGOS ====== */
+  .dialogue-container {
+    padding: 20px 15px 80px 15px; /* Padding bottom extra para botón flotante */
+  }
+
+  .line {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid transparent;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.3s;
+  }
+
+  /* Estado Activo */
+  .line.active {
+    border-left-color: var(--primary);
+    background-color: #eef2ff; /* Azul muy suave */
+    transform: scale(1.02);
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.2);
+  }
+
+  .line-content {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  /* Textos */
+  .text-block {
+    flex: 1;
+    cursor: pointer;
+  }
+  .english {
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+  .spanish {
+    font-size: 0.95rem;
+    color: var(--text-sec);
+    border-top: 1px solid #eee;
+    padding-top: 6px;
+    display: none; /* Oculto por defecto */
+    line-height: 1.4;
+  }
+  .spanish.visible {
+    display: block;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Botones de Línea */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 80px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    width: 100%;
+  }
+
+  .playBtn {
+    background-color: var(--primary);
+    color: white;
+  }
+  .playBtn:hover { background-color: var(--primary-hover); }
+  
+  /* Estado Reproduciendo (Rojo Stop) */
+  .playBtn[data-state="playing"] {
+    background-color: #ef4444;
+    animation: pulse 1.5s infinite;
+  }
+
+  .speakBtn {
+    background-color: #e5e7eb;
+    color: var(--text-main);
+  }
+  .speakBtn:hover { background-color: #d1d5db; }
+  
+  /* Estado Hablando */
+  .speakBtn[data-state="speaking"] {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  /* ====== BOTÓN FLOTANTE (Global Toggle) ====== */
+  .fab-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    background: var(--text-main);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    cursor: pointer;
+    z-index: 100;
+    transition: transform 0.2s;
+  }
+  .fab-toggle:active { transform: scale(0.9); }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  /* Media Queries */
+  @media (max-width: 640px) {
+    .line { padding: 15px; }
+    .english { font-size: 1rem; }
+    .controls { min-width: 70px; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="mdc-header">
+    <a href="https://paradisonetworx.com/mdceng">MDC ENG</a>
+  </div>
+
+  <div class="page-max-width">
+    
+    <div class="video-wrapper">
+      <div class="video-inner">
+        <div id="player"></div>
+      </div>
+    </div>
+
+    <div class="dialogue-container">
+      
+<!-- PEGAR TEXTO DEBAJO -->
+<div class="line" data-time="12">
+  <div class="line-content">
+    <div class="text-block">
+      <div class="english">When I was first learning to meditate,</div>
+      <div class="spanish">Cuando empecé a aprender a meditar,</div>
+    </div>
+    <div class="controls">
+      <button class="btn playBtn">Play</button>
+      <button class="btn speakBtn">Speak</button>
+    </div>
+  </div>
+</div>
+
+   <!-- PEGAR TEXTO ARRIBA -->
+    
+      </div>
+  </div>
+
+  <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
+    👁️
+  </div>
+
+<script>
+/* ====== CONFIGURACIÓN ====== */
+// Ajuste fino: Si la frase empieza muy rápido, resta 0.5s. Si acaba abruptamente, suma 1.5s
+const TIME_OFFSET = -0.2; 
+const END_PADDING = 0.5; 
+const YOUTUBE_ID  = '-moW9jvvMr4'; // CAMBIAR ID AQUÍ
+
+/* ====== VARIABLES GLOBALES ====== */
+let player;
+let checkInterval;
+let isSegmentPlaying = false;
+let segmentEndTime = 0;
+let currentSynth = null;
+let scrollEnabled = true;
+
+// ====== YOUTUBE API ======
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('player', {
+    videoId: YOUTUBE_ID,
+    playerVars: { 
+      playsinline: 1, 
+      rel: 0, 
+      modestbranding: 1,
+      controls: 1
+    },
+    events: {
+      'onStateChange': onPlayerStateChange
+    }
+  });
+}
+
+/* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
+// Esta función se ejecuta cada 100ms cuando el video corre
+function checkTime() {
+  if (!player || !player.getCurrentTime) return;
+  
+  const currentTime = player.getCurrentTime();
+
+  // 1. Control de Segmento (Play Button)
+  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
+  // No usamos setTimeout, así que si hay buffering, espera.
+  if (isSegmentPlaying && currentTime >= segmentEndTime) {
+    player.pauseVideo();
+    isSegmentPlaying = false;
+    resetButtons(); // Solo resetea los textos de los botones ("Stop" -> "Play")
+    scrollEnabled = true; // Reactivar scroll automático global
+    return; 
+  }
+
+  // 2. Resaltado Automático (Scroll)
+  if (scrollEnabled) {
+    highlightCurrentLine(currentTime);
+  }
+}
+
+function onPlayerStateChange(event) {
+  if (event.data === YT.PlayerState.PLAYING) {
+    // Iniciar el monitor de tiempo
+    clearInterval(checkInterval);
+    checkInterval = setInterval(checkTime, 100);
+  } else {
+    clearInterval(checkInterval);
+  }
+}
+
+/* ====== MANEJO DE DOM ====== */
+
+// Resaltar línea actual basada en el tiempo
+function highlightCurrentLine(time) {
+  const lines = document.querySelectorAll('.line');
+  let activeLine = null;
+
+  lines.forEach((line, index) => {
+    const start = parseFloat(line.dataset.time);
+    // El fin es el inicio de la siguiente línea, o +10s si es la última
+    const nextLine = lines[index + 1];
+    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
+
+    if (time >= start && time < end) {
+      activeLine = line;
+    }
+    line.classList.remove('active');
+  });
+
+  if (activeLine) {
+    activeLine.classList.add('active');
+    scrollToLine(activeLine);
+  }
+}
+
+function scrollToLine(element) {
+  // Obtiene la posición y dimensiones del elemento
+  const rect = element.getBoundingClientRect();
+  
+  // Calcula el centro vertical del elemento
+  const elementCenter = rect.top + rect.height / 2;
+  
+  // Calcula el centro vertical de la ventana visible (viewport)
+  const screenCenter = window.innerHeight / 2;
+  
+  // Calcula el desplazamiento necesario para mover el centro del elemento al centro de la pantalla.
+  const offsetPosition = window.pageYOffset + elementCenter - screenCenter - 40; 
+  
+  // Se realiza el scroll suave
+  window.scrollTo({
+    top: offsetPosition,
+    behavior: "smooth"
+  });
+}
+
+/* ====== BOTONES PLAY (SEGMENTOS) ====== */
+document.querySelectorAll('.playBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Evitar abrir traducción
+    const line = btn.closest('.line');
+    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
+    
+    // Calcular fin basado en la siguiente línea
+    const nextLine = line.nextElementSibling;
+    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
+    const end = nextTime + END_PADDING;
+
+    // Si ya está sonando este botón, paramos
+    if (btn.dataset.state === 'playing') {
+      player.pauseVideo();
+      isSegmentPlaying = false;
+      resetButtons();
+      return;
+    }
+
+    // Iniciar reproducción
+    resetButtons(); // Limpiar otros botones
+    resetSynth();   // Calla la voz sintética si habla
+    clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
+    
+    scrollEnabled = false; // Desactivar scroll auto para que no salte
+    isSegmentPlaying = true;
+    segmentEndTime = end;
+    
+    player.seekTo(Math.max(0, start), true);
+    player.playVideo();
+    
+    btn.textContent = "Stop";
+    btn.dataset.state = 'playing';
+    line.classList.add('active'); // Activa la nueva línea
+  });
+});
+
+/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
+// Cargar voces
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => {
+  voices = window.speechSynthesis.getVoices();
+};
+
+document.querySelectorAll('.speakBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const line = btn.closest('.line');
+    const text = line.querySelector('.english').innerText;
+
+    if (btn.dataset.state === 'speaking') {
+      resetSynth();
+      resetButtons();
+      return;
+    }
+
+    resetButtons();
+    resetSynth();
+    player.pauseVideo(); // Callar video si suena
+
+    const utter = new SpeechSynthesisUtterance(text);
+    
+    // Intentar buscar una voz mejor (Google US o Samantha)
+    const preferredVoice = voices.find(v => 
+      v.name.includes('Google US English') || 
+      v.name.includes('Samantha') || 
+      v.lang === 'en-US'
+    );
+    
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.lang = 'en-US';
+    utter.rate = 0.65; // Un poco más lento para claridad
+
+    utter.onstart = () => {
+      btn.textContent = "Stop";
+      btn.dataset.state = 'speaking';
+      clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
+      line.classList.add('active'); // Activa la nueva línea
+    };
+    
+    utter.onend = () => {
+      resetButtons();
+    };
+
+    window.speechSynthesis.speak(utter);
+  });
+});
+
+/* ====== UTILIDADES ====== */
+
+// Función auxiliar para quitar la selección de todas las líneas.
+function clearActiveLines() {
+  document.querySelectorAll('.line.active').forEach(line => {
+    line.classList.remove('active');
+  });
+}
+
+function resetButtons() {
+  document.querySelectorAll('.playBtn').forEach(b => {
+    b.textContent = "Play";
+    b.removeAttribute('data-state');
+  });
+  document.querySelectorAll('.speakBtn').forEach(b => {
+    b.textContent = "Speak";
+    b.removeAttribute('data-state');
+  });
+  // No se toca la clase 'active' aquí, lo que garantiza que la línea se mantenga seleccionada al finalizar el Play.
+}
+
+function resetSynth() {
+  window.speechSynthesis.cancel();
+}
+
+// Toggle de traducción individual
+document.querySelectorAll('.text-block').forEach(block => {
+  block.addEventListener('click', () => {
+    const span = block.querySelector('.spanish');
+    span.classList.toggle('visible');
+  });
+});
+
+// Toggle global (Botón Flotante)
+let allVisible = false;
+function toggleAllTranslations() {
+  allVisible = !allVisible;
+  document.querySelectorAll('.spanish').forEach(span => {
+    if (allVisible) span.classList.add('visible');
+    else span.classList.remove('visible');
+  });
+}
+</script>
+</body>
+</html>
