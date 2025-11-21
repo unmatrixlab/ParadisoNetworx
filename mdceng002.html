@@ -2150,29 +2150,181 @@
 
    <!-- PEGAR TEXTO ARRIBA -->
     
-      </div>
+   </div>
   </div>
 
-  <div class="fab-toggle" onclick="toggleAllTranslations()" title="Ver/Ocultar todas las traducciones">
-    👁️
+  <div id="control-bar">
+    <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)" title="Previous word">▲</button>
+    <div class="nav-count" id="nav-counter">0</div>
+    <button class="bar-btn disabled" id="btn-next" onclick="navigateWords(1)" title="Next word">▼</button>
+    
+    <div class="bar-divider"></div>
+    
+    <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()" title="Clear all selections">🗑️</button>
+    <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()" title="Show/Hide translations">👁️</button>
+    <button class="bar-btn" onclick="toggleHelp()" title="Help">?</button>
+  </div>
+
+  <div id="help-modal" class="modal-overlay" onclick="toggleHelp()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <h3>How to use</h3>
+      <ul>
+        <li><strong>Highlight:</strong> Tap any word (English or Spanish) to highlight it red.</li>
+        <li><strong>Navigation:</strong> Use ▲ ▼ arrows to jump between selected English words.</li>
+        <li><strong>Translations:</strong> Tap the 👁️ icon to toggle text translations.</li>
+        <li><strong>Clear:</strong> Tap the 🗑️ icon to remove all highlights.</li>
+      </ul>
+      <button class="modal-btn-close" onclick="toggleHelp()">Close</button>
+    </div>
   </div>
 
 <script>
 /* ====== CONFIGURACIÓN ====== */
-// Ajuste fino: Si la frase empieza muy rápido, resta 0.5s. Si acaba abruptamente, suma 1.5s
 const TIME_OFFSET = -0.2; 
-const END_PADDING = 1.5; 
-const YOUTUBE_ID  = '5MuIMqhT8DM'; // CAMBIAR ID AQUÍ
+const END_PADDING = 0.5; 
+const YOUTUBE_ID  = '-moW9jvvMr4';
+const STORAGE_KEY_ENG = 'mdc_selected_eng';
+const STORAGE_KEY_ESP = 'mdc_selected_esp';
+const STORAGE_KEY_TIME  = 'mdc_video_time';
 
 /* ====== VARIABLES GLOBALES ====== */
 let player;
 let checkInterval;
 let isSegmentPlaying = false;
 let segmentEndTime = 0;
-let currentSynth = null;
 let scrollEnabled = true;
+let currentWordIndex = -1; 
 
-// ====== YOUTUBE API ======
+/* ====== INICIALIZACIÓN DE PALABRAS ====== */
+function initInteractiveWords() {
+  const savedEng = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
+  const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
+   
+  // Procesar Inglés
+  let engIndex = 0;
+  document.querySelectorAll('.english').forEach(el => {
+    el.innerHTML = el.innerText.split(' ').map(word => {
+      const isSelected = savedEng.includes(engIndex);
+      const cssClass = `word-interactive english-word ${isSelected ? 'selected-word' : ''}`;
+      const span = `<span class="${cssClass}" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span>`;
+      engIndex++;
+      return span;
+    }).join(' ');
+  });
+
+  // Procesar Español
+  let espIndex = 0;
+  document.querySelectorAll('.spanish').forEach(el => {
+    el.innerHTML = el.innerText.split(' ').map(word => {
+      const isSelected = savedEsp.includes(espIndex);
+      const cssClass = `word-interactive spanish-word ${isSelected ? 'selected-word' : ''}`;
+      const span = `<span class="${cssClass}" data-lang="es" data-idx="${espIndex}" onclick="toggleWordSelection(this, event)">${word}</span>`;
+      espIndex++;
+      return span;
+    }).join(' ');
+  });
+   
+  updateNavigationUI();
+}
+
+document.addEventListener('DOMContentLoaded', initInteractiveWords);
+
+/* ====== LOGICA DE SELECCIÓN ====== */
+function toggleWordSelection(element, event) {
+  event.stopPropagation();
+   
+  const lang = element.dataset.lang;
+  element.classList.toggle('selected-word');
+
+  if (lang === 'es') {
+    saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word');
+  } else {
+    saveSelectionToStorage(STORAGE_KEY_ENG, '.english-word.selected-word');
+  }
+   
+  updateNavigationUI();
+}
+
+function saveSelectionToStorage(key, selector) {
+  const selectedElements = document.querySelectorAll(selector);
+  const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx));
+  localStorage.setItem(key, JSON.stringify(indices));
+}
+
+function clearAllWords() {
+  if(!confirm('Delete all highlighted words?')) return;
+   
+  document.querySelectorAll('.selected-word').forEach(el => {
+    el.classList.remove('selected-word');
+  });
+   
+  localStorage.removeItem(STORAGE_KEY_ENG);
+  localStorage.removeItem(STORAGE_KEY_ESP);
+  currentWordIndex = -1;
+  updateNavigationUI();
+}
+
+/* ====== LOGICA NAVEGACIÓN (SOLO INGLÉS) ====== */
+function updateNavigationUI() {
+  const selectedEng = document.querySelectorAll('.english-word.selected-word');
+  const count = selectedEng.length;
+   
+  // Actualizar contador (Solo cuenta inglés)
+  const counterEl = document.getElementById('nav-counter');
+  if (count > 0) {
+    const displayIndex = currentWordIndex > -1 ? currentWordIndex + 1 : '-';
+    counterEl.innerText = `${displayIndex}/${count}`;
+  } else {
+    counterEl.innerText = "0";
+  }
+
+  // Habilitar/Deshabilitar botones
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnClear = document.getElementById('btn-clear');
+   
+  const totalSelected = document.querySelectorAll('.selected-word').length;
+  if (totalSelected > 0) btnClear.classList.remove('disabled');
+  else btnClear.classList.add('disabled');
+
+  if (count > 0) {
+    btnPrev.classList.remove('disabled');
+    btnNext.classList.remove('disabled');
+  } else {
+    btnPrev.classList.add('disabled');
+    btnNext.classList.add('disabled');
+  }
+}
+
+function navigateWords(direction) {
+  const selected = Array.from(document.querySelectorAll('.english-word.selected-word'));
+  if (selected.length === 0) return;
+
+  selected.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
+
+  currentWordIndex += direction;
+
+  if (currentWordIndex >= selected.length) currentWordIndex = 0;
+  if (currentWordIndex < 0) currentWordIndex = selected.length - 1;
+
+  const targetWord = selected[currentWordIndex];
+
+  targetWord.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+   
+  targetWord.style.transition = 'transform 0.2s';
+  targetWord.style.transform = 'scale(1.5)';
+  setTimeout(() => { targetWord.style.transform = 'scale(1)'; }, 300);
+   
+  updateNavigationUI();
+}
+
+/* ====== HELP MODAL TOGGLE ====== */
+function toggleHelp() {
+  const modal = document.getElementById('help-modal');
+  modal.classList.toggle('active');
+}
+
+/* ====== YOUTUBE API & VIDEO PERSISTENCIA ====== */
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
@@ -2180,227 +2332,158 @@ document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document
 function onYouTubeIframeAPIReady() {
   player = new YT.Player('player', {
     videoId: YOUTUBE_ID,
-    playerVars: { 
-      playsinline: 1, 
-      rel: 0, 
-      modestbranding: 1,
-      controls: 1
-    },
-    events: {
-      'onStateChange': onPlayerStateChange
-    }
+    playerVars: { playsinline: 1, rel: 0, modestbranding: 1, controls: 1 },
+    events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
   });
 }
 
-/* ====== LÓGICA PRINCIPAL (Heartbeat) ====== */
-// Esta función se ejecuta cada 100ms cuando el video corre
-function checkTime() {
-  if (!player || !player.getCurrentTime) return;
-  
-  const currentTime = player.getCurrentTime();
-
-  // 1. Control de Segmento (Play Button)
-  // Aquí está la MAGIA: Si estamos reproduciendo un segmento, verificamos el tiempo actual.
-  // No usamos setTimeout, así que si hay buffering, espera.
-  if (isSegmentPlaying && currentTime >= segmentEndTime) {
-    player.pauseVideo();
-    isSegmentPlaying = false;
-    resetButtons(); // Solo resetea los textos de los botones ("Stop" -> "Play")
-    scrollEnabled = true; // Reactivar scroll automático global
-    return; 
-  }
-
-  // 2. Resaltado Automático (Scroll)
-  if (scrollEnabled) {
-    highlightCurrentLine(currentTime);
-  }
+function onPlayerReady(event) {
+  const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
+  if (savedTime) {
+    player.seekTo(parseFloat(savedTime));
+  }
 }
 
 function onPlayerStateChange(event) {
-  if (event.data === YT.PlayerState.PLAYING) {
-    // Iniciar el monitor de tiempo
-    clearInterval(checkInterval);
-    checkInterval = setInterval(checkTime, 100);
-  } else {
-    clearInterval(checkInterval);
-  }
+  if (event.data === YT.PlayerState.PLAYING) {
+    clearInterval(checkInterval);
+    checkInterval = setInterval(checkTime, 100);
+  } else {
+    clearInterval(checkInterval);
+    if (player && player.getCurrentTime) {
+        localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime());
+    }
+  }
 }
 
-/* ====== MANEJO DE DOM ====== */
+function checkTime() {
+  if (!player || !player.getCurrentTime) return;
+  const currentTime = player.getCurrentTime();
 
-// Resaltar línea actual basada en el tiempo
+  if (Math.floor(currentTime) % 5 === 0) {
+     localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+  }
+
+  if (isSegmentPlaying && currentTime >= segmentEndTime) {
+    player.pauseVideo();
+    isSegmentPlaying = false;
+    resetButtons(); 
+    scrollEnabled = true; 
+    return; 
+  }
+
+  if (scrollEnabled) {
+    highlightCurrentLine(currentTime);
+  }
+}
+
+/* ====== HIGHLIGHT VIDEO ====== */
 function highlightCurrentLine(time) {
-  const lines = document.querySelectorAll('.line');
-  let activeLine = null;
-
-  lines.forEach((line, index) => {
-    const start = parseFloat(line.dataset.time);
-    // El fin es el inicio de la siguiente línea, o +10s si es la última
-    const nextLine = lines[index + 1];
-    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
-
-    if (time >= start && time < end) {
-      activeLine = line;
-    }
-    line.classList.remove('active');
-  });
-
-  if (activeLine) {
-    activeLine.classList.add('active');
-    scrollToLine(activeLine);
-  }
+  const lines = document.querySelectorAll('.line');
+  let activeLine = null;
+  lines.forEach((line, index) => {
+    const start = parseFloat(line.dataset.time);
+    const nextLine = lines[index + 1];
+    const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
+    if (time >= start && time < end) activeLine = line;
+    line.classList.remove('active');
+  });
+  if (activeLine) {
+    activeLine.classList.add('active');
+    scrollToLine(activeLine);
+  }
 }
 
 function scrollToLine(element) {
-  // Obtiene la posición y dimensiones del elemento
-  const rect = element.getBoundingClientRect();
-  
-  // Calcula el centro vertical del elemento
-  const elementCenter = rect.top + rect.height / 2;
-  
-  // Calcula el centro vertical de la ventana visible (viewport)
-  const screenCenter = window.innerHeight / 2;
-  
-  // Calcula el desplazamiento necesario para mover el centro del elemento al centro de la pantalla.
-  const offsetPosition = window.pageYOffset + elementCenter - screenCenter - 40; 
-  
-  // Se realiza el scroll suave
-  window.scrollTo({
-    top: offsetPosition,
-    behavior: "smooth"
-  });
+  const rect = element.getBoundingClientRect();
+  const offsetPosition = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40; 
+  window.scrollTo({ top: offsetPosition, behavior: "smooth" });
 }
 
-/* ====== BOTONES PLAY (SEGMENTOS) ====== */
+/* ====== BOTONES PLAY & SPEAK ====== */
 document.querySelectorAll('.playBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation(); // Evitar abrir traducción
-    const line = btn.closest('.line');
-    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
-    
-    // Calcular fin basado en la siguiente línea
-    const nextLine = line.nextElementSibling;
-    const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : start + 5;
-    const end = nextTime + END_PADDING;
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation(); 
+    const line = btn.closest('.line');
+    const start = parseFloat(line.dataset.time) + TIME_OFFSET;
+    const nextLine = line.nextElementSibling;
+    const end = (nextLine ? parseFloat(nextLine.dataset.time) : start + 5) + END_PADDING;
 
-    // Si ya está sonando este botón, paramos
-    if (btn.dataset.state === 'playing') {
-      player.pauseVideo();
-      isSegmentPlaying = false;
-      resetButtons();
-      return;
-    }
-
-    // Iniciar reproducción
-    resetButtons(); // Limpiar otros botones
-    resetSynth();   // Calla la voz sintética si habla
-    clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
-    
-    scrollEnabled = false; // Desactivar scroll auto para que no salte
-    isSegmentPlaying = true;
-    segmentEndTime = end;
-    
-    player.seekTo(Math.max(0, start), true);
-    player.playVideo();
-    
-    btn.textContent = "Stop";
-    btn.dataset.state = 'playing';
-    line.classList.add('active'); // Activa la nueva línea
-  });
-});
-
-/* ====== BOTONES SPEAK (TTS MEJORADO) ====== */
-// Cargar voces
-let voices = [];
-window.speechSynthesis.onvoiceschanged = () => {
-  voices = window.speechSynthesis.getVoices();
-};
-
-document.querySelectorAll('.speakBtn').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const line = btn.closest('.line');
-    const text = line.querySelector('.english').innerText;
-
-    if (btn.dataset.state === 'speaking') {
-      resetSynth();
-      resetButtons();
-      return;
-    }
-
-    resetButtons();
-    resetSynth();
-    player.pauseVideo(); // Callar video si suena
-
-    const utter = new SpeechSynthesisUtterance(text);
-    
-    // Intentar buscar una voz mejor (Google US o Samantha)
-    const preferredVoice = voices.find(v => 
-      v.name.includes('Google US English') || 
-      v.name.includes('Samantha') || 
-      v.lang === 'en-US'
-    );
-    
-    if (preferredVoice) utter.voice = preferredVoice;
-    utter.lang = 'en-US';
-    utter.rate = 0.65; // Un poco más lento para claridad
-
-    utter.onstart = () => {
-      btn.textContent = "Stop";
-      btn.dataset.state = 'speaking';
-      clearActiveLines(); // 💡 CORRECCIÓN: Deselecciona la línea anterior
-      line.classList.add('active'); // Activa la nueva línea
-    };
-    
-    utter.onend = () => {
-      resetButtons();
-    };
-
-    window.speechSynthesis.speak(utter);
-  });
-});
-
-/* ====== UTILIDADES ====== */
-
-// Función auxiliar para quitar la selección de todas las líneas.
-function clearActiveLines() {
-  document.querySelectorAll('.line.active').forEach(line => {
-    line.classList.remove('active');
+    if (btn.dataset.state === 'playing') {
+      player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return;
+    }
+    resetButtons(); resetSynth(); clearActiveLines(); 
+    scrollEnabled = false; isSegmentPlaying = true; segmentEndTime = end;
+    player.seekTo(Math.max(0, start), true); player.playVideo();
+    btn.textContent = "Stop"; btn.dataset.state = 'playing'; line.classList.add('active'); 
   });
-}
-
-function resetButtons() {
-  document.querySelectorAll('.playBtn').forEach(b => {
-    b.textContent = "Play";
-    b.removeAttribute('data-state');
-  });
-  document.querySelectorAll('.speakBtn').forEach(b => {
-    b.textContent = "Speak";
-    b.removeAttribute('data-state');
-  });
-  // No se toca la clase 'active' aquí, lo que garantiza que la línea se mantenga seleccionada al finalizar el Play.
-}
-
-function resetSynth() {
-  window.speechSynthesis.cancel();
-}
-
-// Toggle de traducción individual
-document.querySelectorAll('.text-block').forEach(block => {
-  block.addEventListener('click', () => {
-    const span = block.querySelector('.spanish');
-    span.classList.toggle('visible');
-  });
 });
 
-// Toggle global (Botón Flotante)
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => { voices = window.speechSynthesis.getVoices(); };
+document.querySelectorAll('.speakBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const line = btn.closest('.line');
+    const text = line.querySelector('.english').innerText; 
+    if (btn.dataset.state === 'speaking') { resetSynth(); resetButtons(); return; }
+    resetButtons(); resetSynth(); player.pauseVideo(); 
+    const utter = new SpeechSynthesisUtterance(text);
+    const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
+    if (preferredVoice) utter.voice = preferredVoice;
+    utter.lang = 'en-US'; utter.rate = 0.65; 
+    utter.onstart = () => { btn.textContent = "Stop"; btn.dataset.state = 'speaking'; clearActiveLines(); line.classList.add('active'); };
+    utter.onend = () => { resetButtons(); };
+    window.speechSynthesis.speak(utter);
+  });
+});
+
+function clearActiveLines() { document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active')); }
+function resetButtons() {
+  document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); });
+  document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
+}
+function resetSynth() { window.speechSynthesis.cancel(); }
+
+/* ====== GLOBAL TOGGLE TRANSLATIONS (SOLUCIÓN APLICADA AQUÍ) ====== */
 let allVisible = false;
+
+// Nueva función auxiliar para detectar qué línea mira el usuario
+function getCenterLine() {
+  const lines = document.querySelectorAll('.line');
+  const viewCenter = window.innerHeight / 2;
+  let closestLine = null;
+  let minDistance = Infinity;
+
+  lines.forEach(line => {
+    const rect = line.getBoundingClientRect();
+    const lineCenter = rect.top + (rect.height / 2);
+    const distance = Math.abs(viewCenter - lineCenter);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestLine = line;
+    }
+  });
+  return closestLine;
+}
+
 function toggleAllTranslations() {
-  allVisible = !allVisible;
-  document.querySelectorAll('.spanish').forEach(span => {
-    if (allVisible) span.classList.add('visible');
-    else span.classList.remove('visible');
-  });
+  // 1. Capturamos la línea central ANTES del cambio de tamaño
+  const centerLine = getCenterLine();
+
+  allVisible = !allVisible;
+  const btn = document.getElementById('btn-toggle-trans');
+  btn.style.color = allVisible ? '#4f46e5' : 'white';
+  
+  document.querySelectorAll('.spanish').forEach(span => {
+    if (allVisible) span.classList.add('visible');
+    else span.classList.remove('visible');
+  });
+
+  // 2. Corregimos el scroll inmediatamente para mantener esa línea en el centro
+  if (centerLine) {
+    scrollToLine(centerLine);
+  }
 }
 </script>
 </body>
