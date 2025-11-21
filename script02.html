@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fusionador Pro v5: Player Generator</title>
+    <title>Fusionador Pro v6: Player Generator + ID</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -15,7 +16,7 @@
         }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); padding: 20px; color: #333; }
         
-        /* Cabecera y Links */
+        /* Cabecera */
         .header { text-align: center; margin-bottom: 20px; }
         h2 { color: var(--secondary); margin-bottom: 10px; font-weight: 800; }
         .version-badge { background: var(--accent); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem; vertical-align: middle; }
@@ -33,8 +34,21 @@
         .resource-link:hover { background: #374151; transform: translateY(-1px); }
         .resource-link.blue { background: var(--primary); }
 
+        /* Nueva Barra de Configuración (YouTube) */
+        .config-section {
+            max-width: 100%; background: #fff; padding: 15px 20px; border-radius: 12px; 
+            margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex; align-items: center; gap: 15px; border-left: 5px solid var(--danger);
+        }
+        .config-section label { font-weight: 700; color: var(--secondary); white-space: nowrap; }
+        .config-section input {
+            flex: 1; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; 
+            font-size: 14px; font-family: 'Consolas', monospace; color: #333;
+        }
+        .config-section input:focus { border-color: var(--danger); outline: none; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+
         /* Contenedor Principal */
-        .container { display: flex; gap: 15px; height: 65vh; }
+        .container { display: flex; gap: 15px; height: 60vh; }
         .column { flex: 1; display: flex; flex-direction: column; background: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         
         /* Barra de herramientas */
@@ -46,7 +60,6 @@
         
         .mini-btn-group { display: flex; gap: 5px; }
         
-        /* Estilos de botones mini */
         .mini-btn {
             padding: 5px 12px; border: 1px solid #e5e7eb; background: #fff;
             border-radius: 6px; cursor: pointer; font-size: 11px; transition: 0.2s;
@@ -55,15 +68,9 @@
         .mini-btn:hover { background: #f9fafb; border-color: #d1d5db; }
         
         .mini-btn.copy { color: var(--primary); border-color: #e0e7ff; background: #eef2ff; }
-        .mini-btn.copy:hover { background: #e0e7ff; }
-        
         .mini-btn.clear { color: var(--danger); border-color: #fee2e2; background: #fef2f2; }
-        .mini-btn.clear:hover { background: #fee2e2; }
         
-        /* Botón de subir archivo */
-        .upload-label {
-            color: white !important; background-color: var(--upload) !important; border-color: var(--upload) !important;
-        }
+        .upload-label { color: white !important; background-color: var(--upload) !important; border-color: var(--upload) !important; }
         .upload-label:hover { background-color: #7c3aed !important; }
         input[type="file"] { display: none; } 
 
@@ -92,12 +99,17 @@
 <body>
 
     <div class="header">
-        <h2>Fusionador de Subtítulos <span class="version-badge">v5 Player Edition</span></h2>
+        <h2>Fusionador de Subtítulos <span class="version-badge">v6 Custom Video</span></h2>
         <div class="resources">
             <span>Herramientas:</span>
             <a href="https://downsub.com/" target="_blank" class="resource-link">⬇️ DownSub</a>
             <a href="https://translatesubtitles.co" target="_blank" class="resource-link blue">🌐 TranslateSubtitles</a>
         </div>
+    </div>
+
+    <div class="config-section">
+        <label>📺 Video de YouTube:</label>
+        <input type="text" id="youtubeInput" placeholder="Pega el ID (ej: -moW9jvvMr4) o la URL completa aquí..." value="-moW9jvvMr4">
     </div>
 
     <div class="container">
@@ -129,13 +141,13 @@
 
         <div class="column">
             <div class="toolbar">
-                <label>3. Resultado (Código Completo)</label>
+                <label>3. Resultado Final</label>
                 <div class="mini-btn-group">
                     <button class="mini-btn copy" onclick="copyText('output')" title="Copiar código final">📑 COPIAR TODO</button>
                     <button class="mini-btn clear" onclick="clearText('output')" title="Borrar resultado">❌</button>
                 </div>
             </div>
-            <textarea id="output" readonly placeholder="Aquí aparecerá el código HTML completo del reproductor con tus subtítulos incrustados..."></textarea>
+            <textarea id="output" readonly placeholder="Aquí aparecerá el código HTML completo del reproductor con tus subtítulos y el video que elegiste..."></textarea>
         </div>
     </div>
 
@@ -181,6 +193,7 @@
                 clearText('inputEng');
                 clearText('inputEsp');
                 clearText('output');
+                document.getElementById('youtubeInput').value = "-moW9jvvMr4"; // Reset to default
             }
         }
 
@@ -198,6 +211,15 @@
             navigator.clipboard.writeText(textarea.value).then(() => alert("✅ ¡Código copiado!"));
         }
 
+        // --- Helper YouTube ID Extraction ---
+        function getYoutubeId(url) {
+            if (!url) return '';
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            // Si encuentra ID de 11 caracteres, lo devuelve, si no, devuelve el input original (por si el usuario puso solo el ID)
+            return (match && match[2].length === 11) ? match[2] : url;
+        }
+
         // --- Lógica de Subtítulos ---
         function timeToSeconds(timeString) {
             try {
@@ -207,7 +229,7 @@
                 const secondsPart = parts[2].split(','); 
                 const seconds = parseInt(secondsPart[0]);
                 const ms = parseInt(secondsPart[1]) || 0; 
-                return (hours * 3600) + (minutes * 60) + seconds + (ms/1000); // Precisión decimal opcional
+                return (hours * 3600) + (minutes * 60) + seconds + (ms/1000); 
             } catch (e) { return 0; }
         }
 
@@ -226,8 +248,7 @@
             return bloques;
         }
 
-        // --- EL CÓDIGO DE TU PLANTILLA (Dividido para inyección) ---
-        // Se han escapado las backticks internas y los signos de dolar ${} para evitar conflictos JS
+        // --- EL CÓDIGO DE LA PLANTILLA ---
         
         const PLAYER_TEMPLATE_TOP = `<!doctype html>
 <html lang="es">
@@ -241,8 +262,8 @@
     --primary: #4f46e5;
     --primary-hover: #4338ca;
     --accent: #ec4899;
-    --selected-word: #ef4444; /* Rojo (Guardadas) */
-    --nav-active: #2563eb;    /* Azul (Activa / Navegador) */
+    --selected-word: #ef4444; 
+    --nav-active: #2563eb;    
     --bg-body: #f3f4f6;
     --card-bg: #ffffff;
     --text-main: #1f2937;
@@ -314,28 +335,24 @@
 
   .word-interactive {
     border-radius: 3px; padding: 0 1px;
-    transition: color 0.2s; /* Quitamos transform de la transición */
+    transition: color 0.2s; 
     cursor: pointer; display: inline-block;
   }
   .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
 
-  /* ESTADO 1: SELECCIONADA (ROJO - GUARDADA) */
   .word-interactive.english-word.selected-word {
     color: var(--selected-word); font-weight: 800;
     text-decoration: underline; text-decoration-thickness: 2px;
     text-decoration-color: rgba(239, 68, 68, 0.3);
   }
 
-  /* ESTADO 2: ACTIVA (AZUL - SELECCIÓN ACTUAL) */
-  /* Sin cambio de tamaño (scale), solo color sólido */
   .word-interactive.english-word.nav-active-word {
     color: var(--nav-active) !important;
     text-decoration-color: var(--nav-active) !important;
-    background-color: rgba(37, 99, 235, 0.1); /* Un fondo sutil azul en lugar de tamaño */
+    background-color: rgba(37, 99, 235, 0.1);
     border-radius: 4px;
   }
 
-  /* Español solo rojo */
   .word-interactive.spanish-word.selected-word {
     color: #be123c; font-weight: 700;
   }
@@ -355,7 +372,7 @@
   .speakBtn:hover { background-color: #d1d5db; }
   .speakBtn[data-state="speaking"] { background-color: var(--accent); color: white; }
 
-  /* ====== CONTROL BAR (BOTONERA) ====== */
+  /* ====== CONTROL BAR ====== */
   #control-bar {
     position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%);
     background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(8px); color: white;
@@ -436,7 +453,7 @@
     <div class="dialogue-container">
 `;
 
-        const PLAYER_TEMPLATE_BOTTOM = `
+        const PLAYER_TEMPLATE_BOTTOM_RAW = `
     </div>
    </div>
 
@@ -473,13 +490,13 @@
 /* ====== CONFIGURACIÓN ====== */
 const TIME_OFFSET = -0.2; 
 const END_PADDING = 0.5; 
-const YOUTUBE_ID  = '-moW9jvvMr4';
+const YOUTUBE_ID  = 'VIDEO_ID_PLACEHOLDER';
 const STORAGE_KEY_ENG = 'mdc_selected_eng';
 const STORAGE_KEY_ESP = 'mdc_selected_esp';
 const STORAGE_KEY_TIME  = 'mdc_video_time';
 
 /* ====== CONFIGURACIÓN TTS UNIFICADA ====== */
-const TTS_RATE = 0.65; // Velocidad lenta unificada para frases y palabras
+const TTS_RATE = 0.65; 
 const TTS_LANG = 'en-US';
 
 /* ====== ESTADO GLOBAL ====== */
@@ -641,7 +658,7 @@ function speakText(text, onStart = null, onEnd = null) {
     const utter = new SpeechSynthesisUtterance(text);
     utter.voice = getPreferredVoice();
     utter.lang = TTS_LANG;
-    utter.rate = TTS_RATE; // VELOCIDAD 0.65 UNIFICADA
+    utter.rate = TTS_RATE; 
     
     if(onStart) utter.onstart = onStart;
     if(onEnd) utter.onend = onEnd;
@@ -666,7 +683,6 @@ function speakActiveOrSelected() {
 function speakWordById(idx) {
   const el = document.querySelector(\`.english-word[data-idx="\${idx}"]\`);
   if (!el) return;
-  // Sin animaciones de escala aqui
   speakText(el.innerText);
 }
 
@@ -773,7 +789,6 @@ document.querySelectorAll('.playBtn').forEach(btn => {
   });
 });
 
-// Cargar voces al inicio para estar listos
 window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
 
 document.querySelectorAll('.speakBtn').forEach(btn => {
@@ -786,7 +801,6 @@ document.querySelectorAll('.speakBtn').forEach(btn => {
     
     resetButtons(); window.speechSynthesis.cancel(); player.pauseVideo(); 
     
-    // Usar el helper unificado
     speakText(
         text, 
         () => { // onStart
@@ -805,7 +819,6 @@ function resetButtons() {
   document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
 }
 
-/* ====== TRANSLATION TOGGLE ====== */
 let allVisible = false;
 function getCenterLine() {
   const lines = document.querySelectorAll('.line');
@@ -836,12 +849,14 @@ function toggleAllTranslations() {
         function fusionar() {
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
+            const inputUrl = document.getElementById('youtubeInput').value.trim();
             
             if (!rawEng.trim()) {
                 alert("⚠️ ¡Falta el archivo en Inglés!");
                 return;
             }
 
+            const videoId = getYoutubeId(inputUrl) || '-moW9jvvMr4'; // Fallback to default
             const engBlocks = parseSRT(rawEng);
             const espBlocks = parseSRT(rawEsp);
             let subtitlesHTML = "";
@@ -850,7 +865,6 @@ function toggleAllTranslations() {
                 const engItem = engBlocks[i];
                 const espText = espBlocks[i] ? espBlocks[i].text : "";
                 const seconds = timeToSeconds(engItem.start);
-                // Usamos toFixed(2) para que el tiempo sea limpio, por ejemplo "12.50"
                 const cleanTime = seconds.toFixed(2);
 
                 const htmlBlock = 
@@ -869,13 +883,16 @@ function toggleAllTranslations() {
                 subtitlesHTML += htmlBlock + "\n";
             }
 
+            // Reemplazo del ID en la plantilla inferior
+            const updatedBottom = PLAYER_TEMPLATE_BOTTOM_RAW.replace('VIDEO_ID_PLACEHOLDER', videoId);
+
             // Construir el archivo final uniendo las partes
-            const finalCode = PLAYER_TEMPLATE_TOP + subtitlesHTML + PLAYER_TEMPLATE_BOTTOM;
+            const finalCode = PLAYER_TEMPLATE_TOP + subtitlesHTML + updatedBottom;
 
             document.getElementById('output').value = finalCode;
             
             if (engBlocks.length !== espBlocks.length && rawEsp.trim()) {
-                alert(`ℹ️ Proceso completado. Nota: Inglés tiene ${engBlocks.length} líneas y Español ${espBlocks.length}.`);
+                alert(`ℹ️ Proceso completado. Video ID: ${videoId}`);
             }
         }
     </script>
