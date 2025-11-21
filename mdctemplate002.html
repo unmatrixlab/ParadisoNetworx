@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="es">
 <head>
@@ -10,8 +11,8 @@
     --primary: #4f46e5;
     --primary-hover: #4338ca;
     --accent: #ec4899;
-    --selected-word: #ef4444; /* Rojo para selección guardada */
-    --nav-active: #2563eb;    /* Azul para navegación actual */
+    --selected-word: #ef4444; /* Rojo (Guardadas) */
+    --nav-active: #2563eb;    /* Azul (Activa / Navegador) */
     --bg-body: #f3f4f6;
     --card-bg: #ffffff;
     --text-main: #1f2937;
@@ -88,23 +89,25 @@
   }
   .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
 
-  /* Selección ROJA (Inglés - Base) */
+  /* ESTADO 1: SELECCIONADA (ROJO - GUARDADA) */
   .word-interactive.english-word.selected-word {
     color: var(--selected-word); font-weight: 800;
     text-decoration: underline; text-decoration-thickness: 2px;
     text-decoration-color: rgba(239, 68, 68, 0.3);
   }
 
-  /* === NUEVO: Selección AZUL (Navegador Activo) === */
+  /* ESTADO 2: ACTIVA (AZUL - SELECCIÓN ACTUAL DEL NAVEGADOR) */
+  /* Usamos !important para asegurar que el azul sobrescriba al rojo cuando coinciden */
   .word-interactive.english-word.nav-active-word {
     color: var(--nav-active) !important;
     text-decoration-color: var(--nav-active) !important;
-    transform: scale(1.2);
+    transform: scale(1.25);
     z-index: 10;
     position: relative;
+    text-shadow: 0 2px 5px rgba(37, 99, 235, 0.2);
   }
 
-  /* Selección ROJA (Español) */
+  /* Español solo rojo */
   .word-interactive.spanish-word.selected-word {
     color: #be123c; font-weight: 700;
   }
@@ -226,18 +229,16 @@
     </div>
   </div>
 </div>
-
    </div>
-  </div>
 
   <div id="control-bar">
     <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)" title="Previous word">▲</button>
-    <div class="nav-count" id="nav-counter">0</div>
+    <div class="nav-count" id="nav-counter">0/0</div>
     <button class="bar-btn disabled" id="btn-next" onclick="navigateWords(1)" title="Next word">▼</button>
     
     <div class="bar-divider"></div>
 
-    <button class="bar-btn disabled" id="btn-speak-word" onclick="speakCurrentSelection()" title="Pronounce word">📢</button>
+    <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()" title="Pronounce active word">📢</button>
     
     <div class="bar-divider"></div>
     
@@ -250,11 +251,10 @@
     <div class="modal-content" onclick="event.stopPropagation()">
       <h3>How to use</h3>
       <ul>
-        <li><strong>Highlight:</strong> Tap any word (English or Spanish) to highlight it red.</li>
-        <li><strong>Navigation:</strong> Use ▲ ▼ arrows to jump between selected English words. <strong>The active word turns BLUE.</strong></li>
-        <li><strong>Speak Word:</strong> Tap 📢 to pronounce the blue word.</li>
-        <li><strong>Translations:</strong> Tap the 👁️ icon to toggle text translations.</li>
-        <li><strong>Clear:</strong> Tap the 🗑️ icon to remove all highlights.</li>
+        <li><strong>Select:</strong> Click a word. It turns <strong>BLUE</strong> (Active) and previous words turn <strong>RED</strong>.</li>
+        <li><strong>Navigate:</strong> Use ▲ ▼ arrows to move the Blue highlight through your selected words.</li>
+        <li><strong>Speak:</strong> Tap 📢 to pronounce the Blue word.</li>
+        <li><strong>Clear:</strong> Tap 🗑️ to reset selection (Counter 0/0).</li>
       </ul>
       <button class="modal-btn-close" onclick="toggleHelp()">Close</button>
     </div>
@@ -269,32 +269,35 @@ const STORAGE_KEY_ENG = 'mdc_selected_eng';
 const STORAGE_KEY_ESP = 'mdc_selected_esp';
 const STORAGE_KEY_TIME  = 'mdc_video_time';
 
-/* ====== VARIABLES GLOBALES ====== */
+/* ====== ESTADO GLOBAL ====== */
 let player;
 let checkInterval;
 let isSegmentPlaying = false;
 let segmentEndTime = 0;
 let scrollEnabled = true;
-let currentWordIndex = -1; 
 
-/* ====== INICIALIZACIÓN DE PALABRAS ====== */
+// Estado de Selección
+let engSelection = []; // Lista de índices seleccionados
+let activeWordID = null; // El ID (índice) de la palabra AZUL actual
+
+/* ====== INICIALIZACIÓN ====== */
 function initInteractiveWords() {
-  const savedEng = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
+  // Cargar guardados
+  engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
   const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
     
-  // Procesar Inglés
+  // 1. Renderizar HTML Inglés (Con IDs)
   let engIndex = 0;
   document.querySelectorAll('.english').forEach(el => {
     el.innerHTML = el.innerText.split(' ').map(word => {
-      const isSelected = savedEng.includes(engIndex);
-      const cssClass = `word-interactive english-word ${isSelected ? 'selected-word' : ''}`;
-      const span = `<span class="${cssClass}" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span>`;
+      // Creamos el span base, el color se aplicará en renderWordStates()
+      const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span>`;
       engIndex++;
       return span;
     }).join(' ');
   });
 
-  // Procesar Español
+  // 2. Renderizar HTML Español
   let espIndex = 0;
   document.querySelectorAll('.spanish').forEach(el => {
     el.innerHTML = el.innerText.split(' ').map(word => {
@@ -305,163 +308,206 @@ function initInteractiveWords() {
       return span;
     }).join(' ');
   });
-    
-  updateNavigationUI();
+
+  // 3. Aplicar estado visual
+  renderWordStates();
 }
 
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
 
-/* ====== LOGICA DE SELECCIÓN ====== */
+/* ====== LÓGICA CENTRAL DE SELECCIÓN (STATE MACHINE) ====== */
+
 function toggleWordSelection(element, event) {
   event.stopPropagation();
-    
   const lang = element.dataset.lang;
-  
-  // Si deseleccionamos la palabra que está activa azul, reseteamos index
-  if(element.classList.contains('nav-active-word')) {
-      element.classList.remove('nav-active-word');
-      currentWordIndex = -1;
-  }
-
-  element.classList.toggle('selected-word');
+  const idx = parseInt(element.dataset.idx);
 
   if (lang === 'es') {
+    // Lógica simple para español (solo toggle rojo)
+    element.classList.toggle('selected-word');
     saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word');
-  } else {
-    saveSelectionToStorage(STORAGE_KEY_ENG, '.english-word.selected-word');
+    return;
   }
-    
-  updateNavigationUI();
+
+  // === LÓGICA INGLÉS (Contador y Azul/Rojo) ===
+  
+  // Caso A: La palabra ya estaba seleccionada
+  if (engSelection.includes(idx)) {
+    if (activeWordID === idx) {
+      // Si era la AZUL, la quitamos totalmente
+      engSelection = engSelection.filter(id => id !== idx);
+      activeWordID = null;
+    } else {
+      // Si era ROJA, la convertimos en AZUL
+      activeWordID = idx;
+    }
+  } 
+  // Caso B: La palabra es nueva
+  else {
+    engSelection.push(idx);
+    engSelection.sort((a, b) => a - b); // Mantener orden numérico
+    activeWordID = idx; // La nueva se vuelve AZUL automáticamente
+  }
+
+  // Si borramos todo, resetear ID activo
+  if (engSelection.length === 0) activeWordID = null;
+
+  // Guardar y Renderizar
+  localStorage.setItem(STORAGE_KEY_ENG, JSON.stringify(engSelection));
+  renderWordStates();
+}
+
+/* ====== RENDERIZADO VISUAL Y CONTADOR ====== */
+function renderWordStates() {
+  // 1. Limpiar clases en todas las palabras inglés
+  document.querySelectorAll('.english-word').forEach(el => {
+    el.classList.remove('selected-word', 'nav-active-word');
+  });
+
+  // 2. Aplicar clases según estado
+  engSelection.forEach(idx => {
+    const el = document.querySelector(`.english-word[data-idx="${idx}"]`);
+    if(el) {
+      if (idx === activeWordID) {
+        el.classList.add('nav-active-word'); // Azul
+      } else {
+        el.classList.add('selected-word');   // Rojo
+      }
+    }
+  });
+
+  // 3. Actualizar UI Barra
+  updateControlBar();
+}
+
+function updateControlBar() {
+  const counterEl = document.getElementById('nav-counter');
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const btnClear = document.getElementById('btn-clear');
+  const btnSpeak = document.getElementById('btn-speak-word');
+
+  const total = engSelection.length;
+
+  // Calcular posición actual para el contador (1-based)
+  let currentPos = 0;
+  if (activeWordID !== null && total > 0) {
+    currentPos = engSelection.indexOf(activeWordID) + 1;
+  }
+
+  // Texto Contador: 0/0 si nada, o X/Y
+  counterEl.innerText = total === 0 ? "0/0" : `${currentPos}/${total}`;
+
+  // Habilitar botones
+  if (total > 0) {
+    btnClear.classList.remove('disabled');
+    btnSpeak.classList.remove('disabled');
+    btnPrev.classList.remove('disabled');
+    btnNext.classList.remove('disabled');
+  } else {
+    btnClear.classList.add('disabled');
+    btnSpeak.classList.add('disabled');
+    btnPrev.classList.add('disabled');
+    btnNext.classList.add('disabled');
+  }
+}
+
+/* ====== NAVEGACIÓN (FLECHAS) ====== */
+function navigateWords(direction) {
+  if (engSelection.length === 0) return;
+
+  // Encontrar índice actual en el array
+  let currentIndexArray = engSelection.indexOf(activeWordID);
+
+  if (currentIndexArray === -1) {
+    // Si no hay ninguna activa (ej: recarga de pág), empezar por el principio o final
+    currentIndexArray = direction > 0 ? 0 : engSelection.length - 1;
+  } else {
+    // Mover índice
+    currentIndexArray += direction;
+    // Loop infinito
+    if (currentIndexArray >= engSelection.length) currentIndexArray = 0;
+    if (currentIndexArray < 0) currentIndexArray = engSelection.length - 1;
+  }
+
+  // Nuevo ID Activo
+  activeWordID = engSelection[currentIndexArray];
+
+  // Scroll hacia la palabra
+  const targetEl = document.querySelector(`.english-word[data-idx="${activeWordID}"]`);
+  if(targetEl) {
+    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  }
+
+  renderWordStates();
+}
+
+/* ====== SPEAK TTS (Lógica modificada) ====== */
+function speakActiveOrSelected() {
+  // 1. ¿Hay una palabra Azul (Activa)?
+  if (activeWordID !== null) {
+    speakWordById(activeWordID);
+    return;
+  }
+
+  // 2. Si no hay Azul, pero hay rojas, decir la primera
+  if (engSelection.length > 0) {
+    // Hacemos activa la primera para dar feedback visual y la decimos
+    activeWordID = engSelection[0];
+    renderWordStates();
+    speakWordById(activeWordID);
+    return;
+  }
+  
+  // 3. Si no hay nada seleccionado, no hacer nada (o decir mensaje de error si quisieras)
+}
+
+function speakWordById(idx) {
+  const el = document.querySelector(`.english-word[data-idx="${idx}"]`);
+  if (!el) return;
+
+  // Efecto visual rápido
+  el.style.transform = 'scale(1.4)';
+  setTimeout(() => el.style.transform = 'scale(1.25)', 300);
+
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(el.innerText);
+  const voices = window.speechSynthesis.getVoices();
+  const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
+  if (preferredVoice) utter.voice = preferredVoice;
+  utter.lang = 'en-US';
+  utter.rate = 0.8;
+  window.speechSynthesis.speak(utter);
 }
 
 function saveSelectionToStorage(key, selector) {
+  // Helper solo para español, inglés tiene su propia lógica arriba
   const selectedElements = document.querySelectorAll(selector);
   const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx));
   localStorage.setItem(key, JSON.stringify(indices));
 }
 
 function clearAllWords() {
-  if(!confirm('Delete all highlighted words?')) return;
-    
-  document.querySelectorAll('.selected-word, .nav-active-word').forEach(el => {
-    el.classList.remove('selected-word');
-    el.classList.remove('nav-active-word');
-  });
-    
-  localStorage.removeItem(STORAGE_KEY_ENG);
-  localStorage.removeItem(STORAGE_KEY_ESP);
-  currentWordIndex = -1;
-  updateNavigationUI();
-}
-
-/* ====== LOGICA NAVEGACIÓN (SOLO INGLÉS) ====== */
-function updateNavigationUI() {
-  const selectedEng = document.querySelectorAll('.english-word.selected-word');
-  const count = selectedEng.length;
-    
-  // Actualizar contador
-  const counterEl = document.getElementById('nav-counter');
-  if (count > 0) {
-    const displayIndex = currentWordIndex > -1 ? currentWordIndex + 1 : '-';
-    counterEl.innerText = `${displayIndex}/${count}`;
-  } else {
-    counterEl.innerText = "0";
-  }
-
-  // Habilitar/Deshabilitar botones
-  const btnPrev = document.getElementById('btn-prev');
-  const btnNext = document.getElementById('btn-next');
-  const btnClear = document.getElementById('btn-clear');
-  const btnSpeak = document.getElementById('btn-speak-word');
-    
-  const totalSelected = document.querySelectorAll('.selected-word').length;
+  if(!confirm('Reset all selections?')) return;
   
-  // Botón Speak y Clear habilitados si hay palabras
-  if (totalSelected > 0) {
-    btnClear.classList.remove('disabled');
-    btnSpeak.classList.remove('disabled');
-  } else {
-    btnClear.classList.add('disabled');
-    btnSpeak.classList.add('disabled');
-  }
+  engSelection = [];
+  activeWordID = null;
+  localStorage.removeItem(STORAGE_KEY_ENG);
+  
+  // Limpiar español también
+  document.querySelectorAll('.spanish-word.selected-word').forEach(el => el.classList.remove('selected-word'));
+  localStorage.removeItem(STORAGE_KEY_ESP);
 
-  if (count > 0) {
-    btnPrev.classList.remove('disabled');
-    btnNext.classList.remove('disabled');
-  } else {
-    btnPrev.classList.add('disabled');
-    btnNext.classList.add('disabled');
-  }
+  renderWordStates();
 }
 
-function navigateWords(direction) {
-  const selected = Array.from(document.querySelectorAll('.english-word.selected-word'));
-  if (selected.length === 0) return;
-
-  // Ordenar por índice para navegar secuencialmente
-  selected.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
-
-  // Quitar clase activa anterior
-  document.querySelectorAll('.nav-active-word').forEach(el => el.classList.remove('nav-active-word'));
-
-  currentWordIndex += direction;
-
-  if (currentWordIndex >= selected.length) currentWordIndex = 0;
-  if (currentWordIndex < 0) currentWordIndex = selected.length - 1;
-
-  const targetWord = selected[currentWordIndex];
-
-  // APLICAR CLASE AZUL
-  targetWord.classList.add('nav-active-word');
-
-  targetWord.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    
-  updateNavigationUI();
-}
-
-/* ====== NUEVA FUNCIÓN: PRONUNCIAR PALABRA SELECCIONADA ====== */
-function speakCurrentSelection() {
-    const selected = Array.from(document.querySelectorAll('.english-word.selected-word'));
-    if (selected.length === 0) return; // Nada que decir
-
-    selected.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
-
-    let wordToSpeak = null;
-
-    if (currentWordIndex > -1 && currentWordIndex < selected.length) {
-        // Caso 1: El navegador está posicionado en una palabra (AZUL)
-        wordToSpeak = selected[currentWordIndex];
-    } else {
-        // Caso 2: No hay selección activa (azul), pero hay palabras rojas. Decimos la primera.
-        wordToSpeak = selected[0];
-    }
-
-    if (wordToSpeak) {
-        // Efecto visual temporal si no está azul
-        if (!wordToSpeak.classList.contains('nav-active-word')) {
-            wordToSpeak.style.transform = 'scale(1.3)';
-            setTimeout(() => wordToSpeak.style.transform = 'scale(1)', 200);
-        }
-
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(wordToSpeak.innerText);
-        // Usar voces optimizadas igual que en el resto del script
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
-        if (preferredVoice) utter.voice = preferredVoice;
-        utter.lang = 'en-US';
-        utter.rate = 0.8;
-        window.speechSynthesis.speak(utter);
-    }
-}
-
-/* ====== HELP MODAL TOGGLE ====== */
+/* ====== HELP MODAL ====== */
 function toggleHelp() {
   const modal = document.getElementById('help-modal');
   modal.classList.toggle('active');
 }
 
-/* ====== YOUTUBE API & VIDEO PERSISTENCIA ====== */
+/* ====== YOUTUBE & VIDEO (Sin cambios mayores) ====== */
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
@@ -476,9 +522,7 @@ function onYouTubeIframeAPIReady() {
 
 function onPlayerReady(event) {
   const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
-  if (savedTime) {
-    player.seekTo(parseFloat(savedTime));
-  }
+  if (savedTime) player.seekTo(parseFloat(savedTime));
 }
 
 function onPlayerStateChange(event) {
@@ -487,34 +531,24 @@ function onPlayerStateChange(event) {
     checkInterval = setInterval(checkTime, 100);
   } else {
     clearInterval(checkInterval);
-    if (player && player.getCurrentTime) {
-        localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime());
-    }
+    if (player && player.getCurrentTime) localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime());
   }
 }
 
 function checkTime() {
   if (!player || !player.getCurrentTime) return;
   const currentTime = player.getCurrentTime();
-
-  if (Math.floor(currentTime) % 5 === 0) {
-     localStorage.setItem(STORAGE_KEY_TIME, currentTime);
-  }
+  if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
 
   if (isSegmentPlaying && currentTime >= segmentEndTime) {
     player.pauseVideo();
     isSegmentPlaying = false;
-    resetButtons(); 
-    scrollEnabled = true; 
+    resetButtons(); scrollEnabled = true; 
     return; 
   }
-
-  if (scrollEnabled) {
-    highlightCurrentLine(currentTime);
-  }
+  if (scrollEnabled) highlightCurrentLine(currentTime);
 }
 
-/* ====== HIGHLIGHT VIDEO ====== */
 function highlightCurrentLine(time) {
   const lines = document.querySelectorAll('.line');
   let activeLine = null;
@@ -537,7 +571,7 @@ function scrollToLine(element) {
   window.scrollTo({ top: offsetPosition, behavior: "smooth" });
 }
 
-/* ====== BOTONES PLAY & SPEAK (LÍNEAS COMPLETAS) ====== */
+/* ====== PLAY & SPEAK LINE ====== */
 document.querySelectorAll('.playBtn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.stopPropagation(); 
@@ -582,42 +616,28 @@ function resetButtons() {
 }
 function resetSynth() { window.speechSynthesis.cancel(); }
 
-/* ====== GLOBAL TOGGLE TRANSLATIONS ====== */
+/* ====== TRANSLATION TOGGLE ====== */
 let allVisible = false;
-
 function getCenterLine() {
   const lines = document.querySelectorAll('.line');
   const viewCenter = window.innerHeight / 2;
   let closestLine = null;
   let minDistance = Infinity;
-
   lines.forEach(line => {
     const rect = line.getBoundingClientRect();
-    const lineCenter = rect.top + (rect.height / 2);
-    const distance = Math.abs(viewCenter - lineCenter);
-    if (distance < minDistance) {
-      minDistance = distance;
-      closestLine = line;
-    }
+    const dist = Math.abs(viewCenter - (rect.top + rect.height / 2));
+    if (dist < minDistance) { minDistance = dist; closestLine = line; }
   });
   return closestLine;
 }
-
 function toggleAllTranslations() {
   const centerLine = getCenterLine();
-
   allVisible = !allVisible;
-  const btn = document.getElementById('btn-toggle-trans');
-  btn.style.color = allVisible ? '#4f46e5' : 'white';
-  
+  document.getElementById('btn-toggle-trans').style.color = allVisible ? '#4f46e5' : 'white';
   document.querySelectorAll('.spanish').forEach(span => {
-    if (allVisible) span.classList.add('visible');
-    else span.classList.remove('visible');
+    if (allVisible) span.classList.add('visible'); else span.classList.remove('visible');
   });
-
-  if (centerLine) {
-    scrollToLine(centerLine);
-  }
+  if (centerLine) scrollToLine(centerLine);
 }
 </script>
 </body>
