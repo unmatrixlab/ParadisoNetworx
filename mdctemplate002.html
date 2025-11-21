@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="es">
 <head>
@@ -89,7 +90,7 @@
   }
   .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
 
-  /* Selección ROJA (Inglés) */
+  /* Selección ROJA (Inglés) - Selección del usuario */
   .word-interactive.english-word.selected-word {
     color: var(--selected-word); font-weight: 800;
     text-decoration: underline; text-decoration-thickness: 2px;
@@ -276,6 +277,9 @@ let isSegmentPlaying = false;
 let segmentEndTime = 0;
 let scrollEnabled = true;
 let currentWordIndex = -1; 
+let controlBarSynthActive = false; // Nuevo: Estado para el parlante de la barra de control
+let voices = [];
+window.speechSynthesis.onvoiceschanged = () => { voices = window.speechSynthesis.getVoices(); };
 
 /* ====== INICIALIZACIÓN DE PALABRAS ====== */
 function initInteractiveWords() {
@@ -419,10 +423,6 @@ function navigateWords(direction) {
 }
 
 /* ====== TTS PARA PALABRA SELECCIONADA EN BARRA DE CONTROL - NUEVO ====== */
-let controlBarSynthActive = false;
-let voices = [];
-window.speechSynthesis.onvoiceschanged = () => { voices = window.speechSynthesis.getVoices(); };
-
 function speakSelectedWord() {
   // Limpiar cualquier síntesis de voz anterior
   resetSynth();
@@ -444,27 +444,19 @@ function speakSelectedWord() {
     textToSpeak = targetWord.innerText;
     lang = "en-US";
   } else {
-    // No hay palabra seleccionada (azul)
-    textToSpeak = "No hay palabra seleccionada";
-    lang = "es-ES";
+    // No hay palabra seleccionada (azul) - Mensaje en inglés
+    textToSpeak = "No word selected";
+    lang = "en-US";
   }
 
   const utter = new SpeechSynthesisUtterance(textToSpeak);
    
   // Seleccionar la voz según el idioma
-  if (lang === "en-US") {
-    const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
-    if (preferredVoice) utter.voice = preferredVoice;
-    utter.rate = 0.65;
-  } else {
-    // Para español (es-ES)
-    const preferredVoice = voices.find(v => v.lang === 'es-ES');
-    if (preferredVoice) utter.voice = preferredVoice;
-    utter.rate = 1.0;
-  }
-   
+  const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === lang);
+  if (preferredVoice) utter.voice = preferredVoice;
   utter.lang = lang;
-   
+  utter.rate = 0.8; // Velocidad de voz estándar
+
   utter.onstart = () => {
     controlBarSynthActive = true;
     btn.dataset.state = 'speaking';
@@ -561,6 +553,25 @@ function scrollToLine(element) {
   window.scrollTo({ top: offsetPosition, behavior: "smooth" });
 }
 
+/* ====== FUNCIONES DE CONTROL DE ESTADO GLOBAL ====== */
+function clearActiveLines() { document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active')); }
+
+function resetButtons() {
+  document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); });
+  document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
+  // Limpiar también el botón de la barra de control
+  const btnSelected = document.getElementById('btn-speak-selected');
+  if (btnSelected) {
+    btnSelected.removeAttribute('data-state');
+    controlBarSynthActive = false;
+  }
+}
+
+function resetSynth() {
+  window.speechSynthesis.cancel();
+  controlBarSynthActive = false;
+}
+
 /* ====== BOTONES PLAY & SPEAK DE LINEA ====== */
 document.querySelectorAll('.playBtn').forEach(btn => {
   btn.addEventListener('click', (e) => {
@@ -597,23 +608,7 @@ document.querySelectorAll('.speakBtn').forEach(btn => {
   });
 });
 
-function clearActiveLines() { document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active')); }
-function resetButtons() {
-  document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); });
-  document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
-  // Limpiar también el botón de la barra de control
-  const btnSelected = document.getElementById('btn-speak-selected');
-  if (btnSelected) {
-    btnSelected.removeAttribute('data-state');
-    controlBarSynthActive = false;
-  }
-}
-function resetSynth() {
-  window.speechSynthesis.cancel();
-  controlBarSynthActive = false;
-}
-
-/* ====== GLOBAL TOGGLE TRANSLATIONS (SOLUCIÓN APLICADA AQUÍ) ====== */
+/* ====== GLOBAL TOGGLE TRANSLATIONS ====== */
 let allVisible = false;
 
 // Nueva función auxiliar para detectar qué línea mira el usuario
