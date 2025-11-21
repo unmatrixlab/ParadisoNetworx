@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="es">
 <head>
@@ -84,7 +83,7 @@
 
   .word-interactive {
     border-radius: 3px; padding: 0 1px;
-    transition: color 0.2s, background-color 0.2s, transform 0.2s;
+    transition: color 0.2s; /* Quitamos transform de la transición */
     cursor: pointer; display: inline-block;
   }
   .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
@@ -96,15 +95,13 @@
     text-decoration-color: rgba(239, 68, 68, 0.3);
   }
 
-  /* ESTADO 2: ACTIVA (AZUL - SELECCIÓN ACTUAL DEL NAVEGADOR) */
-  /* Usamos !important para asegurar que el azul sobrescriba al rojo cuando coinciden */
+  /* ESTADO 2: ACTIVA (AZUL - SELECCIÓN ACTUAL) */
+  /* Sin cambio de tamaño (scale), solo color sólido */
   .word-interactive.english-word.nav-active-word {
     color: var(--nav-active) !important;
     text-decoration-color: var(--nav-active) !important;
-    transform: scale(1.25);
-    z-index: 10;
-    position: relative;
-    text-shadow: 0 2px 5px rgba(37, 99, 235, 0.2);
+    background-color: rgba(37, 99, 235, 0.1); /* Un fondo sutil azul en lugar de tamaño */
+    border-radius: 4px;
   }
 
   /* Español solo rojo */
@@ -269,6 +266,10 @@ const STORAGE_KEY_ENG = 'mdc_selected_eng';
 const STORAGE_KEY_ESP = 'mdc_selected_esp';
 const STORAGE_KEY_TIME  = 'mdc_video_time';
 
+/* ====== CONFIGURACIÓN TTS UNIFICADA ====== */
+const TTS_RATE = 0.65; // Velocidad lenta unificada para frases y palabras
+const TTS_LANG = 'en-US';
+
 /* ====== ESTADO GLOBAL ====== */
 let player;
 let checkInterval;
@@ -277,27 +278,23 @@ let segmentEndTime = 0;
 let scrollEnabled = true;
 
 // Estado de Selección
-let engSelection = []; // Lista de índices seleccionados
-let activeWordID = null; // El ID (índice) de la palabra AZUL actual
+let engSelection = []; 
+let activeWordID = null; 
 
 /* ====== INICIALIZACIÓN ====== */
 function initInteractiveWords() {
-  // Cargar guardados
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
   const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
     
-  // 1. Renderizar HTML Inglés (Con IDs)
   let engIndex = 0;
   document.querySelectorAll('.english').forEach(el => {
     el.innerHTML = el.innerText.split(' ').map(word => {
-      // Creamos el span base, el color se aplicará en renderWordStates()
       const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span>`;
       engIndex++;
       return span;
     }).join(' ');
   });
 
-  // 2. Renderizar HTML Español
   let espIndex = 0;
   document.querySelectorAll('.spanish').forEach(el => {
     el.innerHTML = el.innerText.split(' ').map(word => {
@@ -309,13 +306,12 @@ function initInteractiveWords() {
     }).join(' ');
   });
 
-  // 3. Aplicar estado visual
   renderWordStates();
 }
 
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
 
-/* ====== LÓGICA CENTRAL DE SELECCIÓN (STATE MACHINE) ====== */
+/* ====== SELECCIÓN (STATE MACHINE) ====== */
 
 function toggleWordSelection(element, event) {
   event.stopPropagation();
@@ -323,48 +319,39 @@ function toggleWordSelection(element, event) {
   const idx = parseInt(element.dataset.idx);
 
   if (lang === 'es') {
-    // Lógica simple para español (solo toggle rojo)
     element.classList.toggle('selected-word');
     saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word');
     return;
   }
 
-  // === LÓGICA INGLÉS (Contador y Azul/Rojo) ===
-  
-  // Caso A: La palabra ya estaba seleccionada
+  // LOGICA INGLES
   if (engSelection.includes(idx)) {
     if (activeWordID === idx) {
-      // Si era la AZUL, la quitamos totalmente
+      // Si era la AZUL, la quitamos
       engSelection = engSelection.filter(id => id !== idx);
       activeWordID = null;
     } else {
-      // Si era ROJA, la convertimos en AZUL
+      // Si era ROJA, la hacemos AZUL
       activeWordID = idx;
     }
-  } 
-  // Caso B: La palabra es nueva
-  else {
+  } else {
+    // Nueva selección -> AZUL
     engSelection.push(idx);
-    engSelection.sort((a, b) => a - b); // Mantener orden numérico
-    activeWordID = idx; // La nueva se vuelve AZUL automáticamente
+    engSelection.sort((a, b) => a - b);
+    activeWordID = idx;
   }
 
-  // Si borramos todo, resetear ID activo
   if (engSelection.length === 0) activeWordID = null;
 
-  // Guardar y Renderizar
   localStorage.setItem(STORAGE_KEY_ENG, JSON.stringify(engSelection));
   renderWordStates();
 }
 
-/* ====== RENDERIZADO VISUAL Y CONTADOR ====== */
 function renderWordStates() {
-  // 1. Limpiar clases en todas las palabras inglés
   document.querySelectorAll('.english-word').forEach(el => {
     el.classList.remove('selected-word', 'nav-active-word');
   });
 
-  // 2. Aplicar clases según estado
   engSelection.forEach(idx => {
     const el = document.querySelector(`.english-word[data-idx="${idx}"]`);
     if(el) {
@@ -376,7 +363,6 @@ function renderWordStates() {
     }
   });
 
-  // 3. Actualizar UI Barra
   updateControlBar();
 }
 
@@ -388,17 +374,13 @@ function updateControlBar() {
   const btnSpeak = document.getElementById('btn-speak-word');
 
   const total = engSelection.length;
-
-  // Calcular posición actual para el contador (1-based)
   let currentPos = 0;
   if (activeWordID !== null && total > 0) {
     currentPos = engSelection.indexOf(activeWordID) + 1;
   }
 
-  // Texto Contador: 0/0 si nada, o X/Y
   counterEl.innerText = total === 0 ? "0/0" : `${currentPos}/${total}`;
 
-  // Habilitar botones
   if (total > 0) {
     btnClear.classList.remove('disabled');
     btnSpeak.classList.remove('disabled');
@@ -412,28 +394,22 @@ function updateControlBar() {
   }
 }
 
-/* ====== NAVEGACIÓN (FLECHAS) ====== */
+/* ====== NAVEGACIÓN ====== */
 function navigateWords(direction) {
   if (engSelection.length === 0) return;
 
-  // Encontrar índice actual en el array
   let currentIndexArray = engSelection.indexOf(activeWordID);
 
   if (currentIndexArray === -1) {
-    // Si no hay ninguna activa (ej: recarga de pág), empezar por el principio o final
     currentIndexArray = direction > 0 ? 0 : engSelection.length - 1;
   } else {
-    // Mover índice
     currentIndexArray += direction;
-    // Loop infinito
     if (currentIndexArray >= engSelection.length) currentIndexArray = 0;
     if (currentIndexArray < 0) currentIndexArray = engSelection.length - 1;
   }
 
-  // Nuevo ID Activo
   activeWordID = engSelection[currentIndexArray];
 
-  // Scroll hacia la palabra
   const targetEl = document.querySelector(`.english-word[data-idx="${activeWordID}"]`);
   if(targetEl) {
     targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
@@ -442,46 +418,47 @@ function navigateWords(direction) {
   renderWordStates();
 }
 
-/* ====== SPEAK TTS (Lógica modificada) ====== */
+/* ====== TTS UNIFICADO (HELPER) ====== */
+function getPreferredVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    return voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === TTS_LANG);
+}
+
+function speakText(text, onStart = null, onEnd = null) {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.voice = getPreferredVoice();
+    utter.lang = TTS_LANG;
+    utter.rate = TTS_RATE; // VELOCIDAD 0.65 UNIFICADA
+    
+    if(onStart) utter.onstart = onStart;
+    if(onEnd) utter.onend = onEnd;
+    
+    window.speechSynthesis.speak(utter);
+}
+
+/* ====== LOGICA DEL PARLANTE DE BARRA ====== */
 function speakActiveOrSelected() {
-  // 1. ¿Hay una palabra Azul (Activa)?
   if (activeWordID !== null) {
     speakWordById(activeWordID);
     return;
   }
-
-  // 2. Si no hay Azul, pero hay rojas, decir la primera
   if (engSelection.length > 0) {
-    // Hacemos activa la primera para dar feedback visual y la decimos
     activeWordID = engSelection[0];
     renderWordStates();
     speakWordById(activeWordID);
     return;
   }
-  
-  // 3. Si no hay nada seleccionado, no hacer nada (o decir mensaje de error si quisieras)
 }
 
 function speakWordById(idx) {
   const el = document.querySelector(`.english-word[data-idx="${idx}"]`);
   if (!el) return;
-
-  // Efecto visual rápido
-  el.style.transform = 'scale(1.4)';
-  setTimeout(() => el.style.transform = 'scale(1.25)', 300);
-
-  window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(el.innerText);
-  const voices = window.speechSynthesis.getVoices();
-  const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
-  if (preferredVoice) utter.voice = preferredVoice;
-  utter.lang = 'en-US';
-  utter.rate = 0.8;
-  window.speechSynthesis.speak(utter);
+  // Sin animaciones de escala aqui
+  speakText(el.innerText);
 }
 
 function saveSelectionToStorage(key, selector) {
-  // Helper solo para español, inglés tiene su propia lógica arriba
   const selectedElements = document.querySelectorAll(selector);
   const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx));
   localStorage.setItem(key, JSON.stringify(indices));
@@ -489,25 +466,19 @@ function saveSelectionToStorage(key, selector) {
 
 function clearAllWords() {
   if(!confirm('Reset all selections?')) return;
-  
   engSelection = [];
   activeWordID = null;
   localStorage.removeItem(STORAGE_KEY_ENG);
-  
-  // Limpiar español también
   document.querySelectorAll('.spanish-word.selected-word').forEach(el => el.classList.remove('selected-word'));
   localStorage.removeItem(STORAGE_KEY_ESP);
-
   renderWordStates();
 }
 
-/* ====== HELP MODAL ====== */
 function toggleHelp() {
-  const modal = document.getElementById('help-modal');
-  modal.classList.toggle('active');
+  document.getElementById('help-modal').classList.toggle('active');
 }
 
-/* ====== YOUTUBE & VIDEO (Sin cambios mayores) ====== */
+/* ====== VIDEO ====== */
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
@@ -571,7 +542,7 @@ function scrollToLine(element) {
   window.scrollTo({ top: offsetPosition, behavior: "smooth" });
 }
 
-/* ====== PLAY & SPEAK LINE ====== */
+/* ====== BOTONES SPEAK & PLAY (USA HELPER UNIFICADO) ====== */
 document.querySelectorAll('.playBtn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.stopPropagation(); 
@@ -583,29 +554,36 @@ document.querySelectorAll('.playBtn').forEach(btn => {
     if (btn.dataset.state === 'playing') {
       player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return;
     }
-    resetButtons(); resetSynth(); clearActiveLines(); 
+    resetButtons(); window.speechSynthesis.cancel(); clearActiveLines(); 
     scrollEnabled = false; isSegmentPlaying = true; segmentEndTime = end;
     player.seekTo(Math.max(0, start), true); player.playVideo();
     btn.textContent = "Stop"; btn.dataset.state = 'playing'; line.classList.add('active'); 
   });
 });
 
-let voices = [];
-window.speechSynthesis.onvoiceschanged = () => { voices = window.speechSynthesis.getVoices(); };
+// Cargar voces al inicio para estar listos
+window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+
 document.querySelectorAll('.speakBtn').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     const line = btn.closest('.line');
     const text = line.querySelector('.english').innerText; 
-    if (btn.dataset.state === 'speaking') { resetSynth(); resetButtons(); return; }
-    resetButtons(); resetSynth(); player.pauseVideo(); 
-    const utter = new SpeechSynthesisUtterance(text);
-    const preferredVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Samantha') || v.lang === 'en-US');
-    if (preferredVoice) utter.voice = preferredVoice;
-    utter.lang = 'en-US'; utter.rate = 0.65; 
-    utter.onstart = () => { btn.textContent = "Stop"; btn.dataset.state = 'speaking'; clearActiveLines(); line.classList.add('active'); };
-    utter.onend = () => { resetButtons(); };
-    window.speechSynthesis.speak(utter);
+    
+    if (btn.dataset.state === 'speaking') { window.speechSynthesis.cancel(); resetButtons(); return; }
+    
+    resetButtons(); window.speechSynthesis.cancel(); player.pauseVideo(); 
+    
+    // Usar el helper unificado
+    speakText(
+        text, 
+        () => { // onStart
+            btn.textContent = "Stop"; btn.dataset.state = 'speaking'; clearActiveLines(); line.classList.add('active'); 
+        },
+        () => { // onEnd
+            resetButtons(); 
+        }
+    );
   });
 });
 
@@ -614,7 +592,6 @@ function resetButtons() {
   document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); });
   document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
 }
-function resetSynth() { window.speechSynthesis.cancel(); }
 
 /* ====== TRANSLATION TOGGLE ====== */
 let allVisible = false;
