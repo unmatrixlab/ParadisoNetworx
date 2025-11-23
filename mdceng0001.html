@@ -23,7 +23,6 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
 
-/* ====== HEADER ====== */
 #mdc-header {
     position: fixed;
     top: 0; left: 0; width: 100%;
@@ -80,10 +79,6 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 .bar-btn.disabled { opacity: 0.3; pointer-events: none; }
 .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
 .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(3px); z-index: 2000; display: none; align-items: center; justify-content: center; }
-.modal-overlay.active { display: flex; }
-.modal-content { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-radius: 20px; padding: 25px; width: 90%; max-width: 320px; }
-.modal-btn-close { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 15px; }
 </style>
 </head>
 <body>
@@ -712,30 +707,22 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
   <div class="bar-divider"></div>
   <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
   <div class="bar-divider"></div>
-  <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
-  <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
+  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPause()">⏱️</button> 
   <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
-  <button class="bar-btn" onclick="toggleHelp()">?</button>
-</div>
-
-<div id="help-modal" class="modal-overlay" onclick="toggleHelp()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <h3>How to use</h3>
-    <ul>
-      <li><strong>Select:</strong> Click words. Blue=Active, Red=History.</li>
-      <li><strong>Navigate:</strong> Use Arrows.</li>
-      <li><strong>Speak:</strong> Use Speaker icon.</li>
-    </ul>
-    <button class="modal-btn-close" onclick="toggleHelp()">Close</button>
-  </div>
+  <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
+  <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
 </div>
 
 <script>
 const TIME_OFFSET=-0.2, END_PADDING=0.5, TTS_RATE=0.65, TTS_LANG='en-US';
+const PAUSE_FACTOR = 2.0; // MODIFICAR AQUI EL TIEMPO DE PAUSA (2.0 = Doble del tiempo del subtitulo)
 const YOUTUBE_ID = 'lDK9QqIzhwk';
 const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
 let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
 let engSelection=[], activeWordID=null;
+let smartPause = false;
+let isSmartPausing = false;
+let pauseTimer = null;
 
 function initInteractiveWords() {
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
@@ -759,6 +746,13 @@ function initInteractiveWords() {
   renderWordStates();
 }
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
+
+function toggleSmartPause() {
+    smartPause = !smartPause;
+    const btn = document.getElementById('btn-smart-pause');
+    btn.style.color = smartPause ? '#4f46e5' : 'white';
+    btn.style.opacity = smartPause ? '1' : '0.5';
+}
 
 function toggleAutoScroll() {
     autoScroll = !autoScroll;
@@ -865,8 +859,6 @@ function clearAllWords() {
     renderWordStates();
 }
 
-function toggleHelp() { document.getElementById('help-modal').classList.toggle('active'); }
-
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
@@ -894,10 +886,48 @@ function onPlayerStateChange(event) {
     }
 }
 
+let currentSubtitleEnd = -1;
+
 function checkTime() {
     if (!player || !player.getCurrentTime) return;
     const currentTime = player.getCurrentTime();
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+    
+    // Smart Pause Logic
+    if (smartPause && !isSmartPausing && !isSegmentPlaying) {
+        // Check if we just finished a subtitle line
+        // We need to find the current line
+        let activeLine = null;
+        const lines = document.querySelectorAll('.line');
+        
+        for(let i=0; i<lines.length; i++) {
+            const start = parseFloat(lines[i].dataset.time);
+            const next = lines[i+1];
+            const end = next ? parseFloat(next.dataset.time) : start + 5;
+            
+            // If we are near the end of this subtitle (within 0.3s)
+            if (currentTime >= end - 0.2 && currentTime < end + 0.2 && currentSubtitleEnd !== end) {
+                currentSubtitleEnd = end; // Mark as processed
+                isSmartPausing = true;
+                player.pauseVideo();
+                
+                const duration = end - start;
+                const pauseDuration = duration * PAUSE_FACTOR * 1000; // Seconds to MS
+                
+                // Visual indicator
+                const btn = document.getElementById('btn-smart-pause');
+                btn.innerText = "⏳"; 
+                
+                pauseTimer = setTimeout(() => {
+                    player.playVideo();
+                    isSmartPausing = false;
+                    btn.innerText = "⏱️";
+                }, pauseDuration);
+                break;
+            }
+        }
+    }
+
     if (isSegmentPlaying && currentTime >= segmentEndTime) {
         player.pauseVideo();
         isSegmentPlaying = false;
