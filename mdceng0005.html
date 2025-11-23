@@ -124,25 +124,33 @@
         .btn-save:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .btn-save:active { transform: scale(0.98); }
 
-        /* Botón de descarga estilo secundario */
-        .btn-download {
-            width: 100%;
+        /* ====== BACKUP SECTION ====== */
+        .backup-section {
+            margin-top: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-backup {
+            flex: 1;
             padding: 10px;
             background: transparent;
             color: var(--text-muted);
             border: 1px solid #e5e7eb;
             border-radius: 8px;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             transition: all 0.2s;
         }
-        .btn-download:hover { background: white; color: var(--text-main); border-color: var(--text-muted); }
-
+        .btn-backup:hover { background: white; color: var(--text-main); border-color: var(--text-muted); }
+        
         /* ====== VOCABULARY LIST ====== */
         .vocab-container {
             width: 95%;
@@ -254,10 +262,18 @@
 
         <button class="btn-save" onclick="addVocab()">Save to List</button>
         
-        <button class="btn-download" onclick="downloadBackup()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Backup (For other PC)
-        </button>
+        <div class="backup-section">
+            <button class="btn-backup" onclick="downloadBackup()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Backup
+            </button>
+            
+            <input type="file" id="importFile" accept=".html,.json" style="display:none" onchange="importBackup(this)">
+            <button class="btn-backup" onclick="document.getElementById('importFile').click()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Import/Load
+            </button>
+        </div>
     </div>
 
     <div class="vocab-container" id="vocab-list">
@@ -355,66 +371,17 @@
             });
         }
 
-        // 6. BACKUP & RESTORE FUNCTIONALITY
+        // 6. BACKUP (GENERATE HTML FILE WITH DATA)
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
             if (!data || JSON.parse(data).length === 0) {
                 alert("No vocabulary to backup!");
                 return;
             }
-
             const count = JSON.parse(data).length;
             const date = new Date().toISOString().slice(0, 10);
             
-            // Este es el HTML que se descargará. Contiene el script de auto-restauración.
-            const fileContent = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MDC Vocab Backup</title>
-<style>
-    body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;background:#f3f4f6;color:#333;}
-    .card{background:white;padding:40px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.1);text-align:center;max-width:400px;}
-    h1{color:#4f46e5;margin-top:0;}
-    button{background:#4f46e5;color:white;border:none;padding:12px 24px;border-radius:8px;font-size:16px;cursor:pointer;margin-top:20px;font-weight:bold;}
-    button:hover{background:#4338ca;}
-</style>
-</head>
-<body>
-    <div class="card">
-        <h1>MDC Backup Restore</h1>
-        <p>This file contains <strong>${count}</strong> vocabulary items.</p>
-        <p>Click below to import them into this browser.</p>
-        <button onclick="restoreData()">📥 Restore Data</button>
-    </div>
-    <script>
-        const backupData = ${data}; // The JSON data is injected here
-        
-        function restoreData() {
-            if(confirm("This will overwrite/merge with your current vocabulary list. Continue?")) {
-                // Get existing data to merge, or just overwrite if empty
-                const current = localStorage.getItem('mdc_vocab_list');
-                let finalData = backupData;
-                
-                if(current) {
-                    // Simple merge strategy: Add new ones at top, avoid duplicate IDs
-                    const currentObj = JSON.parse(current);
-                    const currentIds = new Set(currentObj.map(i => i.id));
-                    const newItems = backupData.filter(i => !currentIds.has(i.id));
-                    finalData = [...newItems, ...currentObj];
-                }
-
-                localStorage.setItem('mdc_vocab_list', JSON.stringify(finalData));
-                alert("Success! Vocabulary restored. Please open your MDC Vocabulary tool page.");
-                // Optional: Redirect if hosted
-                // window.location.href = "https://paradisonetworx.com/mdceng_vocabulary.html";
-            }
-        }
-    <\/script>
-</body>
-</html>`;
+            const fileContent = `<!DOCTYPE html><html><body><script>const backupData = ${data};<\/script></body></html>`;
 
             const blob = new Blob([fileContent], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
@@ -425,6 +392,51 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        // 7. IMPORT (READ HTML FILE AND EXTRACT DATA)
+        function importBackup(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                
+                // Extraemos el JSON usando Regex
+                // Buscamos: const backupData = [ ... ];
+                const regex = /const backupData = (\[.*?\]);/s;
+                const match = content.match(regex);
+
+                if (match && match[1]) {
+                    try {
+                        const newData = JSON.parse(match[1]);
+                        const current = localStorage.getItem(STORAGE_KEY);
+                        let finalData = newData;
+
+                        if (current) {
+                            if(!confirm(`Found ${newData.length} items in backup. Merge with existing list?`)) {
+                                input.value = ''; return;
+                            }
+                            // Fusionar sin duplicados (basado en ID)
+                            const currentObj = JSON.parse(current);
+                            const currentIds = new Set(currentObj.map(i => i.id));
+                            const itemsToAdd = newData.filter(i => !currentIds.has(i.id));
+                            finalData = [...itemsToAdd, ...currentObj];
+                        }
+
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(finalData));
+                        renderList(finalData);
+                        alert("Success! Vocabulary updated.");
+                    } catch (err) {
+                        alert("Error parsing backup file.");
+                    }
+                } else {
+                    alert("Invalid backup file format.");
+                }
+                input.value = ''; // Limpiar input para poder recargar el mismo archivo si se desea
+            };
+            reader.readAsText(file);
         }
 
         // Listen for Enter key
