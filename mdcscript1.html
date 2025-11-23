@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v4.1 (Smart Pause Fix)</title>
+    <title>MDC Studio Suite v4.2 (Smart Logic)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -422,12 +422,10 @@
                 const id = getYoutubeId(ytLink);
                 if (!id) { alert("Invalid YouTube Link"); return; }
                 imgSrc = `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
-                // Play Icon
                 iconSVG = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
             } else {
                 imgSrc = document.getElementById('cardImgLink').value;
                 if (!imgSrc) { alert("Image URL required for Article"); return; }
-                // Document/Read Icon
                 iconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`;
             }
 
@@ -460,7 +458,7 @@
             document.getElementById('cardOutputContainer').style.display = 'block';
         }
 
-        // === TEMPLATE HEAD (UPDATED HEADER) ===
+        // === TEMPLATE HEAD ===
         const TPL_HEAD = `<!doctype html>
 <html lang="en">
 <head>
@@ -486,7 +484,6 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
 
-/* ====== HEADER ====== */
 #mdc-header {
     position: fixed;
     top: 0; left: 0; width: 100%;
@@ -551,7 +548,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 <div class="video-wrapper"><div class="video-inner"><div id="player"></div></div></div>
 <div class="dialogue-container">`;
 
-        // Template Part 2: JS Logic - UPDATED FOR SMART PAUSE AND EXACT TIMES
+        // Template Part 2: JS Logic - REVISED FOR RELIABLE PAUSE
         const TPL_SCRIPT_START = `</div></div>
 <div id="control-bar">
   <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
@@ -560,7 +557,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
   <div class="bar-divider"></div>
   <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
   <div class="bar-divider"></div>
-  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPause()">⏱️</button> 
+  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPause()" title="Smart Pause: OFF" style="color: #ef4444; opacity: 0.7;">❌</button> 
   <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
   <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
   <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
@@ -568,7 +565,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 
 <script>
 const TIME_OFFSET=-0.2, END_PADDING=0.5, TTS_RATE=0.65, TTS_LANG='en-US';
-const PAUSE_FACTOR = 2.0; // MODIFICAR AQUI EL TIEMPO DE PAUSA (2.0 = Doble del tiempo del subtitulo)
+const PAUSE_FACTOR = 2.0; // MODIFICAR AQUI EL TIEMPO DE PAUSA
 const YOUTUBE_ID = '`;
         
         const TPL_SCRIPT_END = `';
@@ -578,6 +575,7 @@ let engSelection=[], activeWordID=null;
 let smartPause = false;
 let isSmartPausing = false;
 let pauseTimer = null;
+let currentSubtitleEnd = -1;
 
 function initInteractiveWords() {
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
@@ -605,8 +603,30 @@ document.addEventListener('DOMContentLoaded', initInteractiveWords);
 function toggleSmartPause() {
     smartPause = !smartPause;
     const btn = document.getElementById('btn-smart-pause');
-    btn.style.color = smartPause ? '#4f46e5' : 'white';
-    btn.style.opacity = smartPause ? '1' : '0.5';
+    
+    if (smartPause) {
+        // STATE: WATCHING
+        btn.innerText = "👀"; 
+        btn.style.color = '#4f46e5'; 
+        btn.style.opacity = '1';
+        btn.title = "Smart Pause: ACTIVE";
+    } else {
+        // STATE: DISABLED
+        btn.innerText = "❌"; 
+        btn.style.color = '#ef4444'; 
+        btn.style.opacity = '0.7';
+        btn.title = "Smart Pause: OFF";
+        
+        // FORCE RESET LOGIC
+        clearTimeout(pauseTimer);
+        isSmartPausing = false;
+        currentSubtitleEnd = -1;
+        
+        // If we were paused by the system, resume immediately
+        if (player && player.getPlayerState() === 2) {
+             player.playVideo();
+        }
+    }
 }
 
 function toggleAutoScroll() {
@@ -741,41 +761,46 @@ function onPlayerStateChange(event) {
     }
 }
 
-let currentSubtitleEnd = -1;
-
 function checkTime() {
     if (!player || !player.getCurrentTime) return;
     const currentTime = player.getCurrentTime();
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
     
-    // Smart Pause Logic
+    // === SMART PAUSE LOGIC ===
     if (smartPause && !isSmartPausing && !isSegmentPlaying) {
-        let activeLine = null;
         const lines = document.querySelectorAll('.line');
         
         for(let i=0; i<lines.length; i++) {
             const start = parseFloat(lines[i].dataset.start);
             const end = parseFloat(lines[i].dataset.end);
             
-            const checkEnd = end + END_PADDING; // Wait slightly after end
+            // Calculate pause point (Subtitle End + Padding)
+            const pausePoint = end + END_PADDING;
             
-            // If we just passed the end of this subtitle
-            if (currentTime >= checkEnd && currentTime < checkEnd + 0.3 && currentSubtitleEnd !== checkEnd) {
-                currentSubtitleEnd = checkEnd; // Mark as processed
+            // If we just passed the pause point (within 0.3s tolerance)
+            if (currentTime >= pausePoint && currentTime < pausePoint + 0.3 && currentSubtitleEnd !== pausePoint) {
+                
+                currentSubtitleEnd = pausePoint; // Mark as processed
                 isSmartPausing = true;
                 player.pauseVideo();
                 
                 const duration = end - start;
                 const pauseDuration = duration * PAUSE_FACTOR * 1000; // MS
                 
+                // STATE: WAITING/PAUSED
                 const btn = document.getElementById('btn-smart-pause');
-                const originalText = btn.innerText;
                 btn.innerText = "⏳"; 
+                btn.title = "Paused... waiting " + (pauseDuration/1000).toFixed(1) + "s";
                 
                 pauseTimer = setTimeout(() => {
-                    player.playVideo();
-                    isSmartPausing = false;
-                    btn.innerText = "⏱️";
+                    // Double check if user didn't disable it during pause
+                    if(smartPause) {
+                        player.playVideo();
+                        isSmartPausing = false;
+                        // STATE: WATCHING
+                        btn.innerText = "👀";
+                        btn.title = "Smart Pause: ACTIVE";
+                    }
                 }, pauseDuration);
                 break;
             }
@@ -878,17 +903,15 @@ function toggleAllTranslations() {
 </body>
 </html>`;
 
-        // --- Updated SRT Parser to capture END time ---
         function parseSRT(text) {
             text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
-            // Regex now captures End Time (group 3)
             const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2},\d{3})\s-->\s(\d{2}:\d{2}:\d{2},\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
             const blocks = [];
             let match;
             while ((match = regex.exec(text)) !== null) {
                 blocks.push({ 
                     start: match[2], 
-                    end: match[3], // Capture End Time
+                    end: match[3], 
                     text: match[4].replace(/\n/g, ' ').trim() 
                 });
             }
@@ -920,9 +943,8 @@ function toggleAllTranslations() {
                 const eng = engBlocks[i];
                 const esp = espBlocks[i] ? espBlocks[i].text : "";
                 const start = timeToSeconds(eng.start).toFixed(2);
-                const end = timeToSeconds(eng.end).toFixed(2); // Calculate End Seconds
+                const end = timeToSeconds(eng.end).toFixed(2);
                 
-                // Using data-start and data-end now!
                 htmlBody += `<div class="line" data-start="${start}" data-end="${end}">
   <div class="line-content">
     <div class="text-block">
