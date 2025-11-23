@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v4.2 (Smart Logic)</title>
+    <title>MDC Studio Suite v4.3 (Dual Smart Pause)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -548,7 +548,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 <div class="video-wrapper"><div class="video-inner"><div id="player"></div></div></div>
 <div class="dialogue-container">`;
 
-        // Template Part 2: JS Logic - REVISED FOR RELIABLE PAUSE
+        // Template Part 2: JS Logic - DUAL SMART PAUSE
         const TPL_SCRIPT_START = `</div></div>
 <div id="control-bar">
   <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
@@ -557,7 +557,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
   <div class="bar-divider"></div>
   <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
   <div class="bar-divider"></div>
-  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPause()" title="Smart Pause: OFF" style="color: #ef4444; opacity: 0.7;">❌</button> 
+  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPauseMode()" title="Smart Pause: OFF" style="color: #6b7280; opacity: 0.5;">⚪</button> 
   <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
   <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
   <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
@@ -572,10 +572,10 @@ const YOUTUBE_ID = '`;
 const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
 let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
 let engSelection=[], activeWordID=null;
-let smartPause = false;
+let smartPauseMode = 0; // 0=OFF, 1=POST-PAUSE (Shadowing), 2=PRE-PAUSE (Verify)
 let isSmartPausing = false;
 let pauseTimer = null;
-let currentSubtitleEnd = -1;
+let currentSubtitleBoundary = -1; 
 
 function initInteractiveWords() {
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
@@ -600,32 +600,42 @@ function initInteractiveWords() {
 }
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
 
-function toggleSmartPause() {
-    smartPause = !smartPause;
+function toggleSmartPauseMode() {
+    // Cycle Modes: 0 (Off) -> 1 (Shadowing/After) -> 2 (Verify/Before) -> 0
+    smartPauseMode = (smartPauseMode + 1) % 3;
+    updateSmartPauseVisuals();
+}
+
+function updateSmartPauseVisuals() {
     const btn = document.getElementById('btn-smart-pause');
     
-    if (smartPause) {
-        // STATE: WATCHING
-        btn.innerText = "👀"; 
-        btn.style.color = '#4f46e5'; 
-        btn.style.opacity = '1';
-        btn.title = "Smart Pause: ACTIVE";
-    } else {
-        // STATE: DISABLED
-        btn.innerText = "❌"; 
-        btn.style.color = '#ef4444'; 
-        btn.style.opacity = '0.7';
+    // Reset states immediately to prevent stuck logic
+    clearTimeout(pauseTimer);
+    isSmartPausing = false;
+    currentSubtitleBoundary = -1;
+    
+    if (player && player.getPlayerState() === 2 && isSmartPausing) {
+         player.playVideo(); // Resume if we were waiting
+    }
+
+    if (smartPauseMode === 0) {
+        // OFF
+        btn.innerText = "⚪"; 
+        btn.style.color = '#6b7280'; 
+        btn.style.opacity = '0.5';
         btn.title = "Smart Pause: OFF";
-        
-        // FORCE RESET LOGIC
-        clearTimeout(pauseTimer);
-        isSmartPausing = false;
-        currentSubtitleEnd = -1;
-        
-        // If we were paused by the system, resume immediately
-        if (player && player.getPlayerState() === 2) {
-             player.playVideo();
-        }
+    } else if (smartPauseMode === 1) {
+        // MODE 1: Shadowing (Pause AFTER)
+        btn.innerText = "🗣️"; 
+        btn.style.color = '#4f46e5'; // Blue
+        btn.style.opacity = '1';
+        btn.title = "Mode: Shadowing (Pause AFTER)";
+    } else if (smartPauseMode === 2) {
+        // MODE 2: Verification (Pause BEFORE)
+        btn.innerText = "✋"; 
+        btn.style.color = '#7c3aed'; // Purple/Violet
+        btn.style.opacity = '1';
+        btn.title = "Mode: Verification (Pause BEFORE)";
     }
 }
 
@@ -767,42 +777,31 @@ function checkTime() {
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
     
     // === SMART PAUSE LOGIC ===
-    if (smartPause && !isSmartPausing && !isSegmentPlaying) {
+    if (smartPauseMode > 0 && !isSmartPausing && !isSegmentPlaying) {
         const lines = document.querySelectorAll('.line');
         
         for(let i=0; i<lines.length; i++) {
             const start = parseFloat(lines[i].dataset.start);
             const end = parseFloat(lines[i].dataset.end);
+            const duration = end - start;
             
-            // Calculate pause point (Subtitle End + Padding)
-            const pausePoint = end + END_PADDING;
+            // MODE 1: PAUSE AFTER (Shadowing)
+            if (smartPauseMode === 1) {
+                const checkPoint = end + END_PADDING;
+                // If near END of subtitle
+                if (currentTime >= checkPoint && currentTime < checkPoint + 0.3 && currentSubtitleBoundary !== checkPoint) {
+                    triggerPause(checkPoint, duration);
+                    break;
+                }
+            }
             
-            // If we just passed the pause point (within 0.3s tolerance)
-            if (currentTime >= pausePoint && currentTime < pausePoint + 0.3 && currentSubtitleEnd !== pausePoint) {
-                
-                currentSubtitleEnd = pausePoint; // Mark as processed
-                isSmartPausing = true;
-                player.pauseVideo();
-                
-                const duration = end - start;
-                const pauseDuration = duration * PAUSE_FACTOR * 1000; // MS
-                
-                // STATE: WAITING/PAUSED
-                const btn = document.getElementById('btn-smart-pause');
-                btn.innerText = "⏳"; 
-                btn.title = "Paused... waiting " + (pauseDuration/1000).toFixed(1) + "s";
-                
-                pauseTimer = setTimeout(() => {
-                    // Double check if user didn't disable it during pause
-                    if(smartPause) {
-                        player.playVideo();
-                        isSmartPausing = false;
-                        // STATE: WATCHING
-                        btn.innerText = "👀";
-                        btn.title = "Smart Pause: ACTIVE";
-                    }
-                }, pauseDuration);
-                break;
+            // MODE 2: PAUSE BEFORE (Verification)
+            if (smartPauseMode === 2) {
+                // If near START of subtitle
+                if (currentTime >= start && currentTime < start + 0.3 && currentSubtitleBoundary !== start) {
+                     triggerPause(start, duration);
+                     break;
+                }
             }
         }
     }
@@ -815,6 +814,26 @@ function checkTime() {
         return;
     }
     if (scrollEnabled) highlightCurrentLine(currentTime);
+}
+
+function triggerPause(boundaryTime, duration) {
+    currentSubtitleBoundary = boundaryTime; // Mark as handled
+    isSmartPausing = true;
+    player.pauseVideo();
+    
+    const pauseDuration = duration * PAUSE_FACTOR * 1000; // MS
+    
+    const btn = document.getElementById('btn-smart-pause');
+    const originalIcon = btn.innerText;
+    btn.innerText = "⏳"; 
+    
+    pauseTimer = setTimeout(() => {
+        if(smartPauseMode > 0) { // Ensure still active
+            player.playVideo();
+            isSmartPausing = false;
+            btn.innerText = originalIcon; // Restore mode icon
+        }
+    }, pauseDuration);
 }
 
 function highlightCurrentLine(time) {
