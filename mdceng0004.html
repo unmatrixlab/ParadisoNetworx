@@ -182,7 +182,7 @@
             border: 1px solid rgba(255, 255, 255, 0.4);
             transition: transform 0.3s, background 0.1s, border-color 0.1s, box-shadow 0.1s;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            pointer-events: none; /* Permite clic en el contenedor padre */
+            pointer-events: none;
         }
 
         .play-icon svg {
@@ -247,13 +247,13 @@
         <div class="panel-title">Add to Favorites</div>
         
         <div class="input-group">
-            <label>YouTube URL</label>
-            <input type="text" id="vidUrl" placeholder="https://www.youtube.com/watch?v=...">
+            <label>YouTube URL (Live or Video)</label>
+            <input type="text" id="vidUrl" placeholder="https://www.youtube.com/watch?v=... or /live/...">
         </div>
         
         <div class="input-group">
             <label>Video Title (Custom)</label>
-            <input type="text" id="vidTitle" placeholder="e.g. Phrasal Verbs Lesson 1">
+            <input type="text" id="vidTitle" placeholder="e.g. Live Grammar Class">
         </div>
 
         <button class="btn-save" onclick="addVideo()">Save to Collection</button>
@@ -273,10 +273,11 @@
             renderGrid(videos);
         }
 
-        // 2. EXTRACT ID
+        // 2. EXTRACT ID (UPDATED FOR LIVE STREAMS)
         function getYoutubeId(url) {
             if (!url) return null;
-            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            // Ahora soporta 'live/' en la expresión regular
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/;
             const match = url.match(regExp);
             return (match && match[2].length === 11) ? match[2] : null;
         }
@@ -292,26 +293,22 @@
             if (!url) { alert("Please paste a YouTube URL"); return; }
             const id = getYoutubeId(url);
             
-            if (!id) { alert("Invalid YouTube URL"); return; }
+            if (!id) { alert("Invalid YouTube URL (ID extraction failed)"); return; }
 
-            const finalTitle = title || "Untitled Video"; // Fallback if empty
+            const finalTitle = title || "Untitled Video";
 
-            // Get current list
             const saved = localStorage.getItem(STORAGE_KEY);
             const videos = saved ? JSON.parse(saved) : [];
 
-            // Add new video to top
             videos.unshift({
                 id: id,
                 title: finalTitle,
                 date: new Date().toLocaleDateString()
             });
 
-            // Save & Render
             localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
             renderGrid(videos);
 
-            // Reset inputs
             urlInput.value = "";
             titleInput.value = "";
         }
@@ -331,7 +328,6 @@
 
         // 5. PLAY VIDEO (EMBED IN PLACE)
         function playVideoInline(element, videoId) {
-            // Reemplaza el contenido del contenedor (img + play icon) por el iframe
             element.innerHTML = `
                 <iframe 
                     width="100%" 
@@ -342,7 +338,6 @@
                     allowfullscreen>
                 </iframe>
             `;
-            // Quitamos el onclick para que no se recargue
             element.onclick = null;
         }
 
@@ -356,7 +351,6 @@
             }
 
             videos.forEach((video, index) => {
-                // Thumbnail URL
                 const thumb = `https://img.youtube.com/vi/${video.id}/mqdefault.jpg`; 
 
                 const card = document.createElement('div');
@@ -379,7 +373,6 @@
             });
         }
 
-        // Initialize
         document.addEventListener('DOMContentLoaded', loadVideos);
 
     </script>
