@@ -266,10 +266,11 @@
             </div>
     </div>
 
-    <script>
-        // === 1. BASE DE DATOS DE DÍGRAFOS ===
+   <script>
+        // === 1. BASE DE DATOS DE DÍGRAFOS (CON SONIDOS REALES) ===
         const digraphData = {
             "SH": {
+                audioSim: "Shhhhh", // Forzamos el sonido de silencio
                 phonetic: "/ʃ/",
                 desc: "The 'Quiet Sound'. Round your lips and blow air gently.",
                 rules: [
@@ -279,6 +280,7 @@
                 ]
             },
             "CH": {
+                audioSim: "Tch", // Forzamos el sonido explosivo
                 phonetic: "/tʃ/",
                 desc: "The 'Explosive Sound'. Like a sneeze (Atchoo!).",
                 rules: [
@@ -288,6 +290,7 @@
                 ]
             },
             "TH": {
+                audioSim: "Thhh", // Sonido de aire
                 phonetic: "/θ/ vs /ð/",
                 desc: "Tongue between teeth. The most iconic English sound.",
                 rules: [
@@ -296,6 +299,7 @@
                 ]
             },
             "PH": {
+                audioSim: "Fff", // Suena como F
                 phonetic: "/f/",
                 desc: "Sounds exactly like the letter 'F'.",
                 rules: [
@@ -303,6 +307,7 @@
                 ]
             },
             "WH": {
+                audioSim: "Wuh", // Suena como W
                 phonetic: "/w/",
                 desc: "Usually just 'W'. The 'H' is silent (mostly).",
                 rules: [
@@ -311,6 +316,7 @@
                 ]
             },
             "QU": {
+                audioSim: "Kwuh", // Sonido KW
                 phonetic: "/kw/",
                 desc: "Q is the 'Queen', she never goes out without 'U'.",
                 rules: [
@@ -318,6 +324,7 @@
                 ]
             },
             "NG": {
+                audioSim: "ing", // El sonido nasal
                 phonetic: "/ŋ/",
                 desc: "Nasal sound at the back of the throat.",
                 rules: [
@@ -326,6 +333,7 @@
                 ]
             },
             "KN": {
+                audioSim: "Nnn", // K es muda
                 phonetic: "/n/",
                 desc: "The 'K' is silent because it's too hard to say 'K-N'.",
                 rules: [
@@ -333,6 +341,7 @@
                 ]
             },
             "WR": {
+                audioSim: "Rrr", // W es muda
                 phonetic: "/r/",
                 desc: "The 'W' is silent. Just say 'R'.",
                 rules: [
@@ -340,6 +349,7 @@
                 ]
             },
             "GH": {
+                audioSim: "Fff", // Generalmente suena F al final o mudo
                 phonetic: "Silent or /f/",
                 desc: "The trickiest combination.",
                 rules: [
@@ -360,9 +370,15 @@
         // === 3. TTS (Generic) ===
         function speak(text, callback = null) {
             window.speechSynthesis.cancel();
+            
+            // Ajuste: Si el texto es muy corto (sonidos), lo hacemos un poco más lento
+            let rate = 0.9;
+            if (text.length < 4) rate = 0.8;
+
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US';
-            utterance.rate = 0.9;
+            utterance.rate = rate;
+            
             if (callback) utterance.onend = callback;
             window.speechSynthesis.speak(utterance);
         }
@@ -392,7 +408,6 @@
             data.rules.forEach(rule => {
                 let examplesHTML = '';
                 rule.words.forEach(word => {
-                    // Clean word for TTS if needed
                     const clean = word.split('(')[0].trim();
                     examplesHTML += `<span class="example-word" onclick="speak('${clean}')">${word}</span>`;
                 });
@@ -406,7 +421,7 @@
             infoStage.innerHTML = `
                 <div class="stage-card">
                     <div class="letter-header">
-                        <div class="big-letter" onclick="speak('${combo}')">${combo}</div>
+                        <div class="big-letter" onclick="speak('${data.audioSim}')">${combo}</div>
                         <div class="phonetic">${data.phonetic}</div>
                     </div>
                     <div class="description">${data.desc}</div>
@@ -421,9 +436,9 @@
         function handleKeyClick(combo, btnElement) {
             stopAll();
             updateUI(combo, btnElement);
-            // For digraphs, reading the letters usually works (S-H), 
-            // but user can click examples for the sound.
-            speak(combo); 
+            // AQUI ESTÁ EL CAMBIO IMPORTANTE:
+            // Usamos data.audioSim en lugar de 'combo'
+            speak(digraphData[combo].audioSim); 
         }
 
         // === 5. PLAY ALL LOGIC ===
@@ -449,11 +464,12 @@
 
             updateUI(combo, btn);
             
-            speak(combo, () => {
+            // Usamos el audio simulado para la secuencia también
+            speak(digraphData[combo].audioSim, () => {
                 if (isPlayingAll) {
                     setTimeout(() => {
                         playSequence(index + 1);
-                    }, 1000); // Slightly longer pause for digraphs
+                    }, 1200); // Pausa un poco más larga para asimilar el sonido
                 }
             });
         }
