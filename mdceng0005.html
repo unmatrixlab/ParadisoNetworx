@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MDC - Vocabulary Builder</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://js.puter.com/v2/"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -88,20 +87,22 @@
         }
         input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         
-        /* BOTÓN TRADUCTOR A LA DERECHA */
+        /* --- BOTÓN TRADUCTOR CENTRADO --- */
         .middle-translator { 
             display: flex; 
-            justify-content: flex-end; 
+            justify-content: center; 
             align-items: center; 
-            margin: 5px 0; 
-            height: 20px; 
+            margin: -18px 0; /* Margen negativo para superponerse ligeramente y centrarse visualmente */
+            height: 40px; 
             position: relative; 
             z-index: 10; 
+            pointer-events: none; /* Para que el div no bloquee clics, solo el botón */
         }
         .btn-translate-center {
-            background: white; border: 1px solid #e5e7eb; color: var(--primary); width: 40px; height: 40px; border-radius: 50%;
+            pointer-events: auto;
+            background: white; border: 1px solid #e5e7eb; color: var(--primary); width: 44px; height: 44px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s;
         }
         .btn-translate-center:hover { background: var(--primary); color: white; transform: scale(1.1); }
         .rotating { animation: spin 0.8s linear infinite; }
@@ -109,7 +110,7 @@
         
         .btn-save {
             width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px;
-            font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 10px; transition: 0.2s;
+            font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 15px; transition: 0.2s;
         }
         .btn-save:hover { background: var(--primary-hover); }
         .btn-folderize {
@@ -149,7 +150,10 @@
         .folder-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: rgba(255,255,255,0.4); }
         .folder-info { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); }
         .folder-content { background: white; display: none; padding: 10px; border-top: 1px solid var(--folder-border); }
+        
+        /* FIXED FOLDER OPEN LOGIC */
         .folder-open .folder-content { display: block; animation: slideDown 0.3s ease; }
+        
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .folder-icon { transition: transform 0.3s; }
         .folder-open .folder-icon { transform: rotate(90deg); }
@@ -193,9 +197,7 @@
         
         <div class="middle-translator">
             <button class="btn-translate-center" id="magicBtn" onclick="bidirectionalTranslate()" title="Translate">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8l6 6"></path><path d="M4 14h6a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2"></path><path d="M16 5h2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"></path><path d="M16 19h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2z"></path><polyline points="10 10 14 14 10 18"></polyline></svg>
             </button>
         </div>
         
@@ -248,11 +250,10 @@
         const voiceSelectEs = document.getElementById('voiceSelectEs');
         const voiceSelectEn = document.getElementById('voiceSelectEn');
         
-        let currentAudio = null; 
         let isPlaying = false;
         let currentlyPlayingFolderId = null;
-        let globalUtterance = null; 
         let editingId = null; 
+        let openFolderId = null; // TRACKS WHICH FOLDER IS OPEN TO PREVENT COLLAPSE ON SAVE
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -263,7 +264,7 @@
 
             const populate = (selectElement, langCode, savedKey) => {
                 selectElement.innerHTML = '<option value="">System Default</option>';
-                // LIST ALL VOICES FOR LANGUAGE (REMOVED FILTER LIMITS)
+                // SHOW ALL VOICES FOR LANGUAGE
                 const filteredVoices = voices.filter(v => v.lang.startsWith(langCode));
                 filteredVoices.sort((a, b) => a.name.localeCompare(b.name));
                 
@@ -288,7 +289,7 @@
 
         window.speechSynthesis.onvoiceschanged = populateVoices;
 
-        // --- 1. CORE TRANSLATION LOGIC ---
+        // --- 1. TRANSLATION ---
         async function bidirectionalTranslate() {
             const engInput = document.getElementById('inputEng');
             const espInput = document.getElementById('inputEsp');
@@ -310,58 +311,40 @@
             finally { svgIcon.classList.remove('rotating'); btn.style.opacity = "1"; }
         }
 
-        // --- 2. AUDIO LOGIC ---
-        function speakBrowser(text, lang, resolveCallback) {
-            if(currentAudio) { currentAudio.pause(); currentAudio = null; }
-            window.speechSynthesis.cancel();
-            
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = lang;
-            
-            const voices = window.speechSynthesis.getVoices();
-            if(voices.length > 0) {
-                let selectedVoiceName = null;
-                if (lang.startsWith('es')) selectedVoiceName = localStorage.getItem(VOICE_KEY_ES);
-                else if (lang.startsWith('en')) selectedVoiceName = localStorage.getItem(VOICE_KEY_EN);
+        // --- 2. AUDIO LOGIC (PURE TTS) ---
+        function speak(text, lang) {
+            return new Promise((resolve) => {
+                if (!text.trim()) { resolve(); return; }
+                
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                
+                // Voice Selection Logic
+                const voices = window.speechSynthesis.getVoices();
+                if(voices.length > 0) {
+                    let selectedVoiceName = null;
+                    if (lang.startsWith('es')) selectedVoiceName = localStorage.getItem(VOICE_KEY_ES);
+                    else if (lang.startsWith('en')) selectedVoiceName = localStorage.getItem(VOICE_KEY_EN);
 
-                let voice = null;
-                if (selectedVoiceName) voice = voices.find(v => v.name === selectedVoiceName);
+                    let voice = null;
+                    if (selectedVoiceName) voice = voices.find(v => v.name === selectedVoiceName);
 
-                // Fallback priorities including Diego (es-AR) check
-                if (!voice) {
-                     const prefix = lang.split('-')[0];
-                     if (prefix === 'es') voice = voices.find(v => v.name.includes('Diego') || v.name.includes('Mónica') || v.name.includes('Paulina'));
-                     if(isIOS && !voice) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
-                     if(!voice) voice = voices.find(v => v.lang.startsWith(prefix));
+                    if (!voice) {
+                         const prefix = lang.split('-')[0];
+                         if (prefix === 'es') voice = voices.find(v => v.name.includes('Diego') || v.name.includes('Mónica') || v.name.includes('Paulina'));
+                         if(isIOS && !voice) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
+                         if(!voice) voice = voices.find(v => v.lang.startsWith(prefix));
+                    }
+                    if(voice) utterance.voice = voice;
                 }
-                if(voice) utterance.voice = voice;
-            }
-            
-            utterance.rate = 1.0; 
-            globalUtterance = utterance; 
-
-            utterance.onend = () => { globalUtterance = null; if(resolveCallback) resolveCallback(); };
-            utterance.onerror = (e) => { console.error("TTS Error", e); globalUtterance = null; if(resolveCallback) resolveCallback(); };
-            
-            window.speechSynthesis.speak(utterance);
-            if (isIOS && window.speechSynthesis.paused) window.speechSynthesis.resume();
-        }
-
-        async function speak(text, lang = 'en-US') {
-            if (!text.trim()) return Promise.resolve();
-            if (isIOS && currentlyPlayingFolderId !== null) return new Promise(resolve => speakBrowser(text, lang, resolve));
-
-            return new Promise(async (resolve) => {
-                try {
-                    const audio = await puter.ai.txt2speech(text, { language: lang, engine: 'generative' });
-                    if (currentAudio) { currentAudio.pause(); }
-                    currentAudio = audio;
-                    audio.onended = () => { currentAudio = null; resolve(); };
-                    audio.onerror = () => { currentAudio = null; speakBrowser(text, lang, resolve); };
-                    await audio.play(); 
-                } catch (err) {
-                    speakBrowser(text, lang, resolve);
-                }
+                
+                utterance.rate = 1.0; 
+                utterance.onend = () => { resolve(); };
+                utterance.onerror = (e) => { console.error("TTS Error", e); resolve(); };
+                
+                window.speechSynthesis.speak(utterance);
+                if (isIOS && window.speechSynthesis.paused) window.speechSynthesis.resume();
             });
         }
         
@@ -493,15 +476,20 @@
             saveData(items.filter(i => i.id !== fid));
         }
         function toggleFolder(fid) {
-            document.querySelectorAll('.folder-card').forEach(el => { if (el.dataset.id != fid) el.classList.remove('folder-open'); });
-            const target = document.querySelector(`.folder-card[data-id="${fid}"]`);
-            if(target) target.classList.toggle('folder-open');
+            // Logic to keep one folder open at a time, but persists via ID
+            if (openFolderId === fid) {
+                openFolderId = null; // Close if clicking same
+            } else {
+                openFolderId = fid; // Open new
+            }
+            // We must re-render to apply the 'folder-open' class based on state
+            // This ensures it stays open even after saving edits
+            renderList(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
         }
         
         // --- 5. PLAYBACK CONTROL ---
         function stopPlayback() {
             isPlaying = false;
-            if (currentAudio) { currentAudio.pause(); currentAudio = null; }
             window.speechSynthesis.cancel();
             document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
             if (currentlyPlayingFolderId) {
@@ -557,8 +545,13 @@
             if (items.length === 0) { listContainer.innerHTML = '<div class="empty-state">List is empty.</div>'; return; }
             items.forEach(item => {
                 if (item.isFolder) {
+                    // Check if this folder should be open
+                    const isOpenClass = item.id === openFolderId ? 'folder-open' : '';
+                    
                     const folderHTML = document.createElement('div');
-                    folderHTML.className = 'folder-card'; folderHTML.dataset.id = item.id;
+                    folderHTML.className = `folder-card ${isOpenClass}`; 
+                    folderHTML.dataset.id = item.id;
+                    
                     const itemsHtml = item.items.map(subItem => generateCardHTML(subItem, item.id)).join('');
                     folderHTML.innerHTML = `
                         <div class="folder-header">
