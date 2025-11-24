@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MDC - Vocabulary Builder</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://js.puter.com/v2/"></script>
     <style>
         :root {
             --primary: #4f46e5;
@@ -304,24 +305,9 @@
     <script>
         const STORAGE_KEY = 'mdc_vocab_list';
         const listContainer = document.getElementById('vocab-list');
-        let currentSequenceTimeouts = [];
-        let currentlyPlayingFolderId = null; // Track what is playing
-        let voicesLoaded = false;
-        let availableVoices = [];
-
-        // --- 0. LOAD VOICES PROPERLY ---
-        function loadVoices() {
-            availableVoices = window.speechSynthesis.getVoices();
-            if (availableVoices.length === 0) {
-                // Fallback if voices not loaded yet
-                setTimeout(loadVoices, 100);
-            } else {
-                voicesLoaded = true;
-            }
-        }
-
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-        loadVoices(); // Initial call
+        let currentAudio = null;
+        let isPlaying = false;
+        let currentlyPlayingFolderId = null;
 
         // --- 1. CORE TRANSLATION LOGIC ---
         async function bidirectionalTranslate() {
@@ -360,51 +346,36 @@
                 btn.style.opacity = "1";
             }
         }
-        // --- 2. AUDIO LOGIC (IMPROVED VOICE SELECTION AND NATURALNESS) ---
-        function getBestVoice(langPrefix) {
-            if (!voicesLoaded) {
-                console.warn('Voices not loaded yet. Retrying soon.');
-                return null;
+        // --- 2. AUDIO LOGIC (USING PUTER.JS FOR NATURAL TTS) ---
+        async function speak(text, lang = 'en-US') {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
             }
-            // Enhanced preferences for more natural voices:
-            // 1. Prefer "Neural" or "Premium" voices (e.g., Google WaveNet or Microsoft Neural)
-            let best = availableVoices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes('Neural') || v.name.includes('Premium') || v.name.includes('WaveNet')));
-            // 2. Then "Google" voices
-            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix) && v.name.includes('Google'));
-            // 3. Then "Natural" voices
-            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix) && v.name.includes('Natural'));
-            // 4. Fallback to any matching language, preferring specific variants (e.g., es-ES for Spanish, en-GB for English if US not available)
-            if (!best) {
-                best = availableVoices.find(v => v.lang === `${langPrefix}-ES` || v.lang === `${langPrefix}-MX` || v.lang === `${langPrefix}-GB` || v.lang === `${langPrefix}-US`);
+            if (!text.trim()) return Promise.resolve();
+            const options = {
+                language: lang,
+                engine: 'generative'  // 'generative' for most human-like, or 'neural' for high quality
+            };
+            try {
+                const audio = await puter.ai.txt2speech(text, options);
+                currentAudio = audio;
+                return new Promise((resolve, reject) => {
+                    audio.onended = () => {
+                        currentAudio = null;
+                        resolve();
+                    };
+                    audio.onerror = (err) => {
+                        currentAudio = null;
+                        reject(err);
+                    };
+                    audio.play();
+                });
+            } catch (err) {
+                console.error('TTS error:', err);
+                return Promise.reject(err);
             }
-            // 5. Ultimate fallback
-            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix));
-            return best;
-        }
-        function speak(text, lang = 'en-US', onEndCallback = null) {
-            if (!voicesLoaded) {
-                // Delay speech until voices are loaded
-                setTimeout(() => speak(text, lang, onEndCallback), 200);
-                return;
-            }
-            if (!onEndCallback) window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = lang;
-            // Improved naturalness adjustments:
-            // - Rate: Slower for better clarity and natural flow (0.85-0.95)
-            utterance.rate = lang.startsWith('es') ? 0.85 : 0.9;
-            // - Pitch: Slightly lower for a more natural tone (default 1.0, adjust to 0.9-1.1)
-            utterance.pitch = lang.startsWith('es') ? 1.0 : 0.95;
-            // - Volume: Full but not overwhelming
-            utterance.volume = 1.0;
-            // Apply best voice
-            const voice = getBestVoice(lang.split('-')[0]);
-            if (voice) utterance.voice = voice;
-            else console.warn(`No suitable voice found for ${lang}. Using default.`);
-            if (onEndCallback) {
-                utterance.onend = onEndCallback;
-            }
-            window.speechSynthesis.speak(utterance);
         }
         // --- 3. DATA MANAGEMENT ---
         function loadVocab() {
@@ -495,9 +466,12 @@
         // --- 5. SEQUENTIAL PLAYBACK & STOP ---
        
         function stopPlayback() {
-            window.speechSynthesis.cancel();
-            currentSequenceTimeouts.forEach(t => clearTimeout(t));
-            currentSequenceTimeouts = [];
+            isPlaying = false;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
            
             // Reset UI
             if (currentlyPlayingFolderId) {
@@ -536,30 +510,25 @@
             }
             let index = 0;
             const folderItems = folder.items;
-            function playNext() {
-                // Verify we are still in play mode for this folder
-                if(currentlyPlayingFolderId !== folderId) return;
-                if(index >= folderItems.length) {
-                    stopPlayback(); // Finished naturally
-                    return;
-                }
-                const item = folderItems[index];
-                speak(item.eng, 'en-US', () => {
-                    const t1 = setTimeout(() => {
-                        if(currentlyPlayingFolderId !== folderId) return;
-                        speak(item.esp || ' ', 'es-ES', () => {
-                            const t2 = setTimeout(() => {
-                                if(currentlyPlayingFolderId !== folderId) return;
-                                index++;
-                                playNext();
-                            }, 1000);
-                            currentSequenceTimeouts.push(t2);
-                        });
-                    }, 1000);
-                    currentSequenceTimeouts.push(t1);
-                });
+            isPlaying = true;
+            playNext(folderItems, index, folderId);
+        }
+        async function playNext(folderItems, index, folderId) {
+            if (!isPlaying || currentlyPlayingFolderId !== folderId || index >= folderItems.length) {
+                stopPlayback();
+                return;
             }
-            playNext();
+            const item = folderItems[index];
+            try {
+                await speak(item.eng, 'en-US');
+                await new Promise(resolve => setTimeout(() => { if (isPlaying) resolve(); else stopPlayback(); }, 1000));
+                await speak(item.esp || ' ', 'es-ES');
+                await new Promise(resolve => setTimeout(() => { if (isPlaying) resolve(); else stopPlayback(); }, 1000));
+                playNext(folderItems, index + 1, folderId);
+            } catch (err) {
+                console.error(err);
+                stopPlayback();
+            }
         }
         // --- 6. RENDERING ---
         function renderList(items) {
