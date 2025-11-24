@@ -88,7 +88,16 @@
         }
         input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         
-        .middle-translator { display: flex; justify-content: center; align-items: center; margin: 5px 0; height: 20px; position: relative; z-index: 10; }
+        /* --- MODIFICACIÓN: BOTÓN A LA DERECHA --- */
+        .middle-translator { 
+            display: flex; 
+            justify-content: flex-end; /* Mueve el botón a la derecha */
+            align-items: center; 
+            margin: 5px 0; 
+            height: 20px; 
+            position: relative; 
+            z-index: 10; 
+        }
         .btn-translate-center {
             background: white; border: 1px solid #e5e7eb; color: var(--primary); width: 40px; height: 40px; border-radius: 50%;
             display: flex; align-items: center; justify-content: center; cursor: pointer;
@@ -125,20 +134,17 @@
             transition: all 0.3s ease;
         }
         
-        /* === ACTIVE PLAYING ITEM (HIGHLIGHT) === */
+        /* HIGHLIGHT ACTIVE ITEM */
         .vocab-card.playing-highlight {
             border: 2px solid var(--success);
-            background-color: #ecfdf5; /* Light green */
+            background-color: #ecfdf5;
             transform: scale(1.02);
             box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.1);
         }
 
-        /* === EDIT MODE === */
-        .edit-input {
-            width: 100%; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
-        }
+        .edit-input { width: 100%; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; }
 
-        /* === FOLDER STYLES === */
+        /* FOLDER STYLES */
         .folder-card { background: var(--folder-bg); border: 1px solid var(--folder-border); border-radius: var(--radius); overflow: hidden; transition: all 0.3s ease; }
         .folder-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: rgba(255,255,255,0.4); }
         .folder-info { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); }
@@ -184,6 +190,7 @@
             <label>English Phrase</label>
             <input type="text" id="inputEng" placeholder="e.g. The early bird catches the worm">
         </div>
+        
         <div class="middle-translator">
             <button class="btn-translate-center" id="magicBtn" onclick="bidirectionalTranslate()" title="Translate">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;">
@@ -245,7 +252,7 @@
         let isPlaying = false;
         let currentlyPlayingFolderId = null;
         let globalUtterance = null; 
-        let editingId = null; // Track what is being edited
+        let editingId = null; 
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -256,9 +263,8 @@
 
             const populate = (selectElement, langCode, savedKey) => {
                 selectElement.innerHTML = '<option value="">System Default</option>';
-                // FILTER: Starts with lang code (es or en)
+                // LIST ALL VOICES FOR LANGUAGE (REMOVED FILTER LIMITS)
                 const filteredVoices = voices.filter(v => v.lang.startsWith(langCode));
-                // Sort by name
                 filteredVoices.sort((a, b) => a.name.localeCompare(b.name));
                 
                 filteredVoices.forEach(v => {
@@ -324,7 +330,6 @@
                 // Fallback priorities including Diego (es-AR) check
                 if (!voice) {
                      const prefix = lang.split('-')[0];
-                     // Try specific popular names if default
                      if (prefix === 'es') voice = voices.find(v => v.name.includes('Diego') || v.name.includes('Mónica') || v.name.includes('Paulina'));
                      if(isIOS && !voice) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
                      if(!voice) voice = voices.find(v => v.lang.startsWith(prefix));
@@ -374,7 +379,7 @@
                 });
             }
             if (!item) return;
-            // Visual Highlight for Single Play
+            
             const cardEl = document.getElementById(`card-wrapper-${itemId}`);
             if(cardEl) cardEl.classList.add('playing-highlight');
 
@@ -419,17 +424,10 @@
         function toggleEdit(id, parentId = null) {
             const cardEl = document.getElementById(`card-wrapper-${id}`);
             if(!cardEl) return;
-            
-            // If already editing, save it
-            if (editingId === id) {
-                saveEdit(id, parentId);
-                return;
-            }
+            if (editingId === id) { saveEdit(id, parentId); return; }
 
             editingId = id;
             const textContentDiv = cardEl.querySelector('.text-content');
-            
-            // Get current values
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item;
             if(parentId) {
@@ -438,43 +436,32 @@
             } else {
                 item = items.find(i => i.id === id);
             }
-            
             if(!item) return;
 
-            // Replace text with inputs
             textContentDiv.innerHTML = `
                 <input type="text" id="edit-eng-${id}" class="edit-input" value="${item.eng.replace(/"/g, '&quot;')}" placeholder="English">
                 <input type="text" id="edit-esp-${id}" class="edit-input" value="${item.esp.replace(/"/g, '&quot;')}" placeholder="Spanish">
             `;
             
-            // Change button icon
             const editBtn = cardEl.querySelector('.action-btn.edit');
             editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
-            editBtn.classList.add('save-edit');
-            editBtn.classList.remove('edit');
+            editBtn.classList.add('save-edit'); editBtn.classList.remove('edit');
         }
 
         function saveEdit(id, parentId = null) {
             const engVal = document.getElementById(`edit-eng-${id}`).value.trim();
             const espVal = document.getElementById(`edit-esp-${id}`).value.trim();
-            
             if(!engVal) { alert("English text cannot be empty"); return; }
 
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            
             if(parentId) {
                 const f = items.find(i => i.id === parentId);
-                if(f) {
-                    const item = f.items.find(i => i.id === id);
-                    if(item) { item.eng = engVal; item.esp = espVal; }
-                }
+                if(f) { const item = f.items.find(i => i.id === id); if(item) { item.eng = engVal; item.esp = espVal; } }
             } else {
                 const item = items.find(i => i.id === id);
                 if(item) { item.eng = engVal; item.esp = espVal; }
             }
-            
-            saveData(items); // Re-renders list
-            editingId = null;
+            saveData(items); editingId = null;
         }
 
         // --- FOLDER FUNCTIONS ---
@@ -485,6 +472,13 @@
             if (loose.length === 0) { alert("No items to folderize!"); return; }
             const newFolder = { id: Date.now(), isFolder: true, name: `Carpeta ${folders.length + 1}`, items: loose };
             saveData([newFolder, ...folders]);
+        }
+        function renameFolder(fid) {
+            let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            let folder = items.find(i => i.id === fid);
+            if(!folder) return;
+            let newName = prompt("Rename Folder:", folder.name);
+            if(newName && newName.trim()) { folder.name = newName.trim(); saveData(items); }
         }
         function unFolder(fid) {
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -509,10 +503,7 @@
             isPlaying = false;
             if (currentAudio) { currentAudio.pause(); currentAudio = null; }
             window.speechSynthesis.cancel();
-            
-            // Remove highlight
             document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
-
             if (currentlyPlayingFolderId) {
                 const btn = document.querySelector(`.play-btn-${currentlyPlayingFolderId}`);
                 if (btn) { btn.classList.remove('playing'); btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; }
@@ -538,7 +529,6 @@
             while(index < folder.items.length && isPlaying && currentlyPlayingFolderId === folderId) {
                 const item = folder.items[index];
                 
-                // HIGHLIGHT
                 const cardEl = document.getElementById(`card-wrapper-${item.id}`);
                 if(cardEl) {
                     cardEl.classList.add('playing-highlight');
@@ -556,7 +546,6 @@
                     index++;
                 } catch (e) { break; }
 
-                // REMOVE HIGHLIGHT
                 if(cardEl) cardEl.classList.remove('playing-highlight');
             }
             if (isPlaying && currentlyPlayingFolderId === folderId) stopPlayback();
@@ -578,6 +567,7 @@
                                 <span>${item.name} (${item.items.length})</span>
                             </div>
                             <div class="actions">
+                                <button class="action-btn" onclick="event.stopPropagation(); renameFolder(${item.id})" title="Rename"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></button>
                                 <button class="action-btn play-folder play-btn-${item.id}" onclick="toggleFolderPlayback(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
                                 <button class="action-btn unfolder" onclick="unFolder(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg></button>
                                 <button class="action-btn delete-folder" onclick="deleteFolder(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
@@ -588,7 +578,7 @@
                 } else {
                     const card = document.createElement('div');
                     card.className = 'vocab-card';
-                    card.id = `card-wrapper-${item.id}`; // Add ID for highlight
+                    card.id = `card-wrapper-${item.id}`;
                     card.innerHTML = generateCardHTML(item, null, true);
                     listContainer.appendChild(card);
                 }
@@ -622,7 +612,6 @@
             return isStandalone ? innerContent : `<div class="vocab-card" id="card-wrapper-${item.id}">${innerContent}</div>`;
         }
         
-        // Backup Logic
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
             if (!data || JSON.parse(data).length === 0) { alert("No data"); return; }
