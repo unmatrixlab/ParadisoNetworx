@@ -11,6 +11,7 @@
             --primary: #4f46e5;
             --primary-hover: #4338ca;
             --danger: #ef4444;
+            --success: #10b981;
             --folder-bg: #e0e7ff;
             --folder-border: #c7d2fe;
             --bg-body: #f3f4f6;
@@ -79,7 +80,6 @@
             transition: all 0.2s; background-color: #ffffff !important; color: #000000 !important;
             -webkit-appearance: none; appearance: none;
         }
-        /* Select arrow fix */
         select {
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%234f46e5%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
             background-repeat: no-repeat;
@@ -116,13 +116,29 @@
         }
         .btn-backup:hover { background: white; color: var(--text-main); }
         
+        /* ====== VOCAB LIST ====== */
         .vocab-container { width: 95%; max-width: 800px; display: flex; flex-direction: column; gap: 15px; margin-top: 40px; }
         .vocab-card {
             background: white; border-radius: var(--radius); padding: 20px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.05);
             display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.3s ease;
         }
         
+        /* === ACTIVE PLAYING ITEM (HIGHLIGHT) === */
+        .vocab-card.playing-highlight {
+            border: 2px solid var(--success);
+            background-color: #ecfdf5; /* Light green */
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.1);
+        }
+
+        /* === EDIT MODE === */
+        .edit-input {
+            width: 100%; padding: 8px; margin-bottom: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
+        }
+
+        /* === FOLDER STYLES === */
         .folder-card { background: var(--folder-bg); border: 1px solid var(--folder-border); border-radius: var(--radius); overflow: hidden; transition: all 0.3s ease; }
         .folder-header { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: rgba(255,255,255,0.4); }
         .folder-info { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); }
@@ -138,7 +154,8 @@
         .word-span { cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .word-span:hover { color: var(--primary); border-bottom-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
         .spanish-translation { font-size: 0.95rem; color: var(--text-muted); font-style: italic; }
-        
+        .text-content { flex: 1; margin-right: 10px; }
+
         .actions { display: flex; gap: 8px; align-items: center; padding-left: 15px; border-left: 1px solid #d1d5db; margin-left: 15px; }
         .action-btn { background: transparent; border: none; cursor: pointer; padding: 6px; border-radius: 50%; color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: 0.2s; }
         .action-btn:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
@@ -146,13 +163,13 @@
         .action-btn.play-folder.playing { background: #fee2e2; color: #ef4444; animation: pulse 2s infinite; }
         .action-btn.unfolder { color: #f59e0b; }
         .action-btn.delete-folder { color: var(--danger); }
+        .action-btn.edit { color: #3b82f6; }
+        .action-btn.save-edit { color: var(--success); }
         
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
         .empty-state { text-align: center; color: var(--text-muted); margin-top: 30px; font-style: italic; }
 
-        .voice-settings {
-            display: flex; gap: 10px; margin-top: 10px;
-        }
+        .voice-settings { display: flex; gap: 10px; margin-top: 10px; }
         .voice-col { flex: 1; }
     </style>
 </head>
@@ -228,41 +245,33 @@
         let isPlaying = false;
         let currentlyPlayingFolderId = null;
         let globalUtterance = null; 
+        let editingId = null; // Track what is being edited
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        // --- 0. VOICE SELECTION LOGIC (ALL VOICES) ---
+        // --- 0. VOICE SELECTION LOGIC ---
         function populateVoices() {
             const voices = window.speechSynthesis.getVoices();
             if (voices.length === 0) return; 
 
-            // Helper to populate ALL available voices for a language code
             const populate = (selectElement, langCode, savedKey) => {
                 selectElement.innerHTML = '<option value="">System Default</option>';
-                
-                // FILTER ONLY BY LANG CODE (es or en)
-                // We show EVERYTHING the system gives us
+                // FILTER: Starts with lang code (es or en)
                 const filteredVoices = voices.filter(v => v.lang.startsWith(langCode));
-
-                // Sort alphabetically for better UX
+                // Sort by name
                 filteredVoices.sort((a, b) => a.name.localeCompare(b.name));
-
+                
                 filteredVoices.forEach(v => {
                     const opt = document.createElement('option');
                     opt.value = v.name;
-                    // Display Name + Lang Code (e.g. "Mónica (es-ES)")
                     opt.textContent = `${v.name} (${v.lang})`; 
                     selectElement.appendChild(opt);
                 });
-
                 const saved = localStorage.getItem(savedKey);
                 if (saved) selectElement.value = saved;
             };
 
-            // Populate Spanish (All variants: es-ES, es-MX, es-AR, etc.)
             populate(voiceSelectEs, 'es', VOICE_KEY_ES);
-            
-            // Populate English (All variants: en-US, en-GB, etc.)
             populate(voiceSelectEn, 'en', VOICE_KEY_EN);
         }
 
@@ -296,7 +305,6 @@
         }
 
         // --- 2. AUDIO LOGIC ---
-
         function speakBrowser(text, lang, resolveCallback) {
             if(currentAudio) { currentAudio.pause(); currentAudio = null; }
             window.speechSynthesis.cancel();
@@ -307,23 +315,20 @@
             const voices = window.speechSynthesis.getVoices();
             if(voices.length > 0) {
                 let selectedVoiceName = null;
-                
-                // Get User Preference
                 if (lang.startsWith('es')) selectedVoiceName = localStorage.getItem(VOICE_KEY_ES);
                 else if (lang.startsWith('en')) selectedVoiceName = localStorage.getItem(VOICE_KEY_EN);
 
                 let voice = null;
-                if (selectedVoiceName) {
-                    voice = voices.find(v => v.name === selectedVoiceName);
-                }
+                if (selectedVoiceName) voice = voices.find(v => v.name === selectedVoiceName);
 
-                // Fallback (Only if user hasn't selected anything)
+                // Fallback priorities including Diego (es-AR) check
                 if (!voice) {
                      const prefix = lang.split('-')[0];
-                     if(isIOS) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
+                     // Try specific popular names if default
+                     if (prefix === 'es') voice = voices.find(v => v.name.includes('Diego') || v.name.includes('Mónica') || v.name.includes('Paulina'));
+                     if(isIOS && !voice) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
                      if(!voice) voice = voices.find(v => v.lang.startsWith(prefix));
                 }
-
                 if(voice) utterance.voice = voice;
             }
             
@@ -339,15 +344,10 @@
 
         async function speak(text, lang = 'en-US') {
             if (!text.trim()) return Promise.resolve();
-
-            // iOS + Folder Mode = Force Browser
-            if (isIOS && currentlyPlayingFolderId !== null) {
-                return new Promise(resolve => speakBrowser(text, lang, resolve));
-            }
+            if (isIOS && currentlyPlayingFolderId !== null) return new Promise(resolve => speakBrowser(text, lang, resolve));
 
             return new Promise(async (resolve) => {
                 try {
-                    // Try API first for Desktop/Android single plays
                     const audio = await puter.ai.txt2speech(text, { language: lang, engine: 'generative' });
                     if (currentAudio) { currentAudio.pause(); }
                     currentAudio = audio;
@@ -374,10 +374,15 @@
                 });
             }
             if (!item) return;
-            // Play Sequence
+            // Visual Highlight for Single Play
+            const cardEl = document.getElementById(`card-wrapper-${itemId}`);
+            if(cardEl) cardEl.classList.add('playing-highlight');
+
             await speak(item.eng, 'en-US');
             await new Promise(r => setTimeout(r, 600));
             if (item.esp) await speak(item.esp, 'es-ES'); 
+            
+            if(cardEl) cardEl.classList.remove('playing-highlight');
         }
 
         // --- 3. DATA & UI ---
@@ -398,6 +403,7 @@
             saveData(items);
             document.getElementById('inputEng').value = ""; document.getElementById('inputEsp').value = "";
         }
+        
         function deleteItem(id, parentId = null) {
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             if (parentId) {
@@ -408,6 +414,70 @@
             }
             saveData(items);
         }
+
+        // --- EDITING FUNCTIONS ---
+        function toggleEdit(id, parentId = null) {
+            const cardEl = document.getElementById(`card-wrapper-${id}`);
+            if(!cardEl) return;
+            
+            // If already editing, save it
+            if (editingId === id) {
+                saveEdit(id, parentId);
+                return;
+            }
+
+            editingId = id;
+            const textContentDiv = cardEl.querySelector('.text-content');
+            
+            // Get current values
+            let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            let item;
+            if(parentId) {
+                const f = items.find(i => i.id === parentId);
+                if(f) item = f.items.find(i => i.id === id);
+            } else {
+                item = items.find(i => i.id === id);
+            }
+            
+            if(!item) return;
+
+            // Replace text with inputs
+            textContentDiv.innerHTML = `
+                <input type="text" id="edit-eng-${id}" class="edit-input" value="${item.eng.replace(/"/g, '&quot;')}" placeholder="English">
+                <input type="text" id="edit-esp-${id}" class="edit-input" value="${item.esp.replace(/"/g, '&quot;')}" placeholder="Spanish">
+            `;
+            
+            // Change button icon
+            const editBtn = cardEl.querySelector('.action-btn.edit');
+            editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
+            editBtn.classList.add('save-edit');
+            editBtn.classList.remove('edit');
+        }
+
+        function saveEdit(id, parentId = null) {
+            const engVal = document.getElementById(`edit-eng-${id}`).value.trim();
+            const espVal = document.getElementById(`edit-esp-${id}`).value.trim();
+            
+            if(!engVal) { alert("English text cannot be empty"); return; }
+
+            let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            
+            if(parentId) {
+                const f = items.find(i => i.id === parentId);
+                if(f) {
+                    const item = f.items.find(i => i.id === id);
+                    if(item) { item.eng = engVal; item.esp = espVal; }
+                }
+            } else {
+                const item = items.find(i => i.id === id);
+                if(item) { item.eng = engVal; item.esp = espVal; }
+            }
+            
+            saveData(items); // Re-renders list
+            editingId = null;
+        }
+
+        // --- FOLDER FUNCTIONS ---
         function createFolder() {
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const loose = items.filter(i => !i.isFolder);
@@ -439,6 +509,10 @@
             isPlaying = false;
             if (currentAudio) { currentAudio.pause(); currentAudio = null; }
             window.speechSynthesis.cancel();
+            
+            // Remove highlight
+            document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
+
             if (currentlyPlayingFolderId) {
                 const btn = document.querySelector(`.play-btn-${currentlyPlayingFolderId}`);
                 if (btn) { btn.classList.remove('playing'); btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; }
@@ -463,6 +537,14 @@
             let index = 0;
             while(index < folder.items.length && isPlaying && currentlyPlayingFolderId === folderId) {
                 const item = folder.items[index];
+                
+                // HIGHLIGHT
+                const cardEl = document.getElementById(`card-wrapper-${item.id}`);
+                if(cardEl) {
+                    cardEl.classList.add('playing-highlight');
+                    cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+
                 try {
                     await speak(item.eng, 'en-US');
                     if(!isPlaying || currentlyPlayingFolderId !== folderId) break;
@@ -473,6 +555,9 @@
                     await new Promise(r => setTimeout(r, 1000));
                     index++;
                 } catch (e) { break; }
+
+                // REMOVE HIGHLIGHT
+                if(cardEl) cardEl.classList.remove('playing-highlight');
             }
             if (isPlaying && currentlyPlayingFolderId === folderId) stopPlayback();
         }
@@ -503,6 +588,7 @@
                 } else {
                     const card = document.createElement('div');
                     card.className = 'vocab-card';
+                    card.id = `card-wrapper-${item.id}`; // Add ID for highlight
                     card.innerHTML = generateCardHTML(item, null, true);
                     listContainer.appendChild(card);
                 }
@@ -515,12 +601,17 @@
                 return `<span class="word-span" onclick="event.stopPropagation(); speak('${cleanWord || word}')">${word}</span>`;
             }).join(' ');
             const deleteAction = parentId ? `deleteItem(${item.id}, ${parentId})` : `deleteItem(${item.id})`;
+            const editAction = parentId ? `toggleEdit(${item.id}, ${parentId})` : `toggleEdit(${item.id})`;
+            
             const innerContent = `
                 <div class="text-content">
                     <div class="english-phrase">${interactiveHTML}</div>
                     ${item.esp ? `<div class="spanish-translation">${item.esp}</div>` : ''}
                 </div>
                 <div class="actions">
+                    <button class="action-btn edit" onclick="${editAction}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
                     <button class="action-btn" onclick="playSingleSequence(${item.id})">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
                     </button>
@@ -528,8 +619,10 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     </button>
                 </div>`;
-            return isStandalone ? innerContent : `<div class="vocab-card">${innerContent}</div>`;
+            return isStandalone ? innerContent : `<div class="vocab-card" id="card-wrapper-${item.id}">${innerContent}</div>`;
         }
+        
+        // Backup Logic
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
             if (!data || JSON.parse(data).length === 0) { alert("No data"); return; }
