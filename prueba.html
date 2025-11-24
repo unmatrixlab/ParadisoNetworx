@@ -308,6 +308,33 @@
         let currentAudio = null;
         let isPlaying = false;
         let currentlyPlayingFolderId = null;
+        let voicesLoaded = false;
+        let availableVoices = [];
+
+        // Load voices for fallback
+        function loadVoices() {
+            availableVoices = window.speechSynthesis.getVoices();
+            if (availableVoices.length === 0) {
+                setTimeout(loadVoices, 100);
+            } else {
+                voicesLoaded = true;
+            }
+        }
+
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        function getBestVoice(langPrefix) {
+            if (!voicesLoaded) return null;
+            let best = availableVoices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes('Neural') || v.name.includes('Premium') || v.name.includes('WaveNet')));
+            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix) && v.name.includes('Google'));
+            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix) && v.name.includes('Natural'));
+            if (!best) {
+                best = availableVoices.find(v => v.lang === `${langPrefix}-ES` || v.lang === `${langPrefix}-MX` || v.lang === `${langPrefix}-GB` || v.lang === `${langPrefix}-US`);
+            }
+            if (!best) best = availableVoices.find(v => v.lang.startsWith(langPrefix));
+            return best;
+        }
 
         // --- 1. CORE TRANSLATION LOGIC ---
         async function bidirectionalTranslate() {
@@ -346,19 +373,17 @@
                 btn.style.opacity = "1";
             }
         }
-        // --- 2. AUDIO LOGIC (USING PUTER.JS FOR NATURAL TTS) ---
+        // --- 2. AUDIO LOGIC (PUTER.JS WITH FALLBACK TO BROWSER TTS) ---
         async function speak(text, lang = 'en-US') {
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
-                currentAudio = null;
-            }
             if (!text.trim()) return Promise.resolve();
-            const options = {
-                language: lang,
-                engine: 'generative'  // 'generative' for most human-like, or 'neural' for high quality
-            };
+            // Stop any ongoing speech
+            stopCurrentSpeech();
             try {
+                // Try Puter.js
+                const options = {
+                    language: lang,
+                    engine: 'generative'
+                };
                 const audio = await puter.ai.txt2speech(text, options);
                 currentAudio = audio;
                 return new Promise((resolve, reject) => {
@@ -372,11 +397,37 @@
                     };
                     audio.play();
                 });
-            } catch (err) {
-                console.error('TTS error:', err);
-                return Promise.reject(err);
+            } catch (puterErr) {
+                console.warn('Puter TTS failed, falling back to browser TTS:', puterErr);
+                // Fallback to SpeechSynthesis
+                if (!voicesLoaded) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    loadVoices();
+                }
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                utterance.rate = lang.startsWith('es') ? 0.85 : 0.9;
+                utterance.pitch = lang.startsWith('es') ? 1.0 : 0.95;
+                utterance.volume = 1.0;
+                const voice = getBestVoice(lang.split('-')[0]);
+                if (voice) utterance.voice = voice;
+                return new Promise((resolve, reject) => {
+                    utterance.onend = () => resolve();
+                    utterance.onerror = (err) => reject(err);
+                    window.speechSynthesis.speak(utterance);
+                });
             }
         }
+
+        function stopCurrentSpeech() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            window.speechSynthesis.cancel();
+        }
+
         // --- 3. DATA MANAGEMENT ---
         function loadVocab() {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -467,11 +518,7 @@
        
         function stopPlayback() {
             isPlaying = false;
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
-                currentAudio = null;
-            }
+            stopCurrentSpeech();
            
             // Reset UI
             if (currentlyPlayingFolderId) {
@@ -521,12 +568,32 @@
             const item = folderItems[index];
             try {
                 await speak(item.eng, 'en-US');
-                await new Promise(resolve => setTimeout(() => { if (isPlaying) resolve(); else stopPlayback(); }, 1000));
+                await new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        if (!isPlaying || currentlyPlayingFolderId !== folderId) {
+                            stopPlayback();
+                            reject('Playback stopped');
+                        } else {
+                            resolve();
+                        }
+                    }, 1000);
+                });
                 await speak(item.esp || ' ', 'es-ES');
-                await new Promise(resolve => setTimeout(() => { if (isPlaying) resolve(); else stopPlayback(); }, 1000));
+                await new Promise((resolve, reject) => {
+                    setTimeout(() => {
+                        if (!isPlaying || currentlyPlayingFolderId !== folderId) {
+                            stopPlayback();
+                            reject('Playback stopped');
+                        } else {
+                            resolve();
+                        }
+                    }, 1000);
+                });
                 playNext(folderItems, index + 1, folderId);
             } catch (err) {
-                console.error(err);
+                if (err !== 'Playback stopped') {
+                    console.error('Playback error:', err);
+                }
                 stopPlayback();
             }
         }
