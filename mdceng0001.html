@@ -23,7 +23,6 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
 
-/* ====== HEADER ====== */
 #mdc-header {
     position: fixed;
     top: 0; left: 0; width: 100%;
@@ -708,22 +707,22 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
   <div class="bar-divider"></div>
   <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
   <div class="bar-divider"></div>
-  <button class="bar-btn" id="btn-smart-pause" onclick="toggleSmartPause()">⏱️</button> 
   <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
   <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
   <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
 </div>
 
 <script>
-const TIME_OFFSET=-0.2, END_PADDING=0.5, TTS_RATE=0.65, TTS_LANG='en-US';
-const PAUSE_FACTOR = 2.0; // MODIFICAR AQUI EL TIEMPO DE PAUSA (2.0 = Doble del tiempo del subtitulo)
+// VARIABLES SETTINGS
+const TIME_OFFSET = 0.2; // 0.2s offset
+const END_PADDING = 0.5; // 0.5s padding
+const TTS_RATE = 0.65;
+const TTS_LANG = 'en-US';
+
 const YOUTUBE_ID = 'lDK9QqIzhwk';
 const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
 let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
 let engSelection=[], activeWordID=null;
-let smartPause = false;
-let isSmartPausing = false;
-let pauseTimer = null;
 
 function initInteractiveWords() {
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
@@ -747,13 +746,6 @@ function initInteractiveWords() {
   renderWordStates();
 }
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
-
-function toggleSmartPause() {
-    smartPause = !smartPause;
-    const btn = document.getElementById('btn-smart-pause');
-    btn.style.color = smartPause ? '#4f46e5' : 'white';
-    btn.style.opacity = smartPause ? '1' : '0.5';
-}
 
 function toggleAutoScroll() {
     autoScroll = !autoScroll;
@@ -887,47 +879,12 @@ function onPlayerStateChange(event) {
     }
 }
 
-let currentSubtitleEnd = -1;
-
 function checkTime() {
     if (!player || !player.getCurrentTime) return;
     const currentTime = player.getCurrentTime();
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
     
-    // Smart Pause Logic
-    if (smartPause && !isSmartPausing && !isSegmentPlaying) {
-        let activeLine = null;
-        const lines = document.querySelectorAll('.line');
-        
-        for(let i=0; i<lines.length; i++) {
-            const start = parseFloat(lines[i].dataset.start);
-            const end = parseFloat(lines[i].dataset.end);
-            
-            const checkEnd = end + END_PADDING; // Wait slightly after end
-            
-            // If we just passed the end of this subtitle
-            if (currentTime >= checkEnd && currentTime < checkEnd + 0.3 && currentSubtitleEnd !== checkEnd) {
-                currentSubtitleEnd = checkEnd; // Mark as processed
-                isSmartPausing = true;
-                player.pauseVideo();
-                
-                const duration = end - start;
-                const pauseDuration = duration * PAUSE_FACTOR * 1000; // MS
-                
-                const btn = document.getElementById('btn-smart-pause');
-                const originalText = btn.innerText;
-                btn.innerText = "⏳"; 
-                
-                pauseTimer = setTimeout(() => {
-                    player.playVideo();
-                    isSmartPausing = false;
-                    btn.innerText = "⏱️";
-                }, pauseDuration);
-                break;
-            }
-        }
-    }
-
+    // Only handles segmentation stopping (when user clicks Play on a line)
     if (isSegmentPlaying && currentTime >= segmentEndTime) {
         player.pauseVideo();
         isSegmentPlaying = false;
@@ -962,7 +919,7 @@ document.querySelectorAll('.playBtn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const line = btn.closest('.line');
-        const start = parseFloat(line.dataset.start) + TIME_OFFSET;
+        const start = parseFloat(line.dataset.start) - TIME_OFFSET; 
         const end = parseFloat(line.dataset.end) + END_PADDING;
         
         if (btn.dataset.state === 'playing') {
