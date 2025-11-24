@@ -297,7 +297,7 @@
         </div>
         
         <div id="paste-drawer">
-            <textarea id="pasteText" placeholder="Paste here (e.g. 'Dog, Perro' or 'Cat; Gato'). One per line."></textarea>
+            <textarea id="pasteText" placeholder="Paste CSV e.g: &quot;Hello world&quot;,&quot;Hola mundo&quot;"></textarea>
             <button class="btn-confirm-paste" onclick="processPaste()">Import Text</button>
         </div>
     </div>
@@ -700,7 +700,6 @@
             return isStandalone ? innerContent : `<div class="vocab-card" id="card-wrapper-${item.id}">${innerContent}</div>`;
         }
         
-        // Backup Logic
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
             if (!data || JSON.parse(data).length === 0) { alert("No data"); return; }
@@ -724,32 +723,25 @@
             const raw = pasteText.value.trim();
             if(!raw) return;
             let newItems = [];
-            
-            // Check if JSON
             if (raw.startsWith('[') && raw.endsWith(']')) {
-                try {
-                    newItems = JSON.parse(raw);
-                    // If JSON is valid backup, we might want to restore or merge? 
-                    // Let's merge to top.
-                } catch(e) { alert("Invalid JSON format"); return; }
+                try { newItems = JSON.parse(raw); } catch(e) { alert("Invalid JSON"); return; }
             } else {
-                // Parse Text Lines (Eng, Esp)
                 const lines = raw.split(/\r?\n/);
                 lines.forEach(line => {
-                    if(!line.trim()) return;
-                    // Split by first comma, semicolon or dash
-                    const parts = line.split(/,|;|\||-/);
-                    if (parts.length >= 1) {
-                        const eng = parts[0].trim();
-                        const esp = parts.length > 1 ? parts.slice(1).join(' ').trim() : "";
-                        if(eng) newItems.push({ id: Date.now() + Math.random(), isFolder: false, eng: eng, esp: esp });
+                    line = line.trim();
+                    if(!line) return;
+                    let eng = "", esp = "";
+                    const csvMatch = line.match(/^"(.+?)"\s*,\s*"(.+?)"/);
+                    if (csvMatch) { eng = csvMatch[1]; esp = csvMatch[2]; } 
+                    else {
+                        const parts = line.split(/,|;|\||-/);
+                        if (parts.length >= 1) { eng = parts[0].trim(); esp = parts.length > 1 ? parts.slice(1).join(' ').trim() : ""; }
                     }
+                    if(eng) newItems.push({ id: Date.now() + Math.random(), isFolder: false, eng: eng, esp: esp });
                 });
             }
-            
             if(newItems.length > 0) {
                 const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                // Add new items to top
                 const combined = [...newItems, ...current];
                 saveData(combined);
                 pasteText.value = "";
