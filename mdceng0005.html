@@ -184,13 +184,13 @@
             <div class="voice-col input-group">
                 <label>English Voice</label>
                 <select id="voiceSelectEn" onchange="saveVoicePreferences()">
-                    <option value="">Default</option>
+                    <option value="">Default (Auto)</option>
                 </select>
             </div>
             <div class="voice-col input-group">
                 <label>Spanish Voice</label>
                 <select id="voiceSelectEs" onchange="saveVoicePreferences()">
-                    <option value="">Default</option>
+                    <option value="">Default (Auto)</option>
                 </select>
             </div>
         </div>
@@ -231,35 +231,27 @@
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        // --- 0. VOICE SELECTION LOGIC (FILTERED) ---
+        // --- 0. VOICE SELECTION LOGIC (ALL VOICES) ---
         function populateVoices() {
             const voices = window.speechSynthesis.getVoices();
             if (voices.length === 0) return; 
 
-            // Helper to populate a select element with filtered voices
-            const populate = (selectElement, langCode, filterNames, savedKey) => {
+            // Helper to populate ALL available voices for a language code
+            const populate = (selectElement, langCode, savedKey) => {
                 selectElement.innerHTML = '<option value="">System Default</option>';
                 
-                const filteredVoices = voices.filter(v => {
-                    if (!v.lang.startsWith(langCode)) return false;
-                    const name = v.name.toLowerCase();
-                    
-                    // 1. Check specific user-requested names
-                    if (filterNames.some(n => name.includes(n.toLowerCase()))) return true;
-                    
-                    // 2. Always include Premium/Enhanced/Google as quality fallbacks
-                    if (name.includes('premium') || name.includes('enhanced') || name.includes('google')) return true;
-                    
-                    return false;
-                });
+                // FILTER ONLY BY LANG CODE (es or en)
+                // We show EVERYTHING the system gives us
+                const filteredVoices = voices.filter(v => v.lang.startsWith(langCode));
 
-                // Unique set to avoid duplicates
-                const uniqueVoices = [...new Map(filteredVoices.map(v => [v.name, v])).values()];
+                // Sort alphabetically for better UX
+                filteredVoices.sort((a, b) => a.name.localeCompare(b.name));
 
-                uniqueVoices.forEach(v => {
+                filteredVoices.forEach(v => {
                     const opt = document.createElement('option');
                     opt.value = v.name;
-                    opt.textContent = v.name.replace('Microsoft', '').replace('Google', '').trim();
+                    // Display Name + Lang Code (e.g. "Mónica (es-ES)")
+                    opt.textContent = `${v.name} (${v.lang})`; 
                     selectElement.appendChild(opt);
                 });
 
@@ -267,11 +259,11 @@
                 if (saved) selectElement.value = saved;
             };
 
-            // === AQUI ESTA MONICA ===
-            populate(voiceSelectEs, 'es', ['Monica', 'Paulina'], VOICE_KEY_ES);
+            // Populate Spanish (All variants: es-ES, es-MX, es-AR, etc.)
+            populate(voiceSelectEs, 'es', VOICE_KEY_ES);
             
-            // English Voices
-            populate(voiceSelectEn, 'en', ['Samantha', 'Fred'], VOICE_KEY_EN);
+            // Populate English (All variants: en-US, en-GB, etc.)
+            populate(voiceSelectEn, 'en', VOICE_KEY_EN);
         }
 
         function saveVoicePreferences() {
@@ -316,6 +308,7 @@
             if(voices.length > 0) {
                 let selectedVoiceName = null;
                 
+                // Get User Preference
                 if (lang.startsWith('es')) selectedVoiceName = localStorage.getItem(VOICE_KEY_ES);
                 else if (lang.startsWith('en')) selectedVoiceName = localStorage.getItem(VOICE_KEY_EN);
 
@@ -324,7 +317,7 @@
                     voice = voices.find(v => v.name === selectedVoiceName);
                 }
 
-                // Fallback
+                // Fallback (Only if user hasn't selected anything)
                 if (!voice) {
                      const prefix = lang.split('-')[0];
                      if(isIOS) voice = voices.find(v => v.lang.startsWith(prefix) && (v.name.includes('Premium') || v.name.includes('Enhanced')));
@@ -381,6 +374,7 @@
                 });
             }
             if (!item) return;
+            // Play Sequence
             await speak(item.eng, 'en-US');
             await new Promise(r => setTimeout(r, 600));
             if (item.esp) await speak(item.esp, 'es-ES'); 
