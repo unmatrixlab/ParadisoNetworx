@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v4 (Full)</title>
+    <title>MDC Studio Suite v4.7 (Speed Control Added)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -379,7 +379,6 @@
 
         function clearText(elementId) { document.getElementById(elementId).value = ""; }
 
-        // === FILE READERS ===
         function setupReader(fileId, textId) {
             document.getElementById(fileId).addEventListener('change', (e) => {
                 const file = e.target.files[0];
@@ -423,18 +422,16 @@
                 const id = getYoutubeId(ytLink);
                 if (!id) { alert("Invalid YouTube Link"); return; }
                 imgSrc = `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
-                // Play Icon
                 iconSVG = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
             } else {
                 imgSrc = document.getElementById('cardImgLink').value;
                 if (!imgSrc) { alert("Image URL required for Article"); return; }
-                // Document/Read Icon
                 iconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`;
             }
 
             let dataCategory = "talks";
             let tagName = "TALKS";
-            let tagStyle = "background: rgba(107, 114, 128, 0.4);"; // Gray
+            let tagStyle = "background: rgba(107, 114, 128, 0.4);";
 
             if(cat === 'talks') { dataCategory = "talks"; tagName = "TALKS"; tagStyle = "background: rgba(107, 114, 128, 0.4);"; }
             else if(cat === 'musical') { dataCategory = "musical"; tagName = "MUSIC"; tagStyle = "background: rgba(236, 72, 153, 0.4);"; }
@@ -444,11 +441,9 @@
             const html = `<a href="${pageLink}" class="card-link" data-category="${dataCategory}">
     <div class="video-card">
         <img src="${imgSrc}" alt="${title}">
-        
         <div class="play-icon">
             ${iconSVG}
         </div>
-
         <div class="info-overlay">
             <div class="video-author">
                 <span class="tag" style="${tagStyle}">${tagName}</span>
@@ -463,9 +458,7 @@
             document.getElementById('cardOutputContainer').style.display = 'block';
         }
 
-        // === FUSIONER LOGIC & TEMPLATES ===
-        
-        // Template Part 1: HTML Head & CSS
+        // === TEMPLATE HEAD ===
         const TPL_HEAD = `<!doctype html>
 <html lang="en">
 <head>
@@ -491,7 +484,6 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
 
-/* ====== HEADER ====== */
 #mdc-header {
     position: fixed;
     top: 0; left: 0; width: 100%;
@@ -548,10 +540,6 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 .bar-btn.disabled { opacity: 0.3; pointer-events: none; }
 .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
 .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(3px); z-index: 2000; display: none; align-items: center; justify-content: center; }
-.modal-overlay.active { display: flex; }
-.modal-content { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-radius: 20px; padding: 25px; width: 90%; max-width: 320px; }
-.modal-btn-close { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; border-radius: 12px; font-weight: 600; cursor: pointer; margin-top: 15px; }
 </style>
 </head>
 <body>
@@ -560,7 +548,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 <div class="video-wrapper"><div class="video-inner"><div id="player"></div></div></div>
 <div class="dialogue-container">`;
 
-        // Template Part 2: JS Logic
+        // Template Part 2: JS Logic WITH SPEED CONTROL ADDED
         const TPL_SCRIPT_START = `</div></div>
 <div id="control-bar">
   <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
@@ -569,32 +557,45 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
   <div class="bar-divider"></div>
   <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
   <div class="bar-divider"></div>
-  <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
-  <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
+  <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
+  <div class="bar-divider"></div>
   <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
-  <button class="bar-btn" onclick="toggleHelp()">?</button>
-</div>
-
-<div id="help-modal" class="modal-overlay" onclick="toggleHelp()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <h3>How to use</h3>
-    <ul>
-      <li><strong>Select:</strong> Click words. Blue=Active, Red=History.</li>
-      <li><strong>Navigate:</strong> Use Arrows.</li>
-      <li><strong>Speak:</strong> Use Speaker icon.</li>
-    </ul>
-    <button class="modal-btn-close" onclick="toggleHelp()">Close</button>
-  </div>
+  <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
+  <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
 </div>
 
 <script>
-const TIME_OFFSET=-0.2, END_PADDING=0.5, TTS_RATE=0.65, TTS_LANG='en-US';
+// VARIABLES SETTINGS
+const TIME_OFFSET = 0.2; // 0.2s offset
+const END_PADDING = 0.5; // 0.5s padding
+const TTS_RATE = 0.65;
+const TTS_LANG = 'en-US';
+
 const YOUTUBE_ID = '`;
         
         const TPL_SCRIPT_END = `';
 const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
 let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
 let engSelection=[], activeWordID=null;
+let currentPlaybackRate = 1.0;
+
+function cycleSpeed() {
+    // Decrease by 0.1 until 0.6, then reset to 1.0
+    currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
+    
+    if (currentPlaybackRate < 0.6) {
+        currentPlaybackRate = 1.0;
+    }
+    
+    // Update Player
+    if(player && player.setPlaybackRate) {
+        player.setPlaybackRate(currentPlaybackRate);
+    }
+    
+    // Update UI Button
+    const btn = document.getElementById('btn-speed');
+    if(btn) btn.innerText = currentPlaybackRate + 'x';
+}
 
 function initInteractiveWords() {
   engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
@@ -724,8 +725,6 @@ function clearAllWords() {
     renderWordStates();
 }
 
-function toggleHelp() { document.getElementById('help-modal').classList.toggle('active'); }
-
 const tag = document.createElement('script');
 tag.src = "https://www.youtube.com/iframe_api";
 document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
@@ -741,6 +740,8 @@ function onYouTubeIframeAPIReady() {
 function onPlayerReady(event) {
     const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
     if (savedTime) player.seekTo(parseFloat(savedTime));
+    // Apply speed if changed before ready (optional, keeps default 1x usually)
+    player.setPlaybackRate(currentPlaybackRate);
 }
 
 function onPlayerStateChange(event) {
@@ -757,6 +758,8 @@ function checkTime() {
     if (!player || !player.getCurrentTime) return;
     const currentTime = player.getCurrentTime();
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+    
+    // Only handles segmentation stopping (when user clicks Play on a line)
     if (isSegmentPlaying && currentTime >= segmentEndTime) {
         player.pauseVideo();
         isSegmentPlaying = false;
@@ -771,10 +774,10 @@ function highlightCurrentLine(time) {
     const lines = document.querySelectorAll('.line');
     let activeLine = null;
     lines.forEach((line, index) => {
-        const start = parseFloat(line.dataset.time);
-        const nextLine = lines[index + 1];
-        const end = nextLine ? parseFloat(nextLine.dataset.time) : start + 10;
-        if (time >= start && time < end) activeLine = line;
+        const start = parseFloat(line.dataset.start);
+        const end = parseFloat(line.dataset.end);
+        
+        if (time >= start && time < end + END_PADDING) activeLine = line;
         line.classList.remove('active');
     });
     if (activeLine) {
@@ -791,9 +794,8 @@ document.querySelectorAll('.playBtn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const line = btn.closest('.line');
-        const start = parseFloat(line.dataset.time) + TIME_OFFSET;
-        const nextLine = line.nextElementSibling;
-        const end = (nextLine ? parseFloat(nextLine.dataset.time) : start + 5) + END_PADDING;
+        const start = parseFloat(line.dataset.start) - TIME_OFFSET; 
+        const end = parseFloat(line.dataset.end) + END_PADDING;
         
         if (btn.dataset.state === 'playing') {
             player.pauseVideo();
@@ -809,6 +811,9 @@ document.querySelectorAll('.playBtn').forEach(btn => {
         segmentEndTime = end;
         player.seekTo(Math.max(0, start), true);
         player.playVideo();
+        // Ensure speed is maintained
+        player.setPlaybackRate(currentPlaybackRate);
+        
         btn.textContent = "Stop";
         btn.dataset.state = 'playing';
         line.classList.add('active');
@@ -860,7 +865,11 @@ function toggleAllTranslations() {
             const blocks = [];
             let match;
             while ((match = regex.exec(text)) !== null) {
-                blocks.push({ start: match[2], text: match[4].replace(/\n/g, ' ').trim() });
+                blocks.push({ 
+                    start: match[2], 
+                    end: match[3], 
+                    text: match[4].replace(/\n/g, ' ').trim() 
+                });
             }
             return blocks;
         }
@@ -889,10 +898,10 @@ function toggleAllTranslations() {
             for (let i = 0; i < engBlocks.length; i++) {
                 const eng = engBlocks[i];
                 const esp = espBlocks[i] ? espBlocks[i].text : "";
-                const time = timeToSeconds(eng.start).toFixed(2);
+                const start = timeToSeconds(eng.start).toFixed(2);
+                const end = timeToSeconds(eng.end).toFixed(2);
                 
-                // Pretty print the inner HTML
-                htmlBody += `<div class="line" data-time="${time}">
+                htmlBody += `<div class="line" data-start="${start}" data-end="${end}">
   <div class="line-content">
     <div class="text-block">
       <div class="english">${eng.text}</div>
