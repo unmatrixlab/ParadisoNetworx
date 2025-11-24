@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v4.3 (Dual Smart Pause)</title>
+    <title>MDC Studio Suite v4.5 (Fixed Smart Pause)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -548,7 +548,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 <div class="video-wrapper"><div class="video-inner"><div id="player"></div></div></div>
 <div class="dialogue-container">`;
 
-        // Template Part 2: JS Logic - DUAL SMART PAUSE
+        // Template Part 2: JS Logic - DUAL SMART PAUSE (REVISED)
         const TPL_SCRIPT_START = `</div></div>
 <div id="control-bar">
   <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
@@ -564,15 +564,20 @@ body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); 
 </div>
 
 <script>
-const TIME_OFFSET=-0.2, END_PADDING=0.5, TTS_RATE=0.65, TTS_LANG='en-US';
-const PAUSE_FACTOR = 2.0; // MODIFICAR AQUI EL TIEMPO DE PAUSA
+// VARIABLES SETTINGS
+const TIME_OFFSET = 0.2; // 0.2s offset
+const END_PADDING = 0.5; // 0.5s padding
+const TTS_RATE = 0.65;
+const TTS_LANG = 'en-US';
+const PAUSE_DURATION_MULTI = 2.0; // Defines length of pause
+
 const YOUTUBE_ID = '`;
         
         const TPL_SCRIPT_END = `';
 const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
 let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
 let engSelection=[], activeWordID=null;
-let smartPauseMode = 0; // 0=OFF, 1=POST-PAUSE (Shadowing), 2=PRE-PAUSE (Verify)
+let smartPauseMode = 0; // 0=OFF, 1=MODE-2 (End Pause + Jump), 2=MODE-3 (Start Pause + End Pause)
 let isSmartPausing = false;
 let pauseTimer = null;
 let currentSubtitleBoundary = -1; 
@@ -601,7 +606,7 @@ function initInteractiveWords() {
 document.addEventListener('DOMContentLoaded', initInteractiveWords);
 
 function toggleSmartPauseMode() {
-    // Cycle Modes: 0 (Off) -> 1 (Shadowing/After) -> 2 (Verify/Before) -> 0
+    // Cycle Modes: 0 (Off) -> 1 (Continuous) -> 2 (Drill) -> 0
     smartPauseMode = (smartPauseMode + 1) % 3;
     updateSmartPauseVisuals();
 }
@@ -609,33 +614,30 @@ function toggleSmartPauseMode() {
 function updateSmartPauseVisuals() {
     const btn = document.getElementById('btn-smart-pause');
     
-    // Reset states immediately to prevent stuck logic
+    // Reset states immediately
     clearTimeout(pauseTimer);
     isSmartPausing = false;
     currentSubtitleBoundary = -1;
     
     if (player && player.getPlayerState() === 2 && isSmartPausing) {
-         player.playVideo(); // Resume if we were waiting
+         player.playVideo();
     }
 
     if (smartPauseMode === 0) {
-        // OFF
         btn.innerText = "⚪"; 
         btn.style.color = '#6b7280'; 
         btn.style.opacity = '0.5';
         btn.title = "Smart Pause: OFF";
     } else if (smartPauseMode === 1) {
-        // MODE 1: Shadowing (Pause AFTER)
-        btn.innerText = "🗣️"; 
-        btn.style.color = '#4f46e5'; // Blue
+        btn.innerText = "⏩"; 
+        btn.style.color = '#4f46e5';
         btn.style.opacity = '1';
-        btn.title = "Mode: Shadowing (Pause AFTER)";
+        btn.title = "Mode 2: Pause End + Jump Gap";
     } else if (smartPauseMode === 2) {
-        // MODE 2: Verification (Pause BEFORE)
         btn.innerText = "✋"; 
-        btn.style.color = '#7c3aed'; // Purple/Violet
+        btn.style.color = '#7c3aed';
         btn.style.opacity = '1';
-        btn.title = "Mode: Verification (Pause BEFORE)";
+        btn.title = "Mode 3: Pause Start + Pause End";
     }
 }
 
@@ -776,7 +778,7 @@ function checkTime() {
     const currentTime = player.getCurrentTime();
     if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
     
-    // === SMART PAUSE LOGIC ===
+    // === NEW SIMPLIFIED SMART PAUSE LOGIC ===
     if (smartPauseMode > 0 && !isSmartPausing && !isSegmentPlaying) {
         const lines = document.querySelectorAll('.line');
         
@@ -785,21 +787,37 @@ function checkTime() {
             const end = parseFloat(lines[i].dataset.end);
             const duration = end - start;
             
-            // MODE 1: PAUSE AFTER (Shadowing)
+            // Determine next start for jumps
+            let nextStart = null;
+            if(i < lines.length - 1) {
+                nextStart = parseFloat(lines[i+1].dataset.start);
+            }
+
+            // MODE 2: (As requested: Pause at End + Jump to Next - Offset)
             if (smartPauseMode === 1) {
-                const checkPoint = end + END_PADDING;
-                // If near END of subtitle
-                if (currentTime >= checkPoint && currentTime < checkPoint + 0.3 && currentSubtitleBoundary !== checkPoint) {
-                    triggerPause(checkPoint, duration);
+                const pausePoint = end + END_PADDING;
+                // Check if we reached end point (+ small buffer)
+                if (currentTime >= pausePoint && currentTime < pausePoint + 0.3 && currentSubtitleBoundary !== pausePoint) {
+                    // Logic: Pause, wait, then resume at Next Start - Offset
+                    let seekTarget = nextStart ? (nextStart - TIME_OFFSET) : null;
+                    triggerPause(pausePoint, duration, seekTarget); 
                     break;
                 }
             }
             
-            // MODE 2: PAUSE BEFORE (Verification)
+            // MODE 3: (As requested: Pause at Start - Offset AND Pause at End + Padding)
             if (smartPauseMode === 2) {
-                // If near START of subtitle
-                if (currentTime >= start && currentTime < start + 0.3 && currentSubtitleBoundary !== start) {
-                     triggerPause(start, duration);
+                // Trigger 1: Start - Offset
+                const startPoint = start - TIME_OFFSET;
+                if (currentTime >= startPoint && currentTime < startPoint + 0.3 && currentSubtitleBoundary !== startPoint) {
+                     triggerPause(startPoint, duration, null); // Just pause, no seek
+                     break;
+                }
+                
+                // Trigger 2: End + Padding
+                const endPoint = end + END_PADDING;
+                if (currentTime >= endPoint && currentTime < endPoint + 0.3 && currentSubtitleBoundary !== endPoint) {
+                     triggerPause(endPoint, duration, null); // Just pause, no seek
                      break;
                 }
             }
@@ -816,22 +834,27 @@ function checkTime() {
     if (scrollEnabled) highlightCurrentLine(currentTime);
 }
 
-function triggerPause(boundaryTime, duration) {
-    currentSubtitleBoundary = boundaryTime; // Mark as handled
+function triggerPause(boundaryTime, subDuration, seekOnResume) {
+    currentSubtitleBoundary = boundaryTime; 
     isSmartPausing = true;
     player.pauseVideo();
     
-    const pauseDuration = duration * PAUSE_FACTOR * 1000; // MS
+    // Using simple factor for duration as implicit calculation
+    const pauseDuration = subDuration * PAUSE_DURATION_MULTI * 1000; 
     
     const btn = document.getElementById('btn-smart-pause');
     const originalIcon = btn.innerText;
     btn.innerText = "⏳"; 
     
     pauseTimer = setTimeout(() => {
-        if(smartPauseMode > 0) { // Ensure still active
+        if(smartPauseMode > 0) { 
+            // HERE IS THE SEEK LOGIC FOR MODE 2
+            if(seekOnResume !== null) {
+                player.seekTo(seekOnResume, true);
+            }
             player.playVideo();
             isSmartPausing = false;
-            btn.innerText = originalIcon; // Restore mode icon
+            btn.innerText = originalIcon; 
         }
     }, pauseDuration);
 }
@@ -860,7 +883,8 @@ document.querySelectorAll('.playBtn').forEach(btn => {
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const line = btn.closest('.line');
-        const start = parseFloat(line.dataset.start) + TIME_OFFSET;
+        // Manual play takes precedence
+        const start = parseFloat(line.dataset.start) - TIME_OFFSET; 
         const end = parseFloat(line.dataset.end) + END_PADDING;
         
         if (btn.dataset.state === 'playing') {
