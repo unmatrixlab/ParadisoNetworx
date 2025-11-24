@@ -119,13 +119,30 @@
             transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
         }
         .btn-folderize:hover { background: #f5f7ff; }
-        .backup-section { margin-top: 10px; padding-top: 15px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; }
+        
+        /* BACKUP & PASTE SECTION */
+        .backup-section { margin-top: 10px; padding-top: 15px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-backup {
             flex: 1; padding: 10px; background: transparent; color: var(--text-muted); border: 1px solid #e5e7eb;
-            border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.8rem;
+            border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.8rem; min-width: 80px;
         }
         .btn-backup:hover { background: white; color: var(--text-main); }
         
+        /* Paste Area Drawer */
+        #paste-drawer {
+            display: none; width: 100%; margin-top: 10px;
+            animation: slideOpen 0.3s ease;
+        }
+        @keyframes slideOpen { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        #pasteText {
+            width: 100%; height: 100px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px;
+            font-family: monospace; font-size: 0.9rem; margin-bottom: 8px; resize: vertical;
+        }
+        .btn-confirm-paste {
+            width: 100%; padding: 8px; background: var(--success); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;
+        }
+
         /* ====== VOCAB LIST ====== */
         .vocab-container { width: 95%; max-width: 800px; display: flex; flex-direction: column; gap: 15px; margin-top: 40px; }
         .vocab-card {
@@ -244,7 +261,6 @@
                     <input type="range" id="rateRangeEn" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updateRateDisplay('En')">
                 </div>
             </div>
-            
             <div class="voice-col input-group">
                 <label>Spanish Voice</label>
                 <select id="voiceSelectEs" onchange="saveVoicePreferences()">
@@ -272,8 +288,17 @@
             <input type="file" id="importFile" accept=".html,.json" style="display:none" onchange="importBackup(this)">
             <button class="btn-backup" onclick="document.getElementById('importFile').click()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                Import
+                Load File
             </button>
+            <button class="btn-backup" onclick="togglePasteDrawer()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"></path><rect x="9" y="3" width="6" height="4" rx="2"></rect></svg>
+                Pegar Lista
+            </button>
+        </div>
+        
+        <div id="paste-drawer">
+            <textarea id="pasteText" placeholder="Paste here (e.g. 'Dog, Perro' or 'Cat; Gato'). One per line."></textarea>
+            <button class="btn-confirm-paste" onclick="processPaste()">Import Text</button>
         </div>
     </div>
     <div class="vocab-container" id="vocab-list"></div>
@@ -295,6 +320,8 @@
         const inputEsp = document.getElementById('inputEsp');
         const btnEng = document.getElementById('btnEng');
         const btnEsp = document.getElementById('btnEsp');
+        const pasteDrawer = document.getElementById('paste-drawer');
+        const pasteText = document.getElementById('pasteText');
         
         let isPlaying = false;
         let currentlyPlayingFolderId = null;
@@ -303,22 +330,24 @@
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        // --- 0. TRANSLATE BUTTON LOGIC ---
+        // --- 0. UI LOGIC ---
         function updateTranslateButtons() {
             const hasEng = inputEng.value.trim() !== "";
             const hasEsp = inputEsp.value.trim() !== "";
             btnEng.classList.remove('visible');
             btnEsp.classList.remove('visible');
-            if (hasEng) {
-                btnEng.classList.add('visible');
-            } else if (hasEsp) {
-                btnEsp.classList.add('visible');
-            }
+            if (hasEng) { btnEng.classList.add('visible'); } 
+            else if (hasEsp) { btnEsp.classList.add('visible'); }
         }
         inputEng.addEventListener('input', updateTranslateButtons);
         inputEsp.addEventListener('input', updateTranslateButtons);
 
-        // --- 1. VOICE & RATE SELECTION LOGIC ---
+        function togglePasteDrawer() {
+            if(pasteDrawer.style.display === 'block') pasteDrawer.style.display = 'none';
+            else pasteDrawer.style.display = 'block';
+        }
+
+        // --- 1. VOICE & RATE SELECTION ---
         function populateVoices() {
             const voices = window.speechSynthesis.getVoices();
             if (voices.length === 0) return; 
@@ -340,7 +369,6 @@
             populate(voiceSelectEs, 'es', VOICE_KEY_ES);
             populate(voiceSelectEn, 'en', VOICE_KEY_EN);
             
-            // Restore Rates
             const rateEs = localStorage.getItem(RATE_KEY_ES) || "1.0";
             const rateEn = localStorage.getItem(RATE_KEY_EN) || "1.0";
             rateRangeEs.value = rateEs; rateDisplayEs.textContent = rateEs;
@@ -385,7 +413,7 @@
             finally { svgIcon.classList.remove('rotating'); }
         }
 
-        // --- 3. AUDIO LOGIC (PURE TTS WITH RATE CONTROL) ---
+        // --- 3. AUDIO LOGIC (PURE TTS) ---
         function speak(text, lang) {
             return new Promise((resolve) => {
                 if (!text.trim()) { resolve(); return; }
@@ -417,7 +445,7 @@
                          if(!voice) voice = voices.find(v => v.lang.startsWith(prefix));
                     }
                     if(voice) utterance.voice = voice;
-                    utterance.rate = rateValue; // APPLY SELECTED RATE
+                    utterance.rate = rateValue; 
                 }
                 
                 utterance.onend = () => { resolve(); };
@@ -591,6 +619,7 @@
             let index = 0;
             while(index < folder.items.length && isPlaying && currentlyPlayingFolderId === folderId) {
                 const item = folder.items[index];
+                
                 const cardEl = document.getElementById(`card-wrapper-${item.id}`);
                 if(cardEl) { cardEl.classList.add('playing-highlight'); cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
@@ -671,6 +700,7 @@
             return isStandalone ? innerContent : `<div class="vocab-card" id="card-wrapper-${item.id}">${innerContent}</div>`;
         }
         
+        // Backup Logic
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
             if (!data || JSON.parse(data).length === 0) { alert("No data"); return; }
@@ -689,6 +719,45 @@
             };
             reader.readAsText(file);
         }
+        
+        function processPaste() {
+            const raw = pasteText.value.trim();
+            if(!raw) return;
+            let newItems = [];
+            
+            // Check if JSON
+            if (raw.startsWith('[') && raw.endsWith(']')) {
+                try {
+                    newItems = JSON.parse(raw);
+                    // If JSON is valid backup, we might want to restore or merge? 
+                    // Let's merge to top.
+                } catch(e) { alert("Invalid JSON format"); return; }
+            } else {
+                // Parse Text Lines (Eng, Esp)
+                const lines = raw.split(/\r?\n/);
+                lines.forEach(line => {
+                    if(!line.trim()) return;
+                    // Split by first comma, semicolon or dash
+                    const parts = line.split(/,|;|\||-/);
+                    if (parts.length >= 1) {
+                        const eng = parts[0].trim();
+                        const esp = parts.length > 1 ? parts.slice(1).join(' ').trim() : "";
+                        if(eng) newItems.push({ id: Date.now() + Math.random(), isFolder: false, eng: eng, esp: esp });
+                    }
+                });
+            }
+            
+            if(newItems.length > 0) {
+                const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                // Add new items to top
+                const combined = [...newItems, ...current];
+                saveData(combined);
+                pasteText.value = "";
+                togglePasteDrawer();
+                alert(`Added ${newItems.length} items!`);
+            }
+        }
+
         document.getElementById('inputEsp').addEventListener('keypress', function (e) { if (e.key === 'Enter') addVocab(); });
         document.addEventListener('DOMContentLoaded', loadVocab);
     </script>
