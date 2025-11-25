@@ -221,8 +221,7 @@
     </div>
 
     <script>
-        // === 1. DICTIONARY ===
-     // === 1. DICTIONARY (EXPANDED) ===
+        // === 1. DICTIONARY (FULL LIST) ===
         const verbDictionary = {
             // --- A ---
             "accept": { type: "reg", v1: "accept", v2: "accepted", v3: "accepted", ing: "accepting", s: "accepts", note: "Regular verb. Just add -ed." },
@@ -513,7 +512,6 @@
 
         function createCard(title, struct, sentence, type) {
             const cleanText = sentence.replace(/<[^>]*>/g, "");
-            // REMOVED visual tap hint, keeping structure clean
             return `
                 <div class="card ${type}" onclick="speak('${cleanText}')">
                     <div class="tense-header"><span>${title}</span></div>
@@ -532,15 +530,20 @@
 
         function handleEnter(e) { if(e.key === 'Enter') teachVerb(); }
 
-        // === SEARCH & DROPDOWN LOGIC (NUEVO) ===
+        // === SEARCH & DROPDOWN LOGIC ===
         const input = document.getElementById('verbInput');
         const suggestionBox = document.getElementById('suggestions');
 
-        // Mostrar todos o filtrar
-        input.addEventListener('input', () => showSuggestions(input.value));
+        // Limpiar memoria si el usuario borra el texto manualmente
+        input.addEventListener('input', () => {
+            showSuggestions(input.value);
+            if(!input.value.trim()) {
+                localStorage.removeItem('mdc_last_verb'); // Limpiar si está vacío
+            }
+        });
+
         input.addEventListener('focus', () => showSuggestions(input.value));
         
-        // Ocultar si clic fuera
         document.addEventListener('click', (e) => {
             if (!input.contains(e.target) && !suggestionBox.contains(e.target)) {
                 suggestionBox.classList.remove('active');
@@ -553,7 +556,7 @@
             let matches = [];
 
             if(!filter) {
-                matches = keys; // Show all if empty
+                matches = keys; 
             } else {
                 matches = keys.filter(k => k.startsWith(filter));
             }
@@ -581,7 +584,7 @@
         function selectVerb(v) {
             input.value = v;
             suggestionBox.classList.remove('active');
-            teachVerb(); // Ejecutar inmediatamente
+            teachVerb(); 
         }
 
         // === MODAL LOGIC ===
@@ -634,6 +637,9 @@
             const val = document.getElementById('verbInput').value;
             if(!val) return;
 
+            // --- NUEVO: GUARDAR ESTADO ---
+            localStorage.setItem('mdc_last_verb', val);
+
             const d = getVerbData(val);
             const grid = document.getElementById('lessonGrid');
             const board = document.getElementById('blackboard');
@@ -674,6 +680,15 @@
                 grid.classList.add('visible');
             }, 100);
         }
+
+        // --- NUEVO: RECUPERAR ESTADO AL CARGAR ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const lastVerb = localStorage.getItem('mdc_last_verb');
+            if(lastVerb) {
+                document.getElementById('verbInput').value = lastVerb;
+                teachVerb();
+            }
+        });
     </script>
 </body>
 </html>
