@@ -492,13 +492,52 @@
             document.getElementById('backupModal').classList.remove('open');
         }
 
-        function performGlobalBackup() {
+      async function performGlobalBackup() {
             const backupData = {
                 videos: localStorage.getItem('mdc_saved_favorites'),
                 links: localStorage.getItem('mdc_saved_links_v2'),
                 vocab: localStorage.getItem('mdc_vocab_list'),
                 timestamp: new Date().toISOString()
             };
+
+            const jsonString = JSON.stringify(backupData, null, 2);
+            const fileName = `MDC_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+
+            // 1. INTENTO: Web Share API (Ideal para iPhone/Android)
+            // Esto abre el menú nativo de "Compartir" -> "Guardar en Archivos"
+            try {
+                const file = new File([jsonString], fileName, { type: 'application/json' });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: 'MDC System Backup',
+                        text: 'Backup file for MDC Library'
+                    });
+                    closeBackupModal();
+                    return; // Si funcionó, terminamos aquí
+                }
+            } catch (error) {
+                console.log("Web Share API falló o fue cancelada, usando método clásico.");
+            }
+
+            // 2. INTENTO: Método Clásico (Para PC / Chrome Desktop)
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Limpieza
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
+            
+            closeBackupModal();
+        }
 
             const fileName = `MDC_Global_Backup_${new Date().toISOString().slice(0, 10)}.json`;
             const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
