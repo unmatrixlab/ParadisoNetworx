@@ -99,23 +99,21 @@
         /* ====== VOCAB LIST ====== */
         .vocab-container { width: 95%; max-width: 800px; display: flex; flex-direction: column; gap: 15px; margin-top: 40px; }
         
-        /* FIX 1: Flex Layout for Long Text */
         .vocab-card { 
             background: white; 
             border-radius: var(--radius); 
-            padding: 20px; 
+            padding: 15px; /* Slightly less padding to fit grids better */
             box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
             border: 1px solid rgba(0,0,0,0.05); 
             display: flex; 
             justify-content: space-between; 
-            align-items: flex-start; /* Align top instead of center so buttons don't float oddly on tall text */
+            align-items: center; /* Centered vertically */
             transition: all 0.3s ease; 
-            user-select: none; /* Prevents text selection briefly to allow for Long Press detection */
+            user-select: none; 
         }
         
         .vocab-card.playing-highlight { border: 2px solid var(--success); background-color: #ecfdf5; transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.1); }
         
-        /* FIX 3: Highlight Style */
         .vocab-card.highlighted { 
             background-color: var(--highlight-bg); 
             border: 1px solid var(--highlight-border);
@@ -140,19 +138,37 @@
         .word-span:hover { color: var(--primary); border-bottom-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
         .spanish-translation { font-size: 0.95rem; color: var(--text-muted); font-style: italic; line-height: 1.4; }
         
-        /* FIX 1: Ensure text wraps and doesn't break layout */
         .text-content { 
             flex: 1; 
-            margin-right: 10px; 
-            min-width: 0; /* Crucial for flex child to shrink */
+            margin-right: 15px; 
+            min-width: 0; 
             word-break: break-word; 
             overflow-wrap: break-word;
         }
 
-        .actions { display: flex; gap: 8px; align-items: flex-start; padding-left: 15px; border-left: 1px solid #d1d5db; margin-left: 15px; flex-shrink: 0; }
-        .action-btn { background: transparent; border: none; cursor: pointer; padding: 6px; border-radius: 50%; color: var(--text-muted); display: flex; align-items: center; justify-content: center; transition: 0.2s; }
-        .action-btn:hover { background: rgba(0,0,0,0.05); color: var(--text-main); }
+        /* FIX 1: BUTTON GRID LAYOUT (2x2) */
+        .actions { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; /* 2 columns */
+            gap: 6px; 
+            padding-left: 10px; 
+            border-left: 1px solid #d1d5db; 
+            margin-left: 5px; 
+            flex-shrink: 0; 
+        }
         
+        .action-btn { 
+            width: 34px; height: 34px; /* Fixed size for grid */
+            background: transparent; border: none; cursor: pointer; padding: 0; border-radius: 8px; 
+            color: var(--text-muted); display: flex; align-items: center; justify-content: center; 
+            transition: 0.2s; background: #f9fafb;
+        }
+        .action-btn:hover { background: #e5e7eb; color: var(--text-main); }
+        
+        /* Actions in Folder Header (Keep linear) */
+        .folder-header .actions { display: flex; flex-direction: row; gap: 8px; border: none; }
+        .folder-header .action-btn { background: transparent; }
+
         /* PLAY BUTTON STYLES */
         .action-btn.play-folder { color: var(--primary); background: #eef2ff; }
         .action-btn.play-folder.playing { background: #fee2e2; color: var(--text-main); } 
@@ -169,7 +185,7 @@
         .action-btn.delete-folder { color: var(--danger); }
         .action-btn.edit { color: #3b82f6; }
         .action-btn.save-edit { color: var(--success); }
-        .action-btn.move-folder { color: #8b5cf6; } /* Purple for move */
+        .action-btn.move-folder { color: #8b5cf6; } 
         
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
         .empty-state { text-align: center; color: var(--text-muted); margin-top: 30px; font-style: italic; }
@@ -593,9 +609,12 @@
         
         // --- LONG PRESS LOGIC (HIGHLIGHT) ---
         function startLongPress(element, id, parentId) {
+            // FIX 3: PREVENT CONFLICT WITH EDITING
+            if (editingId === id) return; 
+
             pressTimer = setTimeout(() => {
                 toggleHighlight(id, parentId);
-            }, 600); // 600ms long press
+            }, 600); 
         }
         function endLongPress() {
             clearTimeout(pressTimer);
@@ -613,42 +632,70 @@
             if(item) {
                 item.isHighlighted = !item.isHighlighted;
                 saveData(items);
-                // Visual Feedback vibration if supported
                 if (navigator.vibrate) navigator.vibrate(50);
             }
         }
 
-        // --- MOVE TO FOLDER LOGIC ---
+        // --- MOVE TO FOLDER LOGIC (FIXED FOR INSIDE FOLDERS) ---
         function moveToFolder(itemId) {
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folders = items.filter(i => i.isFolder);
-            const itemIndex = items.findIndex(i => i.id === itemId && !i.isFolder);
             
-            if(itemIndex === -1) return; // Item not found in root
-            if(folders.length === 0) { alert("Create a folder first!"); return; }
+            // Find item (could be in root or in a folder)
+            let itemIndexRoot = items.findIndex(i => i.id === itemId && !i.isFolder);
+            let sourceFolder = null;
+            let itemToMove = null;
 
-            // Simple prompt to select folder
-            let promptText = "Type the number of the folder:\n";
+            if (itemIndexRoot !== -1) {
+                itemToMove = items[itemIndexRoot];
+            } else {
+                // Check inside folders
+                for (let f of folders) {
+                    const idx = f.items.findIndex(i => i.id === itemId);
+                    if (idx !== -1) {
+                        itemToMove = f.items[idx];
+                        sourceFolder = f;
+                        break;
+                    }
+                }
+            }
+            
+            if (!itemToMove) return;
+
+            // Prompt to select folder
+            let promptText = "Type 0 for Main List (Sacar), or folder number:\n";
             folders.forEach((f, idx) => {
                 promptText += `${idx + 1}. ${f.name}\n`;
             });
             
             const selection = prompt(promptText);
-            const folderIndex = parseInt(selection) - 1;
+            if (selection === null) return;
+            
+            const selectionNum = parseInt(selection);
 
-            if (!isNaN(folderIndex) && folders[folderIndex]) {
-                const targetFolder = folders[folderIndex];
-                const itemToMove = items[itemIndex];
-                
-                // Add to folder
-                targetFolder.items.unshift(itemToMove);
-                // Remove from root
-                items.splice(itemIndex, 1);
-                
-                saveData(items);
-            } else if (selection !== null) {
-                alert("Invalid folder selection");
+            // Remove from source
+            if (sourceFolder) {
+                sourceFolder.items = sourceFolder.items.filter(i => i.id !== itemId);
+            } else {
+                items.splice(itemIndexRoot, 1);
             }
+
+            // Add to destination
+            if (selectionNum === 0) {
+                // Move to Root
+                items.unshift(itemToMove);
+            } else {
+                const folderIndex = selectionNum - 1;
+                if (!isNaN(folderIndex) && folders[folderIndex]) {
+                    folders[folderIndex].items.unshift(itemToMove);
+                } else {
+                    alert("Invalid selection, item kept in limbo (check backup)");
+                    // Fallback: put back in root
+                    items.unshift(itemToMove); 
+                }
+            }
+
+            saveData(items);
         }
 
         function toggleEdit(id, parentId = null) {
@@ -743,6 +790,7 @@
                 }
             });
         }
+        
         function generateCardHTML(item, parentId = null, isStandalone = false) {
             const words = item.eng.split(' ');
             const interactiveHTML = words.map(word => {
@@ -753,16 +801,10 @@
             const editAction = parentId ? `toggleEdit(${item.id}, ${parentId})` : `toggleEdit(${item.id})`;
             const highlightClass = item.isHighlighted ? 'highlighted' : '';
             
-            // Logic to render Move Button (Only if standalone, not already in folder)
-            let moveButtonHTML = '';
-            if (isStandalone && !parentId) {
-                moveButtonHTML = `<button class="action-btn move-folder" onclick="moveToFolder(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><polyline points="9 14 12 17 15 14"></polyline></svg></button>`;
-            }
+            // FIX 2: Enable Move Button EVERYWHERE (even inside folders)
+            // Added event.stopPropagation to prevent long-press trigger when clicking buttons
+            let moveButtonHTML = `<button class="action-btn move-folder" onclick="event.stopPropagation(); moveToFolder(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><polyline points="9 14 12 17 15 14"></polyline></svg></button>`;
 
-            // If inside folder, we need long press listeners on the wrapper div, but here we construct inner HTML.
-            // For items inside folder, they are wrapped in generateCardHTML, let's fix the wrapper there or inject here.
-            // To simplify, internal items get specific wrappers in renderList logic, but for pure HTML string generation:
-            
             const innerContent = `
                 <div class="text-content">
                     <div class="english-phrase">${interactiveHTML}</div>
@@ -770,15 +812,14 @@
                 </div>
                 <div class="actions">
                     ${moveButtonHTML}
-                    <button class="action-btn edit" onclick="${editAction}"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                    <button class="action-btn" id="btn-play-single-${item.id}" onclick="playSingleSequence(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg></button>
-                    <button class="action-btn delete" onclick="${deleteAction}"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                    <button class="action-btn edit" onclick="event.stopPropagation(); ${editAction}"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                    <button class="action-btn" id="btn-play-single-${item.id}" onclick="event.stopPropagation(); playSingleSequence(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg></button>
+                    <button class="action-btn delete" onclick="event.stopPropagation(); ${deleteAction}"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                 </div>`;
             
             if (isStandalone) {
                 return innerContent;
             } else {
-                // Return wrapped div with long press events for items inside folder
                 return `<div class="vocab-card ${highlightClass}" id="card-wrapper-${item.id}" 
                         onmousedown="startLongPress(this, ${item.id}, ${parentId})" 
                         ontouchstart="startLongPress(this, ${item.id}, ${parentId})" 
