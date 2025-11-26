@@ -172,15 +172,14 @@
                 flex-direction: row; /* Side by side */
             }
             .desktop-video-container {
-                display: block; /* Show video container */
-                flex: 1.5; /* Takes 60% approx */
+                display: block; 
+                flex: 1.5; 
                 position: relative;
             }
             .editor-content-panel {
-                flex: 1; /* Takes 40% approx */
+                flex: 1; 
                 border-left: 1px solid #e5e7eb;
             }
-            /* Hide opacity control on desktop since nothing overlaps */
             .opacity-control-group { display: none !important; }
         }
 
@@ -224,13 +223,23 @@
 
         .opacity-control { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; flex-grow: 1; justify-content: flex-end;}
         
-        .media-controls { display: flex; gap: 8px; flex-grow: 1; justify-content: center; }
+        /* MEDIA CONTROLS */
+        .media-controls { 
+            display: flex; 
+            gap: 6px; /* Reduced gap to fit buttons */
+            flex-grow: 1; 
+            justify-content: center; 
+        }
         .btn-media {
-            padding: 6px 12px; background: white; border: 1px solid #d1d5db;
+            padding: 6px 10px; /* Adjusted padding for fit */
+            background: white; border: 1px solid #d1d5db;
             border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
         }
         .btn-media:hover { background: #f9fafb; }
         
+        /* Specifically for the speed button */
+        .btn-speed { min-width: 40px; }
+
         .btn-clear {
             padding: 6px 12px; background: #fee2e2; color: #991b1b;
             border: 1px solid #fecaca; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
@@ -315,6 +324,7 @@
                             <button class="btn-media" onclick="seekVideo(-3)">-3s</button>
                             <button class="btn-media" onclick="togglePlay()">⏯️</button>
                             <button class="btn-media" onclick="seekVideo(3)">+3s</button>
+                            <button class="btn-media btn-speed" id="btn-speed" onclick="cycleSpeed()">1x</button>
                         </div>
                         <button class="btn-clear" onclick="if(confirm('Clear all?')) document.getElementById('editor-text').innerHTML=''">Erase</button>
                     </div>
@@ -333,13 +343,13 @@
         const STORAGE_KEY = 'mdc_saved_favorites';
         const grid = document.getElementById('video-grid');
         
-        let gridPlayer = null;      // Player for the grid (Mobile/Preview)
-        let modalPlayer = null;     // Player for the modal (Desktop)
-        let activePlayer = null;    // Points to whichever is currently active
+        let gridPlayer = null;      
+        let modalPlayer = null;     
+        let activePlayer = null;    
         
         let currentEditIndex = -1;
         let trackingInterval = null;
-        let currentVideoId = null;  // Track which video is loaded
+        let currentVideoId = null;  
 
         const modal = document.getElementById('editor-modal');
         const editorArea = document.getElementById('editor-text');
@@ -404,7 +414,7 @@
             });
         }
 
-        // --- GRID PLAYER (Used on Mobile and Preview) ---
+        // --- GRID PLAYER ---
         function initGridPlayer(el, id) {
             currentVideoId = id;
             const videos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -414,14 +424,13 @@
             el.innerHTML = `<div id="p-${id}" class="video-target"></div>`;
             el.onclick = null;
             
-            // Create Grid Player
             gridPlayer = new YT.Player(`p-${id}`, { 
                 width:'100%', height:'100%', videoId: id, 
                 playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) },
                 events: {
                     'onReady': (e) => {
                          e.target.playVideo();
-                         activePlayer = gridPlayer; // Set as active
+                         activePlayer = gridPlayer;
                     },
                     'onStateChange': (e) => onPlayerStateChange(e, id, gridPlayer)
                 }
@@ -456,7 +465,7 @@
             if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; }
         }
 
-        // === EDITOR & MODAL LOGIC (RESPONSIVE) ===
+        // === EDITOR & MODAL LOGIC ===
         
         function openEditor(i) {
             currentEditIndex = i;
@@ -465,30 +474,22 @@
             currentVideoId = videoData.id;
             editorArea.innerHTML = videoData.note || "";
             
-            // Determine Layout Mode (Desktop vs Mobile)
             const isDesktop = window.matchMedia("(min-width: 900px)").matches;
             
             modal.classList.add('active');
             
-            // Reset opacity to 1 on open (especially important if coming from mobile)
+            // Reset UI states
             document.getElementById('editor-popup').style.opacity = 1;
             document.querySelector('input[type="range"]').value = 1;
+            document.getElementById('btn-speed').innerText = "1x"; // Reset speed text
 
             if (isDesktop) {
-                // --- DESKTOP MODE: MOVE VIDEO TO MODAL ---
-                
-                // 1. Save time from grid player if it exists
                 let startTime = videoData.lastTime || 0;
                 if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function') {
                     startTime = gridPlayer.getCurrentTime();
-                    // We must destroy the grid player to avoid dual audio
-                    // But usually, we just pause it or re-render the grid to kill it.
-                    // For now, let's just pause it.
                     gridPlayer.pauseVideo(); 
                 }
 
-                // 2. Initialize Modal Player
-                // We need to recreate the div because YT API replaces it
                 document.getElementById('desktop-video-wrapper').innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
                 
                 modalPlayer = new YT.Player('desktop-player-target', {
@@ -502,36 +503,23 @@
                         'onStateChange': (e) => onPlayerStateChange(e, currentVideoId, modalPlayer)
                     }
                 });
-
             } else {
-                // --- MOBILE MODE: OVERLAY ---
-                // Video stays in grid. Grid player remains active.
-                if (gridPlayer) {
-                    activePlayer = gridPlayer;
-                }
+                if (gridPlayer) activePlayer = gridPlayer;
             }
-
             updateToolbarState();
         }
 
         function closeEditor() {
-            // Save current state
             if (activePlayer) {
                 saveVideoTime(activePlayer, currentVideoId);
                 stopTracking();
             }
-
-            // Cleanup Modal Player if exists
             if (modalPlayer) {
                 modalPlayer.destroy();
                 modalPlayer = null;
             }
-
-            // If we were on Desktop, we killed the grid player audio (paused it).
-            // We might want to refresh the grid to show the thumbnail again or let it be.
-            // A simple re-render ensures clean state.
             const videos = JSON.parse(localStorage.getItem(STORAGE_KEY));
-            renderGrid(videos); // Re-renders grid, resetting iframe to thumbnail
+            renderGrid(videos); 
 
             modal.classList.remove('active'); 
             currentEditIndex = -1;
@@ -545,17 +533,31 @@
                 videos[currentEditIndex].note = editorArea.innerHTML;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
                 
-                // We don't want to re-render grid here because it kills the video on Mobile
-                // Just save silently or show toast. 
-                // BUT, user expects feedback.
-                // Mobile: Re-rendering grid stops video. That's bad.
-                // Let's just update the array in memory and let 'closeEditor' handle re-render.
-                
                 const btn = document.querySelector('.btn-save-note');
                 const orig = btn.innerText;
                 btn.innerText = "Saved!";
                 setTimeout(() => btn.innerText = orig, 1000);
             }
+        }
+
+        // --- MEDIA CONTROLS ---
+        function seekVideo(s) { if(activePlayer?.seekTo) activePlayer.seekTo(activePlayer.getCurrentTime()+s, true); }
+        function togglePlay() { if(activePlayer?.getPlayerState) activePlayer.getPlayerState()===1 ? activePlayer.pauseVideo() : activePlayer.playVideo(); }
+        
+        // NEW CYCLE SPEED FUNCTION
+        function cycleSpeed() {
+            if (!activePlayer || typeof activePlayer.setPlaybackRate !== 'function') return;
+            
+            const btn = document.getElementById('btn-speed');
+            const currentText = btn.innerText;
+            
+            let nextRate = 1;
+            if (currentText === '1x') nextRate = 0.75;
+            else if (currentText === '0.75x') nextRate = 0.5;
+            else if (currentText === '0.5x') nextRate = 1;
+            
+            activePlayer.setPlaybackRate(nextRate);
+            btn.innerText = nextRate + 'x';
         }
 
         // --- FORMATTING ---
@@ -581,10 +583,6 @@
             else if (rgb.includes('59, 130, 246')) document.getElementById('btn-col-blue').classList.add('is-active');
             else document.getElementById('btn-col-black').classList.add('is-active');
         }
-
-        // === MEDIA ===
-        function seekVideo(s) { if(activePlayer?.seekTo) activePlayer.seekTo(activePlayer.getCurrentTime()+s, true); }
-        function togglePlay() { if(activePlayer?.getPlayerState) activePlayer.getPlayerState()===1 ? activePlayer.pauseVideo() : activePlayer.playVideo(); }
 
         // === BACKUP ===
         function downloadBackup() {
