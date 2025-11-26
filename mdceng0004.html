@@ -76,7 +76,8 @@
 
         input[type="text"] {
             width: 100%; padding: 12px;
-            border: 1px solid #e5e7eb; border-radius: 8px; font-size: 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px; font-size: 1rem;
             background: rgba(255,255,255,0.9);
         }
 
@@ -180,6 +181,7 @@
                 flex: 1; 
                 border-left: 1px solid #e5e7eb;
             }
+            /* Hide the opacity control on desktop as requested */
             .opacity-control-group { display: none !important; }
         }
 
@@ -221,23 +223,45 @@
         .c-red { background-color: #ef4444; }
         .c-blue { background-color: #3b82f6; }
 
+        /* --- CHANGE 1: Full width slider on mobile --- */
         .opacity-control { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; flex-grow: 1; justify-content: flex-end;}
+        
+        @media (max-width: 899px) {
+            .opacity-control-group {
+                /* Forces it to its own line */
+                flex-basis: 100%; 
+                width: 100%;
+                margin-top: 5px;
+                display: flex;
+                flex-direction: column; /* Label on top */
+                align-items: flex-start;
+            }
+            .opacity-control-group label {
+                margin-bottom: 5px;
+                font-weight: 600;
+                color: #6b7280;
+            }
+            .opacity-control-group input[type="range"] {
+                width: 100%; /* Full width */
+                height: 30px; /* Taller touch area */
+                cursor: pointer;
+            }
+        }
         
         /* MEDIA CONTROLS */
         .media-controls { 
             display: flex; 
-            gap: 6px; /* Reduced gap to fit buttons */
+            gap: 6px; 
             flex-grow: 1; 
             justify-content: center; 
         }
         .btn-media {
-            padding: 6px 10px; /* Adjusted padding for fit */
+            padding: 6px 10px; 
             background: white; border: 1px solid #d1d5db;
             border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
         }
         .btn-media:hover { background: #f9fafb; }
         
-        /* Specifically for the speed button */
         .btn-speed { min-width: 40px; }
 
         .btn-clear {
@@ -251,10 +275,24 @@
             background: transparent; overflow-y: auto; outline: none; color: #1f2937;
         }
 
-        .editor-footer { padding: 10px 15px; border-top: 1px solid #e5e7eb; text-align: right; background: #f9fafb;}
-        .btn-save-note {
-            background: var(--primary); color: white; border: none;
-            padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;
+        .editor-footer { 
+            padding: 10px 15px; 
+            border-top: 1px solid #e5e7eb; 
+            text-align: right; 
+            background: #f9fafb;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        
+        /* CHANGE 2: Styling for auto-save text instead of button */
+        .save-indicator {
+            color: #10b981; /* Green color */
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 5px;
         }
 
     </style>
@@ -312,7 +350,9 @@
                             <button class="btn-fmt" id="btn-size-norm" onmousedown="event.preventDefault(); setSize(3)">T</button>
                             <button class="btn-fmt" id="btn-size-lg" onmousedown="event.preventDefault(); setSize(5)" style="font-size:1.2rem">T+</button>
                         </div>
+                    </div>
 
+                    <div class="toolbar-row">
                         <div class="opacity-control opacity-control-group">
                             <label>Opacity</label>
                             <input type="range" min="0.2" max="1" step="0.1" value="1" oninput="document.getElementById('editor-popup').style.opacity = this.value">
@@ -326,14 +366,14 @@
                             <button class="btn-media" onclick="seekVideo(3)">+3s</button>
                             <button class="btn-media btn-speed" id="btn-speed" onclick="cycleSpeed()">1x</button>
                         </div>
-                        <button class="btn-clear" onclick="if(confirm('Clear all?')) document.getElementById('editor-text').innerHTML=''">Erase</button>
+                        <button class="btn-clear" onclick="if(confirm('Clear all?')) { document.getElementById('editor-text').innerHTML=''; saveNote(); }">Erase</button>
                     </div>
                 </div>
 
-                <div id="editor-text" class="editor-area" contenteditable="true" placeholder="Type here..."></div>
+                <div id="editor-text" class="editor-area" contenteditable="true" placeholder="Type here..." oninput="saveNote()"></div>
                 
                 <div class="editor-footer">
-                    <button class="btn-save-note" onclick="saveNote()">Save Note</button>
+                    <span class="save-indicator">✓ Changes saved automatically</span>
                 </div>
             </div>
         </div>
@@ -527,16 +567,14 @@
             gridPlayer = null;
         }
 
+        // --- CHANGED: AUTO SAVE LOGIC ---
         function saveNote() {
             if(currentEditIndex > -1) {
                 const videos = JSON.parse(localStorage.getItem(STORAGE_KEY));
                 videos[currentEditIndex].note = editorArea.innerHTML;
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
                 
-                const btn = document.querySelector('.btn-save-note');
-                const orig = btn.innerText;
-                btn.innerText = "Saved!";
-                setTimeout(() => btn.innerText = orig, 1000);
+                // No button animation needed anymore, it's automatic
             }
         }
 
