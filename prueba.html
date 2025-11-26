@@ -187,16 +187,21 @@
             overflow: hidden;
         }
 
+        /* Video container for API injection */
+        .video-target {
+            width: 100%; height: 100%;
+        }
+
         .thumbnail-container img {
             width: 100%;
             height: 100%;
             object-fit: cover;
             transition: opacity 0.3s;
+            position: absolute; top: 0; left: 0; z-index: 1;
         }
         
         .video-card:hover .thumbnail-container img { opacity: 0.8; }
 
-        /* ====== PLAY ICON ====== */
         .play-icon {
             position: absolute;
             top: 50%; left: 50%;
@@ -207,9 +212,10 @@
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
             border: 1px solid rgba(255, 255, 255, 0.4);
-            transition: transform 0.3s, background 0.1s, border-color 0.1s, box-shadow 0.1s;
+            transition: transform 0.3s, background 0.1s, border-color 0.1s;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             pointer-events: none;
+            z-index: 2;
         }
 
         .play-icon svg {
@@ -221,7 +227,6 @@
             background: rgba(255, 255, 255, 0.35);
         }
 
-        /* CARD INFO */
         .card-info {
             padding: 15px;
             display: flex;
@@ -258,10 +263,8 @@
             align-items: center;
             justify-content: center;
         }
-        
         .btn-edit { color: #6b7280; }
         .btn-edit:hover { color: var(--primary); background: #e0e7ff; }
-
         .btn-delete { color: #d1d5db; }
         .btn-delete:hover { color: var(--danger); background: #fef2f2; }
 
@@ -280,10 +283,10 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.3);
             z-index: 2000;
-            display: none; /* Hidden by default */
+            display: none;
             align-items: center;
             justify-content: center;
-            pointer-events: none; /* Allows click through when background is transparent? No, we handle that via opactiy of child */
+            pointer-events: none; 
         }
         .modal-overlay.active {
             display: flex;
@@ -293,7 +296,7 @@
         .editor-popup {
             width: 90%;
             max-width: 500px;
-            height: 400px;
+            height: 480px; /* Increased height for controls */
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
@@ -313,19 +316,25 @@
             align-items: center;
         }
         .editor-title { font-weight: 700; font-size: 0.9rem; }
-        .editor-controls { display: flex; gap: 10px; align-items: center; }
-        
         .close-editor {
             background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #6b7280;
         }
 
+        /* Editor Toolbar */
         .editor-toolbar {
             padding: 8px 15px;
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
+            gap: 10px;
             border-bottom: 1px solid #e5e7eb;
             background: rgba(255,255,255,0.5);
+        }
+
+        .toolbar-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
         }
 
         .color-picker { display: flex; gap: 8px; }
@@ -347,6 +356,45 @@
             display: flex; align-items: center; gap: 5px; font-size: 0.8rem;
         }
 
+        /* Media Controls inside Editor */
+        .media-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            background: #f9fafb;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .btn-media {
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex; align-items: center; gap: 4px;
+            transition: background 0.1s;
+        }
+        .btn-media:hover { background: #f3f4f6; border-color: #9ca3af; }
+        .btn-media:active { transform: translateY(1px); }
+
+        .btn-clear {
+            padding: 6px 10px;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: auto; /* Push to right */
+        }
+        .btn-clear:hover { background: #fecaca; }
+
         textarea.editor-area {
             flex: 1;
             width: 100%;
@@ -356,7 +404,7 @@
             font-family: 'Inter', sans-serif;
             font-size: 1rem;
             line-height: 1.5;
-            background: transparent; /* Background comes from container */
+            background: transparent;
         }
         textarea.editor-area:focus { outline: none; }
 
@@ -371,6 +419,7 @@
         }
 
     </style>
+    <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 
@@ -398,7 +447,6 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Backup
             </button>
-            
             <input type="file" id="importFile" accept=".html,.json" style="display:none" onchange="importBackup(this)">
             <button class="btn-backup" onclick="document.getElementById('importFile').click()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
@@ -416,18 +464,32 @@
                 <span class="editor-title">Notes Editor</span>
                 <button class="close-editor" onclick="closeEditor()">&times;</button>
             </div>
+            
             <div class="editor-toolbar">
-                <div class="color-picker">
-                    <div class="color-btn c-black" onclick="setTextColor('#1f2937', this)"></div>
-                    <div class="color-btn c-red" onclick="setTextColor('#ef4444', this)"></div>
-                    <div class="color-btn c-blue" onclick="setTextColor('#3b82f6', this)"></div>
+                <div class="toolbar-row">
+                    <div class="color-picker">
+                        <div class="color-btn c-black" onclick="setTextColor('#1f2937', this)"></div>
+                        <div class="color-btn c-red" onclick="setTextColor('#ef4444', this)"></div>
+                        <div class="color-btn c-blue" onclick="setTextColor('#3b82f6', this)"></div>
+                    </div>
+                    <div class="opacity-control">
+                        <label>Opacity</label>
+                        <input type="range" min="0.2" max="1" step="0.1" value="1" oninput="changeOpacity(this.value)">
+                    </div>
                 </div>
-                <div class="opacity-control">
-                    <label>Opacity</label>
-                    <input type="range" min="0.2" max="1" step="0.1" value="1" oninput="changeOpacity(this.value)">
+
+                <div class="toolbar-row" style="margin-top: 5px;">
+                    <div class="media-controls">
+                        <button class="btn-media" onclick="seekVideo(-3)">⏪ -3s</button>
+                        <button class="btn-media" onclick="togglePlay()">⏯️</button>
+                        <button class="btn-media" onclick="seekVideo(3)">+3s ⏩</button>
+                    </div>
+                    <button class="btn-clear" onclick="clearText()" title="Clear text">🗑️ Erase</button>
                 </div>
             </div>
+
             <textarea id="editor-text" class="editor-area" placeholder="Type your notes here..."></textarea>
+            
             <div class="editor-footer">
                 <button class="btn-save-note" onclick="saveNote()">Save Note</button>
             </div>
@@ -438,7 +500,8 @@
         const STORAGE_KEY = 'mdc_saved_favorites';
         const grid = document.getElementById('video-grid');
         
-        // Editor Variables
+        // Player & Editor Variables
+        let activePlayer = null; // Stores current YouTube Player Object
         let currentEditIndex = -1;
         const modal = document.getElementById('editor-modal');
         const popup = document.getElementById('editor-popup');
@@ -463,68 +526,69 @@
         function addVideo() {
             const urlInput = document.getElementById('vidUrl');
             const titleInput = document.getElementById('vidTitle');
-            
             const url = urlInput.value.trim();
             const title = titleInput.value.trim();
 
             if (!url) { alert("Please paste a YouTube URL"); return; }
             const id = getYoutubeId(url);
-            
-            if (!id) { alert("Invalid YouTube URL (ID extraction failed)"); return; }
+            if (!id) { alert("Invalid YouTube URL"); return; }
 
             const finalTitle = title || "Untitled Video";
-
             const saved = localStorage.getItem(STORAGE_KEY);
             const videos = saved ? JSON.parse(saved) : [];
 
-            // Add new object with empty note property
             videos.unshift({
                 id: id,
                 title: finalTitle,
                 date: new Date().toLocaleDateString(),
-                note: "",         // New field for notes
-                textColor: "#1f2937" // Default color
+                note: "",
+                textColor: "#1f2937"
             });
 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
             renderGrid(videos);
-
-            urlInput.value = "";
-            titleInput.value = "";
+            urlInput.value = ""; titleInput.value = "";
         }
 
         // 4. DELETE VIDEO
         function deleteVideo(index) {
             if(!confirm("Delete this video?")) return;
-            
             const saved = localStorage.getItem(STORAGE_KEY);
             let videos = saved ? JSON.parse(saved) : [];
-            
             videos.splice(index, 1);
-            
             localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
             renderGrid(videos);
         }
 
-        // 5. PLAY VIDEO
-        function playVideoInline(element, videoId) {
-            element.innerHTML = `
-                <iframe 
-                    width="100%" 
-                    height="100%" 
-                    src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-            `;
-            element.onclick = null;
+        // 5. INIT PLAYER (YOUTUBE API)
+        // Replaces the playVideoInline innerHTML method with YT.Player
+        function initPlayer(wrapper, videoId) {
+            // Remove image, add div for API
+            wrapper.innerHTML = `<div id="player-${videoId}" class="video-target"></div>`;
+            wrapper.onclick = null; // Disable click once loaded
+
+            // If a player was already active elsewhere, we lose reference to it, 
+            // but the API handles single instance creation fine.
+            
+            activePlayer = new YT.Player(`player-${videoId}`, {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: { 'autoplay': 1, 'rel': 0 },
+                events: {
+                    'onReady': onPlayerReady
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            // Player is ready to be controlled
+            // activePlayer is already set
         }
 
         // 6. RENDER
         function renderGrid(videos) {
             grid.innerHTML = "";
-
             if (videos.length === 0) {
                 grid.innerHTML = '<div class="empty-state">No videos yet. Add one above!</div>';
                 return;
@@ -537,7 +601,7 @@
                 const card = document.createElement('div');
                 card.className = 'video-card';
                 card.innerHTML = `
-                    <div class="thumbnail-container" onclick="playVideoInline(this, '${video.id}')">
+                    <div class="thumbnail-container" onclick="initPlayer(this, '${video.id}')">
                         <img src="${thumb}" alt="${video.title}">
                         <div class="play-icon">
                             <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -569,14 +633,11 @@
             const videos = saved ? JSON.parse(saved) : [];
             const video = videos[index];
 
-            // Load saved note and color
             textArea.value = video.note || "";
             textArea.style.color = video.textColor || "#1f2937";
             
-            // Reset opacity to full initially or user preferred? Resetting to 1 for usability
             changeOpacity(1);
             document.querySelector('input[type="range"]').value = 1;
-
             modal.classList.add('active');
         }
 
@@ -587,49 +648,68 @@
 
         function saveNote() {
             if (currentEditIndex === -1) return;
-
             const saved = localStorage.getItem(STORAGE_KEY);
             let videos = saved ? JSON.parse(saved) : [];
-
-            // Update specific video
+            
             videos[currentEditIndex].note = textArea.value;
             videos[currentEditIndex].textColor = textArea.style.color;
 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
-            renderGrid(videos); // Re-render to show note icon if added
+            renderGrid(videos);
             closeEditor();
         }
 
         function setTextColor(color, btnElement) {
             textArea.style.color = color;
-            // Highlight selected color
             document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('selected'));
             btnElement.classList.add('selected');
         }
 
         function changeOpacity(val) {
-            // Opacity applies to the whole popup editor
             popup.style.opacity = val;
         }
 
-        // 7. BACKUP & IMPORT (Existing Logic)
+        function clearText() {
+            if(confirm("Erase all text?")) {
+                textArea.value = "";
+            }
+        }
+
+        // ================= VIDEO CONTROLS LOGIC =================
+
+        function seekVideo(seconds) {
+            if (activePlayer && activePlayer.getCurrentTime) {
+                const currentTime = activePlayer.getCurrentTime();
+                activePlayer.seekTo(currentTime + seconds, true);
+            } else {
+                alert("Start the video first!");
+            }
+        }
+
+        function togglePlay() {
+            if (activePlayer && activePlayer.getPlayerState) {
+                const state = activePlayer.getPlayerState();
+                // 1 = playing, 2 = paused
+                if (state === 1) {
+                    activePlayer.pauseVideo();
+                } else {
+                    activePlayer.playVideo();
+                }
+            } else {
+                alert("Start the video first!");
+            }
+        }
+
+        // 7. BACKUP FUNCTIONS
         function downloadBackup() {
             const data = localStorage.getItem(STORAGE_KEY);
-            if (!data || JSON.parse(data).length === 0) {
-                alert("No videos to backup!");
-                return;
-            }
+            if (!data || JSON.parse(data).length === 0) { alert("No data"); return; }
             const date = new Date().toISOString().slice(0, 10);
             const fileContent = `<!DOCTYPE html><html><body><script>const backupData = ${data};<\/script></body></html>`;
             const blob = new Blob([fileContent], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `MDC_Videos_Backup_${date}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const a = document.createElement('a'); a.href = url; a.download = `MDC_Backup_${date}.html`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
         function importBackup(input) {
@@ -637,33 +717,27 @@
             if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
-                const content = e.target.result;
-                const regex = /const backupData = (\[.*?\]);/s;
-                const match = content.match(regex);
+                const match = e.target.result.match(/const backupData = (\[.*?\]);/s);
                 if (match && match[1]) {
                     try {
                         const newData = JSON.parse(match[1]);
                         const current = localStorage.getItem(STORAGE_KEY);
                         let finalData = newData;
-                        if (current) {
-                            if(!confirm(`Found ${newData.length} videos. Merge?`)) { input.value = ''; return; }
-                            const currentObj = JSON.parse(current);
-                            const currentIds = new Set(currentObj.map(v => v.id));
-                            const itemsToAdd = newData.filter(v => !currentIds.has(v.id));
-                            finalData = [...itemsToAdd, ...currentObj];
+                        if (current && confirm("Merge with existing?")) {
+                            const curObj = JSON.parse(current);
+                            const ids = new Set(curObj.map(v => v.id));
+                            finalData = [...newData.filter(v => !ids.has(v.id)), ...curObj];
                         }
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(finalData));
                         renderGrid(finalData);
-                        alert("Library updated.");
-                    } catch (err) { alert("Error parsing backup."); }
-                } else { alert("Invalid format."); }
-                input.value = ''; 
+                    } catch(e) { alert("Error"); }
+                }
+                input.value = '';
             };
             reader.readAsText(file);
         }
 
         document.addEventListener('DOMContentLoaded', loadVideos);
-
     </script>
 </body>
 </html>
