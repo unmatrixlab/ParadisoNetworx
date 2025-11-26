@@ -135,7 +135,10 @@
         .english-phrase { font-size: 1.2rem; font-weight: 600; color: var(--text-main); margin-bottom: 4px; line-height: 1.4; }
         .word-span { cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .word-span:hover { color: var(--primary); border-bottom-color: var(--primary); background: rgba(79, 70, 229, 0.05); }
-        .spanish-translation { font-size: 0.95rem; color: var(--text-muted); font-style: italic; line-height: 1.4; }
+        
+        /* CSS TO HIDE SPANISH TEXT */
+        .spanish-translation { font-size: 0.95rem; color: var(--text-muted); font-style: italic; line-height: 1.4; transition: opacity 0.3s; }
+        body.hide-es-text .spanish-translation { display: none; }
         
         .text-content { 
             flex: 1; 
@@ -192,12 +195,23 @@
         .rate-control label { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; display: flex; justify-content: space-between; }
         input[type=range] { width: 100%; padding: 0; accent-color: var(--primary); cursor: pointer; height: 6px; border-radius: 3px; background: #e5e7eb; border: none; }
         
+        /* TOGGLES CONTAINER */
+        .toggles-group {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
         /* SKIP SPANISH TOGGLE */
         .toggle-container {
-            margin-top: 15px; display: flex; align-items: center; gap: 10px;
-            padding: 10px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;
+            display: flex; align-items: center; gap: 10px;
         }
-        .toggle-switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .toggle-switch { position: relative; display: inline-block; width: 40px; height: 20px; flex-shrink: 0; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
         .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
@@ -290,12 +304,21 @@
             </div>
         </div>
 
-        <div class="toggle-container">
-            <label class="toggle-switch">
-                <input type="checkbox" id="skipSpanishCheck" onchange="toggleSkipSpanish()">
-                <span class="slider"></span>
-            </label>
-            <span class="toggle-label">Read English Only</span>
+        <div class="toggles-group">
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="skipSpanishCheck" onchange="toggleSkipSpanish()">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Audio: Read English Only</span>
+            </div>
+            <div class="toggle-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="hideTextCheck" onchange="toggleHideText()">
+                    <span class="slider"></span>
+                </label>
+                <span class="toggle-label">Text: Ocultar Traducción</span>
+            </div>
         </div>
 
         <button class="btn-save" onclick="addVocab()">Save to List</button>
@@ -343,6 +366,7 @@
         const RATE_KEY_ES = 'mdc_rate_es';
         const RATE_KEY_EN = 'mdc_rate_en';
         const SKIP_KEY = 'mdc_skip_spanish';
+        const HIDE_TEXT_KEY = 'mdc_hide_text_val'; // New Key
         
         const listContainer = document.getElementById('vocab-list');
         const voiceSelectEs = document.getElementById('voiceSelectEs');
@@ -352,6 +376,7 @@
         const rateDisplayEs = document.getElementById('rateDisplayEs');
         const rateDisplayEn = document.getElementById('rateDisplayEn');
         const skipCheck = document.getElementById('skipSpanishCheck');
+        const hideTextCheck = document.getElementById('hideTextCheck'); // New Element
         const inputEng = document.getElementById('inputEng');
         const inputEsp = document.getElementById('inputEsp');
         const btnEng = document.getElementById('btnEng');
@@ -362,12 +387,13 @@
         const modalList = document.getElementById('modal-list-container');
         
         let playbackState = { folderId: null, index: 0, status: 'idle' };
-        let currentlyPlayingItemId = null; // Tracks single items playing
+        let currentlyPlayingItemId = null; 
         let editingId = null; 
         let openFolderId = null; 
         let skipSpanish = false;
-        let pressTimer; // For Long Press logic
-        let movingItemId = null; // Track item being moved
+        let hideText = false; // New Variable
+        let pressTimer; 
+        let movingItemId = null; 
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -400,9 +426,14 @@
             const rateEs = localStorage.getItem(RATE_KEY_ES) || "1.0"; const rateEn = localStorage.getItem(RATE_KEY_EN) || "1.0";
             rateRangeEs.value = rateEs; rateDisplayEs.textContent = rateEs; rateRangeEn.value = rateEn; rateDisplayEn.textContent = rateEn;
             
-            // Restore Skip Setting
+            // Restore Skip Audio Setting
             skipSpanish = localStorage.getItem(SKIP_KEY) === 'true';
             skipCheck.checked = skipSpanish;
+
+            // Restore Hide Text Setting (New)
+            hideText = localStorage.getItem(HIDE_TEXT_KEY) === 'true';
+            hideTextCheck.checked = hideText;
+            applyHideText();
         }
         function saveVoicePreferences() {
             localStorage.setItem(VOICE_KEY_ES, voiceSelectEs.value); localStorage.setItem(VOICE_KEY_EN, voiceSelectEn.value);
@@ -416,6 +447,21 @@
             skipSpanish = skipCheck.checked;
             localStorage.setItem(SKIP_KEY, skipSpanish);
         }
+        
+        // --- NEW: TOGGLE HIDE TEXT FUNCTION ---
+        function toggleHideText() {
+            hideText = hideTextCheck.checked;
+            localStorage.setItem(HIDE_TEXT_KEY, hideText);
+            applyHideText();
+        }
+        function applyHideText() {
+            if(hideText) {
+                document.body.classList.add('hide-es-text');
+            } else {
+                document.body.classList.remove('hide-es-text');
+            }
+        }
+
         window.speechSynthesis.onvoiceschanged = populateVoices;
 
         // --- 2. TRANSLATION ---
@@ -687,8 +733,6 @@
             }
 
             // CHECK: Is the item currently in the root list?
-            // If it is NOT in root (meaning it is in a folder), show the option to move to Root.
-            // If it IS in root, do NOT show the option (redundant).
             const isItemInRoot = items.some(i => i.id === itemId && !i.isFolder);
 
             if (!isItemInRoot) {
