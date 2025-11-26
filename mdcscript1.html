@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v5.0 (Clean Layout)</title>
+    <title>MDC Studio Suite v5.1 (Smart Save)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         /* === ESTILOS DE LA HERRAMIENTA (GENERADOR) === */
@@ -77,9 +77,15 @@
                 <a href="https://translatesubtitles.co" target="_blank" class="icon-btn upload" style="text-decoration: none; padding: 8px 16px; font-size: 0.8rem;">🌐 TranslateSubtitles</a>
             </div>
 
-            <div class="input-group">
-                <label>YouTube Video ID or URL</label>
-                <input type="text" id="youtubeInput" placeholder="e.g. -moW9jvvMr4" value="-moW9jvvMr4" style="font-family: 'JetBrains Mono', monospace;">
+            <div class="input-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <label>YouTube Video ID or URL</label>
+                    <input type="text" id="youtubeInput" placeholder="e.g. -moW9jvvMr4" value="-moW9jvvMr4" style="font-family: 'JetBrains Mono', monospace;">
+                </div>
+                <div>
+                    <label>Video Title (For Folder Name)</label>
+                    <input type="text" id="videoTitleInput" placeholder="e.g. Daily Conversation Ep.1">
+                </div>
             </div>
 
             <div class="editor-grid">
@@ -344,26 +350,77 @@
     const TIME_OFFSET = 0.2; const END_PADDING = 0.5; const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     const YOUTUBE_ID = '`;
         
+        // AQUÍ INYECTAMOS LA LÓGICA INTELIGENTE (SMART SAVE)
+        // Se añade la variable VIDEO_TITLE y la función saveLineToVocab modificada
         const TPL_SCRIPT_END = `';
+    const VIDEO_TITLE = '%%VIDEO_TITLE%%';
     const STORAGE_KEY_ENG='mdc_eng_'+YOUTUBE_ID, STORAGE_KEY_ESP='mdc_esp_'+YOUTUBE_ID, STORAGE_KEY_TIME='mdc_time_'+YOUTUBE_ID;
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null;
     let currentPlaybackRate = 1.0;
 
+    // --- FUNCIÓN INTELIGENTE DE GUARDADO (Smart Save) ---
     function saveLineToVocab(btn) {
         const line = btn.closest('.line');
+        const vocabKey = 'mdc_vocab_list';
+        let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
+        
+        // 1. CONSTRUCCIÓN DEL TEXTO CON COLORES
         let engText = "";
-        line.querySelectorAll('.english-word').forEach(sp => engText += sp.innerText + " ");
-        if(!engText.trim()) engText = line.querySelector('.english').innerText;
+        const wordSpans = line.querySelectorAll('.english-word');
+        
+        // Si hay palabras interactivas generadas
+        if(wordSpans.length > 0) {
+            wordSpans.forEach(span => {
+                if(span.classList.contains('selected-word')) {
+                    // Aquí envolvemos la palabra seleccionada en HTML para el Vocab Builder
+                    engText += "<span style='color:#ef4444; font-weight:bold'>" + span.innerText + "</span> ";
+                } else {
+                    engText += span.innerText + " ";
+                }
+            });
+        } else {
+            // Fallback por si no se han generado spans
+            engText = line.querySelector('.english').innerText;
+        }
+
         const espText = line.querySelector('.spanish').innerText;
         
-        const vocabKey = 'mdc_vocab_list';
-        const saved = localStorage.getItem(vocabKey);
-        const items = saved ? JSON.parse(saved) : [];
+        const newItem = { 
+            eng: engText.trim(), 
+            esp: espText.trim(), 
+            id: Date.now(), 
+            isFolder: false, 
+            isHighlighted: false 
+        };
 
-        items.unshift({ eng: engText.trim(), esp: espText.trim(), id: Date.now() });
+        // 2. LÓGICA DE CARPETAS (Folder Logic)
+        const targetFolderName = VIDEO_TITLE || "Saved from Video";
+        
+        // Buscar si ya existe una carpeta con ese nombre
+        let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
+
+        if (targetFolder) {
+            // Si existe, añadimos el ítem a su array 'items' al principio
+            targetFolder.items.unshift(newItem);
+            
+            // Opcional: Mover la carpeta al principio de la lista principal para que se vea reciente
+            items = items.filter(i => i.id !== targetFolder.id);
+            items.unshift(targetFolder);
+        } else {
+            // Si no existe, creamos la carpeta nueva
+            const newFolder = {
+                id: Date.now() + 1, // +1 para asegurar ID distinto al item
+                isFolder: true,
+                name: targetFolderName,
+                items: [newItem]
+            };
+            items.unshift(newFolder);
+        }
+
         localStorage.setItem(vocabKey, JSON.stringify(items));
 
+        // Feedback Visual
         const originalText = btn.innerHTML;
         btn.innerHTML = "✓";
         btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
@@ -666,6 +723,7 @@
             const rawEng = document.getElementById('inputEng').value;
             const rawEsp = document.getElementById('inputEsp').value;
             const inputUrl = document.getElementById('youtubeInput').value.trim();
+            const videoTitle = document.getElementById('videoTitleInput').value.trim().replace(/'/g, "\\'"); // Escapar comillas simples
 
             if (!rawEng.trim()) { alert("English subtitles required."); return; }
 
@@ -698,8 +756,13 @@
             </div>`;
             }
 
-            // Concatenación final
-            const finalCode = TPL_HEAD + htmlBody + TPL_SCRIPT_START + videoId + TPL_SCRIPT_END;
+            // Concatenación final INYECTANDO EL TITULO
+            const cleanTitle = videoTitle || "Vocabulary Folder";
+            
+            // Reemplazamos el placeholder del título en la plantilla
+            const scriptWithTitle = TPL_SCRIPT_END.replace('%%VIDEO_TITLE%%', cleanTitle);
+
+            const finalCode = TPL_HEAD + htmlBody + TPL_SCRIPT_START + videoId + scriptWithTitle;
             document.getElementById('outputFusion').value = finalCode;
         }
     </script>
