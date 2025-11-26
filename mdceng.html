@@ -478,8 +478,8 @@
             
             <div class="modal-actions">
                 <div class="decision-desc">
-                    <strong>Option A: MERGE</strong><br>
-                    Combines your current MDC ENG data with the backup. No data is lost.
+                    <strong>Option A: SMART MERGE</strong><br>
+                    Combines libraries. If a video exists, it updates the Notes/Color to the newest version.
                 </div>
                 <button class="btn-modal btn-merge" onclick="finalizeImport('merge')">
                     Merge (Combine)
@@ -487,7 +487,7 @@
 
                 <div class="decision-desc" style="margin-top: 10px;">
                     <strong>Option B: REPLACE</strong><br>
-                    Replaces your current MDC ENG library with the backup data.
+                    Replaces your current MDC ENG library with the backup data completely.
                 </div>
                 <button class="btn-modal btn-overwrite" onclick="finalizeImport('overwrite')">
                     Replace All (Overwrite)
@@ -534,6 +534,8 @@
 
         // --- 3. EXPORT / SHARE ---
         function getBackupDataString() {
+            // This pulls the FULL object (including rich notes/html/colors) from storage
+            // No changes needed here, JSON.stringify handles new fields automatically
             const backupData = {
                 videos: localStorage.getItem('mdc_saved_favorites'),
                 links: localStorage.getItem('mdc_saved_links_v2'),
@@ -578,7 +580,7 @@
         }
 
         // --- 4. IMPORT & DECISION LOGIC ---
-        let tempImportData = null; // Staging area for data
+        let tempImportData = null;
 
         async function pasteAndRestore() {
             try {
@@ -604,12 +606,10 @@
         function processImportData(jsonString) {
             try {
                 const data = JSON.parse(jsonString);
-                // Validate basic structure
                 if(!data.videos && !data.links && !data.vocab) throw new Error("Empty data");
-                
-                tempImportData = data; // Store in temp
+                tempImportData = data;
                 closeModal('backupModal');
-                openModal('decisionModal'); // Open decision UI
+                openModal('decisionModal');
             } catch (err) {
                 alert("Error: Invalid or empty backup data.");
             }
@@ -622,49 +622,71 @@
                 mergeAndSave('mdc_saved_favorites', tempImportData.videos);
                 mergeAndSave('mdc_saved_links_v2', tempImportData.links);
                 mergeAndSave('mdc_vocab_list', tempImportData.vocab);
-                alert("Success! Data Merged.");
+                alert("Success! Data Merged with Rich Notes Support.");
             } else if (action === 'overwrite') {
-                if (confirm("Are you sure? This will replace your current MDC ENG library with the backup file. Any local data in MDC ENG not in the backup will be lost.")) {
+                if (confirm("Replace EVERYTHING with this backup?")) {
                     if (tempImportData.videos) localStorage.setItem('mdc_saved_favorites', tempImportData.videos);
                     if (tempImportData.links) localStorage.setItem('mdc_saved_links_v2', tempImportData.links);
                     if (tempImportData.vocab) localStorage.setItem('mdc_vocab_list', tempImportData.vocab);
-                    alert("Success! MDC ENG Library Updated.");
-                } else {
-                    return; // Abort
-                }
+                    alert("Success! Library Replaced.");
+                } else { return; }
             }
             
             closeModal('decisionModal');
-            tempImportData = null; // Clean up
+            tempImportData = null;
             location.reload();
         }
 
+        // === KEY UPDATE: SMART MERGE LOGIC ===
+        // This now checks IDs to avoid duplicates when you edit notes
         function mergeAndSave(key, newJsonString) {
             if (!newJsonString) return;
             const oldJsonString = localStorage.getItem(key);
+            
             if (!oldJsonString) {
                 localStorage.setItem(key, newJsonString);
                 return;
             }
+
             try {
                 const oldArray = JSON.parse(oldJsonString);
                 const newArray = JSON.parse(newJsonString);
+
                 if (!Array.isArray(oldArray) || !Array.isArray(newArray)) {
                     localStorage.setItem(key, newJsonString);
                     return;
                 }
+
+                // Map to store unique items by ID (Video ID or URL or Word)
                 const uniqueMap = new Map();
-                oldArray.forEach(item => uniqueMap.set(JSON.stringify(item), item));
-                newArray.forEach(item => uniqueMap.set(JSON.stringify(item), item));
+
+                // Helper to find a unique ID for the item type
+                const getUid = (item) => {
+                    if (item.id) return item.id;        // Videos
+                    if (item.url) return item.url;      // Links
+                    if (item.word) return item.word;    // Vocab
+                    return JSON.stringify(item);        // Fallback
+                };
+
+                // 1. Load OLD items first
+                oldArray.forEach(item => uniqueMap.set(getUid(item), item));
+
+                // 2. Overwrite/Add NEW items (Backup takes precedence to update edited notes)
+                newArray.forEach(item => uniqueMap.set(getUid(item), item));
+
+                // Save combined list
                 localStorage.setItem(key, JSON.stringify(Array.from(uniqueMap.values())));
+
             } catch (e) {
+                console.error("Merge error", e);
+                // If JSON fails, safety fallback (overwrite)
                 localStorage.setItem(key, newJsonString);
             }
         }
 
         // --- 5. FACTORY RESET LOGIC ---
         function performFactoryReset() {
-            if(confirm("RESET WARNING:\n\nThis will delete all saved content within MDC ENG (Videos, Vocabulary, Links).\n\nAre you sure?")) {
+            if(confirm("RESET WARNING:\n\nThis will delete all saved content within MDC ENG.\n\nAre you sure?")) {
                 localStorage.removeItem('mdc_saved_favorites');
                 localStorage.removeItem('mdc_saved_links_v2');
                 localStorage.removeItem('mdc_vocab_list');
