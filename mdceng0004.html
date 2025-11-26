@@ -317,6 +317,7 @@
         const grid = document.getElementById('video-grid');
         let activePlayer = null;
         let currentEditIndex = -1;
+        let trackingInterval = null; // Para guardar el progreso
         const modal = document.getElementById('editor-modal');
         const editorArea = document.getElementById('editor-text');
 
@@ -336,7 +337,13 @@
             
             if (id && id.length === 11) {
                 const videos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                videos.unshift({ id, title: title || "Video", date: new Date().toLocaleDateString(), note: "" });
+                videos.unshift({ 
+                    id, 
+                    title: title || "Video", 
+                    date: new Date().toLocaleDateString(), 
+                    note: "", 
+                    lastTime: 0 // Nuevo campo para persistencia
+                });
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
                 renderGrid(videos);
                 document.getElementById('vidUrl').value = '';
@@ -375,9 +382,68 @@
         }
 
         function initPlayer(el, id) {
+            // Recuperar tiempo guardado
+            const videos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const vidData = videos.find(v => v.id === id);
+            const startTime = vidData ? (vidData.lastTime || 0) : 0;
+
             el.innerHTML = `<div id="p-${id}" class="video-target"></div>`;
             el.onclick = null;
-            activePlayer = new YT.Player(`p-${id}`, { width:'100%', height:'100%', videoId: id, playerVars:{autoplay:1, rel:0} });
+            
+            activePlayer = new YT.Player(`p-${id}`, { 
+                width:'100%', 
+                height:'100%', 
+                videoId: id, 
+                playerVars: {
+                    autoplay: 1, 
+                    rel: 0,
+                    start: Math.floor(startTime) // Iniciar donde quedó
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': (e) => onPlayerStateChange(e, id)
+                }
+            });
+        }
+
+        // 1. FUNCION: Play inmediato (Un toque)
+        function onPlayerReady(event) {
+            event.target.playVideo();
+        }
+
+        // 2. FUNCION: Lógica de guardado de tiempo
+        function onPlayerStateChange(event, id) {
+            // Si está reproduciendo (Estado 1)
+            if (event.data === YT.PlayerState.PLAYING) {
+                // Iniciar intervalo para guardar cada 5 segundos
+                stopTracking();
+                trackingInterval = setInterval(() => saveVideoTime(activePlayer, id), 5000);
+            } else {
+                // Si pausa, termina o hace buffering, guardar inmediatamente y parar intervalo
+                saveVideoTime(activePlayer, id);
+                stopTracking();
+            }
+        }
+
+        function saveVideoTime(player, id) {
+            if (!player || typeof player.getCurrentTime !== 'function') return;
+            
+            const currentTime = player.getCurrentTime();
+            if (currentTime > 0) {
+                const videos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                const index = videos.findIndex(v => v.id === id);
+                if (index !== -1) {
+                    videos[index].lastTime = currentTime;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
+                }
+            }
+        }
+
+        function stopTracking() {
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
         }
 
         // === EDITOR & FORMATTING LOGIC ===
@@ -403,7 +469,6 @@
         }
 
         // --- FORMATTING COMMANDS ---
-        // Note: 'onmousedown="event.preventDefault()"' in HTML is crucial to keep focus in editor
         
         function applyColor(hex) {
             document.execCommand('foreColor', false, hex);
@@ -421,18 +486,15 @@
         }
 
         // --- STATE SYNCHRONIZATION ---
-        // Checks the style at cursor position and lights up buttons
         editorArea.addEventListener('keyup', updateToolbarState);
         editorArea.addEventListener('mouseup', updateToolbarState);
         editorArea.addEventListener('click', updateToolbarState);
 
         function updateToolbarState() {
-            // 1. Check Bold
             const isBold = document.queryCommandState('bold');
             const btnBold = document.getElementById('btn-bold');
             isBold ? btnBold.classList.add('is-active') : btnBold.classList.remove('is-active');
 
-            // 2. Check Font Size
             const size = document.queryCommandValue('fontSize');
             document.getElementById('btn-size-norm').classList.remove('is-active');
             document.getElementById('btn-size-lg').classList.remove('is-active');
@@ -440,24 +502,17 @@
             if(size === '5' || size === 'x-large') {
                 document.getElementById('btn-size-lg').classList.add('is-active');
             } else {
-                // Defaulting normal button to active if not large, or strictly checking '3'
                 document.getElementById('btn-size-norm').classList.add('is-active');
             }
 
-            // 3. Check Color (Approximate)
-            // execCommand uses RGB, we have Hex buttons. We detect active color approx.
-            const rgb = document.queryCommandValue('foreColor'); // returns "rgb(r, g, b)"
-            
-            // Reset all color buttons
+            const rgb = document.queryCommandValue('foreColor');
             document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('is-active'));
 
-            // Simple string matching for the specific colors we use
-            if(rgb.includes('239, 68, 68')) { // Red #ef4444
+            if(rgb.includes('239, 68, 68')) {
                 document.getElementById('btn-col-red').classList.add('is-active');
-            } else if (rgb.includes('59, 130, 246')) { // Blue #3b82f6
+            } else if (rgb.includes('59, 130, 246')) {
                 document.getElementById('btn-col-blue').classList.add('is-active');
             } else {
-                // Default/Black
                 document.getElementById('btn-col-black').classList.add('is-active');
             }
         }
