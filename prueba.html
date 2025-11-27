@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Pro AI Tutor Final</title>
+    <title>MDC - Pro AI Tutor V4</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -156,11 +156,25 @@
         .desktop-video-container { display: none; background: #000; }
         .editor-content-panel { flex: 1; display: flex; flex-direction: column; height: 100%; background: white; }
 
+        /* --- DESKTOP RESIZER STYLES --- */
+        .resizer-container {
+            display: none; /* Hidden on mobile */
+            padding: 0 15px;
+            align-items: center;
+            gap: 10px;
+            border-right: 1px solid #e5e7eb;
+            margin-right: 10px;
+        }
+        .resizer-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
+        .resizer-input { width: 100px; cursor: pointer; }
+
         @media (min-width: 900px) {
-            .editor-popup { width: 95%; max-width: 1200px; height: 85vh; flex-direction: row; }
-            .desktop-video-container { display: block; flex: 1.5; position: relative; }
-            .editor-content-panel { flex: 1; border-left: 1px solid #e5e7eb; }
+            .editor-popup { width: 95%; max-width: 1300px; height: 85vh; flex-direction: row; }
+            /* Flex values controlled by JS now */
+            .desktop-video-container { display: block; flex: 1; position: relative; transition: flex 0.1s; }
+            .editor-content-panel { flex: 1; border-left: 1px solid #e5e7eb; transition: flex 0.1s; }
             .opacity-control-group { display: none !important; }
+            .resizer-container { display: flex; } /* Show on desktop */
         }
 
         .editor-header {
@@ -285,62 +299,54 @@
         .exercise-box {
             background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin: 15px 0;
             user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-            /* Important: Ensure contenteditable=false is respected visually */
             cursor: default;
         }
-        .exercise-header { font-size: 0.9rem; font-weight: 700; color: #4f46e5; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
-        .exercise-row { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.6; }
+        .exercise-header { 
+            font-size: 0.9rem; font-weight: 700; color: #4f46e5; margin-bottom: 12px; 
+            border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; 
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .btn-theory {
+            background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe;
+            padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-theory:hover { background: #c7d2fe; }
+
+        /* Theory Box Toggle */
+        .theory-box {
+            display: none; background: #fff; padding: 10px; border-radius: 6px; border: 1px solid #bfdbfe;
+            margin-bottom: 15px; font-size: 0.9rem; color: #1e3a8a; line-height: 1.5;
+        }
+
+        .exercise-row { margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; line-height: 1.6; }
         
+        /* NEW: Hint Box (Appears below) instead of Tooltip */
+        .hint-box {
+            display: none; width: 100%; margin-top: 5px; padding: 8px 12px;
+            background: #fff; border-left: 4px solid #f59e0b; border-radius: 4px;
+            font-size: 0.85rem; color: #4b5563; font-style: italic;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
         .ex-select { 
-            padding: 6px 10px; 
-            border: 2px solid #cbd5e1; 
-            border-radius: 6px; 
-            background: white; 
-            cursor: pointer; 
-            outline: none;
-            /* FIX 2: Force appearance to accept background colors */
-            -webkit-appearance: none; 
-            appearance: none; 
-            /* Add arrow back since we removed appearance */
+            padding: 6px 10px; border: 2px solid #cbd5e1; border-radius: 6px; 
+            background: white; cursor: pointer; outline: none;
+            -webkit-appearance: none; appearance: none; 
             background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 0.5rem center;
-            background-size: 1em;
-            padding-right: 2.5rem;
+            background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 1em; padding-right: 2.5rem;
         }
-        
-        /* FIX 2 CONTINUED: Strong Styles for Correct/Wrong */
-        .ex-select.correct { 
-            border-color: #10b981 !important; 
-            background-color: #d1fae5 !important; 
-            color: #065f46 !important; 
-            font-weight: 700;
-        }
-        .ex-select.wrong { 
-            border-color: #ef4444 !important; 
-            background-color: #fee2e2 !important; 
-            color: #991b1b !important; 
-            animation: shake 0.3s; 
-        }
+        .ex-select.correct { border-color: #10b981 !important; background-color: #d1fae5 !important; color: #065f46 !important; font-weight: 700; }
+        .ex-select.wrong { border-color: #ef4444 !important; background-color: #fee2e2 !important; color: #991b1b !important; animation: shake 0.3s; }
 
         .ex-btn-icon { 
             background: white; border: 1px solid #e5e7eb; border-radius: 50%; 
             cursor: pointer; width: 28px; height: 28px; 
             display: flex; align-items: center; justify-content: center; 
-            /* FIX 3: Prevent Text Selection on Buttons */
-            user-select: none;
-            -webkit-user-select: none;
+            user-select: none; -webkit-user-select: none;
         }
         .ex-btn-icon:hover { transform: scale(1.1); background: #f3f4f6; }
         
-        .tooltip-container { position: relative; display: inline-block; }
-        .tooltip-text {
-            visibility: hidden; width: 220px; background-color: #1f2937; color: #fff; text-align: center;
-            border-radius: 6px; padding: 10px; position: absolute; z-index: 10; bottom: 135%; left: 50%;
-            margin-left: -110px; opacity: 0; transition: opacity 0.3s; font-size: 0.85rem; pointer-events: none;
-        }
-        .tooltip-text::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #1f2937 transparent transparent transparent; }
-        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
         @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); } }
 
     </style>
@@ -378,10 +384,17 @@
                 <div id="desktop-player-target" style="width:100%; height:100%;"></div>
             </div>
 
-            <div class="editor-content-panel">
+            <div class="editor-content-panel" id="editor-panel">
                 <div class="editor-header">
                     <span class="editor-title">Note Editor</span>
-                    <button class="close-editor" onclick="closeEditor()">&times;</button>
+                    
+                    <div style="display: flex; align-items: center;">
+                        <div class="resizer-container">
+                            <span class="resizer-label">Split Layout</span>
+                            <input type="range" class="resizer-input" min="20" max="80" value="50" oninput="resizeLayout(this.value)">
+                        </div>
+                        <button class="close-editor" onclick="closeEditor()">&times;</button>
+                    </div>
                 </div>
                 
                 <div class="editor-toolbar">
@@ -486,6 +499,15 @@
             loadVideos();
             renderAiList();
         });
+
+        // === LAYOUT RESIZER ===
+        function resizeLayout(value) {
+            const vid = document.getElementById('desktop-video-wrapper');
+            const edit = document.getElementById('editor-panel');
+            // Value comes 20-80. Video gets 'value', Editor gets '100-value'
+            vid.style.flex = value;
+            edit.style.flex = (100 - value);
+        }
 
         // === VIDEO LOGIC ===
         function loadVideos() {
@@ -609,6 +631,10 @@
             document.getElementById('editor-popup').style.opacity = 1;
             document.querySelector('input[type="range"]').value = 1;
             document.getElementById('btn-speed').innerText = "1x"; 
+            
+            // Reset layout slider
+            document.querySelector('.resizer-input').value = 50;
+            resizeLayout(50);
 
             if (isDesktop) {
                 let startTime = videoData.lastTime || 0;
@@ -731,31 +757,33 @@
             aiModal.classList.remove('active');
         }
 
-        // 1. GENERAR PROMPT
+        // 1. GENERAR PROMPT MEJORADO (CON TÍTULO Y TEORÍA)
         function copyProfessorPrompt() {
             const topic = document.getElementById('ai-topic-select').value;
             const promptText = `
 You are an expert Cambridge C2 English Linguist. Create a 'Fill in the Blanks' exercise.
 TOPIC: ${topic}.
 
-STRICT RULES:
-1. Provide 5 distinct sentences.
-2. The missing word must be grammatically crucial.
-3. The 'options' must act as plausible distractors (common mistakes), not random words.
-4. The 'hint' must explain the GRAMMAR RULE, not just give the definition.
-5. FORMAT: Pure JSON only. No markdown. No intro text.
+OUTPUT FORMAT: Single JSON Object (Not an Array) with 3 keys:
+1. "topic": The exact topic name.
+2. "theory": A concise explanation of the grammar rule (max 50 words) to help the student.
+3. "exercises": An array of 5 sentence objects.
 
 JSON STRUCTURE:
-[
-  {
-    "pre": "Text before blank",
-    "answer": "correct_word",
-    "post": "Text after blank",
-    "options": ["correct_word", "distractor1", "distractor2", "distractor3"],
-    "hint": "Grammar explanation",
-    "full_sentence": "Full sentence for audio reading."
-  }
-]
+{
+  "topic": "${topic}",
+  "theory": "Brief explanation of rules...",
+  "exercises": [
+    {
+      "pre": "Text before blank",
+      "answer": "correct_word",
+      "post": "Text after blank",
+      "options": ["correct_word", "distractor1", "distractor2", "distractor3"],
+      "hint": "Specific clue for this sentence",
+      "full_sentence": "Full sentence for audio reading."
+    }
+  ]
+}
             `.trim();
 
             navigator.clipboard.writeText(promptText)
@@ -768,30 +796,23 @@ JSON STRUCTURE:
                 .catch(err => alert("Error: " + err));
         }
 
-        // 2. PEGADO INTELIGENTE (FIX 1: Auto-Read Clipboard)
+        // 2. PEGADO INTELIGENTE
         async function pasteAIJson() {
             let jsonString = "";
-
             try {
-                // Intento leer el portapapeles directamente
                 jsonString = await navigator.clipboard.readText();
-                
-                // Feedback visual en el botón
                 const btn = document.getElementById('btn-paste-json');
                 const orig = btn.innerText;
                 btn.innerText = "✅ Pasted!";
                 setTimeout(() => btn.innerText = orig, 1500);
-
             } catch (err) {
-                // Si falla (permisos), volvemos al prompt antiguo
-                jsonString = prompt("Unable to read clipboard automatically. Paste JSON here:");
+                jsonString = prompt("Paste JSON here:");
             }
 
             if (!jsonString) return;
             processJsonAndSave(jsonString);
         }
 
-        // Función auxiliar para procesar el JSON
         function processJsonAndSave(jsonString) {
             try {
                 let cleanString = jsonString
@@ -801,15 +822,29 @@ JSON STRUCTURE:
                     .replace(/[\u2018\u2019]/g, "'")
                     .trim();
 
-                const exercises = JSON.parse(cleanString);
+                const aiData = JSON.parse(cleanString);
+                
+                // Compatibility check: Is it the new object format or old array?
+                let finalData = {};
+                if (Array.isArray(aiData)) {
+                    // Fallback for old prompts
+                    finalData = {
+                        topic: "Grammar Exercise",
+                        theory: "Review the rules for this section.",
+                        exercises: aiData
+                    };
+                } else {
+                    finalData = aiData;
+                }
+
                 const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-                const title = exercises[0].full_sentence.substring(0, 25) + "...";
                 
                 memory.unshift({
                     id: Date.now(),
-                    title: title,
+                    title: finalData.topic, // Now uses the real topic from JSON
+                    theory: finalData.theory,
                     date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString().slice(0,5),
-                    data: exercises
+                    data: finalData.exercises
                 });
 
                 localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
@@ -820,7 +855,6 @@ JSON STRUCTURE:
             }
         }
 
-        // 3. RENDERIZAR LISTA
         function renderAiList() {
             const listContainer = document.getElementById('ai-memory-list');
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
@@ -845,15 +879,21 @@ JSON STRUCTURE:
             listContainer.innerHTML = html;
         }
 
-        // 4. INSERTAR AL FINAL (FIX 4: insertAdjacentHTML beforeend)
+        // 3. INSERTAR CON NUEVO FORMATO Y TEORÍA
         function insertExerciseFromMem(id) {
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
             const item = memory.find(x => x.id === id);
             
             if (!item) return;
 
+            const theoryId = `theory-${id}`;
+
             let htmlBlock = `<div class="exercise-box" contenteditable="false">
-                                <div class="exercise-header">✍️ Practice: ${item.title}</div>`;
+                                <div class="exercise-header">
+                                    <span>✍️ ${item.title}</span>
+                                    <button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button>
+                                </div>
+                                <div class="theory-box" id="${theoryId}">${item.theory || "No theory available."}</div>`;
 
             item.data.forEach((ex, index) => {
                 let optsHtml = `<option value="" disabled selected>Select...</option>`;
@@ -862,8 +902,8 @@ JSON STRUCTURE:
                 });
 
                 const uniqueId = `ex-${id}-${index}`;
+                const hintId = `hint-${id}-${index}`;
 
-                // FIX 3: Buttons have explicit onclick attributes, relying on contenteditable=false wrapper
                 htmlBlock += `
                 <div class="exercise-row" id="${uniqueId}">
                     <span><b>${index + 1}.</b> ${ex.pre}</span>
@@ -873,19 +913,16 @@ JSON STRUCTURE:
                     <span>${ex.post}</span>
                     <div style="display:inline-flex; gap:5px; margin-left:10px;">
                         <button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}')" title="Listen">🔊</button>
-                        <div class="tooltip-container">
-                            <button class="ex-btn-icon" contenteditable="false">❓</button>
-                            <span class="tooltip-text">${ex.hint}</span>
-                        </div>
+                        <button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hintId}').style.display = document.getElementById('${hintId}').style.display === 'block' ? 'none' : 'block'">❓</button>
                     </div>
+                    <div class="hint-box" id="${hintId}">💡 ${ex.hint}</div>
                 </div>`;
             });
 
             htmlBlock += '</div><p><br></p>';
 
-            // FIX 4: Append to END of document
             editorArea.insertAdjacentHTML('beforeend', htmlBlock);
-            editorArea.scrollTop = editorArea.scrollHeight; // Scroll to bottom
+            editorArea.scrollTop = editorArea.scrollHeight;
             
             saveNote();
             closeAIMenu();
@@ -903,7 +940,6 @@ JSON STRUCTURE:
             const selectedVal = selectEl.value;
             selectEl.classList.remove('correct', 'wrong');
             
-            // Trim whitespace just in case
             if (selectedVal.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
                 selectEl.classList.add('correct');
             } else {
@@ -913,7 +949,6 @@ JSON STRUCTURE:
         };
 
         window.speakText = function(text) {
-            // FIX 3: Ensure this event doesn't trigger text selection
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
