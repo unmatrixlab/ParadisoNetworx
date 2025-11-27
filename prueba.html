@@ -788,60 +788,62 @@ Estructura del Array JSON:
         }
 
         // 2. PEGAR JSON Y RENDERIZAR
-        function pasteAIJson() {
-            const jsonString = prompt("Pega aquí el JSON generado por la IA:");
-            if (!jsonString) return;
+      // Reemplaza tu función pasteAIJson antigua por esta:
+function pasteAIJson() {
+    const jsonString = prompt("Pega aquí el JSON generado por la IA:");
+    if (!jsonString) return;
 
-            try {
-                // Limpieza básica por si la IA devuelve bloques de código markdown
-                const cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
-                const exercises = JSON.parse(cleanString);
+    try {
+        // 1. LIMPIEZA PROFUNDA
+        let cleanString = jsonString
+            .replace(/```json/g, '')   // Quita etiquetas markdown json
+            .replace(/```/g, '')       // Quita etiquetas markdown
+            .replace(/[\u201C\u201D]/g, '"') // IMPORTANTE: Convierte comillas curvas (“”) en rectas (")
+            .trim();
+
+        const exercises = JSON.parse(cleanString);
+        
+        // Construcción del HTML
+        let htmlBlock = `<div class="exercise-box" contenteditable="false">
+                            <div class="exercise-header">✍️ Practice Time</div>`;
+
+        exercises.forEach((ex, index) => {
+            let optsHtml = `<option value="" disabled selected>Select...</option>`;
+            ex.options.forEach(opt => {
+                optsHtml += `<option value="${opt}">${opt}</option>`;
+            });
+
+            const uniqueId = `ex-${Date.now()}-${index}`;
+
+            htmlBlock += `
+            <div class="exercise-row" id="${uniqueId}">
+                <span>${index + 1}. ${ex.pre}</span>
+                <select class="ex-select" onchange="window.validateExercise(this, '${ex.answer}')">
+                    ${optsHtml}
+                </select>
+                <span>${ex.post}</span>
                 
-                // Construcción del HTML
-                // Usamos contenteditable="false" para proteger el bloque de edición accidental
-                let htmlBlock = `<div class="exercise-box" contenteditable="false">
-                                    <div class="exercise-header">✍️ Practice Time</div>`;
-
-                exercises.forEach((ex, index) => {
-                    // Generar opciones desordenadas o tal cual vienen
-                    let optsHtml = `<option value="" disabled selected>Select...</option>`;
-                    ex.options.forEach(opt => {
-                        optsHtml += `<option value="${opt}">${opt}</option>`;
-                    });
-
-                    // ID único para evitar conflictos
-                    const uniqueId = `ex-${Date.now()}-${index}`;
-
-                    htmlBlock += `
-                    <div class="exercise-row" id="${uniqueId}">
-                        <span>${index + 1}. ${ex.pre}</span>
-                        <select class="ex-select" onchange="window.validateExercise(this, '${ex.answer}')">
-                            ${optsHtml}
-                        </select>
-                        <span>${ex.post}</span>
-                        
-                        <div style="display:inline-flex; gap:5px; margin-left:10px;">
-                            <button class="ex-btn-icon" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}')" title="Escuchar">🔊</button>
-                            <div class="tooltip-container">
-                                <button class="ex-btn-icon">❓</button>
-                                <span class="tooltip-text">${ex.hint}</span>
-                            </div>
-                        </div>
+                <div style="display:inline-flex; gap:5px; margin-left:10px;">
+                    <button class="ex-btn-icon" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}')" title="Escuchar">🔊</button>
+                    <div class="tooltip-container">
+                        <button class="ex-btn-icon">❓</button>
+                        <span class="tooltip-text">${ex.hint}</span>
                     </div>
-                    `;
-                });
+                </div>
+            </div>
+            `;
+        });
 
-                htmlBlock += '</div><p><br></p>'; // Salto de línea editable al final
+        htmlBlock += '</div><p><br></p>'; 
 
-                // Insertar en el cursor o al final
-                editorArea.focus();
-                document.execCommand('insertHTML', false, htmlBlock);
-                saveNote(); // Guardar cambios
+        editorArea.focus();
+        document.execCommand('insertHTML', false, htmlBlock);
+        saveNote(); 
 
-            } catch (e) {
-                alert("❌ Error al procesar el JSON.\nAsegúrate de copiar SOLO el código que te da la IA.\n\nDetalle: " + e.message);
-            }
-        }
+    } catch (e) {
+        alert("❌ Error al procesar el JSON.\nEl formato no es válido.\n\nDetalle técnico: " + e.message);
+    }
+}
 
         // 3. FUNCIONES GLOBALES PARA EL HTML INYECTADO
         window.validateExercise = function(selectEl, correctAnswer) {
