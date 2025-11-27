@@ -199,11 +199,15 @@
             display: flex; justify-content: space-between; align-items: center;
         }
         .editor-title { font-weight: 700; font-size: 1rem; color: var(--text-main); }
-        .close-editor { 
-            background: #f2f2f7; border: none; width: 30px; height: 30px; border-radius: 50%; 
-            font-size: 1.2rem; cursor: pointer; color: #8e8e93; display: flex; align-items: center; justify-content: center;
+        
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+
+        .btn-header-icon { 
+            background: #f2f2f7; border: none; width: 34px; height: 34px; border-radius: 50%; 
+            font-size: 1.1rem; cursor: pointer; color: #8e8e93; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
         }
-        .close-editor:hover { background: #e5e5ea; color: #1c1c1e; }
+        .btn-header-icon:hover { background: #e5e5ea; color: #1c1c1e; }
 
         /* === FIXED SCROLLABLE TOOLBAR === */
         .editor-toolbar {
@@ -443,12 +447,14 @@
                 <div class="editor-header">
                     <span class="editor-title">Note Editor</span>
                     
-                    <div style="display: flex; align-items: center;">
+                    <div class="header-actions">
                         <div class="resizer-container">
                             <span class="resizer-label">Split Layout</span>
                             <input type="range" class="resizer-input" min="20" max="80" value="30" oninput="resizeLayout(this.value)">
                         </div>
-                        <button class="close-editor" onclick="closeEditor()">&times;</button>
+                        
+                        <button class="btn-header-icon" onclick="toggleFullScreen()" title="Full Screen">⛶</button>
+                        <button class="btn-header-icon" onclick="closeEditor()" title="Close">&times;</button>
                     </div>
                 </div>
                 
@@ -581,6 +587,19 @@
             updateTransFlagsVisibility(); 
             initVoices();
         });
+
+        // === NEW: FULLSCREEN TOGGLE ===
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
 
         // === VOICE HANDLING ===
         function initVoices() {
@@ -776,19 +795,26 @@
             document.querySelector('.resizer-input').value = 30;
             resizeLayout(30);
 
+            // === UPDATE FOR NO AUTO-PLAY ===
+            // Autoplay is set to 0, and we DO NOT call playVideo() automatically
             if (isDesktop) {
                 let startTime = videoData.lastTime || 0;
                 if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function') { startTime = gridPlayer.getCurrentTime(); gridPlayer.pauseVideo(); }
                 document.getElementById('desktop-video-wrapper').innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
                 modalPlayer = new YT.Player('desktop-player-target', {
                     width: '100%', height: '100%', videoId: currentVideoId,
-                    playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) },
+                    playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, // CHANGED TO 0
                     events: {
-                        'onReady': (e) => { e.target.playVideo(); activePlayer = modalPlayer; },
+                        'onReady': (e) => { activePlayer = modalPlayer; }, // REMOVED playVideo()
                         'onStateChange': (e) => onPlayerStateChange(e, currentVideoId, modalPlayer)
                     }
                 });
-            } else { if (gridPlayer) activePlayer = gridPlayer; }
+            } else { 
+                if (gridPlayer) {
+                    activePlayer = gridPlayer;
+                    gridPlayer.pauseVideo(); // Force pause if coming from grid
+                }
+            }
             updateToolbarState();
         }
 
