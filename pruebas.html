@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V9</title>
+    <title>MDC - Polyglot Tutor V10</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -147,7 +147,6 @@
         }
         .resizer-label { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         
-        /* Modern Slider Style */
         .resizer-input {
             -webkit-appearance: none; width: 140px; height: 6px; background: #e5e5ea;
             border-radius: 5px; outline: none; cursor: pointer;
@@ -178,20 +177,11 @@
         }
         .close-editor:hover { background: #e5e5ea; color: #1c1c1e; }
 
-        /* === FIXED SCROLLABLE TOOLBAR (MOBILE FIX) === */
+        /* === FIXED SCROLLABLE TOOLBAR === */
         .editor-toolbar {
-            /* Fix floating feel: Full width, no rounded corners inside modal context */
-            width: 100%;
-            padding: 12px 16px; 
-            background: #fff; 
-            border-bottom: 1px solid #e5e5ea;
+            width: 100%; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e5ea;
             display: flex; align-items: center; gap: 14px;
-            
-            /* Horizontal Scroll Logic */
-            overflow-x: auto; 
-            white-space: nowrap; 
-            -webkit-overflow-scrolling: touch; 
-            scrollbar-width: none; 
+            overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; 
         }
         .editor-toolbar::-webkit-scrollbar { display: none; }
 
@@ -233,10 +223,18 @@
         }
         
         #btn-main-play { min-width: 44px; font-size: 1.1rem; }
-        #btn-main-play.is-playing { background-color: #fff3cd; color: #d97706; } /* Pause look (Orange/Amber) */
-        #btn-main-play.is-paused { background-color: #d1e7dd; color: #198754; } /* Play look (Green) */
+        #btn-main-play.is-playing { background-color: #fff3cd; color: #d97706; }
+        #btn-main-play.is-paused { background-color: #d1e7dd; color: #198754; }
 
-        .btn-clear { background: #fff5f5; color: var(--danger); }
+        /* NEW TRASH BUTTON (ERASE) */
+        .btn-clear { 
+            width: 38px; height: 38px; border-radius: 10px; border: none;
+            background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: 0.2s; border: 1px solid #e5e5ea;
+        }
+        .btn-clear svg { width: 20px; height: 20px; fill: var(--text-muted); transition: 0.2s; }
+        .btn-clear:hover { background: #fff5f5; border-color: #ffebeb; }
+        .btn-clear:hover svg { fill: var(--danger); }
 
         .editor-area {
             flex: 1; width: 100%; padding: 24px; border: none; font-family: 'Inter', sans-serif; 
@@ -441,7 +439,9 @@
                         <button class="btn-media btn-speed" id="btn-speed" onclick="cycleSpeed()">1x</button>
                     </div>
                     
-                    <button class="btn-clear" onclick="if(confirm('Clear all?')) { document.getElementById('editor-text').innerHTML=''; saveNote(); }">Erase</button>
+                    <button class="btn-clear" onclick="if(confirm('Clear all?')) { document.getElementById('editor-text').innerHTML=''; saveNote(); }" title="Clear All">
+                        <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
                 </div>
 
                 <div class="opacity-control-group" style="padding: 10px 16px;">
@@ -466,7 +466,7 @@
             </div>
             <div class="ai-body">
                 
-                <div class="ai-label">Target Language (Learn):</div>
+                <div class="ai-topic-label">Target Language (Learn):</div>
                 <div class="flag-group" id="target-lang-group">
                     <div class="flag-btn selected" onclick="selectTarget(this, 'en')" title="English">🇺🇸</div>
                     <div class="flag-btn" onclick="selectTarget(this, 'es')" title="Spanish">🇪🇸</div>
@@ -474,7 +474,7 @@
                     <div class="flag-btn" onclick="selectTarget(this, 'it')" title="Italian">🇮🇹</div>
                 </div>
 
-                <div class="ai-label" style="margin-top:10px;">Topic:</div>
+                <div class="ai-topic-label">Topic:</div>
                 <select id="ai-topic-select" class="ai-select">
                     <option value="Advanced Verb Patterns">Advanced Verb Patterns</option>
                     <option value="Prepositions">Prepositions</option>
@@ -484,7 +484,7 @@
                     <option value="Connector Words">Connector Words</option>
                 </select>
 
-                <div class="ai-label" style="margin-top:10px;">Translations (Max 3):</div>
+                <div class="ai-topic-label">Translations (Max 3):</div>
                 <div class="flag-group" id="trans-lang-group">
                     <div class="flag-btn flag-sm" data-lang="en" onclick="toggleTrans(this, 'en')" title="Translate to English">🇺🇸</div>
                     <div class="flag-btn flag-sm selected" data-lang="es" onclick="toggleTrans(this, 'es')" title="Translate to Spanish">🇪🇸</div>
@@ -921,14 +921,12 @@ JSON STRUCTURE:
             }
         }
 
-        // 4. INSERTAR (FIX: UNIQUE IDs with Timestamp)
         function insertExerciseFromMem(id) {
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
             const item = memory.find(x => x.id === id);
             
             if (!item) return;
 
-            // Generate insertion specific timestamp for ID uniqueness
             const insertTime = Date.now();
             const theoryId = `theory-${id}-${insertTime}`;
             const targetLang = item.lang || 'en';
@@ -944,12 +942,10 @@ JSON STRUCTURE:
                 let optsHtml = `<option value="" disabled selected>Select...</option>`;
                 ex.options.forEach(opt => { optsHtml += `<option value="${opt}">${opt}</option>`; });
 
-                // Uniqueness guaranteed by insertTime
                 const uniqueId = `ex-${id}-${index}-${insertTime}`;
                 const hintId = `hint-${id}-${index}-${insertTime}`;
                 const transId = `trans-${id}-${index}-${insertTime}`;
                 
-                // Build Translation HTML Block with TTS BUTTONS
                 let transContent = "";
                 if (ex.translations) {
                      for (const [key, val] of Object.entries(ex.translations)) {
@@ -987,10 +983,9 @@ JSON STRUCTURE:
 
             htmlBlock += '</div><p><br></p>';
 
-            // FIX: Robust insertion for mobile
+            // FIX: Robust insertion for mobile (without breaking focus)
             editorArea.insertAdjacentHTML('beforeend', htmlBlock);
             
-            // Timeout to allow DOM paint before scrolling
             setTimeout(() => {
                 editorArea.scrollTop = editorArea.scrollHeight;
                 saveNote();
@@ -1013,13 +1008,23 @@ JSON STRUCTURE:
             else { selectEl.classList.add('wrong'); if(navigator.vibrate) navigator.vibrate(200); }
         };
 
+        // ROBUST MOBILE TTS
         window.speakText = function(text, langCode) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = TTS_CODES[langCode] || 'en-US'; 
-                utterance.rate = 0.9; 
-                window.speechSynthesis.speak(utterance);
+                const u = new SpeechSynthesisUtterance(text);
+                const target = TTS_CODES[langCode] || 'en-US';
+                u.lang = target;
+
+                // Force search for voice object on mobile (Android/iOS fix)
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    const found = voices.find(v => v.lang === target) || voices.find(v => v.lang.startsWith(langCode));
+                    if(found) u.voice = found;
+                }
+
+                u.rate = 0.9; 
+                window.speechSynthesis.speak(u);
             } else { alert("TTS not supported."); }
         };
 
