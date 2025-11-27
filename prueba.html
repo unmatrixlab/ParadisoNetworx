@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V17</title>
+    <title>MDC - Polyglot Tutor V18 (Stable)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -18,6 +18,7 @@
             --text-muted: #8E8E93;
             --card-bg: #FFFFFF;
             --radius: 14px;
+            --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.06);
             --header-height: 60px;
         }
 
@@ -138,6 +139,10 @@
         }
 
         .desktop-video-container { display: none; background: #000; }
+        
+        /* FIX FOR IFRAME CAPTURING MOUSE EVENTS */
+        .desktop-video-container.resizing { pointer-events: none; }
+
         .editor-content-panel { flex: 1; display: flex; flex-direction: column; height: 100%; background: white; }
 
         /* --- DESKTOP RESIZER & SUBTITLE BOX --- */
@@ -164,7 +169,7 @@
 
         /* SUBTITLE DISPLAY (Desktop Only) */
         #subtitle-display-box {
-            display: none; /* Initially hidden */
+            display: none; 
             padding: 15px 20px;
             background: #f9f9fb;
             border-bottom: 1px solid #e5e5ea;
@@ -175,18 +180,29 @@
             justify-content: center;
         }
         
-        .subtitle-text { font-size: 1.1rem; color: #111; font-weight: 500; line-height: 1.4; max-width: 800px; }
+        .subtitle-text {
+            font-size: 1.1rem;
+            color: #111;
+            font-weight: 500;
+            line-height: 1.4;
+            max-width: 800px;
+        }
+        .subtitle-placeholder {
+            font-size: 0.85rem;
+            color: #8e8e93;
+            font-style: italic;
+        }
 
         @media (min-width: 900px) {
             .editor-popup { 
                 width: 95%; max-width: 1300px; height: 85vh; 
                 flex-direction: row; border-radius: 18px;
             }
-            /* Flex basis will be set by JS */
-            .desktop-video-container { display: block; position: relative; }
-            .editor-content-panel { border-left: 1px solid #e5e5ea; }
+            .desktop-video-container { display: block; flex: 1; position: relative; } /* Removed transition for snap performance */
+            .editor-content-panel { flex: 1; border-left: 1px solid #e5e5ea; }
             .opacity-control-group { display: none !important; }
             .resizer-container { display: flex; } 
+            #subtitle-display-box { display: flex; }
         }
 
         .editor-header {
@@ -249,6 +265,7 @@
         #btn-main-play.is-playing { background-color: #fff3cd; color: #d97706; }
         #btn-main-play.is-paused { background-color: #d1e7dd; color: #198754; }
 
+        /* TRASH BUTTON */
         .btn-clear { 
             width: 38px; height: 38px; border-radius: 10px; border: none;
             background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -258,8 +275,12 @@
         .btn-clear:hover { background: #fff5f5; border-color: #ffebeb; }
         .btn-clear:hover svg { fill: var(--danger); }
 
-        /* CC Button */
-        .btn-cc { background: #fff; border: 1px solid #d1d1d6; color: #333; font-weight: 700; font-size: 0.8rem; min-width: 80px; }
+        /* CC Button for Subtitles */
+        .btn-cc {
+            background: #fff; border: 1px solid #e5e5ea; color: #333; font-weight: 600; font-size: 0.75rem;
+            display: flex; align-items: center; gap: 4px; padding-right: 10px;
+        }
+        .btn-cc:hover { background: #f9f9f9; }
         .btn-cc.active { background: #e8f5e9; border-color: var(--success); color: var(--success); }
 
         .editor-area {
@@ -300,11 +321,6 @@
             appearance: none; 
         }
 
-        .ai-section-title {
-            font-size: 0.85rem; font-weight: 800; color: var(--primary); 
-            border-bottom: 2px solid var(--primary-soft); padding-bottom: 5px; margin-top: 10px;
-        }
-
         /* Voice Selector */
         .voice-section { background: #f2f2f7; padding: 12px; border-radius: 10px; margin-top: 10px; }
         .voice-label { font-size: 0.7rem; font-weight: 600; color: #666; display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
@@ -339,6 +355,10 @@
         .btn-ai-primary { background: var(--primary); color: white; }
         .btn-ai-primary:hover { background: #0062cc; }
         
+        .ai-section-title {
+            font-size: 0.8rem; font-weight: 800; color: var(--primary); border-bottom: 2px solid var(--primary-soft); padding-bottom: 5px; margin-top: 15px; margin-bottom: 5px;
+        }
+
         .saved-item {
             background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 12px;
             display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
@@ -448,7 +468,10 @@
                     <div style="display: flex; align-items: center;">
                         <div class="resizer-container">
                             <span class="resizer-label">Split Layout</span>
-                            <input type="range" class="resizer-input" min="20" max="80" value="30" oninput="resizeLayout(this.value)">
+                            <input type="range" class="resizer-input" min="20" max="80" value="30" 
+                                   onmousedown="startResize()" onmouseup="stopResize()" 
+                                   ontouchstart="startResize()" ontouchend="stopResize()"
+                                   oninput="resizeLayout(this.value)">
                         </div>
                         <button class="close-editor" onclick="closeEditor()">&times;</button>
                     </div>
@@ -469,7 +492,7 @@
                     </div>
                     
                     <div class="toolbar-group">
-                        <button class="btn-fmt btn-ai-trigger" onclick="openAIMenu()" title="AI & Subtitle Hub">⚡</button>
+                        <button class="btn-fmt btn-ai-trigger" onclick="openAIMenu()" title="AI Exercise Hub">⚡</button>
                         <button class="btn-media btn-cc" id="btn-cc-toggle" onclick="openAIMenuForSubs()" title="Subtitle Options">CC Options</button>
                     </div>
 
@@ -608,8 +631,6 @@
 
         // === SUBTITLE LOGIC ===
         function openAIMenuForSubs() {
-            // Shortcut to open modal scrolled to subtitle section?
-            // For now just open modal
             openAIMenu();
         }
 
@@ -631,9 +652,7 @@
         function processRawSubtitles(raw) {
             currentSubtitles = parseSRT(raw);
             if(currentSubtitles.length > 0) {
-                // Show the display box in desktop
                 document.getElementById('subtitle-display-box').style.display = 'flex';
-                // Activate button color
                 document.getElementById('btn-cc-toggle').classList.add('active');
                 alert("✅ Loaded " + currentSubtitles.length + " lines.");
                 closeAIMenu();
@@ -650,7 +669,6 @@
         }
 
         function parseSRT(data) {
-            // Optimized Parser
             const lines = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
             const subs = [];
             let currentStart = null;
@@ -684,15 +702,17 @@
             return seconds;
         }
 
-        // OPTIMIZED SYNC LOOP
+        // OPTIMIZED SYNC LOOP (SAFE CHECK)
         function syncSubtitles() {
-            if (!activePlayer || !activePlayer.getCurrentTime || currentSubtitles.length === 0) return;
+            // SAFE CHECK: Ensure player is ready and has method
+            if (!activePlayer || typeof activePlayer.getCurrentTime !== 'function') return;
+            
+            // Check if subtitles exist
+            if (currentSubtitles.length === 0) return;
             
             const t = activePlayer.getCurrentTime();
-            // Perform lookup
             const sub = currentSubtitles.find(s => t >= s.start && t <= s.end);
             
-            // Only touch DOM if changed
             const newText = sub ? sub.text : "";
             if (newText !== lastRenderedSub) {
                 document.getElementById('subtitle-text').innerText = newText;
@@ -731,14 +751,23 @@
             }
         }
 
-        // === LAYOUT RESIZER (THROTTLED) ===
+        // === LAYOUT RESIZER (FIXED & SMOOTH) ===
+        // FIX: POINTER EVENTS DISABLE TO PREVENT IFRAME TRAPPING MOUSE
+        function startResize() {
+            const vid = document.getElementById('desktop-video-wrapper');
+            vid.classList.add('resizing');
+        }
+        function stopResize() {
+            const vid = document.getElementById('desktop-video-wrapper');
+            vid.classList.remove('resizing');
+        }
+
         let tick = false;
         function resizeLayout(value) {
             if(!tick) {
                 window.requestAnimationFrame(() => {
                     const vid = document.getElementById('desktop-video-wrapper');
                     const edit = document.getElementById('editor-panel');
-                    // Calculate flex: 30 means video 30%, editor 70%
                     vid.style.flex = `0 0 ${value}%`; 
                     edit.style.flex = `1 1 ${100 - value}%`;
                     tick = false;
@@ -853,7 +882,7 @@
                 stopTracking();
                 trackingInterval = setInterval(() => saveVideoTime(playerInstance, id), 5000);
                 
-                // SYNC START
+                // SUBTITLE SYNC START
                 if(subSyncInterval) clearInterval(subSyncInterval);
                 subSyncInterval = setInterval(syncSubtitles, 100);
 
@@ -866,7 +895,7 @@
                 saveVideoTime(playerInstance, id);
                 stopTracking();
                 
-                // SYNC STOP
+                // SUBTITLE SYNC STOP
                 if(subSyncInterval) clearInterval(subSyncInterval);
 
                 if(playBtn) {
@@ -979,9 +1008,9 @@
             
             const rgb = document.queryCommandValue('foreColor');
             document.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
-            if(rgb.includes('255, 59, 48')) document.querySelectorAll('.color-dot')[1].classList.add('active'); 
-            else if (rgb.includes('0, 122, 255')) document.querySelectorAll('.color-dot')[2].classList.add('active');
-            else if (rgb.includes('52, 199, 89')) document.querySelectorAll('.color-dot')[3].classList.add('active');
+            if(rgb.includes('255, 59, 48')) document.querySelectorAll('.color-dot')[1].classList.add('active'); // Apple Red
+            else if (rgb.includes('0, 122, 255')) document.querySelectorAll('.color-dot')[2].classList.add('active'); // Apple Blue
+            else if (rgb.includes('52, 199, 89')) document.querySelectorAll('.color-dot')[3].classList.add('active'); // Apple Green
             else document.querySelectorAll('.color-dot')[0].classList.add('active');
         }
 
