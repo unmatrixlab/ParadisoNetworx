@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Pro AI Tutor</title>
+    <title>MDC - Pro AI Tutor Final</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -246,7 +246,6 @@
         
         .ai-body { padding: 15px; display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
 
-        /* Estilo para el Selector de Topicos */
         .ai-topic-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; text-transform: uppercase; margin-bottom: -5px; }
         .ai-select {
             width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;
@@ -286,27 +285,52 @@
         .exercise-box {
             background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin: 15px 0;
             user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            /* Important: Ensure contenteditable=false is respected visually */
+            cursor: default;
         }
         .exercise-header { font-size: 0.9rem; font-weight: 700; color: #4f46e5; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
         .exercise-row { margin-bottom: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.6; }
         
-        .ex-select { padding: 6px 10px; border: 2px solid #cbd5e1; border-radius: 6px; background: white; cursor: pointer; outline: none; }
+        .ex-select { 
+            padding: 6px 10px; 
+            border: 2px solid #cbd5e1; 
+            border-radius: 6px; 
+            background: white; 
+            cursor: pointer; 
+            outline: none;
+            /* FIX 2: Force appearance to accept background colors */
+            -webkit-appearance: none; 
+            appearance: none; 
+            /* Add arrow back since we removed appearance */
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
+        }
         
-        /* CORRECCIÓN DE COLORES CON !important PARA FORZAR LA VISUALIZACIÓN */
+        /* FIX 2 CONTINUED: Strong Styles for Correct/Wrong */
         .ex-select.correct { 
             border-color: #10b981 !important; 
-            background-color: #ecfdf5 !important; 
+            background-color: #d1fae5 !important; 
             color: #065f46 !important; 
-            font-weight: 600; 
+            font-weight: 700;
         }
         .ex-select.wrong { 
             border-color: #ef4444 !important; 
-            background-color: #fef2f2 !important; 
+            background-color: #fee2e2 !important; 
             color: #991b1b !important; 
             animation: shake 0.3s; 
         }
 
-        .ex-btn-icon { background: white; border: 1px solid #e5e7eb; border-radius: 50%; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; }
+        .ex-btn-icon { 
+            background: white; border: 1px solid #e5e7eb; border-radius: 50%; 
+            cursor: pointer; width: 28px; height: 28px; 
+            display: flex; align-items: center; justify-content: center; 
+            /* FIX 3: Prevent Text Selection on Buttons */
+            user-select: none;
+            -webkit-user-select: none;
+        }
         .ex-btn-icon:hover { transform: scale(1.1); background: #f3f4f6; }
         
         .tooltip-container { position: relative; display: inline-block; }
@@ -427,7 +451,7 @@
 
                 <div class="ai-actions">
                     <button class="btn-ai-action btn-ai-primary" onclick="copyProfessorPrompt()">🧠 Copy Prompt</button>
-                    <button class="btn-ai-action" onclick="pasteAIJson()">📋 Paste JSON</button>
+                    <button class="btn-ai-action" id="btn-paste-json" onclick="pasteAIJson()">📋 Paste JSON</button>
                 </div>
 
                 <div class="saved-list-title">Memory Bank</div>
@@ -707,11 +731,9 @@
             aiModal.classList.remove('active');
         }
 
-        // 1. GENERAR PROMPT CON TOPICO SELECCIONADO
+        // 1. GENERAR PROMPT
         function copyProfessorPrompt() {
-            // Leemos el valor del selector
             const topic = document.getElementById('ai-topic-select').value;
-            
             const promptText = `
 You are an expert Cambridge C2 English Linguist. Create a 'Fill in the Blanks' exercise.
 TOPIC: ${topic}.
@@ -746,11 +768,31 @@ JSON STRUCTURE:
                 .catch(err => alert("Error: " + err));
         }
 
-        // 2. PEGAR Y GUARDAR
-        function pasteAIJson() {
-            const jsonString = prompt("Paste the AI JSON here:");
-            if (!jsonString) return;
+        // 2. PEGADO INTELIGENTE (FIX 1: Auto-Read Clipboard)
+        async function pasteAIJson() {
+            let jsonString = "";
 
+            try {
+                // Intento leer el portapapeles directamente
+                jsonString = await navigator.clipboard.readText();
+                
+                // Feedback visual en el botón
+                const btn = document.getElementById('btn-paste-json');
+                const orig = btn.innerText;
+                btn.innerText = "✅ Pasted!";
+                setTimeout(() => btn.innerText = orig, 1500);
+
+            } catch (err) {
+                // Si falla (permisos), volvemos al prompt antiguo
+                jsonString = prompt("Unable to read clipboard automatically. Paste JSON here:");
+            }
+
+            if (!jsonString) return;
+            processJsonAndSave(jsonString);
+        }
+
+        // Función auxiliar para procesar el JSON
+        function processJsonAndSave(jsonString) {
             try {
                 let cleanString = jsonString
                     .replace(/```json/g, '')
@@ -774,7 +816,7 @@ JSON STRUCTURE:
                 renderAiList();
 
             } catch (e) {
-                alert("❌ Invalid JSON. Please try again.\nError: " + e.message);
+                alert("❌ Invalid JSON.\nError: " + e.message);
             }
         }
 
@@ -803,7 +845,7 @@ JSON STRUCTURE:
             listContainer.innerHTML = html;
         }
 
-        // 4. INSERTAR (CORREGIDO NUMERACIÓN)
+        // 4. INSERTAR AL FINAL (FIX 4: insertAdjacentHTML beforeend)
         function insertExerciseFromMem(id) {
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
             const item = memory.find(x => x.id === id);
@@ -821,7 +863,7 @@ JSON STRUCTURE:
 
                 const uniqueId = `ex-${id}-${index}`;
 
-                // SOLUCIÓN PUNTO 1: Forzamos el número en negrita <b> al principio
+                // FIX 3: Buttons have explicit onclick attributes, relying on contenteditable=false wrapper
                 htmlBlock += `
                 <div class="exercise-row" id="${uniqueId}">
                     <span><b>${index + 1}.</b> ${ex.pre}</span>
@@ -830,9 +872,9 @@ JSON STRUCTURE:
                     </select>
                     <span>${ex.post}</span>
                     <div style="display:inline-flex; gap:5px; margin-left:10px;">
-                        <button class="ex-btn-icon" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}')" title="Listen">🔊</button>
+                        <button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}')" title="Listen">🔊</button>
                         <div class="tooltip-container">
-                            <button class="ex-btn-icon">❓</button>
+                            <button class="ex-btn-icon" contenteditable="false">❓</button>
                             <span class="tooltip-text">${ex.hint}</span>
                         </div>
                     </div>
@@ -841,8 +883,10 @@ JSON STRUCTURE:
 
             htmlBlock += '</div><p><br></p>';
 
-            editorArea.focus();
-            document.execCommand('insertHTML', false, htmlBlock);
+            // FIX 4: Append to END of document
+            editorArea.insertAdjacentHTML('beforeend', htmlBlock);
+            editorArea.scrollTop = editorArea.scrollHeight; // Scroll to bottom
+            
             saveNote();
             closeAIMenu();
         }
@@ -854,11 +898,12 @@ JSON STRUCTURE:
             }
         }
 
-        // 5. VALIDACIÓN (CORREGIDO COLORES)
+        // 5. VALIDACIÓN GLOBAL
         window.validateExercise = function(selectEl, correctAnswer) {
             const selectedVal = selectEl.value;
             selectEl.classList.remove('correct', 'wrong');
             
+            // Trim whitespace just in case
             if (selectedVal.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
                 selectEl.classList.add('correct');
             } else {
@@ -868,6 +913,7 @@ JSON STRUCTURE:
         };
 
         window.speakText = function(text) {
+            // FIX 3: Ensure this event doesn't trigger text selection
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
