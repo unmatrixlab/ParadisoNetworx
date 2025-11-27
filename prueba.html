@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V15 (SRT Fix)</title>
+    <title>MDC - Polyglot Tutor V16 (Perf & Import)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -261,6 +261,7 @@
         #btn-main-play.is-playing { background-color: #fff3cd; color: #d97706; }
         #btn-main-play.is-paused { background-color: #d1e7dd; color: #198754; }
 
+        /* TRASH BUTTON */
         .btn-clear { 
             width: 38px; height: 38px; border-radius: 10px; border: none;
             background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -480,7 +481,9 @@
                     
                     <div class="toolbar-group">
                         <button class="btn-fmt btn-ai-trigger" onclick="openAIMenu()" title="AI Exercise Hub">⚡</button>
-                        <button class="btn-media btn-cc" onclick="loadSubtitlesPrompt()" title="Import SRT">📂 SRT</button>
+                        <button class="btn-media btn-cc" onclick="loadSubtitlesPrompt()" title="Paste SRT text">CC</button>
+                        <input type="file" id="subFile" accept=".srt,.vtt" style="display:none" onchange="handleFileSelect(this)">
+                        <button class="btn-media btn-cc" onclick="document.getElementById('subFile').click()" title="Import SRT File">📂</button>
                     </div>
 
                     <div class="toolbar-group">
@@ -497,7 +500,7 @@
 
                 <div id="subtitle-display-box">
                     <div id="subtitle-text" class="subtitle-text"></div>
-                    <div id="subtitle-placeholder" class="subtitle-placeholder">Click 'SRT' to import subtitles</div>
+                    <div id="subtitle-placeholder" class="subtitle-placeholder">Import SRT to see subtitles here</div>
                 </div>
 
                 <div class="opacity-control-group" style="padding: 10px 16px;">
@@ -593,6 +596,7 @@
         // Subtitle Vars
         let currentSubtitles = [];
         let subSyncInterval = null;
+        let lastRenderedSub = ""; // PERFORMANCE OPTIMIZATION
 
         const modal = document.getElementById('editor-modal');
         const editorArea = document.getElementById('editor-text');
@@ -605,22 +609,34 @@
             initVoices();
         });
 
-        // === SUBTITLE LOGIC ===
+        // === SUBTITLE LOGIC (FILE UPLOAD & OPTIMIZED SYNC) ===
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    processRawSubtitles(text);
+                };
+                reader.readAsText(input.files[0]);
+            }
+        }
+
         function loadSubtitlesPrompt() {
             const raw = prompt("Paste SRT or VTT content here:");
-            if(raw) {
-                currentSubtitles = parseSRT(raw);
-                if(currentSubtitles.length > 0) {
-                    document.getElementById('subtitle-placeholder').style.display = 'none';
-                    alert("Subtitles loaded: " + currentSubtitles.length + " lines.");
-                } else {
-                    alert("Could not parse subtitles. Ensure format is correct.");
-                }
+            if(raw) processRawSubtitles(raw);
+        }
+
+        function processRawSubtitles(raw) {
+            currentSubtitles = parseSRT(raw);
+            if(currentSubtitles.length > 0) {
+                document.getElementById('subtitle-placeholder').style.display = 'none';
+                alert("Loaded " + currentSubtitles.length + " subtitles.");
+            } else {
+                alert("Format error. Please use standard SRT.");
             }
         }
 
         function parseSRT(data) {
-            // ROBUST LINE-BY-LINE PARSER
             const lines = data.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
             const subs = [];
             let currentStart = null;
@@ -628,22 +644,20 @@
             let currentText = [];
 
             lines.forEach(line => {
-                // Check for timestamp: 00:00:00,000 --> 00:00:00,000 (comma or dot)
                 const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[,.]\d{3})\s-->\s(\d{1,2}:\d{2}:\d{2}[,.]\d{3})/);
-
                 if (timeMatch) {
                     if (currentStart !== null && currentText.length > 0) {
-                        subs.push({ start: currentStart, end: currentEnd, text: currentText.join(' ') });
+                        subs.push({ start: timeToSeconds(timeMatch[1]), end: timeToSeconds(timeMatch[2]), text: currentText.join(' ') }); // Pushes PREVIOUS sub
+                        currentText = []; // Clear for next
                     }
                     currentStart = timeToSeconds(timeMatch[1]);
                     currentEnd = timeToSeconds(timeMatch[2]);
-                    currentText = [];
                 } else if (currentStart !== null && line.trim() !== '' && !line.match(/^\d+$/)) {
                     currentText.push(line.trim());
                 }
             });
-            // Push last
-            if (currentStart !== null) {
+            // Push final
+            if (currentStart !== null && currentText.length > 0) {
                  subs.push({ start: currentStart, end: currentEnd, text: currentText.join(' ') });
             }
             return subs;
@@ -652,11 +666,8 @@
         function timeToSeconds(timeString) {
             const parts = timeString.replace(',', '.').split(':');
             let seconds = 0;
-            if (parts.length === 3) {
-                seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-            } else if (parts.length === 2) {
-                seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
-            }
+            if (parts.length === 3) seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+            else if (parts.length === 2) seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
             return seconds;
         }
 
@@ -664,12 +675,12 @@
             if (!activePlayer || !activePlayer.getCurrentTime || currentSubtitles.length === 0) return;
             const t = activePlayer.getCurrentTime();
             const sub = currentSubtitles.find(s => t >= s.start && t <= s.end);
-            const box = document.getElementById('subtitle-text');
-            if (sub) {
-                box.innerText = sub.text;
-                box.style.opacity = 1;
-            } else {
-                box.innerText = "";
+            
+            // SMART RENDER: Only update DOM if text changed
+            const newText = sub ? sub.text : "";
+            if (newText !== lastRenderedSub) {
+                document.getElementById('subtitle-text').innerText = newText;
+                lastRenderedSub = newText;
             }
         }
 
