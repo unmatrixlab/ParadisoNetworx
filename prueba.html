@@ -135,7 +135,7 @@
         /* ====== MODERN EDITOR MODAL ====== */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7); /* Dark overlay, no blur for clear view */
+            background: rgba(0, 0, 0, 0.7);
             z-index: 2000;
             display: none; align-items: center; justify-content: center;
         }
@@ -146,19 +146,55 @@
             box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
             display: flex; overflow: hidden;
             flex-direction: column;
-            transition: opacity 0.1s;
+            transition: all 0.2s ease-in-out; /* Smooth transition for sizing */
             
-            /* MOBILE DEFAULTS (Full Screen) */
+            /* MOBILE DEFAULTS */
             width: 100%; 
             height: 100%;
             max-width: none;
             border-radius: 0;
         }
 
-        .desktop-video-container { display: none; background: #000; }
+        /* --- DESKTOP MEDIA QUERY & FULLSCREEN CLASS --- */
+        @media (min-width: 900px) {
+            .editor-popup { 
+                width: 95%; max-width: 1300px; height: 85vh; 
+                flex-direction: row; 
+                border-radius: 18px;
+            }
+            
+            /* CLASE PARA PANTALLA COMPLETA EN DESKTOP */
+            .editor-popup.is-fullscreen {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: none !important;
+                border-radius: 0 !important;
+            }
+        }
+
+        .desktop-video-container { 
+            display: none; 
+            background: #000; 
+            /* CORRECCIÓN: Flex para centrar el video y evitar deformación */
+            align-items: center; 
+            justify-content: center;
+        }
+        
+        @media (min-width: 900px) {
+            .desktop-video-container { 
+                display: flex; /* Use flex to center the iframe */
+                flex: 1; 
+                position: relative; 
+                transition: flex 0.1s; 
+            }
+            .editor-content-panel { flex: 1; border-left: 1px solid #e5e5ea; }
+            .opacity-control-group { display: none !important; }
+            .resizer-container { display: flex; } 
+        }
+
         .editor-content-panel { flex: 1; display: flex; flex-direction: column; height: 100%; background: white; }
 
-        /* --- DESKTOP RESIZER --- */
+        /* --- RESIZER --- */
         .resizer-container {
             display: none; padding: 0 15px; align-items: center; gap: 10px;
             border-right: 1px solid #e5e5ea; margin-right: 10px;
@@ -181,19 +217,6 @@
             border-radius: 5px; height: 6px;
         }
 
-        /* DESKTOP MEDIA QUERY */
-        @media (min-width: 900px) {
-            .editor-popup { 
-                width: 95%; max-width: 1300px; height: 85vh; 
-                flex-direction: row; 
-                border-radius: 18px;
-            }
-            .desktop-video-container { display: block; flex: 1; position: relative; transition: flex 0.1s; }
-            .editor-content-panel { flex: 1; border-left: 1px solid #e5e5ea; }
-            .opacity-control-group { display: none !important; }
-            .resizer-container { display: flex; } 
-        }
-
         .editor-header {
             padding: 10px 16px; background: rgba(255,255,255,0.95); border-bottom: 1px solid #e5e5ea;
             display: flex; justify-content: space-between; align-items: center;
@@ -208,6 +231,8 @@
             transition: all 0.2s;
         }
         .btn-header-icon:hover { background: #e5e5ea; color: #1c1c1e; }
+        /* Estado activo para el botón de pantalla completa */
+        .btn-header-icon.active { background: var(--primary); color: white; }
 
         /* === FIXED SCROLLABLE TOOLBAR === */
         .editor-toolbar {
@@ -453,7 +478,7 @@
                             <input type="range" class="resizer-input" min="20" max="80" value="30" oninput="resizeLayout(this.value)">
                         </div>
                         
-                        <button class="btn-header-icon" onclick="toggleFullScreen()" title="Full Screen">⛶</button>
+                        <button class="btn-header-icon" id="btn-fullscreen" onclick="toggleEditorFullScreen()" title="Expand Editor">⛶</button>
                         <button class="btn-header-icon" onclick="closeEditor()" title="Close">&times;</button>
                     </div>
                 </div>
@@ -588,17 +613,12 @@
             initVoices();
         });
 
-        // === NEW: FULLSCREEN TOGGLE ===
-        function toggleFullScreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    alert(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
-            }
+        // === NEW: EXPAND EDITOR TO FULLSCREEN (DOM) ===
+        function toggleEditorFullScreen() {
+            const popup = document.getElementById('editor-popup');
+            const btn = document.getElementById('btn-fullscreen');
+            popup.classList.toggle('is-fullscreen');
+            btn.classList.toggle('active');
         }
 
         // === VOICE HANDLING ===
@@ -795,24 +815,23 @@
             document.querySelector('.resizer-input').value = 30;
             resizeLayout(30);
 
-            // === UPDATE FOR NO AUTO-PLAY ===
-            // Autoplay is set to 0, and we DO NOT call playVideo() automatically
+            // === UPDATE: NO AUTOPLAY & CLEAN CONTAINER ===
             if (isDesktop) {
                 let startTime = videoData.lastTime || 0;
                 if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function') { startTime = gridPlayer.getCurrentTime(); gridPlayer.pauseVideo(); }
-                document.getElementById('desktop-video-wrapper').innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
+                document.getElementById('desktop-video-wrapper').innerHTML = '<div id="desktop-player-target"></div>'; // Cleaner init
                 modalPlayer = new YT.Player('desktop-player-target', {
                     width: '100%', height: '100%', videoId: currentVideoId,
-                    playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, // CHANGED TO 0
+                    playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, // NO AUTOPLAY
                     events: {
-                        'onReady': (e) => { activePlayer = modalPlayer; }, // REMOVED playVideo()
+                        'onReady': (e) => { activePlayer = modalPlayer; }, // No playVideo call
                         'onStateChange': (e) => onPlayerStateChange(e, currentVideoId, modalPlayer)
                     }
                 });
             } else { 
                 if (gridPlayer) {
                     activePlayer = gridPlayer;
-                    gridPlayer.pauseVideo(); // Force pause if coming from grid
+                    gridPlayer.pauseVideo();
                 }
             }
             updateToolbarState();
@@ -824,6 +843,11 @@
             const videos = JSON.parse(localStorage.getItem(STORAGE_KEY));
             renderGrid(videos); 
             modal.classList.remove('active'); 
+            
+            // Remove fullscreen if active
+            document.getElementById('editor-popup').classList.remove('is-fullscreen');
+            document.getElementById('btn-fullscreen').classList.remove('active');
+
             currentEditIndex = -1;
             activePlayer = null;
             gridPlayer = null;
