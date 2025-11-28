@@ -20,7 +20,7 @@
             --shadow-card: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             --header-height: 60px;
             --radius: 16px;
-            --highlight-bg: #fef9c3; /* Amarillo crema */
+            --highlight-bg: #fef9c3;
             --highlight-border: #fde047;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -79,6 +79,19 @@
         .mini-translate-btn:hover { background: var(--primary-hover); }
         .rotating { animation: spin 0.8s linear infinite; }
         @keyframes spin { 100% { transform: translateY(-50%) rotate(360deg); } }
+
+        /* Specific styles for inline translate btn in list */
+        .mini-translate-btn.inline-trans {
+            position: static; transform: none; display: inline-flex; width: 30px; height: 30px; margin-top: 6px;
+        }
+        .mini-translate-btn.inline-trans.rotating { animation: spinInline 0.8s linear infinite; }
+        @keyframes spinInline { 100% { transform: rotate(360deg); } }
+        
+        /* Auto Translate Loading Indicator */
+        .auto-translating-indicator {
+            font-size: 0.75rem; color: var(--primary); font-weight: 600; font-style: italic; display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; animation: pulseText 1.5s infinite;
+        }
+        @keyframes pulseText { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
         .btn-save { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 5px; transition: 0.2s; }
         .btn-save:hover { background: var(--primary-hover); }
@@ -184,6 +197,7 @@
         .action-btn.edit { color: #3b82f6; }
         .action-btn.save-edit { color: var(--success); }
         .action-btn.move-folder { color: #8b5cf6; } 
+        .action-btn.copy-folder { color: #0891b2; } /* Cian color for Copy */
         
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
         .empty-state { text-align: center; color: var(--text-muted); margin-top: 30px; font-style: italic; }
@@ -366,7 +380,7 @@
         const RATE_KEY_ES = 'mdc_rate_es';
         const RATE_KEY_EN = 'mdc_rate_en';
         const SKIP_KEY = 'mdc_skip_spanish';
-        const HIDE_TEXT_KEY = 'mdc_hide_text_val'; // New Key
+        const HIDE_TEXT_KEY = 'mdc_hide_text_val'; 
         
         const listContainer = document.getElementById('vocab-list');
         const voiceSelectEs = document.getElementById('voiceSelectEs');
@@ -376,7 +390,7 @@
         const rateDisplayEs = document.getElementById('rateDisplayEs');
         const rateDisplayEn = document.getElementById('rateDisplayEn');
         const skipCheck = document.getElementById('skipSpanishCheck');
-        const hideTextCheck = document.getElementById('hideTextCheck'); // New Element
+        const hideTextCheck = document.getElementById('hideTextCheck');
         const inputEng = document.getElementById('inputEng');
         const inputEsp = document.getElementById('inputEsp');
         const btnEng = document.getElementById('btnEng');
@@ -391,13 +405,18 @@
         let editingId = null; 
         let openFolderId = null; 
         let skipSpanish = false;
-        let hideText = false; // New Variable
+        let hideText = false; 
         let pressTimer; 
         let movingItemId = null; 
+        let lastStorageString = ""; // To track external changes
+
+        // Translation Queue
+        let translationQueue = [];
+        let isTranslating = false;
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        // --- 0. UI LOGIC ---
+        // --- UI LOGIC ---
         function updateTranslateButtons() {
             const hasEng = inputEng.value.trim() !== ""; const hasEsp = inputEsp.value.trim() !== "";
             btnEng.classList.remove('visible'); btnEsp.classList.remove('visible');
@@ -422,15 +441,12 @@
             };
             populate(voiceSelectEs, 'es', VOICE_KEY_ES); populate(voiceSelectEn, 'en', VOICE_KEY_EN);
             
-            // Restore Rates
             const rateEs = localStorage.getItem(RATE_KEY_ES) || "1.0"; const rateEn = localStorage.getItem(RATE_KEY_EN) || "1.0";
             rateRangeEs.value = rateEs; rateDisplayEs.textContent = rateEs; rateRangeEn.value = rateEn; rateDisplayEn.textContent = rateEn;
             
-            // Restore Skip Audio Setting
             skipSpanish = localStorage.getItem(SKIP_KEY) === 'true';
             skipCheck.checked = skipSpanish;
 
-            // Restore Hide Text Setting (New)
             hideText = localStorage.getItem(HIDE_TEXT_KEY) === 'true';
             hideTextCheck.checked = hideText;
             applyHideText();
@@ -447,8 +463,6 @@
             skipSpanish = skipCheck.checked;
             localStorage.setItem(SKIP_KEY, skipSpanish);
         }
-        
-        // --- NEW: TOGGLE HIDE TEXT FUNCTION ---
         function toggleHideText() {
             hideText = hideTextCheck.checked;
             localStorage.setItem(HIDE_TEXT_KEY, hideText);
@@ -461,23 +475,149 @@
                 document.body.classList.remove('hide-es-text');
             }
         }
-
         window.speechSynthesis.onvoiceschanged = populateVoices;
 
-        // --- 2. TRANSLATION ---
+        // --- 2. TRANSLATION ENGINE ---
+        async function fetchTranslationHelper(text, fromLang, toLang) {
+            try {
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${fromLang}&tl=${toLang}&dt=t&q=${encodeURIComponent(text)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data && data[0]) {
+                    return data[0].map(s => s[0]).join('');
+                }
+            } catch (err) {
+                console.warn("Google Translate failed", err);
+            }
+            return null;
+        }
+
         async function bidirectionalTranslate() {
-            let sourceText = ""; let langPair = ""; let targetInput = null; let activeBtn = null;
-            if (inputEng.value.trim() !== "") { sourceText = inputEng.value.trim(); langPair = "en|es"; targetInput = inputEsp; activeBtn = btnEng; } 
-            else if (inputEsp.value.trim() !== "") { sourceText = inputEsp.value.trim(); langPair = "es|en"; targetInput = inputEng; activeBtn = btnEsp; } 
-            else return;
+            let sourceText = ""; let from = ""; let to = ""; let targetInput = null; let activeBtn = null;
+            if (inputEng.value.trim() !== "") { 
+                sourceText = inputEng.value.trim(); from = "en"; to = "es"; targetInput = inputEsp; activeBtn = btnEng; 
+            } else if (inputEsp.value.trim() !== "") { 
+                sourceText = inputEsp.value.trim(); from = "es"; to = "en"; targetInput = inputEng; activeBtn = btnEsp; 
+            } else return;
             
             const svgIcon = activeBtn.querySelector('svg'); svgIcon.classList.add('rotating'); 
+            const result = await fetchTranslationHelper(sourceText, from, to);
+            if (result) {
+                targetInput.value = result;
+                updateTranslateButtons();
+            }
+            svgIcon.classList.remove('rotating');
+        }
+
+        // --- QUEUE SYSTEM ---
+        function addToTranslationQueue(item, parentId) {
+            if (translationQueue.some(q => q.item.id === item.id)) return;
+            translationQueue.push({ item, parentId });
+            
+            // Visual feedback
+            const card = document.getElementById(`card-wrapper-${item.id}`);
+            if (card) {
+                const transDiv = card.querySelector('.text-content');
+                if (!card.querySelector('.auto-translating-indicator')) {
+                    // Hide manual button if exists
+                    const existingBtn = card.querySelector('.mini-translate-btn');
+                    if(existingBtn) existingBtn.style.display = 'none';
+                    
+                    const spinner = document.createElement('div');
+                    spinner.className = 'auto-translating-indicator';
+                    spinner.innerHTML = 'Translating...';
+                    transDiv.appendChild(spinner);
+                }
+            }
+            processTranslationQueue();
+        }
+
+        async function processTranslationQueue() {
+            if (isTranslating || translationQueue.length === 0) return;
+            isTranslating = true;
+
+            const { item, parentId } = translationQueue.shift();
+
             try {
-                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(sourceText)}&langpair=${langPair}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (data && data.responseData) { targetInput.value = data.responseData.translatedText; updateTranslateButtons(); }
-            } catch (error) { console.error(error); } finally { svgIcon.classList.remove('rotating'); }
+                const result = await fetchTranslationHelper(item.eng, 'en', 'es');
+                if (result) {
+                    // Re-read storage to ensure we don't overwrite concurrent changes
+                    let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    let updated = false;
+
+                    if (parentId) {
+                        let folder = currentItems.find(f => f.id === parentId);
+                        if (folder) {
+                            let target = folder.items.find(i => i.id === item.id);
+                            if (target) { target.esp = result; updated = true; }
+                        }
+                    } else {
+                        let target = currentItems.find(i => i.id === item.id);
+                        if (target) { target.esp = result; updated = true; }
+                    }
+
+                    if (updated) {
+                        saveData(currentItems, false); // Save without rescan to avoid infinite loop
+                    }
+                }
+            } catch (e) {
+                console.error("Trans error", e);
+            }
+
+            // Delay for rate limiting
+            setTimeout(() => {
+                isTranslating = false;
+                processTranslationQueue();
+            }, 300);
+        }
+
+        function scanAndTranslateMissing(items) {
+            items.forEach(item => {
+                if (item.isFolder) {
+                    item.items.forEach(subItem => {
+                        if (!subItem.esp || subItem.esp.trim() === "") {
+                            addToTranslationQueue(subItem, item.id);
+                        }
+                    });
+                } else {
+                    if (!item.esp || item.esp.trim() === "") {
+                        addToTranslationQueue(item, null);
+                    }
+                }
+            });
+        }
+
+        // --- NEW: ROBUST STORAGE WATCHER ---
+        function startStorageWatcher() {
+            // Check every 2s for changes made by other tabs/pages
+            setInterval(() => {
+                const currentString = localStorage.getItem(STORAGE_KEY);
+                if (currentString && currentString !== lastStorageString) {
+                    // console.log("Watcher detected external change");
+                    loadVocab(); // Reload and Scan
+                }
+            }, 2000);
+        }
+
+        async function translateItem(id, parentId) {
+             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+             let item;
+             if (parentId) {
+                 let folder = items.find(i => i.id === parentId);
+                 if (folder) item = folder.items.find(i => i.id === id);
+             } else {
+                 item = items.find(i => i.id === id);
+             }
+             if (!item) return;
+             addToTranslationQueue(item, parentId);
+        }
+
+        function copyFolderEnglish(fid) {
+            const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const folder = items.find(i => i.id === fid);
+            if (!folder || !folder.items.length) return;
+            const text = folder.items.map(i => i.eng).join(', ');
+            navigator.clipboard.writeText(text).then(() => alert('English words copied to clipboard!'));
         }
 
         // --- 3. AUDIO LOGIC ---
@@ -511,41 +651,27 @@
             });
         }
 
-        // --- SINGLE ITEM PLAYBACK (WITH TOGGLE & SKIP) ---
         async function playSingleSequence(itemId) {
-            // If clicking the same item that is playing, STOP it (Toggle)
-            if (currentlyPlayingItemId === itemId) {
-                stopPlayback();
-                return;
-            }
-
-            stopPlayback(); // Stop anything else running (Folder or other item)
-            currentlyPlayingItemId = itemId;
-            
-            // Update Icon to Stop
-            updateSingleButtonIcon(itemId, true); 
+            if (currentlyPlayingItemId === itemId) { stopPlayback(); return; }
+            stopPlayback(); currentlyPlayingItemId = itemId; updateSingleButtonIcon(itemId, true); 
 
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item = items.find(i => i.id === itemId && !i.isFolder);
             if (!item) items.forEach(f => { if (f.isFolder) { const found = f.items.find(s => s.id === itemId); if (found) item = found; } });
             
             if (!item) { stopPlayback(); return; }
-            
             const cardEl = document.getElementById(`card-wrapper-${itemId}`);
             if(cardEl) cardEl.classList.add('playing-highlight');
 
-            // Sequence
             await speak(item.eng, 'en-US');
-            
-            if (currentlyPlayingItemId !== itemId) return; // Check if stopped during english
+            if (currentlyPlayingItemId !== itemId) return; 
 
             if (!skipSpanish) {
                 await new Promise(r => setTimeout(r, 600));
                 if (currentlyPlayingItemId !== itemId) return;
                 if (item.esp) await speak(item.esp, 'es-ES');
             }
-            
-            stopPlayback(); // Reset state when done
+            stopPlayback(); 
         }
 
         function updateSingleButtonIcon(itemId, isPlaying) {
@@ -553,51 +679,34 @@
             if(btn) {
                 if(isPlaying) {
                     btn.classList.add('single-playing');
-                    // Square Icon (Stop)
                     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg>`;
                 } else {
                     btn.classList.remove('single-playing');
-                    // Speaker Icon (Play)
                     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
                 }
             }
         }
 
-        // --- FOLDER PLAYBACK ENGINE ---
         function toggleFolderPlayback(folderId) {
             if (playbackState.folderId === folderId) {
                 if (playbackState.status === 'playing') {
-                    playbackState.status = 'paused';
-                    window.speechSynthesis.cancel();
-                    updatePlaybackUI();
+                    playbackState.status = 'paused'; window.speechSynthesis.cancel(); updatePlaybackUI();
                 } else if (playbackState.status === 'paused') {
-                    playbackState.status = 'playing';
-                    if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); }
-                    playLoop();
-                    updatePlaybackUI();
+                    playbackState.status = 'playing'; if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); } playLoop(); updatePlaybackUI();
                 }
             } else {
-                stopPlayback();
-                playbackState = { folderId: folderId, index: 0, status: 'playing' };
-                if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); }
-                playLoop();
-                updatePlaybackUI();
+                stopPlayback(); playbackState = { folderId: folderId, index: 0, status: 'playing' };
+                if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); } playLoop(); updatePlaybackUI();
             }
         }
 
         function stopPlayback() {
-            // Reset Single Item
             if (currentlyPlayingItemId) {
-                const prevId = currentlyPlayingItemId;
-                currentlyPlayingItemId = null;
-                const cardEl = document.getElementById(`card-wrapper-${prevId}`);
-                if(cardEl) cardEl.classList.remove('playing-highlight');
+                const prevId = currentlyPlayingItemId; currentlyPlayingItemId = null;
+                const cardEl = document.getElementById(`card-wrapper-${prevId}`); if(cardEl) cardEl.classList.remove('playing-highlight');
                 updateSingleButtonIcon(prevId, false);
             }
-
-            // Reset Folder
             playbackState = { folderId: null, index: 0, status: 'idle' };
-            
             window.speechSynthesis.cancel();
             document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
             updatePlaybackUI(); 
@@ -605,18 +714,12 @@
 
         async function playLoop() {
             if (playbackState.status !== 'playing') return;
-
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folder = items.find(i => i.id === playbackState.folderId);
-            
-            if (!folder || playbackState.index >= folder.items.length) {
-                stopPlayback(); 
-                return;
-            }
+            if (!folder || playbackState.index >= folder.items.length) { stopPlayback(); return; }
 
             const item = folder.items[playbackState.index];
             const cardEl = document.getElementById(`card-wrapper-${item.id}`);
-            
             if (cardEl) {
                 document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
                 cardEl.classList.add('playing-highlight');
@@ -626,40 +729,32 @@
             try {
                 await speak(item.eng, 'en-US');
                 if (playbackState.status !== 'playing') return; 
-                
                 if (!skipSpanish) {
                     await new Promise(r => setTimeout(r, 1000));
                     if (playbackState.status !== 'playing') return;
-
                     await speak(item.esp || ' ', 'es-ES');
                     if (playbackState.status !== 'playing') return;
                 }
-
                 await new Promise(r => setTimeout(r, 1000));
                 if (playbackState.status !== 'playing') return;
-
-                playbackState.index++;
-                playLoop(); 
-            } catch (e) {
-                stopPlayback();
-            }
+                playbackState.index++; playLoop(); 
+            } catch (e) { stopPlayback(); }
         }
 
         function updatePlaybackUI() {
             document.querySelectorAll('.play-folder').forEach(btn => {
                 btn.classList.remove('active-play', 'playing');
-                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; // Play
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; 
             });
             document.querySelectorAll('.stop-folder').forEach(btn => btn.classList.remove('visible'));
 
             if (playbackState.status !== 'idle' && playbackState.folderId) {
                 const playBtn = document.querySelector(`.play-btn-${playbackState.folderId}`);
                 const stopBtn = document.querySelector(`.stop-btn-${playbackState.folderId}`);
-                
                 if (playBtn) {
                     if (playbackState.status === 'playing') {
                         playBtn.classList.add('active-play');
-                        playBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`; // Pause
+                        playBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`; 
                     } else {
                         playBtn.classList.add('playing'); 
                         playBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`; 
@@ -669,13 +764,23 @@
             }
         }
 
-        // --- DATA & UI HELPERS ---
+        // --- DATA HELPERS ---
         function loadVocab() {
             const saved = localStorage.getItem(STORAGE_KEY);
+            lastStorageString = saved; // Update tracker
             const items = saved ? JSON.parse(saved) : [];
             renderList(items); populateVoices();
+            scanAndTranslateMissing(items); // ALWAYS SCAN ON LOAD
         }
-        function saveData(items) { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); renderList(items); }
+        
+        function saveData(items, shouldScan = true) { 
+            const stringified = JSON.stringify(items);
+            localStorage.setItem(STORAGE_KEY, stringified); 
+            lastStorageString = stringified; // Update tracker
+            renderList(items);
+            if (shouldScan) scanAndTranslateMissing(items); 
+        }
+
         function addVocab() {
             const eng = inputEng.value.trim(); const esp = inputEsp.value.trim();
             if (!eng) { alert("English required"); return; }
@@ -690,18 +795,11 @@
             saveData(items);
         }
         
-        // --- LONG PRESS LOGIC (HIGHLIGHT) ---
         function startLongPress(element, id, parentId) {
             if (editingId === id) return; 
-
-            // FIX 1: INCREASED TIME TO 1.2s TO ALLOW TEXT SELECTION
-            pressTimer = setTimeout(() => {
-                toggleHighlight(id, parentId);
-            }, 1200); 
+            pressTimer = setTimeout(() => { toggleHighlight(id, parentId); }, 1200); 
         }
-        function endLongPress() {
-            clearTimeout(pressTimer);
-        }
+        function endLongPress() { clearTimeout(pressTimer); }
         function toggleHighlight(id, parentId = null) {
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item;
@@ -711,7 +809,6 @@
             } else {
                 item = items.find(i => i.id === id);
             }
-            
             if(item) {
                 item.isHighlighted = !item.isHighlighted;
                 saveData(items);
@@ -719,91 +816,54 @@
             }
         }
 
-        // --- NEW MODAL MOVE LOGIC (SMART CONTEXT) ---
         function openMoveModal(itemId) {
             movingItemId = itemId;
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folders = items.filter(i => i.isFolder);
-            
-            modalList.innerHTML = ''; // Clear previous
-            
-            if(folders.length === 0) {
-                alert("Create a folder first!");
-                return;
-            }
-
-            // CHECK: Is the item currently in the root list?
+            modalList.innerHTML = ''; 
+            if(folders.length === 0) { alert("Create a folder first!"); return; }
             const isItemInRoot = items.some(i => i.id === itemId && !i.isFolder);
-
             if (!isItemInRoot) {
                 const btnRoot = document.createElement('div');
                 btnRoot.className = 'modal-option';
-                btnRoot.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                    Lista Principal (Sacar)
-                `;
+                btnRoot.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Lista Principal (Sacar)`;
                 btnRoot.onclick = () => confirmMove(0);
                 modalList.appendChild(btnRoot);
             }
-
-            // Options: Folders
             folders.forEach((f) => {
                 const btnFolder = document.createElement('div');
                 btnFolder.className = 'modal-option';
-                btnFolder.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    ${f.name}
-                `;
+                btnFolder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>${f.name}`;
                 btnFolder.onclick = () => confirmMove(f.id);
                 modalList.appendChild(btnFolder);
             });
-
             moveModal.style.display = 'flex';
         }
-
-        function closeModal() {
-            moveModal.style.display = 'none';
-            movingItemId = null;
-        }
+        function closeModal() { moveModal.style.display = 'none'; movingItemId = null; }
 
         function confirmMove(targetFolderId) {
             if(!movingItemId) return;
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folders = items.filter(i => i.isFolder);
-
-            // Find source item
             let itemIndexRoot = items.findIndex(i => i.id === movingItemId && !i.isFolder);
-            let sourceFolder = null;
-            let itemToMove = null;
+            let sourceFolder = null; let itemToMove = null;
 
-            if (itemIndexRoot !== -1) {
-                itemToMove = items[itemIndexRoot];
-            } else {
+            if (itemIndexRoot !== -1) { itemToMove = items[itemIndexRoot]; } 
+            else {
                 for (let f of folders) {
                     const idx = f.items.findIndex(i => i.id === movingItemId);
-                    if (idx !== -1) {
-                        itemToMove = f.items[idx];
-                        sourceFolder = f;
-                        break;
-                    }
+                    if (idx !== -1) { itemToMove = f.items[idx]; sourceFolder = f; break; }
                 }
             }
 
             if(itemToMove) {
-                // Remove from source
-                if (sourceFolder) {
-                    sourceFolder.items = sourceFolder.items.filter(i => i.id !== movingItemId);
-                } else {
-                    items.splice(itemIndexRoot, 1);
-                }
+                if (sourceFolder) { sourceFolder.items = sourceFolder.items.filter(i => i.id !== movingItemId); } 
+                else { items.splice(itemIndexRoot, 1); }
 
-                // Add to target
-                if (targetFolderId === 0) {
-                    items.unshift(itemToMove);
-                } else {
+                if (targetFolderId === 0) { items.unshift(itemToMove); } 
+                else {
                     const target = folders.find(f => f.id === targetFolderId);
-                    if(target) target.items.unshift(itemToMove);
-                    else items.unshift(itemToMove); // Fallback
+                    if(target) target.items.unshift(itemToMove); else items.unshift(itemToMove); 
                 }
                 saveData(items);
             }
@@ -832,6 +892,7 @@
             else { const item = items.find(i => i.id === id); if(item) { item.eng = engVal; item.esp = espVal; } }
             saveData(items); editingId = null;
         }
+        
         function createFolder() {
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const loose = items.filter(i => !i.isFolder); const folders = items.filter(i => i.isFolder);
@@ -876,6 +937,7 @@
                                 <span>${item.name} (${item.items.length})</span>
                             </div>
                             <div class="actions">
+                                <button class="action-btn copy-folder" onclick="event.stopPropagation(); copyFolderEnglish(${item.id})" title="Copy English Words"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
                                 <button class="action-btn" onclick="event.stopPropagation(); renameFolder(${item.id})" title="Rename"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg></button>
                                 <button class="action-btn stop-folder stop-btn-${item.id}" onclick="stopPlayback()" title="Stop & Reset"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"></rect></svg></button>
                                 <button class="action-btn play-folder play-btn-${item.id}" onclick="toggleFolderPlayback(${item.id})" title="Play/Pause"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
@@ -889,14 +951,11 @@
                     const card = document.createElement('div'); 
                     card.className = `vocab-card ${item.isHighlighted ? 'highlighted' : ''}`; 
                     card.id = `card-wrapper-${item.id}`;
-                    
-                    // LONG PRESS HANDLERS
                     card.onmousedown = () => startLongPress(card, item.id, null);
                     card.ontouchstart = () => startLongPress(card, item.id, null);
                     card.onmouseup = endLongPress;
                     card.onmouseleave = endLongPress;
                     card.ontouchend = endLongPress;
-
                     card.innerHTML = generateCardHTML(item, null, true); 
                     listContainer.appendChild(card);
                 }
@@ -913,13 +972,23 @@
             const editAction = parentId ? `toggleEdit(${item.id}, ${parentId})` : `toggleEdit(${item.id})`;
             const highlightClass = item.isHighlighted ? 'highlighted' : '';
             
-            // Link to Open Modal instead of prompt
             let moveButtonHTML = `<button class="action-btn move-folder" onclick="event.stopPropagation(); openMoveModal(${item.id})"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><polyline points="9 14 12 17 15 14"></polyline></svg></button>`;
+
+            let translationHTML = '';
+            if (item.esp && item.esp.trim() !== "") {
+                translationHTML = `<div class="spanish-translation">${item.esp}</div>`;
+            } else {
+                translationHTML = `<button id="btn-trans-${item.id}" class="mini-translate-btn visible inline-trans" onclick="event.stopPropagation(); translateItem(${item.id}, ${parentId})" title="Translate">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                </button>`;
+            }
 
             const innerContent = `
                 <div class="text-content">
                     <div class="english-phrase">${interactiveHTML}</div>
-                    ${item.esp ? `<div class="spanish-translation">${item.esp}</div>` : ''}
+                    ${translationHTML}
                 </div>
                 <div class="actions">
                     ${moveButtonHTML}
@@ -971,16 +1040,11 @@
             if(newItems.length > 0) { const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); const combined = [...newItems, ...current]; saveData(combined); pasteText.value = ""; togglePasteDrawer(); alert(`Added ${newItems.length} items!`); }
         }
 
-        // --- NEW: AUTO-RELOAD ON DATABASE CHANGE ---
-        // Listen for storage events (changes made in other tabs)
-        window.addEventListener('storage', function(e) {
-            if (e.key === STORAGE_KEY) {
-                loadVocab(); // Reload list automatically
-            }
-        });
-
         document.getElementById('inputEsp').addEventListener('keypress', function (e) { if (e.key === 'Enter') addVocab(); });
-        document.addEventListener('DOMContentLoaded', loadVocab);
+        document.addEventListener('DOMContentLoaded', () => {
+            loadVocab();
+            startStorageWatcher();
+        });
     </script>
 </body>
 </html>
