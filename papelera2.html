@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v5.2 (Persistence)</title>
+    <title>MDC Studio Suite v5.3 (Fixed Save)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         /* === ESTILOS DE LA HERRAMIENTA (GENERADOR) === */
@@ -349,11 +349,10 @@
     const TIME_OFFSET = 0.2; const END_PADDING = 0.5; const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     const YOUTUBE_ID = '`;
         
-        // --- AQUÍ ESTÁ LA NUEVA LÓGICA DE PERSISTENCIA Y GUARDADO LIMPIO ---
+        // --- LOGICA CORREGIDA PARA EL GUARDADO DE PALABRAS ---
         const TPL_SCRIPT_END = `';
     const VIDEO_TITLE = '%%VIDEO_TITLE%%';
     
-    // Storage Keys
     const STORAGE_KEY_ENG = 'mdc_eng_' + YOUTUBE_ID;
     const STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID;
     const STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
@@ -366,39 +365,47 @@
     let currentPlaybackRate = 1.0;
     let allVisible = false;
 
-    // --- FUNCIÓN DE GUARDADO (SIMPLIFICADA: TEXTO PLANO + CARPETAS) ---
+    // --- FUNCIÓN DE GUARDADO CORREGIDA: SEPARA PALABRAS Y QUITA TRADUCCIÓN ---
     function saveLineToVocab(btn) {
         const line = btn.closest('.line');
         const vocabKey = 'mdc_vocab_list';
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        // Detectar si hay palabras seleccionadas en ESTA línea
-        const selectedSpans = line.querySelectorAll('.english-word.selected-word');
-        let engText;
+        // BUSCAMOS PALABRAS SELECCIONADAS (ROJO) O ACTIVAS (AZUL)
+        const selectedSpans = line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word');
+        let itemsToAdd = [];
 
         if (selectedSpans.length > 0) {
-            // Si hay selección, unimos las palabras elegidas
-            engText = Array.from(selectedSpans).map(s => s.innerText).join(' ');
+            // CASO A: HAY SELECCIÓN. Guardar cada palabra por separado y SIN traducción.
+            selectedSpans.forEach(span => {
+                itemsToAdd.push({
+                    eng: span.innerText.trim(),
+                    esp: "", // Traducción vacía requerida
+                    id: Date.now() + Math.random(), 
+                    isFolder: false, 
+                    isHighlighted: false 
+                });
+            });
         } else {
-             // Si no, guardamos la frase completa
-            engText = line.querySelector('.english').innerText.trim();
+             // CASO B: FRASE COMPLETA.
+            const engText = line.querySelector('.english').innerText.trim();
+            const espText = line.querySelector('.spanish').innerText.trim();
+            itemsToAdd.push({
+                eng: engText,
+                esp: espText,
+                id: Date.now(),
+                isFolder: false,
+                isHighlighted: false
+            });
         }
-
-        let espText = line.querySelector('.spanish').innerText.trim();
-        
-        const newItem = { 
-            eng: engText, 
-            esp: espText, 
-            id: Date.now(), 
-            isFolder: false, 
-            isHighlighted: false 
-        };
 
         const targetFolderName = VIDEO_TITLE || "Saved from Video";
         let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
 
         if (targetFolder) {
-            targetFolder.items.unshift(newItem);
+            // Invertimos para que aparezcan en orden lógico al agregarse arriba
+            itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item));
+            
             items = items.filter(i => i.id !== targetFolder.id);
             items.unshift(targetFolder);
         } else {
@@ -406,7 +413,7 @@
                 id: Date.now() + 1,
                 isFolder: true,
                 name: targetFolderName,
-                items: [newItem]
+                items: itemsToAdd
             };
             items.unshift(newFolder);
         }
@@ -422,16 +429,12 @@
         }, 1000);
     }
 
-    // --- CARGA DE PREFERENCIAS PERSISTENTES ---
     function loadPreferences() {
-        // Velocidad
         const sSpeed = localStorage.getItem(PREF_SPEED);
         if(sSpeed) {
             currentPlaybackRate = parseFloat(sSpeed);
             document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x';
         }
-
-        // AutoScroll
         const sScroll = localStorage.getItem(PREF_SCROLL);
         if(sScroll !== null) {
             autoScroll = (sScroll === 'true');
@@ -439,27 +442,19 @@
             btn.style.color = autoScroll ? '#4f46e5' : 'white';
             btn.style.opacity = autoScroll ? '1' : '0.5';
         }
-
-        // Traducciones (Ojo)
         const sTrans = localStorage.getItem(PREF_TRANS);
         if(sTrans === 'true') {
             allVisible = true;
             document.getElementById('btn-toggle-trans').style.color = '#4f46e5';
-            // Se aplicará al renderizar DOMContentLoaded o initInteractiveWords
-            // Aquí solo seteamos la bandera, más abajo se aplican las clases
         }
     }
     
-    // Llamar a loadPreferences inmediatamente
     loadPreferences();
 
     function cycleSpeed() {
         currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
         if (currentPlaybackRate < 0.6) currentPlaybackRate = 1.0;
-        
-        // Guardar preferencia
         localStorage.setItem(PREF_SPEED, currentPlaybackRate);
-        
         if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate);
         const btn = document.getElementById('btn-speed');
         if(btn) btn.innerText = currentPlaybackRate + 'x';
@@ -467,9 +462,7 @@
 
     function toggleAutoScroll() {
         autoScroll = !autoScroll;
-        // Guardar preferencia
         localStorage.setItem(PREF_SCROLL, autoScroll);
-        
         const btn = document.getElementById('btn-autoscroll');
         btn.style.color = autoScroll ? '#4f46e5' : 'white';
         btn.style.opacity = autoScroll ? '1' : '0.5';
@@ -477,9 +470,7 @@
 
     function toggleAllTranslations() {
         allVisible = !allVisible;
-        // Guardar preferencia
         localStorage.setItem(PREF_TRANS, allVisible);
-        
         document.getElementById('btn-toggle-trans').style.color = allVisible ? '#4f46e5' : 'white';
         document.querySelectorAll('.spanish').forEach(span => {
             span.classList.toggle('visible', allVisible);
@@ -498,9 +489,7 @@
       });
       let espIndex = 0;
       document.querySelectorAll('.spanish').forEach(el => {
-        // Aplicar visibilidad si la preferencia estaba guardada
         if(allVisible) el.classList.add('visible');
-        
         el.innerHTML = el.innerText.split(' ').map(word => {
           const isSelected = savedEsp.includes(espIndex);
           const cssClass = \`word-interactive spanish-word \${isSelected ? 'selected-word' : ''}\`;
@@ -625,7 +614,6 @@
     function onPlayerReady(event) {
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
         if (savedTime) player.seekTo(parseFloat(savedTime));
-        // Aplicar velocidad guardada al player
         player.setPlaybackRate(currentPlaybackRate);
     }
 
