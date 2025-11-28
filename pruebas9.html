@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V27.3</title>
+    <title>MDC - Polyglot Tutor V27.7</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -300,7 +300,7 @@
 <body>
 
     <div id="mdc-header">
-        <a href="https://paradisonetworx.com/mdceng.html">MDC Polyglot V27.3</a>
+        <a href="https://paradisonetworx.com/mdceng.html">MDC Polyglot V27.7</a>
     </div>
 
     <div class="dashboard-container">
@@ -401,7 +401,7 @@
                     <span class="editor-title">Note Editor</span>
                     <div class="header-actions">
                         <button class="btn-header-icon" id="btn-fullscreen" onclick="toggleEditorFullScreen()" title="Expand Editor">⛶</button>
-                        <button class="btn-header-icon" onclick="closeEditor()" title="Close">&times;</button>
+                        <button class="btn-header-icon" onclick="closeEditor()" title="Close">×</button>
                     </div>
                 </div>
                 <div class="editor-toolbar">
@@ -447,7 +447,7 @@
                     <span>⚡ Polyglot AI Hub</span>
                     <button class="btn-help" onclick="toggleAiHelp()" title="Help">?</button>
                 </div>
-                <button class="ai-close" onclick="closeAIMenu()">&times;</button>
+                <button class="ai-close" onclick="closeAIMenu()">×</button>
             </div>
             <div class="ai-body">
                 
@@ -563,7 +563,7 @@
                     <option value="1" selected>1 Gap (Standard)</option>
                     <option value="2">2 Gaps per sentence</option>
                     <option value="3">3 Gaps per sentence</option>
-                    <option value="random">Random Mix</option>
+                    <option value="random">Random Mix (1-3 gaps)</option>
                 </select>
 
                 <div class="ai-label">4. Extra Instructions (Post Data):</div>
@@ -976,12 +976,12 @@
             memory.forEach((item, index) => {
                 let flag = "🇬🇧"; if(item.lang === 'es') flag = "🇪🇸"; if(item.lang === 'pt') flag = "🇧🇷"; if(item.lang === 'it') flag = "🇮🇹";
                 let newBadge = (index === 0) ? '<span class="badge-new">NEW</span>' : ''; let typeBadge = item.isHtml ? '<span class="badge-tpl">TEMPLATE</span>' : `• ${item.data.length} Qs`;
-                html += `<div class="saved-item"><div class="saved-num">#${index + 1}</div><div class="saved-info"><span class="saved-name">${flag} ${item.title} ${newBadge}</span><span class="saved-date">${item.date} ${typeBadge}</span></div><div class="mem-actions"><button class="btn-insert" onclick="insertExerciseFromMem(${item.id})">Insert</button><button class="btn-icon-action btn-export-item" onclick="exportSingleItem(${item.id})" title="Export JSON">⬇️</button><button class="btn-icon-action btn-rename" onclick="renameMemoryItem(${item.id})" title="Rename">✏️</button><button class="btn-icon-action btn-delete-item" onclick="deleteMemoryItem(${item.id})" title="Delete">&times;</button></div></div>`;
+                html += `<div class="saved-item"><div class="saved-num">#${index + 1}</div><div class="saved-info"><span class="saved-name">${flag} ${item.title} ${newBadge}</span><span class="saved-date">${item.date} ${typeBadge}</span></div><div class="mem-actions"><button class="btn-insert" onclick="insertExerciseFromMem(${item.id})">Insert</button><button class="btn-icon-action btn-export-item" onclick="exportSingleItem(${item.id})" title="Export JSON">⬇️</button><button class="btn-icon-action btn-rename" onclick="renameMemoryItem(${item.id})" title="Rename">✏️</button><button class="btn-icon-action btn-delete-item" onclick="deleteMemoryItem(${item.id})" title="Delete">×</button></div></div>`;
             });
             listContainer.innerHTML = html;
         }
 
-        // V27.3: Modified Prompt Logic for Multiple Gaps
+        // V27.7: Special Logic for "Find and Fix" Visuals
         function copyProfessorPrompt() {
             const ctxSel = document.getElementById('ai-context-select').value;
             const graSel = document.getElementById('ai-grammar-select').value;
@@ -991,9 +991,14 @@
             const graCust = document.getElementById('ai-grammar-custom').value.trim();
             const typCust = document.getElementById('ai-type-custom').value.trim();
             const extraData = document.getElementById('ai-extra-data').value.trim();
+            
             let requirements = [];
+            let isGrammarFocus = false;
+            let isFindAndFix = (typSel === "Find and Fix the Mistake" || typCust.toLowerCase().includes("fix"));
+
             if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`); else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
-            if(graCust) requirements.push(`Grammar Focus: ${graCust}`); else if(graSel) requirements.push(`Grammar Focus: ${graSel}`);
+            if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } 
+            else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
             if(typCust) requirements.push(`Exercise Format: ${typCust}`); else if(typSel) requirements.push(`Exercise Format: ${typSel}`);
             if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
             
@@ -1001,32 +1006,42 @@
             const target = LANG_NAMES[currentTargetLang];
             const transArray = Array.from(transLangs).map(l => LANG_NAMES[l]);
             
-            // Logic for Multi-Gap JSON Structure
             let gapInstruction = "";
-            let jsonExample = "";
             
-            if (gapCount === "1") {
-                gapInstruction = "Provide sentences with exactly 1 missing word.";
-                jsonExample = `
-    {
-      "pre": "Text before",
-      "answer": "correct",
-      "post": "Text after",
-      "options": ["correct", "distractor1", "distractor2"],
-      "hint": "Brief clue",
-      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Tr"`).join(', ')} },
-      "full_sentence": "Full sentence."
-    }`;
+            // LOGIC FOR GAP COUNT
+            if (gapCount === 'random') {
+                gapInstruction = `Provide a DYNAMIC MIX of sentences: Generate some with 1 gap, others with 2, and others with 3 gaps. Do not use a fixed pattern.
+                IMPORTANT: You must use the CLOZE syntax: {correct|distractor1|distractor2}.
+                NEVER use underscores (____).`;
+            } else if (gapCount === "1") {
+                gapInstruction = `Provide sentences with exactly 1 missing word.
+                IMPORTANT: You must use the CLOZE syntax: {correct|distractor1|distractor2}.
+                NEVER use underscores (____).`;
             } else {
-                gapInstruction = `Provide sentences with ${gapCount} missing words (gaps) per sentence using CLOZE syntax.`;
-                jsonExample = `
+                gapInstruction = `Provide sentences with ${gapCount} missing words (gaps) per sentence.
+                IMPORTANT: You must use the CLOZE syntax: {correct|distractor1|distractor2}.
+                NEVER use underscores (____).`;
+            }
+
+            let strictInstruction = "";
+            if (isGrammarFocus) { strictInstruction = `CRITICAL: All gaps MUST relate to the requested GRAMMAR FOCUS. Only hide words relevant to the grammar rule (e.g. Verbs/Auxiliaries). Do NOT hide unrelated nouns.`; }
+
+            // V27.7 SPECIAL INSTRUCTION FOR FIND AND FIX
+            if (isFindAndFix) {
+                strictInstruction += `
+                VISUAL STYLE: Since this is "Find and Fix", you MUST include the MISTAKE crossed out using HTML tags <s>mistake</s> immediately before the correct gap.
+                Example: "She <s>have</s> {has|have} been working..." or "I <s>goed</s> {went|go} to the park."
+                This allows the student to see the error and fix it using the dropdown.
+                `;
+            }
+
+            const jsonExample = `
     {
       "cloze_text": "The {cat|dog|fish} sat on the {mat|rug|floor}.",
       "hint": "Brief clue",
       "translations": { ${Array.from(transLangs).map(l => `"${l}": "Tr"`).join(', ')} },
       "full_sentence": "The cat sat on the mat."
     }`;
-            }
 
             const promptText = `
 ACT AS: Senior ${target} Linguist.
@@ -1034,6 +1049,7 @@ LEVEL: CEFR ${currentLevel}.
 TASK: Create a structured JSON exercise.
 REQUIREMENTS: ${finalTopic}.
 GAP DENSITY: ${gapInstruction}
+${strictInstruction}
 ${extraData ? `EXTRA INSTRUCTIONS: ${extraData}` : ''}
 
 OUTPUT FORMAT: RAW JSON ONLY.
@@ -1072,7 +1088,6 @@ JSON STRUCTURE:
             } catch (e) { alert("❌ Invalid JSON.\nError: " + e.message); }
         }
 
-        // V27.3: Modified Renderer to support both Single Gap and Multi-Gap Cloze
         function insertExerciseFromMem(id) {
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const item = memory.find(x => x.id === id); if (!item) return;
             if(item.isHtml) { if(confirm("Insert template?")) { editorArea.insertAdjacentHTML('beforeend', item.htmlContent + '<p><br></p>'); closeAIMenu(); saveNote(); } return; }
@@ -1082,15 +1097,10 @@ JSON STRUCTURE:
             
             item.data.forEach((ex, index) => {
                 const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
-                
                 let exerciseContent = "";
-
-                // CHECK: New Multi-Gap Format (cloze_text) vs Old Format (pre/answer/post)
                 if (ex.cloze_text) {
-                    // PARSE CLOZE: "The {cat|dog} sat."
                     let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
-                        const parts = content.split('|');
-                        const correctAns = parts[0].trim();
+                        const parts = content.split('|'); const correctAns = parts[0].trim();
                         const shuffled = [...parts].sort(() => Math.random() - 0.5);
                         let optsHtml = `<option value="" disabled selected>...</option>`;
                         shuffled.forEach(opt => { optsHtml += `<option value="${opt.trim()}">${opt.trim()}</option>`; });
@@ -1098,15 +1108,12 @@ JSON STRUCTURE:
                     });
                     exerciseContent = `<span><b>${index + 1}.</b> ${parsedHtml}</span>`;
                 } else {
-                    // OLD FORMAT FALLBACK
                     let optsHtml = `<option value="" disabled selected>...</option>`;
                     const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
                     shuffled.forEach(opt => { optsHtml += `<option value="${opt}">${opt}</option>`; });
                     exerciseContent = `<span><b>${index + 1}.</b> ${ex.pre}</span><select class="ex-select" onchange="window.validateExercise(this, '${ex.answer}')">${optsHtml}</select><span>${ex.post}</span>`;
                 }
-
                 let transContent = ""; if (ex.translations) { for (const [key, val] of Object.entries(ex.translations)) { let f = "🇬🇧"; if(key==='es') f="🇪🇸"; if(key==='pt') f="🇧🇷"; if(key==='it') f="🇮🇹"; transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${val.replace(/'/g, "\\'")}', '${key}')">🔊</button><span>${f} ${val}</span></div>`; } } else { transContent = "No translation"; }
-                
                 htmlBlock += `<div class="exercise-row" id="${uId}">${exerciseContent}<div style="display:inline-flex; gap:5px; margin-left:10px;"><button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${ex.full_sentence.replace(/'/g, "\\'")}', '${targetLang}')">🔊</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button></div><div class="hint-box" id="${hId}">💡 ${ex.hint}</div><div class="trans-box" id="${tId}">${transContent}</div></div>`;
             });
             htmlBlock += '</div><p><br></p>'; editorArea.insertAdjacentHTML('beforeend', htmlBlock); setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; saveNote(); }, 50); closeAIMenu();
