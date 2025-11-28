@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V20</title>
+    <title>MDC - Polyglot Tutor V21</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -12,6 +12,7 @@
             --primary-soft: #e3f2fd;
             --danger: #FF3B30;
             --success: #34C759;
+            --warning: #FF9500;
             --bg-body: #F2F2F7;
             --text-main: #1C1C1E;
             --text-muted: #8E8E93;
@@ -110,6 +111,8 @@
         .btn-fmt { width: 38px; height: 38px; border: none; background: #f2f2f7; border-radius: 10px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; }
         .btn-fmt.is-active { background: var(--primary); color: white; }
         .btn-ai-trigger { background: linear-gradient(135deg, #e3f2fd, #bbdefb); color: #007AFF; }
+        .btn-save-template { background: #fff8e1; color: #d97706; font-size: 0.8rem; width: auto; padding: 0 10px; }
+        
         .color-dot { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; margin: 0 3px;}
         .color-dot.active { border-color: #000; transform: scale(1.15); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         
@@ -179,6 +182,8 @@
         .saved-name { font-weight: 600; font-size: 0.9rem; color: #1d1d1f; white-space: normal; word-break: break-word; line-height: 1.4; display: block; }
         .saved-date { font-size: 0.7rem; color: #86868b; margin-top: 2px;}
         .badge-new { background: var(--success); color: white; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 6px; vertical-align: middle; display: inline-block; }
+        .badge-tpl { background: var(--warning); color: white; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; margin-left: 6px; }
+        
         .mem-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-top: 5px; }
         
         .btn-insert { background: var(--success); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap;}
@@ -203,8 +208,9 @@
         .exercise-header span { flex: 1; word-wrap: break-word; overflow-wrap: break-word; }
         
         .btn-theory { background: var(--primary-soft); color: var(--primary); border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
-        /* NEW: Delete block button */
+        /* NEW: Delete block button & Reset Button */
         .btn-del-block { background: #fff5f5; color: var(--danger); border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 600; white-space: nowrap; margin-left: 5px; }
+        .btn-reset-block { background: #fff8e1; color: #d97706; border: none; padding: 6px 10px; border-radius: 20px; font-size: 0.8rem; cursor: pointer; font-weight: 700; white-space: nowrap; margin-left: 5px; }
         
         .theory-box { display: none; background: #f9f9fb; padding: 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.6; white-space: pre-line; }
         .exercise-row { margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; line-height: 1.8; position: relative; } 
@@ -276,6 +282,7 @@
                     </div>
                     <div class="toolbar-group">
                         <button class="btn-fmt btn-ai-trigger" onclick="openAIMenu()" title="AI Exercise Hub">⚡</button>
+                        <button class="btn-fmt btn-save-template" onclick="saveEditorAsTemplate()" title="Save current editor content as reusable template">💾 Save Template</button>
                     </div>
                     <div class="toolbar-group">
                         <button class="btn-media" onclick="seekVideo(-3)">-3s</button>
@@ -661,6 +668,42 @@
             }
         }
 
+        // NEW: Save Editor Content as Template
+        function saveEditorAsTemplate() {
+            const rawContent = document.getElementById('editor-text').innerHTML.trim();
+            if(!rawContent || rawContent === "<br>") return alert("Editor is empty.");
+            
+            const name = prompt("Name this lesson template:");
+            if(!name) return;
+
+            // Clone content to clean it up
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = rawContent;
+            
+            // Clean up: Reset selects, remove colors, hide answers
+            tempDiv.querySelectorAll('select').forEach(s => {
+                s.value = "";
+                s.classList.remove('correct', 'wrong');
+            });
+            tempDiv.querySelectorAll('.hint-box, .trans-box, .theory-box').forEach(box => {
+                box.style.display = 'none';
+            });
+
+            const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+            memory.unshift({
+                id: Date.now(),
+                title: name,
+                isHtml: true, // Flag to identify full HTML template
+                htmlContent: tempDiv.innerHTML,
+                lang: 'en',
+                date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                data: [] 
+            });
+            localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
+            alert("Template saved to Memory Bank!");
+            renderAiList();
+        }
+
         function copyProfessorPrompt() {
             // GET SELECTORS
             const ctxSel = document.getElementById('ai-context-select').value;
@@ -774,13 +817,16 @@ JSON STRUCTURE:
             memory.forEach((item, index) => {
                 let flag = "🇬🇧"; if(item.lang === 'es') flag = "🇪🇸"; if(item.lang === 'pt') flag = "🇧🇷"; if(item.lang === 'it') flag = "🇮🇹";
                 let newBadge = (index === 0) ? '<span class="badge-new">NEW</span>' : '';
+                
+                // Special Badge for Full Templates
+                let typeBadge = item.isHtml ? '<span class="badge-tpl">TEMPLATE</span>' : `• ${item.data.length} Qs`;
 
                 html += `
                 <div class="saved-item">
                     <div class="saved-num">#${index + 1}</div>
                     <div class="saved-info">
                         <span class="saved-name">${flag} ${item.title} ${newBadge}</span>
-                        <span class="saved-date">${item.date} • ${item.data.length} Qs</span>
+                        <span class="saved-date">${item.date} ${typeBadge}</span>
                     </div>
                     <div class="mem-actions">
                         <button class="btn-insert" onclick="insertExerciseFromMem(${item.id})">Insert</button>
@@ -810,11 +856,22 @@ JSON STRUCTURE:
 
         function insertExerciseFromMem(id) {
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const item = memory.find(x => x.id === id); if (!item) return;
+            
+            // LOGIC FOR HTML TEMPLATES
+            if(item.isHtml) {
+                if(confirm("Insert template? This will append to current text.")) {
+                    editorArea.insertAdjacentHTML('beforeend', item.htmlContent + '<p><br></p>');
+                    closeAIMenu();
+                    saveNote();
+                }
+                return;
+            }
+
+            // LOGIC FOR REGULAR EXERCISES
             const insertTime = Date.now(); const theoryId = `theory-${id}-${insertTime}`; const targetLang = item.lang || 'en';
             
-            // REVERTED: Title is no longer contenteditable
-            // ADDED: Delete Block Button in header
-            let htmlBlock = `<div class="exercise-box" contenteditable="false"><div class="exercise-header"><span>✍️ ${item.title}</span><div style="display:flex; align-items:center;"><button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button><button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete this exercise block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete entire block">🗑️</button></div></div><div class="theory-box" id="${theoryId}">${item.theory || "No theory available."}</div>`;
+            // Added RESET button here
+            let htmlBlock = `<div class="exercise-box" contenteditable="false"><div class="exercise-header"><span>✍️ ${item.title}</span><div style="display:flex; align-items:center;"><button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button><button class="btn-reset-block" contenteditable="false" onclick="window.resetExerciseBlock(this)" title="Reset this exercise">↺</button><button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete this exercise block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete entire block">🗑️</button></div></div><div class="theory-box" id="${theoryId}">${item.theory || "No theory available."}</div>`;
             
             item.data.forEach((ex, index) => {
                 let optsHtml = `<option value="" disabled selected>Select...</option>`;
@@ -824,7 +881,6 @@ JSON STRUCTURE:
                 const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
                 let transContent = ""; if (ex.translations) { for (const [key, val] of Object.entries(ex.translations)) { let f = "🇬🇧"; if(key==='es') f="🇪🇸"; if(key==='pt') f="🇧🇷"; if(key==='it') f="🇮🇹"; transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${val.replace(/'/g, "\\'")}', '${key}')">🔊</button><span>${f} ${val}</span></div>`; } } else { transContent = "No translation"; }
                 
-                // REVERTED: Removed ex-btn-del button from each row
                 htmlBlock += `<div class="exercise-row" id="${uId}">
                     <span><b>${index + 1}.</b> ${ex.pre}</span>
                     <select class="ex-select" onchange="window.validateExercise(this, '${ex.answer}')">${optsHtml}</select>
@@ -840,6 +896,18 @@ JSON STRUCTURE:
             });
             htmlBlock += '</div><p><br></p>'; editorArea.insertAdjacentHTML('beforeend', htmlBlock); setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; saveNote(); }, 50); closeAIMenu();
         }
+
+        // NEW: Function to reset a single block
+        window.resetExerciseBlock = function(btn) {
+            const box = btn.closest('.exercise-box');
+            if(box) {
+                const selects = box.querySelectorAll('select');
+                selects.forEach(s => {
+                    s.value = "";
+                    s.classList.remove('correct', 'wrong');
+                });
+            }
+        };
 
         window.validateExercise = function(s, a) { s.classList.remove('correct', 'wrong'); if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) s.classList.add('correct'); else { s.classList.add('wrong'); if(navigator.vibrate) navigator.vibrate(200); } };
         window.speakText = function(text, langCode) {
