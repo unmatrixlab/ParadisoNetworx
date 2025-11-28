@@ -913,7 +913,7 @@
             activePlayer = null; if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState();
         }
 
-        function openEditorById(id) {
+      function openEditorById(id) {
             const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
             const index = resources.findIndex(r => r.id === id);
             if (index === -1) return;
@@ -929,16 +929,78 @@
             container.innerHTML = ''; 
             const isDesktop = window.matchMedia("(min-width: 900px)").matches;
             let startTime = resData.lastTime || 0;
+            const link2 = resData.url2 || '';
+
+            // Lógica común para generar la estructura de pestañas si existe link2
+            const renderTabs = (content1, content2) => {
+                return `
+                    <div class="media-iframe-wrapper">
+                        <div class="web-tab-nav">
+                            <button class="web-tab-btn active" onclick="switchWebTab(0)">Video / Main</button>
+                            <button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">🔗 Resource 2</button>
+                        </div>
+                        <div class="web-content-area">
+                            <div class="web-frame-container active" id="tab-content-0">
+                                ${content1}
+                            </div>
+                            <div class="web-frame-container" id="tab-content-1">
+                                <div class="web-error-bg">
+                                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                                    <span>Refused to connect / Error</span>
+                                </div>
+                                ${content2}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            };
 
             if (type === 'video') {
                 if (isDesktop) {
-                    if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function' && gridPlayer.getVideoData().video_id === id) { startTime = gridPlayer.getCurrentTime(); gridPlayer.pauseVideo(); }
-                    container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
-                    modalPlayer = new YT.Player('desktop-player-target', { width: '100%', height: '100%', videoId: id, playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, events: { 'onReady': (e) => { activePlayer = modalPlayer; }, 'onStateChange': (e) => onPlayerStateChange(e, id, modalPlayer) } });
-                } else { if (gridPlayer) { activePlayer = gridPlayer; gridPlayer.pauseVideo(); } }
+                    // Pausar el grid player si está sonando
+                    if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function' && gridPlayer.getVideoData().video_id === id) { 
+                        startTime = gridPlayer.getCurrentTime(); 
+                        gridPlayer.pauseVideo(); 
+                    }
+
+                    // Si hay Link 2, usamos estructura de pestañas. Si no, pantalla completa normal.
+                    if (link2) {
+                        container.innerHTML = renderTabs(
+                            '<div id="desktop-player-target" style="width:100%; height:100%;"></div>', 
+                            `<iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`
+                        );
+                    } else {
+                        container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
+                    }
+
+                    // Inicializar YouTube API
+                    modalPlayer = new YT.Player('desktop-player-target', { 
+                        width: '100%', 
+                        height: '100%', 
+                        videoId: id, 
+                        playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, 
+                        events: { 
+                            'onReady': (e) => { activePlayer = modalPlayer; }, 
+                            'onStateChange': (e) => onPlayerStateChange(e, id, modalPlayer) 
+                        } 
+                    });
+
+                } else { 
+                    if (gridPlayer) { activePlayer = gridPlayer; gridPlayer.pauseVideo(); } 
+                }
             } else if (type === 'audio') {
                 if (isDesktop) {
-                    container.innerHTML = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
+                    const audioHtml = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
+                    
+                    if (link2) {
+                        container.innerHTML = renderTabs(
+                            audioHtml,
+                            `<iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`
+                        );
+                    } else {
+                        container.innerHTML = audioHtml;
+                    }
+
                     const audioEl = document.getElementById('modal-audio-player');
                     audioEl.currentTime = startTime; activePlayer = audioEl;
                     audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); document.getElementById('btn-main-play').innerText = "⏸️"; });
@@ -946,38 +1008,39 @@
                 }
             } else if (type === 'web') {
                 if (isDesktop) {
-                    // NEW TAB SYSTEM IMPLEMENTATION
                     const link1 = resData.url;
-                    const link2 = resData.url2 || '';
+                    // Reutilizamos la lógica de pestañas nativa que ya creamos, 
+                    // pero mantenemos la lógica específica de Web que ya tenías para consistencia visual
+                    // o simplemente usamos el renderTabs genérico. 
+                    // Para mantener tu estilo "Web" (con botones de abrir externo, etc), dejaré el bloque Web similar al anterior pero ajustado:
                     
-                    let tabHtml = `
+                     let tabHtml = `
                         <div class="media-iframe-wrapper">
                             <div class="web-tab-nav">
-                                <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">🔗 Resource 1</button>
+                                <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">🔗 Main Resource</button>
                                 ${link2 ? `<button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">🔗 Resource 2</button>` : ''}
                                 <div style="flex:1"></div>
                                 <button class="web-tab-btn" style="border-bottom:none; color:var(--text-muted); font-size:0.7rem; padding:0 15px;" onclick="window.open(document.querySelector('.web-frame-container.active iframe').src, '_blank')">↗ Open Externally</button>
                             </div>
                             <div class="web-content-area">
-                                <div class="web-frame-container active" id="web-frame-0">
-                                    <div class="web-error-bg">
+                                <div class="web-frame-container active" id="tab-content-0">
+                                     <div class="web-error-bg">
                                         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                                         <span>Connection Blocked / Not Found</span>
                                     </div>
-                                    <iframe src="${link1}" allowfullscreen></iframe>
+                                    <iframe src="${link1}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
                                 </div>
                                 ${link2 ? `
-                                <div class="web-frame-container" id="web-frame-1">
+                                <div class="web-frame-container" id="tab-content-1">
                                     <div class="web-error-bg">
                                         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                                         <span>Connection Blocked / Not Found</span>
                                     </div>
-                                    <iframe src="${link2}" allowfullscreen></iframe>
+                                    <iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
                                 </div>` : ''}
                             </div>
                         </div>
                     `;
-                    
                     container.innerHTML = tabHtml;
                     activePlayer = null; 
                 }
@@ -985,9 +1048,11 @@
             updateToolbarState();
         }
 
-        // Helper function for Tab Switching
+        // Asegúrate de actualizar también esta pequeña función helper para que coincida con los IDs nuevos
         window.switchWebTab = function(idx) {
             document.querySelectorAll('.web-tab-btn').forEach((b, i) => {
+                // Ajuste: ignorar el botón "Open Externally" que es el último
+                if(b.innerText.includes('Externally')) return;
                 if(i === idx) b.classList.add('active'); else b.classList.remove('active');
             });
             document.querySelectorAll('.web-frame-container').forEach((f, i) => {
