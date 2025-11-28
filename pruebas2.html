@@ -20,7 +20,7 @@
             --shadow-card: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             --header-height: 60px;
             --radius: 16px;
-            --highlight-bg: #fef9c3; /* Amarillo crema */
+            --highlight-bg: #fef9c3;
             --highlight-border: #fde047;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -86,6 +86,14 @@
         }
         .mini-translate-btn.inline-trans.rotating { animation: spinInline 0.8s linear infinite; }
         @keyframes spinInline { 100% { transform: rotate(360deg); } }
+        
+        /* Auto Translate Loading Indicator */
+        .auto-translating-indicator {
+            font-size: 0.8rem; color: var(--primary); font-style: italic; display: inline-flex; align-items: center; gap: 4px; margin-top: 5px;
+        }
+        .auto-translating-indicator::after {
+            content: ""; width: 10px; height: 10px; border: 2px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spinInline 0.8s linear infinite;
+        }
 
         .btn-save { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 5px; transition: 0.2s; }
         .btn-save:hover { background: var(--primary-hover); }
@@ -403,6 +411,9 @@
         let pressTimer; 
         let movingItemId = null; 
 
+        // Pending translations queue
+        let pendingTranslations = new Set();
+
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
         // --- 0. UI LOGIC ---
@@ -471,33 +482,18 @@
 
         window.speechSynthesis.onvoiceschanged = populateVoices;
 
-        // --- 2. TRANSLATION ENGINE (BETTER QUALITY) ---
-        // Helper function that tries Google first, then falls back to MyMemory
+        // --- 2. TRANSLATION ENGINE ---
         async function fetchTranslationHelper(text, fromLang, toLang) {
-            // 1. Try Google Translate (GTX) for high quality single word translations
+            // Google Translate (GTX)
             try {
                 const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${fromLang}&tl=${toLang}&dt=t&q=${encodeURIComponent(text)}`;
                 const res = await fetch(url);
                 const data = await res.json();
                 if (data && data[0]) {
-                    // Google returns arrays of segments, join them
                     return data[0].map(s => s[0]).join('');
                 }
             } catch (err) {
-                console.warn("Google Translate failed, falling back...", err);
-            }
-
-            // 2. Fallback to MyMemory
-            try {
-                const pair = `${fromLang}|${toLang}`;
-                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair}`;
-                const res = await fetch(url);
-                const data = await res.json();
-                if (data && data.responseData) {
-                    return data.responseData.translatedText;
-                }
-            } catch (err) {
-                console.error("All translations failed", err);
+                console.warn("Google Translate failed", err);
             }
             return null;
         }
@@ -511,16 +507,59 @@
             } else return;
             
             const svgIcon = activeBtn.querySelector('svg'); svgIcon.classList.add('rotating'); 
-            
             const result = await fetchTranslationHelper(sourceText, from, to);
             if (result) {
                 targetInput.value = result;
                 updateTranslateButtons();
             }
-            
             svgIcon.classList.remove('rotating');
         }
 
+        // --- AUTO TRANSLATE LOGIC ---
+        // This function translates a single item silently and updates storage
+        async function performAutoTranslation(item, parentId) {
+            if (pendingTranslations.has(item.id)) return; // Prevent double trigger
+            pendingTranslations.add(item.id);
+
+            // Show loading spinner in UI if possible
+            const card = document.getElementById(`card-wrapper-${item.id}`);
+            if (card) {
+                const transDiv = card.querySelector('.spanish-translation') || card.querySelector('.text-content');
+                // Temporarily show spinner
+                if (!card.querySelector('.auto-translating-indicator')) {
+                    const spinner = document.createElement('div');
+                    spinner.className = 'auto-translating-indicator';
+                    spinner.innerHTML = 'Translating';
+                    transDiv.appendChild(spinner);
+                }
+            }
+
+            const result = await fetchTranslationHelper(item.eng, 'en', 'es');
+            
+            pendingTranslations.delete(item.id);
+
+            if (result) {
+                // Fetch fresh data to avoid overwriting other changes
+                let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                
+                if (parentId) {
+                    let folder = currentItems.find(f => f.id === parentId);
+                    if (folder) {
+                        let target = folder.items.find(i => i.id === item.id);
+                        if (target) target.esp = result;
+                    }
+                } else {
+                    let target = currentItems.find(i => i.id === item.id);
+                    if (target) target.esp = result;
+                }
+                
+                // Save without triggering scan again immediately (optional optimization) or just save
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(currentItems));
+                renderList(currentItems); // Re-render to show result
+            }
+        }
+
+        // --- MANUAL TRIGGER (Button Click) ---
         async function translateItem(id, parentId) {
              let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
              let item;
@@ -535,41 +574,27 @@
              const btn = document.getElementById(`btn-trans-${id}`);
              if(btn) btn.classList.add('rotating');
 
-             const result = await fetchTranslationHelper(item.eng, 'en', 'es');
-             
-             if (result) {
-                 item.esp = result;
-                 saveData(items);
-             }
+             await performAutoTranslation(item, parentId);
              
              if(btn) btn.classList.remove('rotating');
         }
 
-        // --- NEW: AUTO TRANSLATE LIST ---
-        async function autoTranslateList(itemList, folderId) {
-            // Find items that need translation
-            const itemsToTranslate = itemList.filter(i => !i.esp || i.esp.trim() === '');
-            
-            if (itemsToTranslate.length === 0) return;
-
-            // Process one by one
-            for (let item of itemsToTranslate) {
-                const result = await fetchTranslationHelper(item.eng, 'en', 'es');
-                if (result) {
-                    // We must reload items from storage in case the user did something else
-                    let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                    let targetFolder = currentItems.find(f => f.id === folderId);
-                    if (targetFolder) {
-                        let targetItem = targetFolder.items.find(i => i.id === item.id);
-                        if (targetItem) {
-                            targetItem.esp = result;
-                            saveData(currentItems);
+        // --- SCANNER FOR MISSING TRANSLATIONS ---
+        // This runs after every save to catch any item missing translation
+        function scanAndTranslateMissing(items) {
+            items.forEach(item => {
+                if (item.isFolder) {
+                    item.items.forEach(subItem => {
+                        if (!subItem.esp || subItem.esp.trim() === "") {
+                            performAutoTranslation(subItem, item.id);
                         }
+                    });
+                } else {
+                    if (!item.esp || item.esp.trim() === "") {
+                        performAutoTranslation(item, null);
                     }
                 }
-                // Small delay to be polite to the API
-                await new Promise(r => setTimeout(r, 100));
-            }
+            });
         }
 
         function copyFolderEnglish(fid) {
@@ -611,28 +636,20 @@
             });
         }
 
-        // --- SINGLE ITEM PLAYBACK ---
+        // --- PLAYBACK ---
         async function playSingleSequence(itemId) {
-            if (currentlyPlayingItemId === itemId) {
-                stopPlayback();
-                return;
-            }
-
-            stopPlayback(); 
-            currentlyPlayingItemId = itemId;
-            updateSingleButtonIcon(itemId, true); 
+            if (currentlyPlayingItemId === itemId) { stopPlayback(); return; }
+            stopPlayback(); currentlyPlayingItemId = itemId; updateSingleButtonIcon(itemId, true); 
 
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item = items.find(i => i.id === itemId && !i.isFolder);
             if (!item) items.forEach(f => { if (f.isFolder) { const found = f.items.find(s => s.id === itemId); if (found) item = found; } });
             
             if (!item) { stopPlayback(); return; }
-            
             const cardEl = document.getElementById(`card-wrapper-${itemId}`);
             if(cardEl) cardEl.classList.add('playing-highlight');
 
             await speak(item.eng, 'en-US');
-            
             if (currentlyPlayingItemId !== itemId) return; 
 
             if (!skipSpanish) {
@@ -640,7 +657,6 @@
                 if (currentlyPlayingItemId !== itemId) return;
                 if (item.esp) await speak(item.esp, 'es-ES');
             }
-            
             stopPlayback(); 
         }
 
@@ -657,37 +673,25 @@
             }
         }
 
-        // --- FOLDER PLAYBACK ENGINE ---
         function toggleFolderPlayback(folderId) {
             if (playbackState.folderId === folderId) {
                 if (playbackState.status === 'playing') {
-                    playbackState.status = 'paused';
-                    window.speechSynthesis.cancel();
-                    updatePlaybackUI();
+                    playbackState.status = 'paused'; window.speechSynthesis.cancel(); updatePlaybackUI();
                 } else if (playbackState.status === 'paused') {
-                    playbackState.status = 'playing';
-                    if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); }
-                    playLoop();
-                    updatePlaybackUI();
+                    playbackState.status = 'playing'; if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); } playLoop(); updatePlaybackUI();
                 }
             } else {
-                stopPlayback();
-                playbackState = { folderId: folderId, index: 0, status: 'playing' };
-                if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); }
-                playLoop();
-                updatePlaybackUI();
+                stopPlayback(); playbackState = { folderId: folderId, index: 0, status: 'playing' };
+                if(isIOS) { const t = new SpeechSynthesisUtterance(" "); window.speechSynthesis.speak(t); } playLoop(); updatePlaybackUI();
             }
         }
 
         function stopPlayback() {
             if (currentlyPlayingItemId) {
-                const prevId = currentlyPlayingItemId;
-                currentlyPlayingItemId = null;
-                const cardEl = document.getElementById(`card-wrapper-${prevId}`);
-                if(cardEl) cardEl.classList.remove('playing-highlight');
+                const prevId = currentlyPlayingItemId; currentlyPlayingItemId = null;
+                const cardEl = document.getElementById(`card-wrapper-${prevId}`); if(cardEl) cardEl.classList.remove('playing-highlight');
                 updateSingleButtonIcon(prevId, false);
             }
-
             playbackState = { folderId: null, index: 0, status: 'idle' };
             window.speechSynthesis.cancel();
             document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
@@ -696,18 +700,12 @@
 
         async function playLoop() {
             if (playbackState.status !== 'playing') return;
-
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folder = items.find(i => i.id === playbackState.folderId);
-            
-            if (!folder || playbackState.index >= folder.items.length) {
-                stopPlayback(); 
-                return;
-            }
+            if (!folder || playbackState.index >= folder.items.length) { stopPlayback(); return; }
 
             const item = folder.items[playbackState.index];
             const cardEl = document.getElementById(`card-wrapper-${item.id}`);
-            
             if (cardEl) {
                 document.querySelectorAll('.playing-highlight').forEach(el => el.classList.remove('playing-highlight'));
                 cardEl.classList.add('playing-highlight');
@@ -717,23 +715,16 @@
             try {
                 await speak(item.eng, 'en-US');
                 if (playbackState.status !== 'playing') return; 
-                
                 if (!skipSpanish) {
                     await new Promise(r => setTimeout(r, 1000));
                     if (playbackState.status !== 'playing') return;
-
                     await speak(item.esp || ' ', 'es-ES');
                     if (playbackState.status !== 'playing') return;
                 }
-
                 await new Promise(r => setTimeout(r, 1000));
                 if (playbackState.status !== 'playing') return;
-
-                playbackState.index++;
-                playLoop(); 
-            } catch (e) {
-                stopPlayback();
-            }
+                playbackState.index++; playLoop(); 
+            } catch (e) { stopPlayback(); }
         }
 
         function updatePlaybackUI() {
@@ -746,7 +737,6 @@
             if (playbackState.status !== 'idle' && playbackState.folderId) {
                 const playBtn = document.querySelector(`.play-btn-${playbackState.folderId}`);
                 const stopBtn = document.querySelector(`.stop-btn-${playbackState.folderId}`);
-                
                 if (playBtn) {
                     if (playbackState.status === 'playing') {
                         playBtn.classList.add('active-play');
@@ -760,13 +750,21 @@
             }
         }
 
-        // --- DATA & UI HELPERS ---
+        // --- DATA HELPERS ---
         function loadVocab() {
             const saved = localStorage.getItem(STORAGE_KEY);
             const items = saved ? JSON.parse(saved) : [];
             renderList(items); populateVoices();
         }
-        function saveData(items) { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); renderList(items); }
+        
+        // **UPDATED SAVE FUNCTION** - Triggers Auto Translate Check
+        function saveData(items) { 
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); 
+            renderList(items);
+            // TRIGGER AUTO TRANSLATE ON SAVE
+            scanAndTranslateMissing(items); 
+        }
+
         function addVocab() {
             const eng = inputEng.value.trim(); const esp = inputEsp.value.trim();
             if (!eng) { alert("English required"); return; }
@@ -783,13 +781,9 @@
         
         function startLongPress(element, id, parentId) {
             if (editingId === id) return; 
-            pressTimer = setTimeout(() => {
-                toggleHighlight(id, parentId);
-            }, 1200); 
+            pressTimer = setTimeout(() => { toggleHighlight(id, parentId); }, 1200); 
         }
-        function endLongPress() {
-            clearTimeout(pressTimer);
-        }
+        function endLongPress() { clearTimeout(pressTimer); }
         function toggleHighlight(id, parentId = null) {
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item;
@@ -799,7 +793,6 @@
             } else {
                 item = items.find(i => i.id === id);
             }
-            
             if(item) {
                 item.isHighlighted = !item.isHighlighted;
                 saveData(items);
@@ -807,103 +800,57 @@
             }
         }
 
-        // --- MODAL MOVE LOGIC ---
+        // --- MODAL MOVE ---
         function openMoveModal(itemId) {
             movingItemId = itemId;
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folders = items.filter(i => i.isFolder);
-            
             modalList.innerHTML = ''; 
-            
-            if(folders.length === 0) {
-                alert("Create a folder first!");
-                return;
-            }
-
+            if(folders.length === 0) { alert("Create a folder first!"); return; }
             const isItemInRoot = items.some(i => i.id === itemId && !i.isFolder);
-
             if (!isItemInRoot) {
                 const btnRoot = document.createElement('div');
                 btnRoot.className = 'modal-option';
-                btnRoot.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                    Lista Principal (Sacar)
-                `;
+                btnRoot.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Lista Principal (Sacar)`;
                 btnRoot.onclick = () => confirmMove(0);
                 modalList.appendChild(btnRoot);
             }
-
             folders.forEach((f) => {
                 const btnFolder = document.createElement('div');
                 btnFolder.className = 'modal-option';
-                btnFolder.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                    ${f.name}
-                `;
+                btnFolder.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>${f.name}`;
                 btnFolder.onclick = () => confirmMove(f.id);
                 modalList.appendChild(btnFolder);
             });
-
             moveModal.style.display = 'flex';
         }
-
-        function closeModal() {
-            moveModal.style.display = 'none';
-            movingItemId = null;
-        }
+        function closeModal() { moveModal.style.display = 'none'; movingItemId = null; }
 
         function confirmMove(targetFolderId) {
             if(!movingItemId) return;
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const folders = items.filter(i => i.isFolder);
-
             let itemIndexRoot = items.findIndex(i => i.id === movingItemId && !i.isFolder);
-            let sourceFolder = null;
-            let itemToMove = null;
+            let sourceFolder = null; let itemToMove = null;
 
-            if (itemIndexRoot !== -1) {
-                itemToMove = items[itemIndexRoot];
-            } else {
+            if (itemIndexRoot !== -1) { itemToMove = items[itemIndexRoot]; } 
+            else {
                 for (let f of folders) {
                     const idx = f.items.findIndex(i => i.id === movingItemId);
-                    if (idx !== -1) {
-                        itemToMove = f.items[idx];
-                        sourceFolder = f;
-                        break;
-                    }
+                    if (idx !== -1) { itemToMove = f.items[idx]; sourceFolder = f; break; }
                 }
             }
 
             if(itemToMove) {
-                if (sourceFolder) {
-                    sourceFolder.items = sourceFolder.items.filter(i => i.id !== movingItemId);
-                } else {
-                    items.splice(itemIndexRoot, 1);
-                }
+                if (sourceFolder) { sourceFolder.items = sourceFolder.items.filter(i => i.id !== movingItemId); } 
+                else { items.splice(itemIndexRoot, 1); }
 
-                if (targetFolderId === 0) {
-                    items.unshift(itemToMove);
-                } else {
+                if (targetFolderId === 0) { items.unshift(itemToMove); } 
+                else {
                     const target = folders.find(f => f.id === targetFolderId);
-                    if(target) target.items.unshift(itemToMove);
-                    else items.unshift(itemToMove); 
+                    if(target) target.items.unshift(itemToMove); else items.unshift(itemToMove); 
                 }
                 saveData(items);
-
-                // --- AUTO TRANSLATE TRIGGER (Single Item Move) ---
-                if (targetFolderId !== 0) {
-                    // Slight delay to ensure data save
-                    setTimeout(() => {
-                        let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                        let targetFolder = currentItems.find(f => f.id === targetFolderId);
-                        if(targetFolder) {
-                            let movedItem = targetFolder.items.find(i => i.id === movingItemId);
-                            if(movedItem && (!movedItem.esp || movedItem.esp.trim() === "")) {
-                                translateItem(movedItem.id, targetFolderId);
-                            }
-                        }
-                    }, 50);
-                }
             }
             closeModal();
         }
@@ -931,18 +878,13 @@
             saveData(items); editingId = null;
         }
         
-        async function createFolder() {
+        function createFolder() {
             const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             const loose = items.filter(i => !i.isFolder); const folders = items.filter(i => i.isFolder);
             if (loose.length === 0) { alert("No items to folderize!"); return; }
             const newFolder = { id: Date.now(), isFolder: true, name: `Carpeta ${folders.length + 1}`, items: loose };
-            
             saveData([newFolder, ...folders]);
-            
-            // --- AUTO TRANSLATE TRIGGER (Folder Creation) ---
-            await autoTranslateList(newFolder.items, newFolder.id);
         }
-
         function renameFolder(fid) {
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); let folder = items.find(i => i.id === fid);
             if(!folder) return;
@@ -994,13 +936,11 @@
                     const card = document.createElement('div'); 
                     card.className = `vocab-card ${item.isHighlighted ? 'highlighted' : ''}`; 
                     card.id = `card-wrapper-${item.id}`;
-                    
                     card.onmousedown = () => startLongPress(card, item.id, null);
                     card.ontouchstart = () => startLongPress(card, item.id, null);
                     card.onmouseup = endLongPress;
                     card.onmouseleave = endLongPress;
                     card.ontouchend = endLongPress;
-
                     card.innerHTML = generateCardHTML(item, null, true); 
                     listContainer.appendChild(card);
                 }
@@ -1086,9 +1026,7 @@
         }
 
         window.addEventListener('storage', function(e) {
-            if (e.key === STORAGE_KEY) {
-                loadVocab(); 
-            }
+            if (e.key === STORAGE_KEY) { loadVocab(); }
         });
 
         document.getElementById('inputEsp').addEventListener('keypress', function (e) { if (e.key === 'Enter') addVocab(); });
