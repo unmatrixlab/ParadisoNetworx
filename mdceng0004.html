@@ -1144,7 +1144,8 @@
             listContainer.innerHTML = html;
         }
 
-        /* ====== V27.9 PROMPT GENERATION ====== */
+  
+       /* ====== V27.9 PROMPT GENERATION (CORREGIDO) ====== */
         function copyProfessorPrompt() {
             const ctxSel = document.getElementById('ai-context-select').value;
             const graSel = document.getElementById('ai-grammar-select').value;
@@ -1166,9 +1167,16 @@
             if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
             
             const finalTopic = requirements.join(", ");
-            const target = LANG_NAMES[currentTargetLang];
-            const transArray = Array.from(transLangs).map(l => LANG_NAMES[l]);
+            const target = LANG_NAMES[currentTargetLang]; // Ejemplo: "Portuguese"
             
+            // Lógica para instrucciones estrictas sobre el idioma
+            let languageInstruction = `
+            CRITICAL LANGUAGE RULE: 
+            The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**.
+            Do NOT use English words inside the gaps.
+            Example in ${target}: "Ele {fala|falou|falar}..." (NOT "Ele {speak|spoke}...")
+            `;
+
             // Logic for Specific Types
             let strictInstruction = "";
             let gapInstruction = "";
@@ -1182,37 +1190,35 @@
             } else if (typeStr && typeStr.includes("Sentence Reordering")) {
                 strictInstruction += `
                 TYPE: SENTENCE REORDERING via MULTIPLE CHOICE.
-                The prompt MUST be the scrambled words. The options MUST be full sentences.
-                Format: "Pre-text: 'cat / the / mat / on / sat / the'"
-                Options: "{The cat sat on the mat.|The mat sat on the cat.|Sat the cat on mat.}"
+                The prompt MUST be the scrambled words. The options MUST be full sentences in ${target}.
                 `;
             } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
                 strictInstruction += `
                 TYPE: VOCABULARY MATCHING.
-                Format: "Definition text... {CorrectWord|Distractor1|Distractor2}"
+                Format: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"
                 `;
             } else if (typeStr && typeStr.includes("True or False")) {
                 strictInstruction += `
                 TYPE: READING COMPREHENSION (TRUE/FALSE).
-                Format: "Statement about the text... {True|False}"
+                Format: "Statement about the text... {True|False}" (Localize True/False if appropriate for ${target}).
                 `;
             }
 
-            // Enhanced Gap Logic (V27.9 Force 4 options unless T/F)
+            // Enhanced Gap Logic
             if (typeStr && typeStr.includes("True or False")) {
                  gapInstruction = "Provide options {True|False}.";
             } else if (gapCount === 'random') {
                 gapInstruction = `
-                CRITICAL REQUIREMENT:
-                For EVERY gap, you MUST provide 3 to 4 options (e.g. {correct|distractor1|distractor2|distractor3}).
-                For VERBS, include variations in Tense, Person, and Form (e.g., {go|goes|going|went}).
+                GAP REQUIREMENT:
+                For EVERY gap, you MUST provide 3 to 4 options in ${target} (e.g. {correct|distractor1|distractor2}).
+                For VERBS, include variations in Tense, Person, and Form.
                 Mix of 1, 2, or 3 gaps per sentence.
                 `;
             } else {
                 gapInstruction = `
-                CRITICAL REQUIREMENT:
-                For EVERY gap, you MUST provide 3 to 4 options (e.g. {correct|distractor1|distractor2|distractor3}).
-                For VERBS, include variations in Tense, Person, and Form (e.g., {go|goes|going|went}).
+                GAP REQUIREMENT:
+                For EVERY gap, you MUST provide 3 to 4 options in ${target} (e.g. {correct|distractor1|distractor2}).
+                For VERBS, include variations in Tense, Person, and Form.
                 Provide exactly ${gapCount} gap(s) per sentence.
                 `;
             }
@@ -1221,12 +1227,13 @@
                 strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule (verbs/auxiliaries).`; 
             }
 
+            // Creamos un ejemplo JSON dinámico o genérico para no confundir a la IA
             const jsonExample = `
     {
-      "cloze_text": "The {cat|dog|fish} sat on the {mat|rug|floor}.",
+      "cloze_text": "Sentence in ${target} with {option1|option2|option3} gaps.",
       "hint": "Brief clue",
-      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Tr"`).join(', ')} },
-      "full_sentence": "The cat sat on the mat."
+      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation in ${LANG_NAMES[l]}"`).join(', ')} },
+      "full_sentence": "Full sentence in ${target} without gaps."
     }`;
 
             const promptText = `
@@ -1234,6 +1241,7 @@ ACT AS: Senior ${target} Linguist.
 LEVEL: CEFR ${currentLevel}.
 TASK: Create a structured JSON exercise.
 REQUIREMENTS: ${finalTopic}.
+${languageInstruction}
 GAP DENSITY: ${gapInstruction}
 ${strictInstruction}
 ${extraData ? `EXTRA INSTRUCTIONS: ${extraData}` : ''}
@@ -1242,7 +1250,7 @@ OUTPUT FORMAT: RAW JSON ONLY.
 
 JSON STRUCTURE:
 {
-  "title": "Short descriptive title",
+  "title": "Short descriptive title in ${target}",
   "lang_code": "${currentTargetLang}",
   "theory": "Brief rules explanation...",
   "exercises": [
