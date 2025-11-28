@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v5.3 (Fixed Save)</title>
+    <title>MDC Studio Suite v5.3 (Fixed Save Logic)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         /* === ESTILOS DE LA HERRAMIENTA (GENERADOR) === */
@@ -365,29 +365,39 @@
     let currentPlaybackRate = 1.0;
     let allVisible = false;
 
-    // --- FUNCIÓN DE GUARDADO CORREGIDA: SEPARA PALABRAS Y QUITA TRADUCCIÓN ---
+    // --- FUNCIÓN DE GUARDADO CORREGIDA (Lógica 1 a 1 exacta) ---
     function saveLineToVocab(btn) {
         const line = btn.closest('.line');
         const vocabKey = 'mdc_vocab_list';
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        // BUSCAMOS PALABRAS SELECCIONADAS (ROJO) O ACTIVAS (AZUL)
-        const selectedSpans = line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word');
+        // OBTENER SELECCIONES DE AMBOS IDIOMAS
+        const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
+        const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
 
-        if (selectedSpans.length > 0) {
-            // CASO A: HAY SELECCIÓN. Guardar cada palabra por separado y SIN traducción.
-            selectedSpans.forEach(span => {
+        if (selectedEng.length > 0) {
+            // Caso A: Hay palabras seleccionadas en inglés
+            
+            // Determinamos si hay una correspondencia exacta 1 a 1
+            let translation = "";
+            if (selectedEng.length === 1 && selectedEsp.length === 1) {
+                translation = selectedEsp[0].innerText.trim();
+            }
+            // NOTA: Si hay más de 2 palabras en total seleccionadas (ej: 2 Eng + 0 Esp, o 1 Eng + 2 Esp),
+            // o cualquier combinación que no sea 1-1, la traducción se queda vacía "" para evitar ambigüedad.
+
+            selectedEng.forEach(span => {
                 itemsToAdd.push({
                     eng: span.innerText.trim(),
-                    esp: "", // Traducción vacía requerida
+                    esp: translation, // Usa la traducción solo si fue 1 a 1
                     id: Date.now() + Math.random(), 
                     isFolder: false, 
                     isHighlighted: false 
                 });
             });
         } else {
-             // CASO B: FRASE COMPLETA.
+             // CASO B: FRASE COMPLETA (Sin selecciones individuales).
             const engText = line.querySelector('.english').innerText.trim();
             const espText = line.querySelector('.spanish').innerText.trim();
             itemsToAdd.push({
@@ -403,9 +413,7 @@
         let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
 
         if (targetFolder) {
-            // Invertimos para que aparezcan en orden lógico al agregarse arriba
             itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item));
-            
             items = items.filter(i => i.id !== targetFolder.id);
             items.unshift(targetFolder);
         } else {
