@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Polyglot Tutor V27.9 (Pro Difficulty)</title>
+    <title>MDC - Polyglot Tutor V27.9 (Stable & Secure)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
@@ -794,7 +794,13 @@
                 else { alert("Invalid YouTube URL. Switched to 'Web' type."); type = 'web'; }
             }
 
-            const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            // SAFETY CHECK: Handle corrupted storage before adding
+            let resources = [];
+            try {
+                resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+                if(!Array.isArray(resources)) resources = [];
+            } catch(e) { resources = []; }
+
             resources.unshift({ 
                 id: id, 
                 url: url,
@@ -843,9 +849,20 @@
 
         function applySearch() { searchQuery = document.getElementById('searchInput').value.toLowerCase(); loadResources(); }
 
+        /* ====== ROBUST LOADING AND BACKUP (FIXED) ====== */
         function loadResources() { 
             const data = localStorage.getItem(STORAGE_KEY); 
-            const allResources = data ? JSON.parse(data) : [];
+            let allResources = [];
+            
+            // ERROR HANDLING: If data is corrupt, reset to empty array instead of crashing
+            try {
+                allResources = data ? JSON.parse(data) : [];
+                if (!Array.isArray(allResources)) throw new Error("Data is not an array");
+            } catch (e) {
+                console.error("Storage corrupted, resetting view.", e);
+                allResources = [];
+            }
+
             const filtered = allResources.filter(item => {
                 const type = item.type || 'video';
                 if (currentFilter !== 'all' && type !== currentFilter) return false;
@@ -853,6 +870,63 @@
                 return true;
             });
             renderGrid(filtered); 
+        }
+
+        function downloadBackup() { 
+            const d = localStorage.getItem(STORAGE_KEY) || '[]';
+            // ENCODE to Base64 to prevent HTML breakage
+            const encodedData = btoa(unescape(encodeURIComponent(d)));
+            
+            const htmlContent = `<!DOCTYPE html><html><head><title>MDC Backup</title></head><body>
+            <h1>MDC Polyglot Backup</h1>
+            <p>Upload this file using the "Import" button in your app.</p>
+            <script>
+            const backupData = "${encodedData}";
+            <\/script></body></html>`;
+
+            const b = new Blob([htmlContent], {type: 'text/html'}); 
+            const a = document.createElement('a'); 
+            a.href = URL.createObjectURL(b); 
+            a.download = 'MDC_Backup_' + new Date().toLocaleDateString().replace(/\//g,'-') + '.html'; 
+            document.body.appendChild(a); 
+            a.click(); 
+            document.body.removeChild(a); 
+        }
+
+        function importBackup(inp) { 
+            const file = inp.files[0];
+            if (!file) return;
+
+            const r = new FileReader(); 
+            r.onload = e => { 
+                const content = e.target.result;
+                try {
+                    // Try to find new Base64 format
+                    let match = content.match(/const backupData = "(.*?)";/);
+                    let jsonString = "";
+
+                    if (match && match[1]) {
+                        jsonString = decodeURIComponent(escape(atob(match[1])));
+                    } else {
+                        // Fallback for Legacy Backups
+                        match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
+                        if (match && match[1]) jsonString = match[1];
+                        else throw new Error("No valid backup data found.");
+                    }
+
+                    const parsed = JSON.parse(jsonString);
+                    if (!Array.isArray(parsed)) throw new Error("Invalid data format.");
+
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); 
+                    loadResources(); 
+                    alert("✅ Backup imported successfully!");
+
+                } catch (err) {
+                    alert("❌ Import failed: " + err.message);
+                }
+                inp.value = ''; // Reset input
+            }; 
+            r.readAsText(file); 
         }
 
         function renderGrid(resources) {
@@ -957,13 +1031,11 @@
 
             if (type === 'video') {
                 if (isDesktop) {
-                    // Pausar el grid player si está sonando
                     if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function' && gridPlayer.getVideoData().video_id === id) { 
                         startTime = gridPlayer.getCurrentTime(); 
                         gridPlayer.pauseVideo(); 
                     }
 
-                    // Si hay Link 2, usamos estructura de pestañas. Si no, pantalla completa normal.
                     if (link2) {
                         container.innerHTML = renderTabs(
                             '<div id="desktop-player-target" style="width:100%; height:100%;"></div>', 
@@ -973,7 +1045,6 @@
                         container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
                     }
 
-                    // Inicializar YouTube API
                     modalPlayer = new YT.Player('desktop-player-target', { 
                         width: '100%', 
                         height: '100%', 
@@ -1009,12 +1080,7 @@
             } else if (type === 'web') {
                 if (isDesktop) {
                     const link1 = resData.url;
-                    // Reutilizamos la lógica de pestañas nativa que ya creamos, 
-                    // pero mantenemos la lógica específica de Web que ya tenías para consistencia visual
-                    // o simplemente usamos el renderTabs genérico. 
-                    // Para mantener tu estilo "Web" (con botones de abrir externo, etc), dejaré el bloque Web similar al anterior pero ajustado:
-                    
-                     let tabHtml = `
+                      let tabHtml = `
                         <div class="media-iframe-wrapper">
                             <div class="web-tab-nav">
                                 <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">🔗 Main Resource</button>
@@ -1027,8 +1093,8 @@
                                      <div class="web-error-bg">
                                         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                                         <span>Connection Blocked / Not Found</span>
-                                    </div>
-                                    <iframe src="${link1}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
+                                     </div>
+                                     <iframe src="${link1}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
                                 </div>
                                 ${link2 ? `
                                 <div class="web-frame-container" id="tab-content-1">
@@ -1048,10 +1114,8 @@
             updateToolbarState();
         }
 
-        // Asegúrate de actualizar también esta pequeña función helper para que coincida con los IDs nuevos
         window.switchWebTab = function(idx) {
             document.querySelectorAll('.web-tab-btn').forEach((b, i) => {
-                // Ajuste: ignorar el botón "Open Externally" que es el último
                 if(b.innerText.includes('Externally')) return;
                 if(i === idx) b.classList.add('active'); else b.classList.remove('active');
             });
@@ -1087,9 +1151,6 @@
             const rgb = document.queryCommandValue('foreColor'); document.querySelectorAll('.color-dot').forEach(b => b.classList.remove('active'));
             if(rgb.includes('255, 59, 48')) document.querySelectorAll('.color-dot')[1].classList.add('active'); else if (rgb.includes('0, 122, 255')) document.querySelectorAll('.color-dot')[2].classList.add('active'); else if (rgb.includes('52, 199, 89')) document.querySelectorAll('.color-dot')[3].classList.add('active'); else document.querySelectorAll('.color-dot')[0].classList.add('active');
         }
-
-        function downloadBackup() { const d = localStorage.getItem(STORAGE_KEY); if(!d) return alert("No data"); const b = new Blob([`<!DOCTYPE html><html><body><script>const backupData=${d}<\/script></body></html>`],{type:'text/html'}); const a = document.createElement('a'); a.href=URL.createObjectURL(b); a.download='backup.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
-        function importBackup(inp) { const r = new FileReader(); r.onload = e => { const m = e.target.result.match(/const backupData=(.*?)(;|<\/script>)/s); if(m){ localStorage.setItem(STORAGE_KEY, m[1]); loadResources(); alert("Loaded"); } }; if(inp.files[0]) r.readAsText(inp.files[0]); }
 
         /* ====== AI LOGIC & MEMORY BANK ====== */
         function openAIMenu() { aiModal.classList.add('active'); renderAiList(); }
@@ -1144,7 +1205,6 @@
             listContainer.innerHTML = html;
         }
 
-  
        /* ====== V27.9 PROMPT GENERATION (CORREGIDO) ====== */
         function copyProfessorPrompt() {
             const ctxSel = document.getElementById('ai-context-select').value;
@@ -1167,9 +1227,8 @@
             if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
             
             const finalTopic = requirements.join(", ");
-            const target = LANG_NAMES[currentTargetLang]; // Ejemplo: "Portuguese"
+            const target = LANG_NAMES[currentTargetLang]; 
             
-            // Lógica para instrucciones estrictas sobre el idioma
             let languageInstruction = `
             CRITICAL LANGUAGE RULE: 
             The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**.
@@ -1177,7 +1236,6 @@
             Example in ${target}: "Ele {fala|falou|falar}..." (NOT "Ele {speak|spoke}...")
             `;
 
-            // Logic for Specific Types
             let strictInstruction = "";
             let gapInstruction = "";
 
@@ -1204,7 +1262,6 @@
                 `;
             }
 
-            // Enhanced Gap Logic
             if (typeStr && typeStr.includes("True or False")) {
                  gapInstruction = "Provide options {True|False}.";
             } else if (gapCount === 'random') {
@@ -1227,7 +1284,6 @@
                 strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule (verbs/auxiliaries).`; 
             }
 
-            // Creamos un ejemplo JSON dinámico o genérico para no confundir a la IA
             const jsonExample = `
     {
       "cloze_text": "Sentence in ${target} with {option1|option2|option3} gaps.",
@@ -1293,7 +1349,7 @@ JSON STRUCTURE:
                 const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
                 let exerciseContent = "";
                 
-                // Enhanced Cloze Parsing for better visual flow
+                // Enhanced Cloze Parsing
                 if (ex.cloze_text) {
                     let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
                         const parts = content.split('|'); const correctAns = parts[0].trim();
