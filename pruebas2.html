@@ -89,11 +89,9 @@
         
         /* Auto Translate Loading Indicator */
         .auto-translating-indicator {
-            font-size: 0.8rem; color: var(--primary); font-style: italic; display: inline-flex; align-items: center; gap: 4px; margin-top: 5px;
+            font-size: 0.8rem; color: var(--primary); font-style: italic; display: inline-flex; align-items: center; gap: 4px; margin-top: 5px; animation: pulseText 1.5s infinite;
         }
-        .auto-translating-indicator::after {
-            content: ""; width: 10px; height: 10px; border: 2px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spinInline 0.8s linear infinite;
-        }
+        @keyframes pulseText { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
         .btn-save { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 5px; transition: 0.2s; }
         .btn-save:hover { background: var(--primary-hover); }
@@ -411,8 +409,9 @@
         let pressTimer; 
         let movingItemId = null; 
 
-        // Pending translations queue
-        let pendingTranslations = new Set();
+        // --- NEW: TRANSLATION QUEUE SYSTEM ---
+        let translationQueue = [];
+        let isTranslating = false;
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -515,51 +514,85 @@
             svgIcon.classList.remove('rotating');
         }
 
-        // --- AUTO TRANSLATE LOGIC ---
-        // This function translates a single item silently and updates storage
-        async function performAutoTranslation(item, parentId) {
-            if (pendingTranslations.has(item.id)) return; // Prevent double trigger
-            pendingTranslations.add(item.id);
-
-            // Show loading spinner in UI if possible
+        // --- NEW: QUEUE-BASED TRANSLATION SYSTEM ---
+        function addToTranslationQueue(item, parentId) {
+            // Check if already in queue to avoid duplicates
+            if (translationQueue.some(q => q.item.id === item.id)) return;
+            
+            // Add to queue
+            translationQueue.push({ item, parentId });
+            
+            // Show loading UI immediately if visible
             const card = document.getElementById(`card-wrapper-${item.id}`);
             if (card) {
-                const transDiv = card.querySelector('.spanish-translation') || card.querySelector('.text-content');
-                // Temporarily show spinner
+                const transDiv = card.querySelector('.text-content');
                 if (!card.querySelector('.auto-translating-indicator')) {
+                    const existingBtn = card.querySelector('.mini-translate-btn');
+                    if(existingBtn) existingBtn.style.display = 'none';
+                    
                     const spinner = document.createElement('div');
                     spinner.className = 'auto-translating-indicator';
-                    spinner.innerHTML = 'Translating';
+                    spinner.innerHTML = 'Translating...';
                     transDiv.appendChild(spinner);
                 }
             }
 
-            const result = await fetchTranslationHelper(item.eng, 'en', 'es');
-            
-            pendingTranslations.delete(item.id);
-
-            if (result) {
-                // Fetch fresh data to avoid overwriting other changes
-                let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                
-                if (parentId) {
-                    let folder = currentItems.find(f => f.id === parentId);
-                    if (folder) {
-                        let target = folder.items.find(i => i.id === item.id);
-                        if (target) target.esp = result;
-                    }
-                } else {
-                    let target = currentItems.find(i => i.id === item.id);
-                    if (target) target.esp = result;
-                }
-                
-                // Save without triggering scan again immediately (optional optimization) or just save
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(currentItems));
-                renderList(currentItems); // Re-render to show result
-            }
+            processTranslationQueue();
         }
 
-        // --- MANUAL TRIGGER (Button Click) ---
+        async function processTranslationQueue() {
+            if (isTranslating || translationQueue.length === 0) return;
+            isTranslating = true;
+
+            const { item, parentId } = translationQueue.shift(); // Get next item
+
+            try {
+                const result = await fetchTranslationHelper(item.eng, 'en', 'es');
+                if (result) {
+                    // Update LocalStorage carefully
+                    let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    
+                    if (parentId) {
+                        let folder = currentItems.find(f => f.id === parentId);
+                        if (folder) {
+                            let target = folder.items.find(i => i.id === item.id);
+                            if (target) target.esp = result;
+                        }
+                    } else {
+                        let target = currentItems.find(i => i.id === item.id);
+                        if (target) target.esp = result;
+                    }
+                    
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentItems));
+                    renderList(currentItems); // Re-render UI
+                }
+            } catch (e) {
+                console.error("Translation queue error", e);
+            }
+
+            // Wait a bit before next one to prevent flooding API
+            setTimeout(() => {
+                isTranslating = false;
+                processTranslationQueue();
+            }, 300);
+        }
+
+        function scanAndTranslateMissing(items) {
+            items.forEach(item => {
+                if (item.isFolder) {
+                    item.items.forEach(subItem => {
+                        if (!subItem.esp || subItem.esp.trim() === "") {
+                            addToTranslationQueue(subItem, item.id);
+                        }
+                    });
+                } else {
+                    if (!item.esp || item.esp.trim() === "") {
+                        addToTranslationQueue(item, null);
+                    }
+                }
+            });
+        }
+
         async function translateItem(id, parentId) {
              let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
              let item;
@@ -570,31 +603,7 @@
                  item = items.find(i => i.id === id);
              }
              if (!item) return;
-
-             const btn = document.getElementById(`btn-trans-${id}`);
-             if(btn) btn.classList.add('rotating');
-
-             await performAutoTranslation(item, parentId);
-             
-             if(btn) btn.classList.remove('rotating');
-        }
-
-        // --- SCANNER FOR MISSING TRANSLATIONS ---
-        // This runs after every save to catch any item missing translation
-        function scanAndTranslateMissing(items) {
-            items.forEach(item => {
-                if (item.isFolder) {
-                    item.items.forEach(subItem => {
-                        if (!subItem.esp || subItem.esp.trim() === "") {
-                            performAutoTranslation(subItem, item.id);
-                        }
-                    });
-                } else {
-                    if (!item.esp || item.esp.trim() === "") {
-                        performAutoTranslation(item, null);
-                    }
-                }
-            });
+             addToTranslationQueue(item, parentId);
         }
 
         function copyFolderEnglish(fid) {
@@ -755,13 +764,13 @@
             const saved = localStorage.getItem(STORAGE_KEY);
             const items = saved ? JSON.parse(saved) : [];
             renderList(items); populateVoices();
+            // CRITICAL: Scan on load to catch syncs from other tabs/pages
+            scanAndTranslateMissing(items);
         }
         
-        // **UPDATED SAVE FUNCTION** - Triggers Auto Translate Check
         function saveData(items) { 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); 
             renderList(items);
-            // TRIGGER AUTO TRANSLATE ON SAVE
             scanAndTranslateMissing(items); 
         }
 
@@ -936,11 +945,13 @@
                     const card = document.createElement('div'); 
                     card.className = `vocab-card ${item.isHighlighted ? 'highlighted' : ''}`; 
                     card.id = `card-wrapper-${item.id}`;
+                    
                     card.onmousedown = () => startLongPress(card, item.id, null);
                     card.ontouchstart = () => startLongPress(card, item.id, null);
                     card.onmouseup = endLongPress;
                     card.onmouseleave = endLongPress;
                     card.ontouchend = endLongPress;
+
                     card.innerHTML = generateCardHTML(item, null, true); 
                     listContainer.appendChild(card);
                 }
