@@ -611,9 +611,10 @@
     tag.src = "https://www.youtube.com/iframe_api";
     document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
 
-    function onYouTubeIframeAPIReady() {
+ function onYouTubeIframeAPIReady() {
         player = new YT.Player('player', {
             videoId: YOUTUBE_ID,
+            // 1. Aquí mantenemos el autoplay en 0
             playerVars: { playsinline: 1, rel: 0, modestbranding: 1, controls: 1, autoplay: 0 },
             events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
         });
@@ -621,10 +622,17 @@
 
     function onPlayerReady(event) {
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
-        if (savedTime) { 
-    player.seekTo(parseFloat(savedTime)); 
-    player.pauseVideo(); // Forzar pausa explícitamente
-}
+        if (savedTime) {
+            player.seekTo(parseFloat(savedTime));
+            // 2. EL TRUCO: Forzamos la pausa 100ms después de saltar al tiempo.
+            // Esto anula la orden de reproducción automática que provoca el seekTo.
+            setTimeout(() => { 
+                player.pauseVideo(); 
+            }, 100);
+        } else {
+            // Si no hay tiempo guardado, nos aseguramos de pausar también.
+            event.target.pauseVideo();
+        }
         player.setPlaybackRate(currentPlaybackRate);
     }
 
