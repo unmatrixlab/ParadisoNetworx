@@ -1074,27 +1074,53 @@
     }
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
-    /* ====== BACKUP ====== */
+    /* ====== BACKUP MODIFICADO: GUARDA ABSOLUTAMENTE TODO (RECURSOS + IA) ====== */
     function downloadBackup() { 
-        const d = localStorage.getItem(STORAGE_KEY) || '[]';
+        // 1. Obtener Recursos (Tarjetas, texto, web)
+        const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        // 2. Obtener Memoria IA (Plantillas, ejercicios no insertados)
+        const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+        
+        // 3. Crear objeto combinado
+        const fullData = {
+            resources: resources,
+            memory: memory,
+            version: 2 // Marcador de versión para control futuro
+        };
+
+        const d = JSON.stringify(fullData);
         const encodedData = btoa(unescape(encodeURIComponent(d)));
-        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Backup</title></head><body><h1>MDC Polyglot Backup</h1><p>Upload this file using the "Import" button in your app.</p><script>const backupData = "${encodedData}";<\/script></body></html>`;
+        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body><h1>MDC Polyglot Full Backup</h1><p>Contains: Resources, Notes, Exercises, and AI Templates.</p><p>Upload this file using the "Import" button in your app.</p><script>const backupData = "${encodedData}";<\/script></body></html>`;
         const b = new Blob([htmlContent], {type: 'text/html'}); 
         const a = document.createElement('a'); 
-        a.href = URL.createObjectURL(b); a.download = 'MDC_Backup.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+        a.href = URL.createObjectURL(b); a.download = 'MDC_Full_Backup.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
     }
 
     function importBackup(inp) { 
         const file = inp.files[0]; if (!file) return;
         const r = new FileReader(); 
         r.onload = e => { 
-            try {
+            try { 
                 let match = e.target.result.match(/const backupData = "(.*?)";/);
                 if (!match) match = e.target.result.match(/const backupData=(.*?)(;|<\/script>)/s);
                 if (!match) throw new Error("Invalid backup.");
+                
                 let json = match[1] ? decodeURIComponent(escape(atob(match[1]))) : match[1];
-                localStorage.setItem(STORAGE_KEY, json); 
-                loadResources(); alert("Imported!");
+                const parsedData = JSON.parse(json);
+
+                // Detección: ¿Es backup nuevo (todo) o viejo (solo recursos)?
+                if (parsedData.resources && parsedData.memory) {
+                    // Es un FULL BACKUP nuevo
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
+                    localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                } else {
+                    // Es un backup antiguo (solo array de recursos)
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+                }
+                
+                loadResources(); 
+                renderAiList(); // Actualizar UI de IA también
+                alert("Imported Successfully (Resources + AI Data)!");
             } catch (err) { alert("Error: " + err.message); }
             inp.value = ''; 
         }; 
