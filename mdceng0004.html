@@ -880,6 +880,27 @@
         setResourceType('auto');
     }
 
+    // --- NUEVA FUNCIÓN AUXILIAR PARA GUARDAR MODO LIBRE ---
+    function saveFreeModeWork(defaultTitle) {
+        const uniqueCardId = Date.now().toString() + Math.floor(Math.random() * 1000);
+        const newRes = {
+            id: uniqueCardId, url: '', url2: '', url3: '', url4: '', url5: '',
+            type: 'web', title: defaultTitle, date: new Date().toLocaleDateString(),
+            note: editorArea.innerHTML, lastTime: 0, color: generatePastelColor()
+        };
+        let resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        resources.unshift(newRes);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+        loadResources();
+        
+        // Actualizar estado para que ya no sea modo libre
+        const newIndex = resources.findIndex(r => r.id === uniqueCardId);
+        currentEditIndex = newIndex;
+        currentResourceId = uniqueCardId;
+        document.getElementById('editor-popup').classList.remove('free-mode');
+        return uniqueCardId;
+    }
+
     function deleteResourceById(id) {
         if(confirm("Delete this resource?")) { 
             let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -1095,12 +1116,32 @@
         currentEditIndex = -1; currentResourceId = null;
         editorArea.innerHTML = ""; modal.classList.add('active'); document.getElementById('editor-popup').classList.add('free-mode'); document.getElementById('editor-popup').style.opacity = 1;
         players = [null, null, null, null, null];
+        
+        // MODIFICACION: Renderizar 5 pestañas vacías
+        const container = document.getElementById('desktop-media-wrapper');
+        const getBtn = (idx) => `<button class="web-tab-btn ${idx===0?'active':''}" onclick="switchWebTab(${idx})">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
+        const getContent = (idx) => `<div class="web-frame-container ${idx===0?'active':''}" id="tab-content-${idx}"><div class="web-error-bg"><span>Empty Tab<br><small>Click ⚙️ to add resource</small></span></div></div>`;
+
+        let tabsHtml = `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0)}${getBtn(1)}${getBtn(2)}${getBtn(3)}${getBtn(4)}</div><div class="web-content-area">${getContent(0)}${getContent(1)}${getContent(2)}${getContent(3)}${getContent(4)}</div></div>`;
+        container.innerHTML = tabsHtml;
+
         if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState();
     }
     
     // --- EDIT TAB URL ---
     window.editTabUrl = function(index, event) {
         event.stopPropagation();
+        
+        // MODIFICACION: Si es modo libre, preguntar guardar para poder añadir recurso
+        if(currentEditIndex === -1) {
+            if(confirm("To add a resource, the card must be saved. Save as 'New Draft' now?")) {
+                saveFreeModeWork("New Draft Project");
+                // La función saveFreeModeWork ya actualiza currentEditIndex, así que el resto del código funcionará
+            } else {
+                return;
+            }
+        }
+
         const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
         const r = resources[currentEditIndex];
         
@@ -1218,6 +1259,14 @@
     }
 
     function closeEditor() {
+        // MODIFICACION: Preguntar al cerrar si se desea guardar (Si es modo libre y hay texto)
+        if(currentEditIndex === -1) {
+            const hasContent = editorArea.innerText.trim().length > 0 || editorArea.innerHTML.includes('<img') || editorArea.innerHTML.includes('<iframe');
+            if(hasContent && confirm("Do you want to save your work to a new card before closing?")) {
+                saveFreeModeWork("Saved Session " + new Date().toLocaleTimeString());
+            }
+        }
+
         if (players[0] && currentResourceId) { saveMediaTime(players[0], currentResourceId); stopTracking(); } 
         players.forEach(p => { if (p && typeof p.destroy === 'function') { p.destroy(); } });
         players = [null, null, null, null, null];
