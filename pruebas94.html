@@ -408,6 +408,30 @@
         
         /* Better dropdown alignment in text */
         .cloze-gap-container { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 4px; }
+
+
+        /* --- COLORES DE CANALES (Sincronización Visual) --- */
+/* Definimos colores para los 5 canales */
+.channel-1.active { color: #007AFF !important; border-bottom-color: #007AFF !important; } /* Azul */
+.channel-2.active { color: #34C759 !important; border-bottom-color: #34C759 !important; } /* Verde */
+.channel-3.active { color: #AF52DE !important; border-bottom-color: #AF52DE !important; } /* Púrpura */
+.channel-4.active { color: #FF9500 !important; border-bottom-color: #FF9500 !important; } /* Naranja */
+.channel-5.active { color: #FF3B30 !important; border-bottom-color: #FF3B30 !important; } /* Rojo */
+
+/* Estilo para el Candado */
+.btn-lock {
+    width: 24px; border: none; background: transparent; 
+    border-radius: 4px; cursor: pointer; font-size: 0.8rem; 
+    display: flex; align-items: center; justify-content: center;
+    margin-right: 4px; opacity: 0.4; transition: all 0.2s;
+}
+.btn-lock.locked { opacity: 1; background: #e5e5ea; }
+.btn-lock:hover { background: #d1d1d6; }
+
+/* Ajuste para el grupo de botones */
+.ctrl-target-group { gap: 2px; padding: 4px; align-items: center; }
+.btn-target { border-bottom: 3px solid transparent; border-radius: 4px; transition: all 0.2s; }
+.web-tab-btn { border-bottom-width: 3px; } /* Hacer la línea de la pestaña más visible */
     </style>
 </head>
 <body>
@@ -551,13 +575,15 @@
                         <button class="btn-fmt btn-save-template" onclick="saveEditorAsTemplate()" title="Save current editor content as reusable template">💾 Save Template</button>
                     </div>
                     <div class="toolbar-group">
-                        <div class="ctrl-target-group">
-                            <button class="btn-target active" onclick="setControlTarget(0)">1</button>
-                            <button class="btn-target" onclick="setControlTarget(1)">2</button>
-                            <button class="btn-target" onclick="setControlTarget(2)">3</button>
-                            <button class="btn-target" onclick="setControlTarget(3)">4</button>
-                            <button class="btn-target" onclick="setControlTarget(4)">5</button>
-                        </div>
+                    <div class="ctrl-target-group">
+    <button class="btn-lock locked" id="btn-sync-lock" onclick="toggleSyncLock()" title="Lock/Unlock Tab Sync">🔒</button>
+    
+    <button class="btn-target channel-1 active" onclick="setControlTarget(0)">1</button>
+    <button class="btn-target channel-2" onclick="setControlTarget(1)">2</button>
+    <button class="btn-target channel-3" onclick="setControlTarget(2)">3</button>
+    <button class="btn-target channel-4" onclick="setControlTarget(3)">4</button>
+    <button class="btn-target channel-5" onclick="setControlTarget(4)">5</button>
+</div>
                         <button class="btn-media" onclick="seekVideo(-3)">-3s</button>
                         <button class="btn-media" id="btn-main-play" onclick="togglePlay()">⏯️</button>
                         <button class="btn-media" onclick="seekVideo(3)">+3s</button>
@@ -780,7 +806,7 @@
 <script>
     const STORAGE_KEY = 'mdc_saved_favorites';
     const AI_MEM_KEY = 'mdc_ai_exercises';
-    const FAV_KEY = 'mdc_tab_favs'; // Nueva clave para favoritos de pestañas
+    const FAV_KEY = 'mdc_tab_favs'; 
     
     let currentTargetLang = 'en'; 
     let currentLevel = 'B1-B2 (Intermediate)';
@@ -799,15 +825,31 @@
     const editorArea = document.getElementById('editor-text');
     const aiModal = document.getElementById('ai-hub-modal');
 
-    // Variables para el nuevo sistema de pestañas
+    // Variables para el sistema de pestañas y Sincronización
     let activeTabIndexForPopup = 0;
+    let isSyncLocked = true; // Por defecto el candado está cerrado (Activo)
 
     document.addEventListener('DOMContentLoaded', () => {
         loadResources(); renderAiList(); updateTransFlagsVisibility(); initVoices(); initResizer();
-        injectTabPopupHtml(); // Inyectar el HTML del nuevo popup
+        injectTabPopupHtml(); 
     });
 
-    /* ====== NUEVO: GESTIÓN DE POPUP DE PESTAÑAS ====== */
+    /* ====== NUEVA LÓGICA: SINCRONIZACIÓN Y CANDADO ====== */
+    function toggleSyncLock() {
+        isSyncLocked = !isSyncLocked;
+        const btn = document.getElementById('btn-sync-lock');
+        if(isSyncLocked) {
+            btn.innerText = "🔒";
+            btn.classList.add('locked');
+            // Al bloquear, sincronizamos inmediatamente el control a la pestaña que estamos viendo
+            setControlTarget(activeTabIndexForPopup, true); 
+        } else {
+            btn.innerText = "🔓";
+            btn.classList.remove('locked');
+        }
+    }
+
+    /* ====== GESTIÓN DE POPUP DE PESTAÑAS (FAVORITOS) ====== */
     function injectTabPopupHtml() {
         const popupHtml = `
         <div id="tab-settings-modal" class="tab-settings-modal" onclick="if(event.target===this) closeTabPopup()">
@@ -821,8 +863,7 @@
                     <button class="tab-btn-go" onclick="applyTabUrlFromInput()">Ir</button>
                 </div>
                 <div class="fav-list-title">Predefinidos & Favoritos</div>
-                <ul class="fav-list" id="tab-fav-list">
-                    </ul>
+                <ul class="fav-list" id="tab-fav-list"></ul>
             </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', popupHtml);
@@ -839,135 +880,74 @@
         return [...defaults, ...saved];
     }
 
-    // Reemplaza a la antigua editTabUrl
     window.editTabUrl = function(index, event) {
         event.stopPropagation();
-        
-        // Comprobar modo libre
         if(currentEditIndex === -1) {
-            if(confirm("Para configurar pestañas, primero debes guardar la tarjeta. ¿Guardar 'Borrador' ahora?")) {
-                saveFreeModeWork("Borrador Proyecto");
-            } else { return; }
+            if(confirm("Para configurar pestañas, primero debes guardar la tarjeta. ¿Guardar 'Borrador' ahora?")) { saveFreeModeWork("Borrador Proyecto"); } else { return; }
         }
-
         activeTabIndexForPopup = index;
         const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
         const r = resources[currentEditIndex];
-        
-        // Obtener URL actual
         let key = index === 0 ? 'url' : `url${index + 1}`;
         const currentUrl = r[key] || '';
-
         document.getElementById('tab-url-input').value = currentUrl;
         renderTabFavorites();
         document.getElementById('tab-settings-modal').classList.add('active');
     }
 
-    function closeTabPopup() {
-        document.getElementById('tab-settings-modal').classList.remove('active');
-    }
+    function closeTabPopup() { document.getElementById('tab-settings-modal').classList.remove('active'); }
 
     function renderTabFavorites() {
-        const list = document.getElementById('tab-fav-list');
-        list.innerHTML = '';
+        const list = document.getElementById('tab-fav-list'); list.innerHTML = '';
         const favs = getTabFavorites();
-
         favs.forEach((fav, idx) => {
-            const isDefault = idx < 4; // Los primeros 4 son defaults
+            const isDefault = idx < 4; 
             const deleteBtn = isDefault ? '' : `<span class="fav-delete" onclick="deleteTabFavorite(${idx - 4}, event)">✕</span>`;
-            
-            list.innerHTML += `
-            <li class="fav-item" onclick="selectTabUrl('${fav.url}')">
-                <img src="${fav.icon}" class="fav-icon" onerror="this.src='about:blank'">
-                <span class="fav-name">${fav.title}</span>
-                ${deleteBtn}
-            </li>`;
+            list.innerHTML += `<li class="fav-item" onclick="selectTabUrl('${fav.url}')"><img src="${fav.icon}" class="fav-icon" onerror="this.src='about:blank'"><span class="fav-name">${fav.title}</span>${deleteBtn}</li>`;
         });
     }
 
     function applyTabUrlFromInput() {
         const val = document.getElementById('tab-url-input').value.trim();
         if(!val) return;
-        
-        // Lógica de "Aprendizaje": Si no está en favoritos, preguntar
-        const favs = getTabFavorites();
-        const exists = favs.some(f => f.url === val);
-        
-        if (!exists && val !== 'internal:editor' && val.includes('.')) {
-            if(confirm("¿Quieres guardar esta web en tus favoritos rápidos?")) {
-                addTabFavorite(val);
-            }
-        }
+        const favs = getTabFavorites(); const exists = favs.some(f => f.url === val);
+        if (!exists && val !== 'internal:editor' && val.includes('.')) { if(confirm("¿Quieres guardar esta web en tus favoritos rápidos?")) { addTabFavorite(val); } }
         selectTabUrl(val);
     }
 
     function addTabFavorite(url) {
         const domain = getDomain(url);
-        const newFav = {
-            title: domain.charAt(0).toUpperCase() + domain.slice(1),
-            url: url,
-            icon: `https://www.google.com/s2/favicons?domain=${url}&sz=64`
-        };
-        const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
-        saved.push(newFav);
-        localStorage.setItem(FAV_KEY, JSON.stringify(saved));
+        const newFav = { title: domain.charAt(0).toUpperCase() + domain.slice(1), url: url, icon: `https://www.google.com/s2/favicons?domain=${url}&sz=64` };
+        const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); saved.push(newFav); localStorage.setItem(FAV_KEY, JSON.stringify(saved));
     }
 
     function deleteTabFavorite(savedIndex, e) {
-        e.stopPropagation();
-        if(!confirm("¿Borrar de favoritos?")) return;
-        const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
-        saved.splice(savedIndex, 1);
-        localStorage.setItem(FAV_KEY, JSON.stringify(saved));
-        renderTabFavorites();
+        e.stopPropagation(); if(!confirm("¿Borrar de favoritos?")) return;
+        const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); saved.splice(savedIndex, 1); localStorage.setItem(FAV_KEY, JSON.stringify(saved)); renderTabFavorites();
     }
 
     function selectTabUrl(newUrl) {
-        const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        const r = resources[currentEditIndex];
-        const idx = activeTabIndexForPopup;
-
-        let key = idx === 0 ? 'url' : `url${idx + 1}`;
-        r[key] = newUrl;
-
-        // Si es la pestaña principal (0) y es video/audio, ajustar tipo
-        if (idx === 0) {
-             const ytId = getYouTubeID(newUrl);
-             if (ytId) r.type = 'video'; 
-             else if (newUrl.match(/\.(mp3|wav|ogg)$/i)) r.type = 'audio'; 
-             else r.type = 'web';
-        }
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-        closeTabPopup();
-        openEditorById(r.id); // Recargar editor
-        
-        // Forzar cambio visual a esa pestaña
+        const resources = JSON.parse(localStorage.getItem(STORAGE_KEY)); const r = resources[currentEditIndex]; const idx = activeTabIndexForPopup;
+        let key = idx === 0 ? 'url' : `url${idx + 1}`; r[key] = newUrl;
+        if (idx === 0) { const ytId = getYouTubeID(newUrl); if (ytId) r.type = 'video'; else if (newUrl.match(/\.(mp3|wav|ogg)$/i)) r.type = 'audio'; else r.type = 'web'; }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); closeTabPopup(); openEditorById(r.id); 
         setTimeout(() => switchWebTab(idx), 300);
     }
 
-    /* ====== CORE FUNCTIONS (RESTO DEL CÓDIGO) ====== */
-    function getYouTubeID(url) {
-        if (!url) return null;
-        const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2];
-        return (match && match.length === 11) ? match : null;
-    }
+    /* ====== CORE FUNCTIONS ====== */
+    function getYouTubeID(url) { if (!url) return null; const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2]; return (match && match.length === 11) ? match : null; }
     function getDomain(url) { try { return new URL(url).hostname.replace('www.', ''); } catch(e) { return 'web'; } }
     function generatePastelColor() { const hue = Math.floor(Math.random() * 360); return `hsl(${hue}, 70%, 90%)`; }
     function escapeHtml(text) { if (!text) return ""; return text.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
     function initResizer() {
-        const resizer = document.getElementById('drag-resizer');
-        const leftSide = document.getElementById('desktop-media-wrapper');
-        const popup = document.getElementById('editor-popup');
-        let x = 0; let leftWidth = 0;
+        const resizer = document.getElementById('drag-resizer'); const leftSide = document.getElementById('desktop-media-wrapper'); const popup = document.getElementById('editor-popup'); let x = 0; let leftWidth = 0;
         const mouseDownHandler = function(e) { x = e.clientX; leftWidth = leftSide.getBoundingClientRect().width; document.addEventListener('mousemove', mouseMoveHandler); document.addEventListener('mouseup', mouseUpHandler); resizer.classList.add('dragging'); leftSide.style.pointerEvents = 'none'; };
         const mouseMoveHandler = function(e) { const dx = e.clientX - x; const newWidth = leftWidth + dx; const percentage = (newWidth / popup.getBoundingClientRect().width) * 100; if (percentage > 20 && percentage < 80) leftSide.style.width = `${percentage}%`; };
         const mouseUpHandler = function() { document.removeEventListener('mousemove', mouseMoveHandler); document.removeEventListener('mouseup', mouseUpHandler); resizer.classList.remove('dragging'); leftSide.style.pointerEvents = 'auto'; };
         resizer.addEventListener('mousedown', mouseDownHandler);
     }
     function toggleEditorFullScreen() { document.getElementById('editor-popup').classList.toggle('is-fullscreen'); document.getElementById('btn-fullscreen').classList.toggle('active'); }
-
     function initVoices() { window.speechSynthesis.onvoiceschanged = populateVoiceLists; populateVoiceLists(); }
     function populateVoiceLists() {
         voices = window.speechSynthesis.getVoices(); if (voices.length === 0) return;
@@ -979,45 +959,25 @@
             else { available.forEach((v, i) => { const opt = document.createElement('option'); opt.textContent = `${v.name}`; opt.value = i; opt.setAttribute('data-name', v.name); select.appendChild(opt); }); }
         }
     }
-
     function selectTarget(el, lang) { document.querySelectorAll('#target-lang-group .flag-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); currentTargetLang = lang; updateTransFlagsVisibility(); }
     function selectLevel(el, levelDesc) { document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); currentLevel = levelDesc; }
-    function updateTransFlagsVisibility() {
-        document.querySelectorAll('#trans-lang-group .flag-btn').forEach(btn => {
-            const btnLang = btn.getAttribute('data-lang');
-            if (btnLang === currentTargetLang) { btn.classList.add('hidden'); btn.classList.remove('selected'); transLangs.delete(btnLang); } else { btn.classList.remove('hidden'); }
-        });
-    }
-    function toggleTrans(el, lang) {
-        if (transLangs.has(lang)) { transLangs.delete(lang); el.classList.remove('selected'); } 
-        else { if (transLangs.size >= 3) return alert("Max 3 translation languages."); transLangs.add(lang); el.classList.add('selected'); }
-    }
+    function updateTransFlagsVisibility() { document.querySelectorAll('#trans-lang-group .flag-btn').forEach(btn => { const btnLang = btn.getAttribute('data-lang'); if (btnLang === currentTargetLang) { btn.classList.add('hidden'); btn.classList.remove('selected'); transLangs.delete(btnLang); } else { btn.classList.remove('hidden'); } }); }
+    function toggleTrans(el, lang) { if (transLangs.has(lang)) { transLangs.delete(lang); el.classList.remove('selected'); } else { if (transLangs.size >= 3) return alert("Max 3 translation languages."); transLangs.add(lang); el.classList.add('selected'); } }
 
     function setResourceType(type) { selectedResourceType = type; document.querySelectorAll('.type-pill').forEach(el => el.classList.remove('active')); document.getElementById(`type-${type}`).classList.add('active'); }
     function addResource() {
-        const url = document.getElementById('resUrl').value.trim();
-        const url2 = document.getElementById('resUrl2').value.trim(); 
-        const url3 = document.getElementById('resUrl3').value.trim(); 
-        const url4 = document.getElementById('resUrl4').value.trim();
-        const url5 = document.getElementById('resUrl5').value.trim();
-        const title = document.getElementById('resTitle').value.trim();
+        const url = document.getElementById('resUrl').value.trim(); const url2 = document.getElementById('resUrl2').value.trim(); const url3 = document.getElementById('resUrl3').value.trim(); const url4 = document.getElementById('resUrl4').value.trim(); const url5 = document.getElementById('resUrl5').value.trim(); const title = document.getElementById('resTitle').value.trim();
         if (!url) return alert("Please enter a URL");
         let type = selectedResourceType;
-        if (type === 'auto') {
-            if (url.includes('youtube.com') || url.includes('youtu.be')) type = 'video';
-            else if (url.match(/\.(mp3|wav|ogg)$/i)) type = 'audio';
-            else type = 'web';
-        }
+        if (type === 'auto') { if (url.includes('youtube.com') || url.includes('youtu.be')) type = 'video'; else if (url.match(/\.(mp3|wav|ogg)$/i)) type = 'audio'; else type = 'web'; }
         const uniqueCardId = Date.now().toString() + Math.floor(Math.random() * 1000); 
         let resources = []; try { resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; if(!Array.isArray(resources)) resources = []; } catch(e) { resources = []; }
         resources.unshift({ id: uniqueCardId, url: url, url2: url2, url3: url3, url4: url4, url5: url5, type: type, title: title || (type === 'web' ? getDomain(url) : "New Resource"), date: new Date().toLocaleDateString(), note: "", lastTime: 0, color: type === 'web' ? generatePastelColor() : null });
         localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); loadResources();
         document.getElementById('resUrl').value = ''; document.getElementById('resUrl2').value = ''; document.getElementById('resUrl3').value = ''; document.getElementById('resUrl4').value = ''; document.getElementById('resUrl5').value = ''; document.getElementById('resTitle').value = ''; setResourceType('auto');
     }
-
     function saveFreeModeWork(defaultTitle) {
-        const uniqueCardId = Date.now().toString() + Math.floor(Math.random() * 1000);
-        const newRes = { id: uniqueCardId, url: '', url2: '', url3: '', url4: '', url5: '', type: 'web', title: defaultTitle, date: new Date().toLocaleDateString(), note: editorArea.innerHTML, lastTime: 0, color: generatePastelColor() };
+        const uniqueCardId = Date.now().toString() + Math.floor(Math.random() * 1000); const newRes = { id: uniqueCardId, url: '', url2: '', url3: '', url4: '', url5: '', type: 'web', title: defaultTitle, date: new Date().toLocaleDateString(), note: editorArea.innerHTML, lastTime: 0, color: generatePastelColor() };
         let resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; resources.unshift(newRes); localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); loadResources();
         const newIndex = resources.findIndex(r => r.id === uniqueCardId); currentEditIndex = newIndex; currentResourceId = uniqueCardId; document.getElementById('editor-popup').classList.remove('free-mode'); return uniqueCardId;
     }
@@ -1047,40 +1007,25 @@
     function saveMediaTime(player, id) { if (!player) return; let currentTime = 0; if (typeof player.getCurrentTime === 'function') { currentTime = player.getCurrentTime(); } else if (player.tagName === 'AUDIO') { currentTime = player.currentTime; } if (currentTime > 0) { const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); const index = resources.findIndex(v => String(v.id) === String(id)); if (index !== -1) { resources[index].lastTime = currentTime; localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } } }
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
-    /* ====== BACKUP ====== */
+    /* ====== BACKUP V3 ====== */
     function downloadBackup() { 
-        const rawResources = localStorage.getItem(STORAGE_KEY);
-        const rawMemory = localStorage.getItem(AI_MEM_KEY);
-        const rawFavs = localStorage.getItem(FAV_KEY); // Incluimos favoritos en backup
-        const resources = rawResources ? JSON.parse(rawResources) : [];
-        const memory = rawMemory ? JSON.parse(rawMemory) : [];
-        const favs = rawFavs ? JSON.parse(rawFavs) : [];
-
+        const rawResources = localStorage.getItem(STORAGE_KEY); const rawMemory = localStorage.getItem(AI_MEM_KEY); const rawFavs = localStorage.getItem(FAV_KEY); 
+        const resources = rawResources ? JSON.parse(rawResources) : []; const memory = rawMemory ? JSON.parse(rawMemory) : []; const favs = rawFavs ? JSON.parse(rawFavs) : [];
         alert(`Generando Backup:\n📚 Recursos: ${resources.length}\n🧠 Ejercicios IA: ${memory.length}\n⭐ Favoritos Pestaña: ${favs.length}`);
-        
-        const fullData = { version: 3, resources: resources, memory: memory, favs: favs };
-        const d = JSON.stringify(fullData);
-        const encodedData = btoa(unescape(encodeURIComponent(d)));
+        const fullData = { version: 3, resources: resources, memory: memory, favs: favs }; const d = JSON.stringify(fullData); const encodedData = btoa(unescape(encodeURIComponent(d)));
         const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body><h1>MDC Polyglot Full Backup</h1><p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p><p><strong>Upload this file using the Import button.</strong></p><script>const backupData = "${encodedData}";<\/script></body></html>`;
         const b = new Blob([htmlContent], {type: 'text/html'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); const dateStr = new Date().toISOString().split('T')[0]; a.download = `MDC_FullBackup_${dateStr}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
     }
 
     function importBackup(inp) { 
         const file = inp.files[0]; if (!file) return;
-        const r = new FileReader(); 
-        r.onload = e => { 
+        const r = new FileReader(); r.onload = e => { 
             try { 
                 const content = e.target.result;
-                let match = content.match(/const backupData\s*=\s*"(.*?)";/);
-                if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
-                if (!match) throw new Error("No se encontraron datos de respaldo válidos.");
-                let json = match[1];
-                try { json = decodeURIComponent(escape(atob(json))); } catch(e) { console.log("Legacy decode fallback"); }
-                const parsedData = JSON.parse(json);
-
+                let match = content.match(/const backupData\s*=\s*"(.*?)";/); if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s); if (!match) throw new Error("No se encontraron datos de respaldo válidos.");
+                let json = match[1]; try { json = decodeURIComponent(escape(atob(json))); } catch(e) { console.log("Legacy decode fallback"); } const parsedData = JSON.parse(json);
                 if (parsedData.version >= 2 || (parsedData.resources && parsedData.memory)) {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
-                    localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources)); localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
                     if(parsedData.favs) localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
                     alert(`✅ RESTAURACIÓN COMPLETA:\n📚 Recursos: ${parsedData.resources.length}\n🧠 Ejercicios IA: ${parsedData.memory.length}`);
                 } else if (Array.isArray(parsedData)) {
@@ -1093,10 +1038,46 @@
         }; r.readAsText(file); 
     }
 
-    /* ====== CONTROL & RENDER TABS ====== */
-    window.setControlTarget = function(idx) { controlTarget = idx; document.querySelectorAll('.btn-target').forEach((b, i) => { if(i===idx) b.classList.add('active'); else b.classList.remove('active'); }); const p = players[controlTarget]; const playBtn = document.getElementById('btn-main-play'); if(p && typeof p.getPlayerState === 'function') { if(p.getPlayerState() === 1) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); } else { playBtn.innerText = "▶️"; playBtn.classList.remove('is-playing'); } } }
-    function openFreeEditor() { currentEditIndex = -1; currentResourceId = null; editorArea.innerHTML = ""; modal.classList.add('active'); document.getElementById('editor-popup').classList.remove('free-mode'); document.getElementById('editor-popup').style.opacity = 1; players = [null, null, null, null, null]; const container = document.getElementById('desktop-media-wrapper'); const getBtn = (idx) => `<button class="web-tab-btn ${idx===0?'active':''}" onclick="switchWebTab(${idx})">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`; const getContent = (idx) => `<div class="web-frame-container ${idx===0?'active':''}" id="tab-content-${idx}"><div class="web-error-bg"><span>Empty Tab<br><small>Click ⚙️ to add resource</small></span></div></div>`; let tabsHtml = `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0)}${getBtn(1)}${getBtn(2)}${getBtn(3)}${getBtn(4)}</div><div class="web-content-area">${getContent(0)}${getContent(1)}${getContent(2)}${getContent(3)}${getContent(4)}</div></div>`; container.innerHTML = tabsHtml; if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState(); }
-    window.switchWebTab = function(idx) { document.querySelectorAll('.web-tab-btn').forEach((b, i) => { if(b.innerText.includes('Externally')) return; const buttons = Array.from(document.querySelectorAll('.web-tab-btn')).filter(btn => !btn.innerText.includes('Externally')); if(buttons[idx]) { buttons.forEach(btn => btn.classList.remove('active')); buttons[idx].classList.add('active'); } }); document.querySelectorAll('.web-frame-container').forEach((f, i) => { if(i === idx) f.classList.add('active'); else f.classList.remove('active'); }); };
+    /* ====== CONTROL & RENDER TABS (SYNC LOGIC) ====== */
+    window.setControlTarget = function(idx, fromSync = false) {
+        controlTarget = idx;
+        document.querySelectorAll('.btn-target').forEach((b, i) => { 
+            if(i === idx) b.classList.add('active'); else b.classList.remove('active'); 
+        });
+
+        // Lógica del Candado: Sincronizar Pestaña
+        if (isSyncLocked && !fromSync) { switchWebTab(idx, true); }
+
+        const p = players[controlTarget];
+        const playBtn = document.getElementById('btn-main-play');
+        if(p && typeof p.getPlayerState === 'function') {
+            if(p.getPlayerState() === 1) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); } 
+            else { playBtn.innerText = "▶️"; playBtn.classList.remove('is-playing'); }
+        }
+    }
+
+    function openFreeEditor() { 
+        currentEditIndex = -1; currentResourceId = null; editorArea.innerHTML = ""; modal.classList.add('active'); document.getElementById('editor-popup').classList.remove('free-mode'); document.getElementById('editor-popup').style.opacity = 1; players = [null, null, null, null, null]; 
+        const container = document.getElementById('desktop-media-wrapper'); 
+        // Generar botones con colores de canal
+        const getBtn = (idx) => `<button class="web-tab-btn channel-${idx+1} ${idx===0?'active':''}" onclick="switchWebTab(${idx})">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`; 
+        const getContent = (idx) => `<div class="web-frame-container ${idx===0?'active':''}" id="tab-content-${idx}"><div class="web-error-bg"><span>Empty Tab<br><small>Click ⚙️ to add resource</small></span></div></div>`; 
+        let tabsHtml = `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0)}${getBtn(1)}${getBtn(2)}${getBtn(3)}${getBtn(4)}</div><div class="web-content-area">${getContent(0)}${getContent(1)}${getContent(2)}${getContent(3)}${getContent(4)}</div></div>`; 
+        container.innerHTML = tabsHtml; if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState(); 
+    }
+
+    window.switchWebTab = function(idx, fromSync = false) { 
+        activeTabIndexForPopup = idx;
+        document.querySelectorAll('.web-tab-btn').forEach((b, i) => { 
+            if(b.innerText.includes('Externally')) return; 
+            const buttons = Array.from(document.querySelectorAll('.web-tab-btn')).filter(btn => !btn.innerText.includes('Externally')); 
+            if(buttons[idx]) { buttons.forEach(btn => btn.classList.remove('active')); buttons[idx].classList.add('active'); } 
+        }); 
+        document.querySelectorAll('.web-frame-container').forEach((f, i) => { if(i === idx) f.classList.add('active'); else f.classList.remove('active'); }); 
+        
+        // Lógica del Candado: Sincronizar Control
+        if (isSyncLocked && !fromSync) { setControlTarget(idx, true); }
+    };
 
     function openEditorById(id) {
         const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -1107,7 +1088,7 @@
         modal.classList.add('active'); document.getElementById('editor-popup').classList.remove('free-mode'); document.getElementById('editor-popup').style.opacity = 1;
         const container = document.getElementById('desktop-media-wrapper'); container.innerHTML = ''; 
         const isDesktop = window.matchMedia("(min-width: 900px)").matches; let startTime = resData.lastTime || 0;
-        players = [null, null, null, null, null]; setControlTarget(0); 
+        players = [null, null, null, null, null]; setControlTarget(0, true); // Reset to 0 synced
 
         const ytId1 = getYouTubeID(resData.url);
         const ytId2 = getYouTubeID(resData.url2);
@@ -1118,15 +1099,14 @@
         const renderTabs = (content1, content2, content3, content4, content5) => {
             const getBtn = (idx, link) => {
                 const activeClass = idx === 0 ? 'active' : '';
-                return `<button class="web-tab-btn ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
+                // Botones con color de canal
+                return `<button class="web-tab-btn channel-${idx+1} ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
             };
             return `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0, resData.url)}${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}${resData.url5 ? getBtn(4, resData.url5) : getBtn(4, '')}</div><div class="web-content-area"><div class="web-frame-container active" id="tab-content-0">${content1}</div><div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div></div></div>`;
         };
 
         const getTabContent = (link, ytId, index) => {
-            if (link === 'internal:editor') {
-                return `<div class="embedded-editor-area" contenteditable="true" oninput="document.getElementById('editor-text').innerHTML = this.innerHTML; window.saveNote();">${resData.note || ''}</div><div style="position:absolute; bottom:5px; right:5px; font-size:10px; color:#aaa; background:#fff; padding:2px;">Linked to Main Note</div>`;
-            }
+            if (link === 'internal:editor') { return `<div class="embedded-editor-area" contenteditable="true" oninput="document.getElementById('editor-text').innerHTML = this.innerHTML; window.saveNote();">${resData.note || ''}</div><div style="position:absolute; bottom:5px; right:5px; font-size:10px; color:#aaa; background:#fff; padding:2px;">Linked to Main Note</div>`; }
             if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
             if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
             return null;
