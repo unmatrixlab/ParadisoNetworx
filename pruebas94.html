@@ -829,10 +829,10 @@
     let activeTabIndexForPopup = 0;
     let isSyncLocked = true; // Por defecto el candado está cerrado (Activo)
 
-    document.addEventListener('DOMContentLoaded', () => {
-        loadResources(); renderAiList(); updateTransFlagsVisibility(); initVoices(); initResizer();
-        injectTabPopupHtml(); 
-    });
+  document.addEventListener('DOMContentLoaded', () => {
+    loadResources(); renderAiList(); updateTransFlagsVisibility(); initVoices(); initResizer(); injectTabPopupHtml();
+    initDataGuardian(); // <--- AGREGAR ESTO
+});
 
     /* ====== NUEVA LÓGICA: SINCRONIZACIÓN Y CANDADO ====== */
     function toggleSyncLock() {
@@ -1202,6 +1202,86 @@
     function insertExerciseFromMem(id) { const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const item = memory.find(x => x.id === id); if (!item) return; if(item.isHtml) { if(confirm("Insert template?")) { editorArea.insertAdjacentHTML('beforeend', item.htmlContent + '<p><br></p>'); closeAIMenu(); window.saveNote(); } return; } const insertTime = Date.now(); const theoryId = `theory-${id}-${insertTime}`; const targetLang = item.lang || 'en'; let htmlBlock = `<div class="exercise-box" contenteditable="false"><div class="exercise-header"><span>✍️ ${item.title}</span><div style="display:flex; align-items:center;"><button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button><button class="btn-reset-block" contenteditable="false" onclick="window.resetExerciseBlock(this)" title="Reset">↺</button><button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete">🗑️</button></div></div><div class="theory-box" id="${theoryId}">${item.theory || "No theory."}</div>`; item.data.forEach((ex, index) => { const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`; let exerciseContent = ""; if (ex.cloze_text) { let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => { const parts = content.split('|'); const correctAns = parts[0].trim(); const shuffled = [...parts].sort(() => Math.random() - 0.5); let optsHtml = `<option value="" disabled selected>...</option>`; shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`; }); return `<span class="cloze-gap-container"><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`; }); exerciseContent = `<span><b>${index + 1}.</b> ${parsedHtml}</span>`; } else { let optsHtml = `<option value="" disabled selected>...</option>`; const shuffled = [...ex.options].sort(() => Math.random() - 0.5); shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt)}">${opt}</option>`; }); exerciseContent = `<span><b>${index + 1}.</b> ${ex.pre || ''}</span><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(ex.answer)}')">${optsHtml}</select><span>${ex.post || ''}</span>`; } let transContent = ""; if (ex.translations) { for (const [key, val] of Object.entries(ex.translations)) { let f = "🇬🇧"; if(key==='es') f="🇪🇸"; if(key==='pt') f="🇧🇷"; if(key==='it') f="🇮🇹"; transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${val}</span></div>`; } } else { transContent = "No translation"; } htmlBlock += `<div class="exercise-row" id="${uId}">${exerciseContent}<div style="display:inline-flex; gap:5px; margin-left:10px;"><button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${escapeHtml(ex.full_sentence)}', '${targetLang}')">🔊</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button></div><div class="hint-box" id="${hId}">💡 ${ex.hint}</div><div class="trans-box" id="${tId}">${transContent}</div></div>`; }); htmlBlock += '</div><p><br></p>'; editorArea.insertAdjacentHTML('beforeend', htmlBlock); setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; window.saveNote(); }, 50); closeAIMenu(); }
     window.validateExercise = function(s, a) { s.classList.remove('correct', 'wrong'); if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) { s.classList.add('correct'); } else { s.classList.add('wrong'); if(navigator.vibrate) navigator.vibrate(200); } window.saveNote(); };
     window.speakText = function(text, langCode) { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); const sel = document.querySelector(`#voice-${langCode} option:checked`)?.getAttribute('data-name'); const all = window.speechSynthesis.getVoices(); if (sel) { const v = all.find(val => val.name === sel); if (v) u.voice = v; } else { const m = { 'en': 'en-US', 'es': 'es-ES', 'pt': 'pt-BR', 'it': 'it-IT' }; u.lang = m[langCode] || 'en-US'; } u.rate = 0.9; window.speechSynthesis.speak(u); } else { alert("TTS not supported."); } };
+
+
+/* ====== DATA GUARDIAN (SISTEMA DE SEGURIDAD V2) ====== */
+    const MIRROR_RES_KEY = 'mdc_mirror_res_bak';
+    const MIRROR_AI_KEY = 'mdc_mirror_ai_bak';
+
+    function initDataGuardian() {
+        // 1. SOLICITAR PERSISTENCIA AL NAVEGADOR
+        // Esto evita que el navegador borre los datos si el disco duro se llena
+        if (navigator.storage && navigator.storage.persist) {
+            navigator.storage.persist().then(granted => {
+                if (granted) {
+                    console.log("🛡️ Data Guardian: Persistencia concedida. El navegador no borrará los datos automáticamente.");
+                } else {
+                    console.log("⚠️ Data Guardian: El navegador podría borrar datos si falta espacio.");
+                }
+            });
+        }
+
+        // 2. CHECK DE INTEGRIDAD AL INICIO
+        // Si los datos principales están vacíos pero el espejo tiene datos, RESTAURAR AUTOMÁTICAMENTE
+        const mainRes = localStorage.getItem(STORAGE_KEY);
+        const mirrorRes = localStorage.getItem(MIRROR_RES_KEY);
+        
+        if ((!mainRes || mainRes === '[]') && (mirrorRes && mirrorRes.length > 50)) {
+            if(confirm("⚠️ ALERTA DE SEGURIDAD ⚠️\n\nSe detectó que tu biblioteca principal está vacía, pero existe una copia de seguridad interna.\n\n¿Quieres RESTAURAR los datos desde el espejo de seguridad?")) {
+                localStorage.setItem(STORAGE_KEY, mirrorRes);
+                alert("✅ Datos rescatados exitosamente.");
+                location.reload();
+            }
+        }
+
+        // Lo mismo para la memoria IA
+        const mainAi = localStorage.getItem(AI_MEM_KEY);
+        const mirrorAi = localStorage.getItem(MIRROR_AI_KEY);
+        if ((!mainAi || mainAi === '[]') && (mirrorAi && mirrorAi.length > 50)) {
+            console.warn("Restaurando IA desde espejo...");
+            localStorage.setItem(AI_MEM_KEY, mirrorAi);
+        }
+
+        // 3. ACTIVAR EL ESPEJO AUTOMÁTICO
+        // Cada 60 segundos, o cada vez que modifiques datos, actualizamos el espejo
+        setInterval(updateSecurityMirror, 60000); // Backup automático cada 1 min
+    }
+
+    function updateSecurityMirror() {
+        // Obtenemos los datos actuales
+        const currentRes = localStorage.getItem(STORAGE_KEY);
+        const currentAi = localStorage.getItem(AI_MEM_KEY);
+
+        // Solo actualizamos el espejo si los datos actuales SON VÁLIDOS y tienen contenido
+        // Esto evita que si borras todo por error, el espejo también se borre inmediatamente
+        if (currentRes && currentRes.length > 50) {
+            localStorage.setItem(MIRROR_RES_KEY, currentRes);
+        }
+        
+        if (currentAi && currentAi.length > 50) {
+            localStorage.setItem(MIRROR_AI_KEY, currentAi);
+        }
+    }
+
+    // SOBRESCRIBIR LA FUNCIÓN DE GUARDADO PRINCIPAL PARA FORZAR ESPEJO INMEDIATO
+    // Guardamos una referencia a la función original de setItem para no romper nada
+    const originalSetItem = localStorage.setItem;
+
+    localStorage.setItem = function(key, value) {
+        // 1. Ejecutar el guardado normal
+        originalSetItem.apply(this, [key, value]);
+
+        // 2. Si estamos guardando datos críticos, actualizamos el espejo inmediatamente
+        if (key === STORAGE_KEY || key === AI_MEM_KEY) {
+            // Pequeño delay para no bloquear la interfaz
+            setTimeout(() => {
+                if (key === STORAGE_KEY && value.length > 50) originalSetItem.apply(this, [MIRROR_RES_KEY, value]);
+                if (key === AI_MEM_KEY && value.length > 50) originalSetItem.apply(this, [MIRROR_AI_KEY, value]);
+            }, 100);
+        }
+    };
+
+
 </script>
 </body>
 </html>
