@@ -1,75 +1,218 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de Tarjetas de Video v2</title>
+    <title>MDC Studio Suite v5.3 (Fixed Save Logic)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f3f4f6; padding: 40px; display: flex; justify-content: center; }
-        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
-        h2 { text-align: center; color: #1f2937; margin-bottom: 20px; }
+        /* === ESTILOS DE LA HERRAMIENTA (GENERADOR) === */
+        :root { --bg-app: #f8fafc; --bg-panel: #ffffff; --text-main: #1e293b; --text-muted: #64748b; --primary: #4f46e5; --primary-hover: #4338ca; --danger: #ef4444; --border: #e2e8f0; --editor-bg: #1e293b; --editor-text: #f1f5f9; --editor-border: #334155; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-app); color: var(--text-main); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: 600; margin-bottom: 5px; color: #4b5563; font-size: 0.9rem; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
-        input:focus, select:focus { outline: none; border-color: #4f46e5; ring: 2px solid #4f46e5; }
+        /* Navbar */
+        .navbar { background: var(--bg-panel); width: 100%; padding: 1rem 0; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; display: flex; justify-content: center; gap: 1rem; }
+        .nav-tab { background: transparent; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: 0.2s; }
+        .nav-tab:hover { background: #f1f5f9; color: var(--primary); }
+        .nav-tab.active { background: var(--primary); color: white; }
         
-        button { width: 100%; padding: 12px; background: #4f46e5; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.2s; }
-        button:hover { background: #4338ca; }
+        /* Contenedores */
+        .container { width: 95%; max-width: 1400px; margin: 2rem auto; display: none; animation: fadeIn 0.3s ease; }
+        .container.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .panel { background: var(--bg-panel); border-radius: 10px; border: 1px solid var(--border); padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
         
-        .output-area { margin-top: 20px; position: relative; }
-        textarea { width: 100%; height: 250px; padding: 10px; background: #1f2937; color: #a5b4fc; border-radius: 6px; font-family: monospace; font-size: 12px; border: none; resize: none; box-sizing: border-box; }
+        /* Inputs y Tipografía */
+        h2 { margin-top: 0; color: var(--text-main); font-weight: 700; }
+        .input-group { margin-bottom: 1.5rem; }
+        label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        input[type="text"], select { width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; background: #fff; color: var(--text-main); box-sizing: border-box; transition: border-color 0.2s; }
+        input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         
-        .copy-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.2); font-size: 12px; padding: 5px 10px; width: auto; margin: 0; border: 1px solid rgba(255,255,255,0.3); color: white; }
-        .copy-btn:hover { background: rgba(255,255,255,0.3); }
-
-        .preview-text { text-align: center; font-size: 0.8rem; color: #6b7280; margin-top: 10px; }
+        /* Botones de Tipo */
+        .type-toggle { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; gap: 5px; }
+        .type-btn { flex: 1; border: none; background: transparent; padding: 8px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 6px; transition: 0.2s; }
+        .type-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        /* Editor Grid */
+        .editor-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; height: 600px; }
+        .col { display: flex; flex-direction: column; }
+        .editor-toolbar { display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 8px 12px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; }
+        .toolbar-title { font-weight: 700; font-size: 0.8rem; color: var(--text-muted); }
+        
+        /* Icon Buttons */
+        .icon-btn { border: 1px solid var(--border); background: white; color: var(--text-muted); padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; margin-left: 5px; }
+        .icon-btn:hover { background: #f1f5f9; color: var(--text-main); }
+        .icon-btn.upload { color: var(--primary); border-color: #e0e7ff; background: #eef2ff; }
+        .icon-btn.clear { color: var(--danger); border-color: #fee2e2; background: #fef2f2; }
+        
+        /* Textareas */
+        textarea { flex: 1; background: var(--editor-bg); color: var(--editor-text); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; padding: 1rem; border: 1px solid var(--editor-border); border-radius: 0 0 6px 6px; resize: none; line-height: 1.6; }
+        textarea:focus { outline: none; border-color: var(--primary); }
+        
+        /* Botones Principales */
+        .btn-main { width: 100%; padding: 1rem; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; margin-top: 1rem; transition: background 0.2s; }
+        .btn-main:hover { background: var(--primary-hover); }
+        .btn-reset { background: white; border: 1px solid var(--danger); color: var(--danger); margin-top: 0.5rem; }
+        .btn-reset:hover { background: #fef2f2; }
+        
+        /* Preview */
+        .preview-box { position: relative; margin-top: 1rem; }
+        .copy-badge { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 4px 8px; font-size: 0.7rem; border-radius: 4px; cursor: pointer; }
+        
+        @media (max-width: 1024px) { .editor-grid { grid-template-columns: 1fr; height: auto; } .col { height: 400px; margin-bottom: 20px; } }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>📺 Creador de Tarjetas Pro</h2>
-        
-        <div class="form-group">
-            <label>Categoría</label>
-            <select id="category">
-                <option value="ted">TED Talk (Default)</option>
-                <option value="musical">Música / Video Musical</option>
-                <option value="interview">Entrevista / Podcast</option>
-            </select>
+    <nav class="navbar">
+        <button class="nav-tab active" onclick="switchTab('fusioner')">Subtitle Fusioner</button>
+        <button class="nav-tab" onclick="switchTab('cards')">Card Generator</button>
+    </nav>
+
+    <div id="fusioner" class="container active">
+        <div class="panel">
+            <div style="text-align: center; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px;">
+                <a href="https://downsub.com/" target="_blank" class="icon-btn" style="text-decoration: none; padding: 8px 16px; font-size: 0.8rem;">⬇️ DownSub</a>
+                <a href="https://translatesubtitles.co" target="_blank" class="icon-btn upload" style="text-decoration: none; padding: 8px 16px; font-size: 0.8rem;">🌐 TranslateSubtitles</a>
+            </div>
+
+            <div class="input-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <label>YouTube Video ID or URL</label>
+                    <input type="text" id="youtubeInput" placeholder="e.g. -moW9jvvMr4" value="-moW9jvvMr4" style="font-family: 'JetBrains Mono', monospace;">
+                </div>
+                <div>
+                    <label>Video Title (For Folder Name)</label>
+                    <input type="text" id="videoTitleInput" placeholder="e.g. Daily Conversation Ep.1">
+                </div>
+            </div>
+
+            <div class="editor-grid">
+                <div class="col">
+                    <div class="editor-toolbar">
+                        <span class="toolbar-title">1. English (SRT)</span>
+                        <div>
+                            <input type="file" id="fileEng" hidden>
+                            <label for="fileEng" class="icon-btn upload">Upload</label>
+                            <button class="icon-btn clear" onclick="clearText('inputEng')">Clear</button>
+                        </div>
+                    </div>
+                    <textarea id="inputEng" placeholder="Paste English SRT here..."></textarea>
+                </div>
+                <div class="col">
+                    <div class="editor-toolbar">
+                        <span class="toolbar-title">2. Spanish (SRT)</span>
+                        <div>
+                            <input type="file" id="fileEsp" hidden>
+                            <label for="fileEsp" class="icon-btn upload">Upload</label>
+                            <button class="icon-btn clear" onclick="clearText('inputEsp')">Clear</button>
+                        </div>
+                    </div>
+                    <textarea id="inputEsp" placeholder="Paste Spanish SRT here..."></textarea>
+                </div>
+                <div class="col">
+                    <div class="editor-toolbar">
+                        <span class="toolbar-title">3. Final HTML Code</span>
+                        <div>
+                            <button class="icon-btn upload" onclick="copyText('outputFusion')">Copy All</button>
+                            <button class="icon-btn clear" onclick="clearText('outputFusion')">Clear</button>
+                        </div>
+                    </div>
+                    <textarea id="outputFusion" readonly placeholder="Generated HTML will appear here..."></textarea>
+                </div>
+            </div>
+
+            <button class="btn-main" onclick="fusionar()">Merge & Generate Code</button>
+            <button class="btn-main btn-reset" onclick="clearAll()">Reset All</button>
         </div>
+    </div>
 
-        <div class="form-group">
-            <label>Link de YouTube (o ID)</label>
-            <input type="text" id="ytLink" placeholder="Ej: https://www.youtube.com/watch?v=-moW9jvvMr4">
-        </div>
-
-        <div class="form-group">
-            <label>Título del Video</label>
-            <input type="text" id="title" placeholder="Ej: Sleep Is Your Superpower">
-        </div>
-
-        <div class="form-group">
-            <label>Autor / Speaker</label>
-            <input type="text" id="author" placeholder="Ej: Matt Walker">
-        </div>
-
-        <div class="form-group">
-            <label>Link de tu página (Destino)</label>
-            <input type="text" id="pageLink" placeholder="Ej: https://paradisonetworx.com/mdceng005.html">
-        </div>
-
-        <button onclick="generarCodigo()">✨ Generar Código HTML</button>
-
-        <div class="output-area" id="outputContainer" style="display:none;">
-            <button class="copy-btn" onclick="copiar()">Copiar</button>
-            <textarea id="output" readonly></textarea>
-            <div class="preview-text">Copia esto y pégalo en tu archivo Library.html</div>
+    <div id="cards" class="container">
+        <div class="panel" style="max-width: 600px; margin: 0 auto;">
+            <h2>Card Generator</h2>
+            <div class="input-group">
+                <label>Category</label>
+                <select id="cardCategory">
+                    <option value="talks">Talks</option>
+                    <option value="musical">Music</option>
+                    <option value="interview">Interview</option>
+                    <option value="theory">Theory</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Content Type</label>
+                <div class="type-toggle">
+                    <button class="type-btn active" id="btnTypeVideo" onclick="setType('video')">Video (YouTube)</button>
+                    <button class="type-btn" id="btnTypeArticle" onclick="setType('article')">Theory/Article</button>
+                </div>
+            </div>
+            <div class="input-group" id="groupYt">
+                <label>YouTube Link</label>
+                <input type="text" id="cardYtLink" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <div class="input-group" id="groupImg" style="display: none;">
+                <label>Image URL (Thumbnail)</label>
+                <input type="text" id="cardImgLink" placeholder="https://example.com/image.jpg">
+            </div>
+            <div class="input-group">
+                <label>Title</label>
+                <input type="text" id="cardTitle" placeholder="e.g. Sleep Is Your Superpower">
+            </div>
+            <div class="input-group">
+                <label>Author / Source</label>
+                <input type="text" id="cardAuthor" placeholder="e.g. Matt Walker">
+            </div>
+            <div class="input-group">
+                <label>Destination Link</label>
+                <input type="text" id="cardPageLink" placeholder="e.g. page001.html">
+            </div>
+            <button class="btn-main" onclick="generateCard()">Generate Card HTML</button>
+            <div class="preview-box" id="cardOutputContainer" style="display:none;">
+                <button class="copy-badge" onclick="copyText('outputCard')">COPY</button>
+                <textarea id="outputCard" readonly style="width:100%; height:200px; border-radius:6px; background: #111827; color: #a5b4fc;"></textarea>
+            </div>
         </div>
     </div>
 
     <script>
+        // === LOGIC DEL INTERFAZ ===
+        let currentType = 'video';
+        function switchTab(tabId) {
+            document.querySelectorAll('.container').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            if(tabId === 'fusioner') document.querySelectorAll('.nav-tab')[0].classList.add('active');
+            else document.querySelectorAll('.nav-tab')[1].classList.add('active');
+        }
+        function setType(type) {
+            currentType = type;
+            document.getElementById('btnTypeVideo').className = type === 'video' ? 'type-btn active' : 'type-btn';
+            document.getElementById('btnTypeArticle').className = type === 'article' ? 'type-btn active' : 'type-btn';
+            if(type === 'video') { document.getElementById('groupYt').style.display = 'block'; document.getElementById('groupImg').style.display = 'none'; } 
+            else { document.getElementById('groupYt').style.display = 'none'; document.getElementById('groupImg').style.display = 'block'; }
+        }
+        function copyText(elementId) {
+            const el = document.getElementById(elementId); el.select();
+            navigator.clipboard.writeText(el.value).then(() => alert("Copied!"));
+        }
+        function clearText(elementId) { document.getElementById(elementId).value = ""; }
+        function setupReader(fileId, textId) {
+            document.getElementById(fileId).addEventListener('change', (e) => {
+                const file = e.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => document.getElementById(textId).value = ev.target.result;
+                reader.readAsText(file);
+            });
+        }
+        setupReader('fileEng', 'inputEng'); setupReader('fileEsp', 'inputEsp');
+        
+        function clearAll() {
+            if(confirm("Reset all fields?")) {
+                clearText('inputEng'); clearText('inputEsp'); clearText('outputFusion');
+                document.getElementById('youtubeInput').value = "-moW9jvvMr4";
+            }
+        }
         function getYoutubeId(url) {
             if (!url) return '';
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -77,64 +220,578 @@
             return (match && match[2].length === 11) ? match[2] : url;
         }
 
-        function generarCodigo() {
-            const catSelect = document.getElementById('category').value;
-            const url = document.getElementById('ytLink').value;
-            const title = document.getElementById('title').value;
-            const author = document.getElementById('author').value;
-            const pageLink = document.getElementById('pageLink').value;
-            const id = getYoutubeId(url);
-
-            if (!id || !title || !pageLink) {
-                alert("Por favor completa al menos el Link de YouTube, Título y Link de Destino.");
-                return;
+        // === GENERADOR DE TARJETAS (CARDS) ===
+        function generateCard() {
+            const cat = document.getElementById('cardCategory').value;
+            const title = document.getElementById('cardTitle').value;
+            const author = document.getElementById('cardAuthor').value;
+            const pageLink = document.getElementById('cardPageLink').value;
+            if(!title || !pageLink) { alert("Title and Link are required"); return; }
+            
+            let imgSrc = "", iconSVG = "";
+            if (currentType === 'video') {
+                const ytLink = document.getElementById('cardYtLink').value;
+                const id = getYoutubeId(ytLink);
+                if (!id) { alert("Invalid YouTube Link"); return; }
+                imgSrc = `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`;
+                iconSVG = `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+            } else {
+                imgSrc = document.getElementById('cardImgLink').value;
+                if (!imgSrc) { alert("Image URL required for Article"); return; }
+                iconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>`;
             }
-
-            // Lógica para determinar estilos y atributos según la categoría
-            let dataCategory = "ted";
-            let tagName = "TED";
-            let tagStyle = ""; // Estilo por defecto (gris transparente)
-
-            if (catSelect === 'musical') {
-                dataCategory = "musical";
-                tagName = "MUSIC";
-                tagStyle = ' style="background: rgba(236, 72, 153, 0.4);"'; // Rosa
-            } else if (catSelect === 'interview') {
-                dataCategory = "interview";
-                tagName = "TALK";
-                tagStyle = ' style="background: rgba(59, 130, 246, 0.4);"'; // Azul
-            }
-
-            // PLANTILLA CON VARIABLES DE CATEGORÍA
-            const html = `
-        <!-- Video: ${title} -->
-        <a href="${pageLink}" class="card-link" data-category="${dataCategory}">
-            <div class="video-card">
-                <img src="https://i.ytimg.com/vi/${id}/maxresdefault.jpg" alt="Thumbnail">
-                
-                <div class="play-icon">
-                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-
-                <div class="info-overlay">
-                    <div class="video-author">
-                        <span class="tag"${tagStyle}>${tagName}</span>
-                        ${author}
-                    </div>
-                    <div class="video-title">${title}</div>
-                </div>
-            </div>
-        </a>`;
-
-            document.getElementById('output').value = html;
-            document.getElementById('outputContainer').style.display = 'block';
+            
+            let dataCategory = "talks", tagName = "TALKS", tagStyle = "background: rgba(107, 114, 128, 0.4);";
+            if(cat === 'musical') { dataCategory = "musical"; tagName = "MUSIC"; tagStyle = "background: rgba(236, 72, 153, 0.4);"; }
+            else if(cat === 'interview') { dataCategory = "interview"; tagName = "TALK"; tagStyle = "background: rgba(59, 130, 246, 0.4);"; }
+            else if(cat === 'theory') { dataCategory = "theory"; tagName = "THEORY"; tagStyle = "background: rgba(245, 158, 11, 0.4);"; }
+            
+            const html = `<a href="${pageLink}" class="card-link" data-category="${dataCategory}">
+  <div class="video-card">
+    <img src="${imgSrc}" alt="${title}">
+    <div class="play-icon">${iconSVG}</div>
+    <div class="info-overlay">
+      <div class="video-author"><span class="tag" style="${tagStyle}">${tagName}</span>${author}</div>
+      <div class="video-title">${title}</div>
+    </div>
+  </div>
+</a>`;
+            document.getElementById('outputCard').value = html;
+            document.getElementById('cardOutputContainer').style.display = 'block';
         }
 
-        function copiar() {
-            const copyText = document.getElementById("output");
-            copyText.select();
-            navigator.clipboard.writeText(copyText.value);
-            alert("¡Código copiado! Ahora pégalo en tu librería.");
+        // === PLANTILLAS HTML GENERADAS (FORMATEADAS PARA LECTURA) ===
+        
+        const TPL_HEAD = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <title>MDC ENG</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #4f46e5; --primary-hover: #4338ca; --accent: #ec4899; 
+            --selected-word: #ef4444; --nav-active: #2563eb; 
+            --bg-body: #f3f4f6; --card-bg: #ffffff; 
+            --text-main: #1f2937; --text-sec: #6b7280; 
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            --radius: 12px; --header-height: 60px; 
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
+        
+        #mdc-header { position: fixed; top: 0; left: 0; width: 100%; height: var(--header-height); background: rgba(31, 41, 55, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); color: white; z-index: 1000; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        #mdc-header a { text-decoration: none; font-weight: 800; font-size: 18px; letter-spacing: 1px; background: linear-gradient(to right, #fff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; transition: opacity 0.2s; }
+        
+        .page-max-width { max-width: 600px; margin: 0 auto; width: 100%; position: relative; }
+        .video-wrapper { position: sticky; top: var(--header-height); width: 100%; background: #000; z-index: 500; box-shadow: var(--shadow); }
+        .video-inner { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; }
+        .video-inner iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+        .dialogue-container { padding: 20px 15px 80px 15px; }
+
+        .line { background: var(--card-bg); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; box-shadow: var(--shadow); border-left: 4px solid transparent; transition: 0.2s; }
+        .line.active { border-left-color: var(--primary); background-color: #eef2ff; transform: scale(1.02); }
+        .line-content { display: flex; gap: 10px; align-items: flex-start; }
+        .text-block { flex: 1; }
+        .english { font-size: 1.05rem; font-weight: 600; line-height: 1.6; color: var(--text-main); margin-bottom: 6px; }
+        .spanish { font-size: 0.95rem; color: var(--text-sec); border-top: 1px solid #eee; padding-top: 6px; display: none; line-height: 1.4; }
+        .spanish.visible { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .word-interactive { border-radius: 3px; padding: 0 1px; cursor: pointer; display: inline-block; }
+        .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
+        .word-interactive.english-word.selected-word { color: var(--selected-word); font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(239, 68, 68, 0.3); }
+        .word-interactive.english-word.nav-active-word { color: var(--nav-active) !important; text-decoration-color: var(--nav-active) !important; background-color: rgba(37, 99, 235, 0.1); border-radius: 4px; }
+        .word-interactive.spanish-word.selected-word { color: #be123c; font-weight: 700; }
+
+        .controls { display: flex; flex-direction: column; gap: 3px; min-width: 60px; margin-top: -2px; }
+        .btn { border: none; border-radius: 6px; padding: 5px 0; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; }
+        .playBtn { background-color: var(--primary); color: white; }
+        .playBtn:hover { background-color: var(--primary-hover); }
+        .speakBtn { background-color: #e5e7eb; color: var(--text-main); }
+        .speakBtn:hover { background-color: #d1d5db; }
+        .saveBtn { background-color: white; border: 2px solid #10b981; color: #10b981; font-size: 14px; padding: 4px 0; line-height: 1; }
+        .saveBtn:hover { background-color: #10b981; color: white; }
+
+        #control-bar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(8px); color: white; padding: 6px 12px; border-radius: 50px; display: flex; align-items: center; gap: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.25); z-index: 900; min-width: 280px; justify-content: space-between; }
+        .bar-btn { background: transparent; border: none; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
+        .bar-btn:hover { background: rgba(255,255,255,0.2); }
+        .bar-btn.disabled { opacity: 0.3; pointer-events: none; }
+        .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
+        .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="mdc-header"><a href="https://paradisonetworx.com/mdceng.html">MDC ENG</a></div>
+    <div class="page-max-width">
+        <div class="video-wrapper">
+            <div class="video-inner"><div id="player"></div></div>
+        </div>
+        <div class="dialogue-container">`;
+
+        const TPL_SCRIPT_START = `
+        </div></div><div id="control-bar">
+      <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
+      <div class="nav-count" id="nav-counter">0/0</div>
+      <button class="bar-btn disabled" id="btn-next" onclick="navigateWords(1)">▼</button>
+      <div class="bar-divider"></div>
+      <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
+      <div class="bar-divider"></div>
+      <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
+      <div class="bar-divider"></div>
+      <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
+      <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
+      <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
+    </div>
+
+    <script>
+    const TIME_OFFSET = 0.2; const END_PADDING = 0.5; const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
+    const YOUTUBE_ID = '`;
+        
+        // --- LOGICA CORREGIDA PARA EL GUARDADO DE PALABRAS ---
+        const TPL_SCRIPT_END = `';
+    const VIDEO_TITLE = '%%VIDEO_TITLE%%';
+    
+    const STORAGE_KEY_ENG = 'mdc_eng_' + YOUTUBE_ID;
+    const STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID;
+    const STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
+    const PREF_SPEED = 'mdc_pref_speed';
+    const PREF_SCROLL = 'mdc_pref_scroll';
+    const PREF_TRANS = 'mdc_pref_trans';
+
+    let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
+    let engSelection=[], activeWordID=null;
+    let currentPlaybackRate = 1.0;
+    let allVisible = false;
+
+    // --- FUNCIÓN DE GUARDADO CORREGIDA (Lógica 1 a 1 exacta) ---
+    function saveLineToVocab(btn) {
+        const line = btn.closest('.line');
+        const vocabKey = 'mdc_vocab_list';
+        let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
+        
+        // OBTENER SELECCIONES DE AMBOS IDIOMAS
+        const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
+        const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
+        let itemsToAdd = [];
+
+        if (selectedEng.length > 0) {
+            // Caso A: Hay palabras seleccionadas en inglés
+            
+            // Determinamos si hay una correspondencia exacta 1 a 1
+            let translation = "";
+            if (selectedEng.length === 1 && selectedEsp.length === 1) {
+                translation = selectedEsp[0].innerText.trim();
+            }
+            // NOTA: Si hay más de 2 palabras en total seleccionadas (ej: 2 Eng + 0 Esp, o 1 Eng + 2 Esp),
+            // o cualquier combinación que no sea 1-1, la traducción se queda vacía "" para evitar ambigüedad.
+
+            selectedEng.forEach(span => {
+                itemsToAdd.push({
+                    eng: span.innerText.trim(),
+                    esp: translation, // Usa la traducción solo si fue 1 a 1
+                    id: Date.now() + Math.random(), 
+                    isFolder: false, 
+                    isHighlighted: false 
+                });
+            });
+        } else {
+             // CASO B: FRASE COMPLETA (Sin selecciones individuales).
+            const engText = line.querySelector('.english').innerText.trim();
+            const espText = line.querySelector('.spanish').innerText.trim();
+            itemsToAdd.push({
+                eng: engText,
+                esp: espText,
+                id: Date.now(),
+                isFolder: false,
+                isHighlighted: false
+            });
+        }
+
+        const targetFolderName = VIDEO_TITLE || "Saved from Video";
+        let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
+
+        if (targetFolder) {
+            itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item));
+            items = items.filter(i => i.id !== targetFolder.id);
+            items.unshift(targetFolder);
+        } else {
+            const newFolder = {
+                id: Date.now() + 1,
+                isFolder: true,
+                name: targetFolderName,
+                items: itemsToAdd
+            };
+            items.unshift(newFolder);
+        }
+
+        localStorage.setItem(vocabKey, JSON.stringify(items));
+
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "✓";
+        btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.style.backgroundColor = ""; btn.style.color = "";
+        }, 1000);
+    }
+
+    function loadPreferences() {
+        const sSpeed = localStorage.getItem(PREF_SPEED);
+        if(sSpeed) {
+            currentPlaybackRate = parseFloat(sSpeed);
+            document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x';
+        }
+        const sScroll = localStorage.getItem(PREF_SCROLL);
+        if(sScroll !== null) {
+            autoScroll = (sScroll === 'true');
+            const btn = document.getElementById('btn-autoscroll');
+            btn.style.color = autoScroll ? '#4f46e5' : 'white';
+            btn.style.opacity = autoScroll ? '1' : '0.5';
+        }
+        const sTrans = localStorage.getItem(PREF_TRANS);
+        if(sTrans === 'true') {
+            allVisible = true;
+            document.getElementById('btn-toggle-trans').style.color = '#4f46e5';
+        }
+    }
+    
+    loadPreferences();
+
+    function cycleSpeed() {
+        currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
+        if (currentPlaybackRate < 0.6) currentPlaybackRate = 1.0;
+        localStorage.setItem(PREF_SPEED, currentPlaybackRate);
+        if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate);
+        const btn = document.getElementById('btn-speed');
+        if(btn) btn.innerText = currentPlaybackRate + 'x';
+    }
+
+    function toggleAutoScroll() {
+        autoScroll = !autoScroll;
+        localStorage.setItem(PREF_SCROLL, autoScroll);
+        const btn = document.getElementById('btn-autoscroll');
+        btn.style.color = autoScroll ? '#4f46e5' : 'white';
+        btn.style.opacity = autoScroll ? '1' : '0.5';
+    }
+
+    function toggleAllTranslations() {
+        allVisible = !allVisible;
+        localStorage.setItem(PREF_TRANS, allVisible);
+        document.getElementById('btn-toggle-trans').style.color = allVisible ? '#4f46e5' : 'white';
+        document.querySelectorAll('.spanish').forEach(span => {
+            span.classList.toggle('visible', allVisible);
+        });
+    }
+
+    function initInteractiveWords() {
+      engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
+      const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
+      let engIndex = 0;
+      document.querySelectorAll('.english').forEach(el => {
+        el.innerHTML = el.innerText.split(' ').map(word => {
+          const span = \`<span class="word-interactive english-word" data-lang="en" data-idx="\${engIndex}" onclick="toggleWordSelection(this, event)">\${word}</span>\`;
+          engIndex++; return span;
+        }).join(' ');
+      });
+      let espIndex = 0;
+      document.querySelectorAll('.spanish').forEach(el => {
+        if(allVisible) el.classList.add('visible');
+        el.innerHTML = el.innerText.split(' ').map(word => {
+          const isSelected = savedEsp.includes(espIndex);
+          const cssClass = \`word-interactive spanish-word \${isSelected ? 'selected-word' : ''}\`;
+          const span = \`<span class="\${cssClass}" data-lang="es" data-idx="\${espIndex}" onclick="toggleWordSelection(this, event)">\${word}</span>\`;
+          espIndex++; return span;
+        }).join(' ');
+      });
+      renderWordStates();
+    }
+    document.addEventListener('DOMContentLoaded', initInteractiveWords);
+
+    function toggleWordSelection(element, event) {
+        event.stopPropagation();
+        const lang = element.dataset.lang;
+        const idx = parseInt(element.dataset.idx);
+        if (lang === 'es') {
+            element.classList.toggle('selected-word');
+            saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word');
+            return;
+        }
+        if (engSelection.includes(idx)) {
+            if (activeWordID === idx) { engSelection = engSelection.filter(id => id !== idx); activeWordID = null; }
+            else { activeWordID = idx; }
+        } else {
+            engSelection.push(idx);
+            engSelection.sort((a, b) => a - b);
+            activeWordID = idx;
+        }
+        if (engSelection.length === 0) activeWordID = null;
+        localStorage.setItem(STORAGE_KEY_ENG, JSON.stringify(engSelection));
+        renderWordStates();
+    }
+
+    function renderWordStates() {
+        document.querySelectorAll('.english-word').forEach(el => el.classList.remove('selected-word', 'nav-active-word'));
+        engSelection.forEach(idx => {
+            const el = document.querySelector(\`.english-word[data-idx="\${idx}"]\`);
+            if(el) el.classList.add(idx === activeWordID ? 'nav-active-word' : 'selected-word');
+        });
+        updateControlBar();
+    }
+
+    function updateControlBar() {
+        const counterEl = document.getElementById('nav-counter');
+        const total = engSelection.length;
+        let currentPos = 0;
+        if (activeWordID !== null && total > 0) currentPos = engSelection.indexOf(activeWordID) + 1;
+        counterEl.innerText = total === 0 ? "0/0" : \`\${currentPos}/\${total}\`;
+        const els = ['btn-clear','btn-speak-word','btn-prev','btn-next'];
+        els.forEach(id => {
+            const btn = document.getElementById(id);
+            if(total > 0) btn.classList.remove('disabled'); else btn.classList.add('disabled');
+        });
+    }
+
+    function navigateWords(direction) {
+        if (engSelection.length === 0) return;
+        let currentIndexArray = engSelection.indexOf(activeWordID);
+        if (currentIndexArray === -1) currentIndexArray = direction > 0 ? 0 : engSelection.length - 1;
+        else {
+            currentIndexArray += direction;
+            if (currentIndexArray >= engSelection.length) currentIndexArray = 0;
+            if (currentIndexArray < 0) currentIndexArray = engSelection.length - 1;
+        }
+        activeWordID = engSelection[currentIndexArray];
+        const targetEl = document.querySelector(\`.english-word[data-idx="\${activeWordID}"]\`);
+        if(targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        renderWordStates();
+    }
+
+    function speakText(text, onStart = null, onEnd = null) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = TTS_LANG;
+        utter.rate = TTS_RATE;
+        if(onStart) utter.onstart = onStart;
+        if(onEnd) utter.onend = onEnd;
+        window.speechSynthesis.speak(utter);
+    }
+
+    function speakActiveOrSelected() {
+        if (activeWordID !== null) { speakWordById(activeWordID); return; }
+        if (engSelection.length > 0) {
+            activeWordID = engSelection[0];
+            renderWordStates();
+            speakWordById(activeWordID);
+        }
+    }
+
+    function speakWordById(idx) {
+        const el = document.querySelector(\`.english-word[data-idx="\${idx}"]\`);
+        if (el) speakText(el.innerText);
+    }
+
+    function saveSelectionToStorage(key, selector) {
+        const selectedElements = document.querySelectorAll(selector);
+        const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx));
+        localStorage.setItem(key, JSON.stringify(indices));
+    }
+
+    function clearAllWords() {
+        if(!confirm('Reset all selections?')) return;
+        engSelection = []; activeWordID = null;
+        localStorage.removeItem(STORAGE_KEY_ENG);
+        document.querySelectorAll('.spanish-word.selected-word').forEach(el => el.classList.remove('selected-word'));
+        localStorage.removeItem(STORAGE_KEY_ESP);
+        renderWordStates();
+    }
+
+    const tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.getElementsByTagName('script')[0].parentNode.insertBefore(tag, document.getElementsByTagName('script')[0]);
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('player', {
+            videoId: YOUTUBE_ID,
+            playerVars: { playsinline: 1, rel: 0, modestbranding: 1, controls: 1, autoplay: 0 },
+            events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
+        });
+    }
+
+    function onPlayerReady(event) {
+        const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
+        if (savedTime) player.seekTo(parseFloat(savedTime));
+        player.setPlaybackRate(currentPlaybackRate);
+    }
+
+    function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+            clearInterval(checkInterval);
+            checkInterval = setInterval(checkTime, 100);
+        } else {
+            clearInterval(checkInterval);
+            if (player && player.getCurrentTime) localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime());
+        }
+    }
+
+    function checkTime() {
+        if (!player || !player.getCurrentTime) return;
+        const currentTime = player.getCurrentTime();
+        if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+        
+        if (isSegmentPlaying && currentTime >= segmentEndTime) {
+            player.pauseVideo();
+            isSegmentPlaying = false;
+            resetButtons();
+            scrollEnabled = true;
+            return;
+        }
+        if (scrollEnabled) highlightCurrentLine(currentTime);
+    }
+
+    function highlightCurrentLine(time) {
+        const lines = document.querySelectorAll('.line');
+        let activeLine = null;
+        lines.forEach((line, index) => {
+            const start = parseFloat(line.dataset.start);
+            const end = parseFloat(line.dataset.end);
+            if (time >= start && time < end + END_PADDING) activeLine = line;
+            line.classList.remove('active');
+        });
+        if (activeLine) {
+            activeLine.classList.add('active');
+            if (autoScroll) {
+                const rect = activeLine.getBoundingClientRect();
+                const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
+                window.scrollTo({ top: offset, behavior: "smooth" });
+            }
+        }
+    }
+
+    document.querySelectorAll('.playBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const line = btn.closest('.line');
+            const start = parseFloat(line.dataset.start) - TIME_OFFSET; 
+            const end = parseFloat(line.dataset.end) + END_PADDING;
+            
+            if (btn.dataset.state === 'playing') {
+                player.pauseVideo();
+                isSegmentPlaying = false;
+                resetButtons();
+                return;
+            }
+            resetButtons();
+            window.speechSynthesis.cancel();
+            document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
+            scrollEnabled = false;
+            isSegmentPlaying = true;
+            segmentEndTime = end;
+            player.seekTo(Math.max(0, start), true);
+            player.playVideo();
+            player.setPlaybackRate(currentPlaybackRate);
+            
+            btn.textContent = "Stop";
+            btn.dataset.state = 'playing';
+            line.classList.add('active');
+        });
+    });
+
+    document.querySelectorAll('.speakBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const line = btn.closest('.line');
+            const text = line.querySelector('.english').innerText;
+            if (btn.dataset.state === 'speaking') {
+                window.speechSynthesis.cancel();
+                resetButtons();
+                return;
+            }
+            resetButtons();
+            window.speechSynthesis.cancel();
+            player.pauseVideo();
+            speakText(text, () => {
+                btn.textContent = "Stop";
+                btn.dataset.state = 'speaking';
+                document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
+                line.classList.add('active');
+            }, () => { resetButtons(); });
+        });
+    });
+
+    function resetButtons() {
+        document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); });
+        document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); });
+    }
+    <\/script>
+</body>
+</html>`;
+
+        function parseSRT(text) {
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + "\n\n";
+            const regex = /(\d+)\s+(\d{2}:\d{2}:\d{2},\d{3})\s-->\s(\d{2}:\d{2}:\d{2},\d{3})\s+([\s\S]*?)(?=\n\n|\n\d+\s+\d{2}:\d{2}|$)/g;
+            const blocks = [];
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                blocks.push({ 
+                    start: match[2], 
+                    end: match[3], 
+                    text: match[4].replace(/\n/g, ' ').trim() 
+                });
+            }
+            return blocks;
+        }
+
+        function timeToSeconds(timeString) {
+            try {
+                const parts = timeString.split(':');
+                const secondsPart = parts[2].split(',');
+                return (parseInt(parts[0]) * 3600) + (parseInt(parts[1]) * 60) + parseInt(secondsPart[0]) + (parseInt(secondsPart[1]) || 0) / 1000;
+            } catch (e) { return 0; }
+        }
+
+        function fusionar() {
+            const rawEng = document.getElementById('inputEng').value;
+            const rawEsp = document.getElementById('inputEsp').value;
+            const inputUrl = document.getElementById('youtubeInput').value.trim();
+            const videoTitle = document.getElementById('videoTitleInput').value.trim().replace(/'/g, "\\'");
+
+            if (!rawEng.trim()) { alert("English subtitles required."); return; }
+
+            const videoId = getYoutubeId(inputUrl) || '-moW9jvvMr4';
+            const engBlocks = parseSRT(rawEng);
+            const espBlocks = parseSRT(rawEsp);
+            
+            let htmlBody = "";
+
+            for (let i = 0; i < engBlocks.length; i++) {
+                const eng = engBlocks[i];
+                const esp = espBlocks[i] ? espBlocks[i].text : "";
+                const start = timeToSeconds(eng.start).toFixed(2);
+                const end = timeToSeconds(eng.end).toFixed(2);
+                
+                htmlBody += `
+            <div class="line" data-start="${start}" data-end="${end}">
+                <div class="line-content">
+                    <div class="text-block">
+                        <div class="english">${eng.text}</div>
+                        <div class="spanish">${esp}</div>
+                    </div>
+                    <div class="controls">
+                        <button class="btn playBtn">Play</button>
+                        <button class="btn speakBtn">Speak</button>
+                        <button class="btn saveBtn" onclick="saveLineToVocab(this)" title="Add to Vocabulary Builder">+</button>
+                    </div>
+                </div>
+            </div>`;
+            }
+
+            const cleanTitle = videoTitle || "Saved from Video";
+            const scriptWithTitle = TPL_SCRIPT_END.replace('%%VIDEO_TITLE%%', cleanTitle);
+
+            const finalCode = TPL_HEAD + htmlBody + TPL_SCRIPT_START + videoId + scriptWithTitle;
+            document.getElementById('outputFusion').value = finalCode;
         }
     </script>
 </body>
