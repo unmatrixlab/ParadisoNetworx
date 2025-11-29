@@ -849,8 +849,8 @@
             } catch(e) { resources = []; }
 
             resources.unshift({ 
-                id: uniqueCardId, // ID único de la tarjeta
-                url: url,         // URL real
+                id: uniqueCardId,
+                url: url,
                 url2: url2, 
                 url3: url3,
                 url4: url4,
@@ -878,7 +878,6 @@
         function deleteResourceById(id) {
             if(confirm("Delete this resource?")) { 
                 let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                // Aseguramos conversión a string para comparar
                 resources = resources.filter(r => String(r.id) !== String(id)); 
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
                 loadResources();
@@ -892,7 +891,6 @@
             
             const copy = JSON.parse(JSON.stringify(original));
             copy.title = copy.title + " (Copy)";
-            // Nuevo ID único para la copia
             copy.id = Date.now().toString() + Math.floor(Math.random() * 1000);
             
             resources.unshift(copy);
@@ -947,7 +945,6 @@
         function loadResources() { 
             const data = localStorage.getItem(STORAGE_KEY); 
             let allResources = [];
-            
             try {
                 allResources = data ? JSON.parse(data) : [];
                 if (!Array.isArray(allResources)) throw new Error("Data is not an array");
@@ -973,10 +970,8 @@
                 let mediaContent = '';
 
                 if (type === 'video') {
-                    // Extraemos ID real de YouTube de la URL
                     const videoId = getYouTubeID(r.url);
                     if (videoId) {
-                        // Pasamos r.id (tarjeta) y videoId (contenido)
                         mediaContent = `<div class="media-area video" onclick="initGridPlayer(this, '${r.id}', '${videoId}')">
                             <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg">
                             <div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -1010,7 +1005,6 @@
 
         function initGridPlayer(el, cardId, videoId) {
             if (!videoId) return alert("Video ID not found.");
-            
             currentResourceId = cardId; 
             const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
             const resData = resources.find(v => String(v.id) === String(cardId)); 
@@ -1020,15 +1014,10 @@
             el.onclick = null;
             
             gridPlayer = new YT.Player(`p-${cardId}`, { 
-                width:'100%', 
-                height:'100%', 
-                videoId: videoId, 
+                width:'100%', height:'100%', videoId: videoId, 
                 playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) }, 
                 events: { 
-                    'onReady': (e) => { 
-                        e.target.playVideo(); 
-                        players[0] = gridPlayer; 
-                    }, 
+                    'onReady': (e) => { e.target.playVideo(); players[0] = gridPlayer; }, 
                     'onStateChange': (e) => onPlayerStateChange(e, cardId, gridPlayer) 
                 } 
             });
@@ -1037,7 +1026,6 @@
         function onPlayerStateChange(event, id, playerInstance) {
             const playBtn = document.getElementById('btn-main-play');
             const isControlled = (players[controlTarget] === playerInstance);
-
             if (event.data === 1) { 
                 stopTracking(); trackingInterval = setInterval(() => saveMediaTime(playerInstance, id), 5000); 
                 if(playBtn && isControlled) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused'); } 
@@ -1064,48 +1052,24 @@
         function downloadBackup() { 
             const d = localStorage.getItem(STORAGE_KEY) || '[]';
             const encodedData = btoa(unescape(encodeURIComponent(d)));
-            
-            const htmlContent = `<!DOCTYPE html><html><head><title>MDC Backup</title></head><body>
-            <h1>MDC Polyglot Backup</h1>
-            <p>Upload this file using the "Import" button in your app.</p>
-            <script>
-            const backupData = "${encodedData}";
-            <\/script></body></html>`;
-
+            const htmlContent = `<!DOCTYPE html><html><head><title>MDC Backup</title></head><body><h1>MDC Polyglot Backup</h1><p>Upload this file using the "Import" button in your app.</p><script>const backupData = "${encodedData}";<\/script></body></html>`;
             const b = new Blob([htmlContent], {type: 'text/html'}); 
             const a = document.createElement('a'); 
-            a.href = URL.createObjectURL(b); 
-            a.download = 'MDC_Backup_' + new Date().toLocaleDateString().replace(/\//g, '-') + '.html'; 
-            document.body.appendChild(a); 
-            a.click(); 
-            document.body.removeChild(a); 
+            a.href = URL.createObjectURL(b); a.download = 'MDC_Backup.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
         }
 
         function importBackup(inp) { 
-            const file = inp.files[0];
-            if (!file) return;
-
+            const file = inp.files[0]; if (!file) return;
             const r = new FileReader(); 
             r.onload = e => { 
-                const content = e.target.result;
                 try {
-                    let match = content.match(/const backupData = "(.*?)";/);
-                    let jsonString = "";
-                    if (match && match[1]) {
-                        jsonString = decodeURIComponent(escape(atob(match[1])));
-                    } else {
-                        match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
-                        if (match && match[1]) jsonString = match[1];
-                        else throw new Error("No valid backup data found.");
-                    }
-                    const parsed = JSON.parse(jsonString);
-                    if (!Array.isArray(parsed)) throw new Error("Invalid data format.");
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); 
-                    loadResources(); 
-                    alert("✅ Backup imported successfully!");
-                } catch (err) {
-                    alert("❌ Import failed: " + err.message);
-                }
+                    let match = e.target.result.match(/const backupData = "(.*?)";/);
+                    if (!match) match = e.target.result.match(/const backupData=(.*?)(;|<\/script>)/s);
+                    if (!match) throw new Error("Invalid backup.");
+                    let json = match[1] ? decodeURIComponent(escape(atob(match[1]))) : match[1];
+                    localStorage.setItem(STORAGE_KEY, json); 
+                    loadResources(); alert("Imported!");
+                } catch (err) { alert("Error: " + err.message); }
                 inp.value = ''; 
             }; 
             r.readAsText(file); 
@@ -1114,23 +1078,11 @@
         /* ====== CONTROL LOGIC ====== */
         window.setControlTarget = function(idx) {
             controlTarget = idx;
-            document.querySelectorAll('.btn-target').forEach((b, i) => {
-               if(i===idx) b.classList.add('active'); else b.classList.remove('active');
-            });
+            document.querySelectorAll('.btn-target').forEach((b, i) => { if(i===idx) b.classList.add('active'); else b.classList.remove('active'); });
             const p = players[controlTarget];
             const playBtn = document.getElementById('btn-main-play');
             if(p && typeof p.getPlayerState === 'function') {
-                if(p.getPlayerState() === 1) {
-                    playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused');
-                } else {
-                    playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing');
-                }
-            } else if (p && p.tagName === 'AUDIO') {
-                if(!p.paused) {
-                    playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused');
-                } else {
-                     playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing');
-                }
+                if(p.getPlayerState() === 1) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); } else { playBtn.innerText = "▶️"; playBtn.classList.remove('is-playing'); }
             }
         }
 
@@ -1148,28 +1100,16 @@
             const r = resources[currentEditIndex];
             
             let key = 'url';
-            if(index === 1) key = 'url2';
-            if(index === 2) key = 'url3';
-            if(index === 3) key = 'url4';
-            if(index === 4) key = 'url5';
+            if(index === 1) key = 'url2'; if(index === 2) key = 'url3'; if(index === 3) key = 'url4'; if(index === 4) key = 'url5';
 
             const newUrl = prompt(`Enter new URL for Tab ${index + 1}:`, r[key] || '');
             if(newUrl !== null) {
                 const trimmedUrl = newUrl.trim();
                 r[key] = trimmedUrl;
-
-                // Si cambiamos tab principal, actualizamos tipo, pero MANTENEMOS ID TARJETA
                 if (index === 0) {
                      const ytId = getYouTubeID(trimmedUrl);
-                     if (ytId) {
-                         r.type = 'video';
-                     } else if (trimmedUrl.match(/\.(mp3|wav|ogg)$/i)) {
-                         r.type = 'audio';
-                     } else {
-                         r.type = 'web';
-                     }
+                     if (ytId) { r.type = 'video'; } else if (trimmedUrl.match(/\.(mp3|wav|ogg)$/i)) { r.type = 'audio'; } else { r.type = 'web'; }
                 }
-
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
                 openEditorById(r.id); 
             }
@@ -1179,14 +1119,9 @@
             document.querySelectorAll('.web-tab-btn').forEach((b, i) => {
                 if(b.innerText.includes('Externally')) return;
                 const buttons = Array.from(document.querySelectorAll('.web-tab-btn')).filter(btn => !btn.innerText.includes('Externally'));
-                if(buttons[idx]) {
-                     buttons.forEach(btn => btn.classList.remove('active'));
-                     buttons[idx].classList.add('active');
-                }
+                if(buttons[idx]) { buttons.forEach(btn => btn.classList.remove('active')); buttons[idx].classList.add('active'); }
             });
-            document.querySelectorAll('.web-frame-container').forEach((f, i) => {
-                if(i === idx) f.classList.add('active'); else f.classList.remove('active');
-            });
+            document.querySelectorAll('.web-frame-container').forEach((f, i) => { if(i === idx) f.classList.add('active'); else f.classList.remove('active'); });
         };
 
         function openEditorById(id) {
@@ -1215,34 +1150,12 @@
             const ytId4 = getYouTubeID(resData.url4); 
             const ytId5 = getYouTubeID(resData.url5); 
 
-            // --- CORRECCIÓN CLAVE AQUÍ: SIEMPRE RENDERIZAR PESTAÑAS ---
             const renderTabs = (content1, content2, content3, content4, content5) => {
                 const getBtn = (idx, link) => {
                     const activeClass = idx === 0 ? 'active' : '';
-                    return `<button class="web-tab-btn ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">
-                                Tab ${idx + 1}
-                                <span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span>
-                            </button>`;
+                    return `<button class="web-tab-btn ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
                 };
-                
-                return `
-                    <div class="media-iframe-wrapper">
-                        <div class="web-tab-nav">
-                            ${getBtn(0, resData.url)}
-                            ${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}
-                            ${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}
-                            ${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}
-                            ${resData.url5 ? getBtn(4, resData.url5) : getBtn(4, '')}
-                        </div>
-                        <div class="web-content-area">
-                            <div class="web-frame-container active" id="tab-content-0">${content1}</div>
-                            <div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                        </div>
-                    </div>
-                `;
+                return `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0, resData.url)}${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}${resData.url5 ? getBtn(4, resData.url5) : getBtn(4, '')}</div><div class="web-content-area"><div class="web-frame-container active" id="tab-content-0">${content1}</div><div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div></div></div>`;
             };
 
             const getTabContent = (link, ytId, index) => {
@@ -1269,10 +1182,7 @@
                         startTime = gridPlayer.getCurrentTime(); 
                         gridPlayer.pauseVideo(); 
                     }
-
-                    // --- CAMBIO: SIEMPRE USAR RENDER TABS ---
                     container.innerHTML = renderTabs('<div id="desktop-player-target" style="width:100%; height:100%;"></div>', htmlContent2, htmlContent3, htmlContent4, htmlContent5);
-
                     if (ytId1) {
                         players[0] = new YT.Player('desktop-player-target', { 
                             width: '100%', height: '100%', videoId: ytId1, 
@@ -1281,28 +1191,22 @@
                         });
                     }
                     initSubPlayers();
-                } else { 
-                    if (gridPlayer) { players[0] = gridPlayer; gridPlayer.pauseVideo(); } 
-                }
+                } else { if (gridPlayer) { players[0] = gridPlayer; gridPlayer.pauseVideo(); } }
             } else if (type === 'audio') {
                 if (isDesktop) {
                     const audioHtml = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
-                    // --- CAMBIO: SIEMPRE USAR RENDER TABS ---
                     container.innerHTML = renderTabs(audioHtml, htmlContent2, htmlContent3, htmlContent4, htmlContent5);
-                    
                     const audioEl = document.getElementById('modal-audio-player');
-                    audioEl.currentTime = startTime; 
-                    players[0] = audioEl;
-                    audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); document.getElementById('btn-main-play').innerText = "⏸️"; });
-                    audioEl.addEventListener('pause', () => { saveMediaTime(audioEl, id); stopTracking(); document.getElementById('btn-main-play').innerText = "▶️"; });
+                    audioEl.currentTime = startTime; players[0] = audioEl;
+                    audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); });
+                    audioEl.addEventListener('pause', () => { saveMediaTime(audioEl, id); stopTracking(); });
                     initSubPlayers();
                 }
             } else if (type === 'web') {
                 if (isDesktop) {
                     const webContent1 = `<iframe src="${resData.url}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
                     container.innerHTML = renderTabs(webContent1, htmlContent2, htmlContent3, htmlContent4, htmlContent5);
-                    players[0] = null;
-                    initSubPlayers();
+                    players[0] = null; initSubPlayers();
                 }
             }
             updateToolbarState();
@@ -1310,11 +1214,8 @@
 
         function closeEditor() {
             if (players[0] && currentResourceId) { saveMediaTime(players[0], currentResourceId); stopTracking(); } 
-            players.forEach(p => {
-                if (p && typeof p.destroy === 'function') { p.destroy(); }
-            });
+            players.forEach(p => { if (p && typeof p.destroy === 'function') { p.destroy(); } });
             players = [null, null, null, null, null];
-            
             loadResources(); 
             modal.classList.remove('active');
             document.getElementById('editor-popup').classList.remove('is-fullscreen'); 
@@ -1324,36 +1225,37 @@
             currentEditIndex = -1; gridPlayer = null; closeAIMenu();
         }
 
-        function saveNote() { if(currentEditIndex > -1) { const resources = JSON.parse(localStorage.getItem(STORAGE_KEY)); resources[currentEditIndex].note = editorArea.innerHTML; localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } }
-        
-        function seekVideo(s) { 
-            const p = players[controlTarget];
-            if(!p) return; 
-            if(typeof p.seekTo === 'function') { p.seekTo(p.getCurrentTime()+s, true); } 
-            else if (p.tagName === 'AUDIO') { p.currentTime += s; } 
+        // --- HERE IS THE FIX FOR SAVING ANSWERS ---
+        function saveNote() { 
+            if(currentEditIndex > -1) { 
+                // "Bake" selects: force attribute update
+                const selects = editorArea.querySelectorAll('select');
+                selects.forEach(s => {
+                    const val = s.value;
+                    const opts = s.querySelectorAll('option');
+                    opts.forEach(o => {
+                        if (o.value === val) o.setAttribute('selected', 'true');
+                        else o.removeAttribute('selected');
+                    });
+                });
+
+                const resources = JSON.parse(localStorage.getItem(STORAGE_KEY)); 
+                resources[currentEditIndex].note = editorArea.innerHTML; 
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); 
+            } 
         }
         
-        function togglePlay() { 
-            const p = players[controlTarget];
-            if(!p) return; 
-            if(typeof p.getPlayerState === 'function') { p.getPlayerState()===1 ? p.pauseVideo() : p.playVideo(); } 
-            else if (p.tagName === 'AUDIO') { p.paused ? p.play() : p.pause(); } 
-        }
-        
-        function cycleSpeed() { 
-            const p = players[controlTarget];
-            if (!p) return; 
-            let r = 1; const t = document.getElementById('btn-speed').innerText; 
-            if(t==='1x') r=0.9; else if(t==='0.9x') r=0.8; else if(t==='0.8x') r=0.7; else if(t==='0.7x') r=0.6; else if(t==='0.6x') r=0.5; 
-            if(typeof p.setPlaybackRate === 'function') { p.setPlaybackRate(r); } 
-            else if (p.tagName === 'AUDIO') { p.playbackRate = r; } 
-            document.getElementById('btn-speed').innerText=r+'x'; 
-        }
+        function seekVideo(s) { const p = players[controlTarget]; if(!p) return; if(typeof p.seekTo === 'function') { p.seekTo(p.getCurrentTime()+s, true); } else if (p.tagName === 'AUDIO') { p.currentTime += s; } }
+        function togglePlay() { const p = players[controlTarget]; if(!p) return; if(typeof p.getPlayerState === 'function') { p.getPlayerState()===1 ? p.pauseVideo() : p.playVideo(); } else if (p.tagName === 'AUDIO') { p.paused ? p.play() : p.pause(); } }
+        function cycleSpeed() { const p = players[controlTarget]; if (!p) return; let r = 1; const t = document.getElementById('btn-speed').innerText; if(t==='1x') r=0.9; else if(t==='0.9x') r=0.8; else if(t==='0.8x') r=0.7; else if(t==='0.7x') r=0.6; else if(t==='0.6x') r=0.5; if(typeof p.setPlaybackRate === 'function') { p.setPlaybackRate(r); } else if (p.tagName === 'AUDIO') { p.playbackRate = r; } document.getElementById('btn-speed').innerText=r+'x'; }
         
         function applyColor(hex) { document.execCommand('foreColor', false, hex); updateToolbarState(); }
         function toggleBold() { document.execCommand('bold'); updateToolbarState(); }
         function setSize(size) { document.execCommand('fontSize', false, size); updateToolbarState(); }
         editorArea.addEventListener('keyup', updateToolbarState); editorArea.addEventListener('mouseup', updateToolbarState); editorArea.addEventListener('click', updateToolbarState);
+        // Important: trigger Save on input
+        editorArea.addEventListener('input', saveNote);
+
         function updateToolbarState() {
             const isBold = document.queryCommandState('bold'); document.getElementById('btn-bold').classList.toggle('is-active', isBold);
             const size = document.queryCommandValue('fontSize'); document.getElementById('btn-size-lg').classList.toggle('is-active', size === '5' || size === 'x-large'); document.getElementById('btn-size-norm').classList.toggle('is-active', size !== '5' && size !== 'x-large');
@@ -1372,7 +1274,7 @@
             if(!rawContent || rawContent === "<br>") return alert("Editor is empty.");
             const name = prompt("Name this lesson template:"); if(!name) return;
             const tempDiv = document.createElement('div'); tempDiv.innerHTML = rawContent;
-            tempDiv.querySelectorAll('select').forEach(s => { s.value = ""; s.classList.remove('correct', 'wrong'); });
+            tempDiv.querySelectorAll('select').forEach(s => { s.value = ""; s.classList.remove('correct', 'wrong'); s.querySelectorAll('option').forEach(o => o.removeAttribute('selected')); });
             tempDiv.querySelectorAll('.hint-box, .trans-box, .theory-box').forEach(box => { box.style.display = 'none'; });
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
             memory.unshift({ id: Date.now(), title: name, isHtml: true, htmlContent: tempDiv.innerHTML, lang: 'en', date: new Date().toLocaleDateString(), data: [] });
@@ -1424,105 +1326,31 @@
             const graCust = document.getElementById('ai-grammar-custom').value.trim();
             const typCust = document.getElementById('ai-type-custom').value.trim();
             const extraData = document.getElementById('ai-extra-data').value.trim();
-            
-            let requirements = [];
-            let isGrammarFocus = false;
-            let typeStr = typCust ? typCust : typSel;
-
+            let requirements = []; let isGrammarFocus = false; let typeStr = typCust ? typCust : typSel;
             if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`); else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
-            if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } 
-            else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
+            if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
             if(typeStr) requirements.push(`Exercise Format: ${typeStr}`);
             if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
             
             const finalTopic = requirements.join(", ");
             const target = LANG_NAMES[currentTargetLang]; 
             
-            let languageInstruction = `
-            CRITICAL LANGUAGE RULE: 
-            The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**.
-            Do NOT use English words inside the gaps.
-            Example in ${target}: "Ele {fala|falou|falar}..." (NOT "Ele {speak|spoke}...")
-            `;
+            let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**. Do NOT use English words inside the gaps. Example in ${target}: "Ele {fala|falou|falar}..." (NOT "Ele {speak|spoke}...")`;
+            let strictInstruction = ""; let gapInstruction = "";
 
-            let strictInstruction = "";
-            let gapInstruction = "";
+            if (typeStr && typeStr.includes("Find and Fix")) { strictInstruction += ` TYPE: FIND AND FIX THE MISTAKE. VISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap. Format: "Yesterday I <s>goed</s> {went|go} to the park." (Space between </s> and {).`; } 
+            else if (typeStr && typeStr.includes("Sentence Reordering")) { strictInstruction += ` TYPE: SENTENCE REORDERING via MULTIPLE CHOICE. The prompt MUST be the scrambled words. The options MUST be full sentences in ${target}.`; } 
+            else if (typeStr && typeStr.includes("Vocabulary Matching")) { strictInstruction += ` TYPE: VOCABULARY MATCHING. Format: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`; } 
+            else if (typeStr && typeStr.includes("True or False")) { strictInstruction += ` TYPE: READING COMPREHENSION (TRUE/FALSE). Format: "Statement about the text... {True|False}" (Localize True/False if appropriate for ${target}).`; }
 
-            if (typeStr && typeStr.includes("Find and Fix")) {
-                strictInstruction += `
-                TYPE: FIND AND FIX THE MISTAKE.
-                VISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap.
-                Format: "Yesterday I <s>goed</s> {went|go} to the park." (Space between </s> and {).
-                `;
-            } else if (typeStr && typeStr.includes("Sentence Reordering")) {
-                strictInstruction += `
-                TYPE: SENTENCE REORDERING via MULTIPLE CHOICE.
-                The prompt MUST be the scrambled words. The options MUST be full sentences in ${target}.
-                `;
-            } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
-                strictInstruction += `
-                TYPE: VOCABULARY MATCHING.
-                Format: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"
-                `;
-            } else if (typeStr && typeStr.includes("True or False")) {
-                strictInstruction += `
-                TYPE: READING COMPREHENSION (TRUE/FALSE).
-                Format: "Statement about the text... {True|False}" (Localize True/False if appropriate for ${target}).
-                `;
-            }
+            if (typeStr && typeStr.includes("True or False")) { gapInstruction = "Provide options {True|False}."; } 
+            else if (gapCount === 'random') { gapInstruction = ` GAP REQUIREMENT: For EVERY gap, you MUST provide 3 to 4 options in ${target}. For VERBS, include variations in Tense, Person, and Form. Mix of 1, 2, or 3 gaps per sentence.`; } 
+            else { gapInstruction = ` GAP REQUIREMENT: For EVERY gap, you MUST provide 3 to 4 options in ${target}. For VERBS, include variations in Tense, Person, and Form. Provide exactly ${gapCount} gap(s) per sentence.`; }
 
-            if (typeStr && typeStr.includes("True or False")) {
-                 gapInstruction = "Provide options {True|False}.";
-            } else if (gapCount === 'random') {
-                gapInstruction = `
-                GAP REQUIREMENT:
-                For EVERY gap, you MUST provide 3 to 4 options in ${target} (e.g. {correct|distractor1|distractor2}).
-                For VERBS, include variations in Tense, Person, and Form.
-                Mix of 1, 2, or 3 gaps per sentence.
-                `;
-            } else {
-                gapInstruction = `
-                GAP REQUIREMENT:
-                For EVERY gap, you MUST provide 3 to 4 options in ${target} (e.g. {correct|distractor1|distractor2}).
-                For VERBS, include variations in Tense, Person, and Form.
-                Provide exactly ${gapCount} gap(s) per sentence.
-                `;
-            }
+            if (isGrammarFocus && !typeStr.includes("Reordering")) { strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule (verbs/auxiliaries).`; }
 
-            if (isGrammarFocus && !typeStr.includes("Reordering")) { 
-                strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule (verbs/auxiliaries).`; 
-            }
-
-            const jsonExample = `
-    {
-      "cloze_text": "Sentence in ${target} with {option1|option2|option3} gaps.",
-      "hint": "Brief clue",
-      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation in ${LANG_NAMES[l]}"`).join(', ')} },
-      "full_sentence": "Full sentence in ${target} without gaps."
-    }`;
-
-            const promptText = `
-ACT AS: Senior ${target} Linguist.
-LEVEL: CEFR ${currentLevel}.
-TASK: Create a structured JSON exercise.
-REQUIREMENTS: ${finalTopic}.
-${languageInstruction}
-GAP DENSITY: ${gapInstruction}
-${strictInstruction}
-${extraData ? `EXTRA INSTRUCTIONS: ${extraData}` : ''}
-
-OUTPUT FORMAT: RAW JSON ONLY.
-
-JSON STRUCTURE:
-{
-  "title": "Short descriptive title in ${target}",
-  "lang_code": "${currentTargetLang}",
-  "theory": "Brief rules explanation...",
-  "exercises": [
-    ${jsonExample},
-    // Generate 5 items
-  ]
-}`.trim();
+            const jsonExample = ` { "cloze_text": "Sentence in ${target} with {option1|option2|option3} gaps.", "hint": "Brief clue", "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation in ${LANG_NAMES[l]}"`).join(', ')} }, "full_sentence": "Full sentence in ${target} without gaps." }`;
+            const promptText = `ACT AS: Senior ${target} Linguist. LEVEL: CEFR ${currentLevel}. TASK: Create a structured JSON exercise. REQUIREMENTS: ${finalTopic}. ${languageInstruction} GAP DENSITY: ${gapInstruction} ${strictInstruction} ${extraData ? `EXTRA INSTRUCTIONS: ${extraData}` : ''} OUTPUT FORMAT: RAW JSON ONLY. JSON STRUCTURE: { "title": "Short descriptive title in ${target}", "lang_code": "${currentTargetLang}", "theory": "Brief rules explanation...", "exercises": [ ${jsonExample}, ] }`.trim();
             navigator.clipboard.writeText(promptText).then(() => { const btn = document.querySelector('.btn-ai-primary'); const orig = btn.innerText; btn.innerText = "✅ Copied!"; setTimeout(() => btn.innerText = orig, 2000); }).catch(err => alert("Error: " + err));
         }
 
@@ -1538,11 +1366,7 @@ JSON STRUCTURE:
                 let finalData = Array.isArray(aiData) ? { title: "Exercise", lang_code: "en", theory: "Review rules.", exercises: aiData } : aiData;
                 if (!finalData.lang_code) finalData.lang_code = "en";
                 const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-                memory.unshift({
-                    id: Date.now(), title: finalData.title || "Untitled", lang: finalData.lang_code, theory: finalData.theory,
-                    date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                    data: finalData.exercises
-                });
+                memory.unshift({ id: Date.now(), title: finalData.title || "Untitled", lang: finalData.lang_code, theory: finalData.theory, date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), data: finalData.exercises });
                 localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory)); renderAiList();
             } catch (e) { alert("❌ Invalid JSON.\nError: " + e.message); }
         }
@@ -1557,8 +1381,6 @@ JSON STRUCTURE:
             item.data.forEach((ex, index) => {
                 const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
                 let exerciseContent = "";
-                
-                // Enhanced Cloze Parsing
                 if (ex.cloze_text) {
                     let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
                         const parts = content.split('|'); const correctAns = parts[0].trim();
@@ -1580,8 +1402,26 @@ JSON STRUCTURE:
             htmlBlock += '</div><p><br></p>'; editorArea.insertAdjacentHTML('beforeend', htmlBlock); setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; saveNote(); }, 50); closeAIMenu();
         }
 
-        window.resetExerciseBlock = function(btn) { const box = btn.closest('.exercise-box'); if(box) { const selects = box.querySelectorAll('select'); selects.forEach(s => { s.value = ""; s.classList.remove('correct', 'wrong'); }); } };
-        window.validateExercise = function(s, a) { s.classList.remove('correct', 'wrong'); if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) s.classList.add('correct'); else { s.classList.add('wrong'); if(navigator.vibrate) navigator.vibrate(200); } };
+        window.resetExerciseBlock = function(btn) { 
+            const box = btn.closest('.exercise-box'); 
+            if(box) { 
+                const selects = box.querySelectorAll('select'); 
+                selects.forEach(s => { 
+                    s.value = ""; 
+                    s.classList.remove('correct', 'wrong'); 
+                    s.querySelectorAll('option').forEach(o => o.removeAttribute('selected'));
+                }); 
+                window.saveNote(); // Trigger save to clean state
+            } 
+        };
+        
+        window.validateExercise = function(s, a) { 
+            s.classList.remove('correct', 'wrong'); 
+            if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) { s.classList.add('correct'); } 
+            else { s.classList.add('wrong'); if(navigator.vibrate) navigator.vibrate(200); } 
+            window.saveNote(); // Save immediately on interaction
+        };
+        
         window.speakText = function(text, langCode) {
             if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); const sel = document.querySelector(`#voice-${langCode} option:checked`)?.getAttribute('data-name'); const all = window.speechSynthesis.getVoices(); if (sel) { const v = all.find(val => val.name === sel); if (v) u.voice = v; } else { const m = { 'en': 'en-US', 'es': 'es-ES', 'pt': 'pt-BR', 'it': 'it-IT' }; u.lang = m[langCode] || 'en-US'; } u.rate = 0.9; window.speechSynthesis.speak(u); } else { alert("TTS not supported."); }
         };
