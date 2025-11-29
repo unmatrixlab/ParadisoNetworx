@@ -725,7 +725,7 @@
         </div>
     </div>
 
-    <script>
+ <script>
         const STORAGE_KEY = 'mdc_saved_favorites';
         const AI_MEM_KEY = 'mdc_ai_exercises';
         let currentTargetLang = 'en'; 
@@ -736,7 +736,7 @@
         const grid = document.getElementById('video-grid');
         let gridPlayer = null; 
         
-        // Multi-player storage (UPDATED SIZE TO 5)
+        // Multi-player storage
         let players = [null, null, null, null, null]; 
         let controlTarget = 0; // 0, 1, 2, 3, 4
 
@@ -755,13 +755,21 @@
             loadResources(); renderAiList(); updateTransFlagsVisibility(); initVoices(); initResizer();
         });
 
+        // --- FUNCIONES AUXILIARES GLOBALES ---
+        function getYouTubeID(url) {
+            if (!url) return null;
+            const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2];
+            return (match && match.length === 11) ? match : null;
+        }
 
-        // Función global para extraer ID de YouTube
-function getYouTubeID(url) {
-    if (!url) return null;
-    const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2];
-    return (match && match.length === 11) ? match : null;
-}
+        function getDomain(url) {
+            try { return new URL(url).hostname.replace('www.', ''); } catch(e) { return 'web'; }
+        }
+
+        function generatePastelColor() {
+            const hue = Math.floor(Math.random() * 360);
+            return `hsl(${hue}, 70%, 90%)`;
+        }
 
         // RESIZER
         function initResizer() {
@@ -807,142 +815,115 @@ function getYouTubeID(url) {
             else { if (transLangs.size >= 3) return alert("Max 3 translation languages."); transLangs.add(lang); el.classList.add('selected'); }
         }
 
-        /* ====== RESOURCE MANAGEMENT ====== */
+        /* ====== RESOURCE MANAGEMENT (CORREGIDO) ====== */
         function setResourceType(type) {
             selectedResourceType = type;
             document.querySelectorAll('.type-pill').forEach(el => el.classList.remove('active'));
             document.getElementById(`type-${type}`).classList.add('active');
         }
 
-        function getDomain(url) {
-            try { return new URL(url).hostname.replace('www.', ''); } catch(e) { return 'web'; }
+        function addResource() {
+            const url = document.getElementById('resUrl').value.trim();
+            const url2 = document.getElementById('resUrl2').value.trim(); 
+            const url3 = document.getElementById('resUrl3').value.trim(); 
+            const url4 = document.getElementById('resUrl4').value.trim();
+            const url5 = document.getElementById('resUrl5').value.trim();
+            const title = document.getElementById('resTitle').value.trim();
+
+            if (!url) return alert("Please enter a URL");
+
+            let type = selectedResourceType;
+            if (type === 'auto') {
+                if (url.includes('youtube.com') || url.includes('youtu.be')) type = 'video';
+                else if (url.match(/\.(mp3|wav|ogg)$/i)) type = 'audio';
+                else type = 'web';
+            }
+
+            // CORRECCIÓN ID ÚNICO
+            const uniqueCardId = Date.now().toString() + Math.floor(Math.random() * 1000); 
+
+            let resources = [];
+            try {
+                resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+                if(!Array.isArray(resources)) resources = [];
+            } catch(e) { resources = []; }
+
+            resources.unshift({ 
+                id: uniqueCardId, // ID único de la tarjeta
+                url: url,         // URL real
+                url2: url2, 
+                url3: url3,
+                url4: url4,
+                url5: url5,
+                type: type, 
+                title: title || (type === 'web' ? getDomain(url) : "New Resource"), 
+                date: new Date().toLocaleDateString(), 
+                note: "", 
+                lastTime: 0,
+                color: type === 'web' ? generatePastelColor() : null
+            });
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); 
+            loadResources();
+            
+            document.getElementById('resUrl').value = ''; 
+            document.getElementById('resUrl2').value = ''; 
+            document.getElementById('resUrl3').value = ''; 
+            document.getElementById('resUrl4').value = ''; 
+            document.getElementById('resUrl5').value = ''; 
+            document.getElementById('resTitle').value = '';
+            setResourceType('auto');
         }
 
-        function generatePastelColor() {
-            const hue = Math.floor(Math.random() * 360);
-            return `hsl(${hue}, 70%, 90%)`;
-        }
-
-     function addResource() {
-    const url = document.getElementById('resUrl').value.trim();
-    const url2 = document.getElementById('resUrl2').value.trim(); 
-    const url3 = document.getElementById('resUrl3').value.trim(); 
-    const url4 = document.getElementById('resUrl4').value.trim();
-    const url5 = document.getElementById('resUrl5').value.trim();
-    const title = document.getElementById('resTitle').value.trim();
-
-    if (!url) return alert("Please enter a URL");
-
-    let type = selectedResourceType;
-    if (type === 'auto') {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) type = 'video';
-        else if (url.match(/\.(mp3|wav|ogg)$/i)) type = 'audio';
-        else type = 'web';
-    }
-
-    // --- CORRECCIÓN AQUÍ ---
-    // Generamos un ID único para la TARJETA, independiente del video.
-    // Esto permite tener videos repetidos y evita conflictos.
-    const uniqueCardId = Date.now().toString(); 
-
-    let resources = [];
-    try {
-        resources = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-        if(!Array.isArray(resources)) resources = [];
-    } catch(e) { resources = []; }
-
-    resources.unshift({ 
-        id: uniqueCardId, // ID único
-        url: url,         // La URL contiene el verdadero ID del video
-        url2: url2, 
-        url3: url3,
-        url4: url4,
-        url5: url5,
-        type: type, 
-        title: title || (type === 'web' ? getDomain(url) : "New Resource"), 
-        date: new Date().toLocaleDateString(), 
-        note: "", 
-        lastTime: 0,
-        color: type === 'web' ? generatePastelColor() : null
-    });
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); 
-    loadResources();
-    
-    // Limpiar campos
-    document.getElementById('resUrl').value = ''; 
-    document.getElementById('resUrl2').value = ''; 
-    document.getElementById('resUrl3').value = ''; 
-    document.getElementById('resUrl4').value = ''; 
-    document.getElementById('resUrl5').value = ''; 
-    document.getElementById('resTitle').value = '';
-    setResourceType('auto');
-}
-
+        // CORRECCIÓN BORRADO POR ID ÚNICO
         function deleteResourceById(id) {
-             if(confirm("Delete this resource?")) { 
+            if(confirm("Delete this resource?")) { 
                 let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                resources = resources.filter(r => r.id !== id && r.id !== String(id)); 
+                // Aseguramos conversión a string para comparar
+                resources = resources.filter(r => String(r.id) !== String(id)); 
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
                 loadResources();
-             }
+            }
         }
 
-        // --- NEW: DUPLICATE & EDIT META ---
         function duplicateResourceById(id) {
             let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            const original = resources.find(r => r.id === id);
+            const original = resources.find(r => String(r.id) === String(id));
             if (!original) return;
             
-            // Create deep copy
             const copy = JSON.parse(JSON.stringify(original));
             copy.title = copy.title + " (Copy)";
+            // Nuevo ID único para la copia
+            copy.id = Date.now().toString() + Math.floor(Math.random() * 1000);
             
-            // If it's a video, the ID is the video ID. We can allow duplicates in the array logic.
-            // If it's web, ID is URL. We might need a unique ID to avoid issues if we edit one copy.
-            // To be safe for unique ID purposes:
-            if(copy.type !== 'video') {
-                copy.id = copy.url + '_' + Date.now();
-            } else {
-                // For videos, ID is the video ID. We can append timestamp for uniqueness in local storage array,
-                // but the grid player uses ID. Let's keep ID same but rely on array index for finding?
-                // Actually, the grid uses ID to find. If duplicate IDs exist, find() gets first.
-                // Better approach: Since ID is used for Player ID, duplicate IDs are problematic for tracking.
-                // But for a simple list, let's just push it.
-            }
-            // Actually, let's just unshift.
             resources.unshift(copy);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
             loadResources();
         }
 
-     function editResourceMetaById(id) {
-    let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    const index = resources.findIndex(r => r.id === id);
-    if (index === -1) return;
-    
-    const r = resources[index];
-    const newTitle = prompt("Edit Title:", r.title);
-    if (newTitle === null) return;
-    
-    const newUrl = prompt("Edit Primary URL:", r.url);
-    if (newUrl === null) return;
+        function editResourceMetaById(id) {
+            let resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            const index = resources.findIndex(r => String(r.id) === String(id));
+            if (index === -1) return;
+            
+            const r = resources[index];
+            const newTitle = prompt("Edit Title:", r.title);
+            if (newTitle === null) return;
+            
+            const newUrl = prompt("Edit Primary URL:", r.url);
+            if (newUrl === null) return;
 
-    r.title = newTitle;
-    r.url = newUrl;
-    
-    // Actualizar tipo si cambia la URL
-    const ytId = getYouTubeID(newUrl);
-    if (ytId) r.type = 'video';
-    else if (newUrl.match(/\.(mp3|wav|ogg)$/i)) r.type = 'audio';
-    else r.type = 'web';
+            r.title = newTitle;
+            r.url = newUrl;
+            
+            const ytId = getYouTubeID(newUrl);
+            if (ytId) r.type = 'video';
+            else if (newUrl.match(/\.(mp3|wav|ogg)$/i)) r.type = 'audio';
+            else r.type = 'web';
 
-    // NO cambiamos r.id, mantenemos el ID único original
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-    loadResources();
-}
-        // ------------------------------------
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+            loadResources();
+        }
 
         function toggleSettingsMenu() { document.getElementById('settings-menu').classList.toggle('active'); }
 
@@ -963,7 +944,7 @@ function getYouTubeID(url) {
 
         function applySearch() { searchQuery = document.getElementById('searchInput').value.toLowerCase(); loadResources(); }
 
-        /* ====== ROBUST LOADING AND BACKUP ====== */
+        /* ====== GRID RENDER (CORREGIDO) ====== */
         function loadResources() { 
             const data = localStorage.getItem(STORAGE_KEY); 
             let allResources = [];
@@ -972,7 +953,6 @@ function getYouTubeID(url) {
                 allResources = data ? JSON.parse(data) : [];
                 if (!Array.isArray(allResources)) throw new Error("Data is not an array");
             } catch (e) {
-                console.error("Storage corrupted, resetting view.", e);
                 allResources = [];
             }
 
@@ -985,6 +965,103 @@ function getYouTubeID(url) {
             renderGrid(filtered); 
         }
 
+        function renderGrid(resources) {
+            grid.innerHTML = resources.length ? '' : '<div style="grid-column:1/-1;text-align:center;color:#666;margin-top:40px">No resources found.</div>';
+            
+            resources.forEach((r) => {
+                const hasNote = r.note && r.note.replace(/<[^>]*>/g, '').trim().length > 0;
+                const type = r.type || 'video'; 
+                let mediaContent = '';
+
+                if (type === 'video') {
+                    // Extraemos ID real de YouTube de la URL
+                    const videoId = getYouTubeID(r.url);
+                    if (videoId) {
+                        // Pasamos r.id (tarjeta) y videoId (contenido)
+                        mediaContent = `<div class="media-area video" onclick="initGridPlayer(this, '${r.id}', '${videoId}')">
+                            <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg">
+                            <div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+                        </div>`;
+                    } else {
+                        mediaContent = `<div class="media-area video" style="background:#000; display:flex; align-items:center; justify-content:center; color:#666; font-size:0.8rem;">Invalid URL</div>`;
+                    }
+                } else if (type === 'audio') {
+                    mediaContent = `<div class="media-area audio" onclick="openEditorById('${r.id}')"><div class="audio-icon">🎧</div></div>`;
+                } else if (type === 'web') {
+                    const domain = getDomain(r.url || r.id);
+                    const faviconUrl = `https://www.google.com/s2/favicons?domain=${r.url || r.id}&sz=128`;
+                    mediaContent = `<div class="media-area web" style="background:${r.color || '#e3f2fd'}" onclick="openEditorById('${r.id}')"><div class="web-favicon-box"><img src="${faviconUrl}" onerror="this.src='about:blank'"></div><div class="web-domain-tag">WEB RESOURCE</div><div class="web-domain-text">${domain}</div></div>`;
+                }
+                
+                grid.innerHTML += `
+                <div class="resource-card">
+                    ${mediaContent}
+                    <div class="card-info">
+                        <div class="card-title">${hasNote ? '📝 ' : ''}${r.title}</div>
+                        <div class="card-actions">
+                            <button class="btn-action btn-edit" onclick="openEditorById('${r.id}')" title="Open Editor">✏️ Open</button>
+                            <button class="btn-action btn-duplicate" onclick="duplicateResourceById('${r.id}')" title="Duplicate">📄</button>
+                            <button class="btn-action btn-meta" onclick="editResourceMetaById('${r.id}')" title="Edit Data">🔧</button>
+                            <button class="btn-action btn-delete" onclick="deleteResourceById('${r.id}')" title="Delete">🗑️</button>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+
+        function initGridPlayer(el, cardId, videoId) {
+            if (!videoId) return alert("Video ID not found.");
+            
+            currentResourceId = cardId; 
+            const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
+            const resData = resources.find(v => String(v.id) === String(cardId)); 
+            const startTime = resData ? (resData.lastTime || 0) : 0;
+            
+            el.innerHTML = `<div id="p-${cardId}" class="video-target"></div>`; 
+            el.onclick = null;
+            
+            gridPlayer = new YT.Player(`p-${cardId}`, { 
+                width:'100%', 
+                height:'100%', 
+                videoId: videoId, 
+                playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) }, 
+                events: { 
+                    'onReady': (e) => { 
+                        e.target.playVideo(); 
+                        players[0] = gridPlayer; 
+                    }, 
+                    'onStateChange': (e) => onPlayerStateChange(e, cardId, gridPlayer) 
+                } 
+            });
+        }
+
+        function onPlayerStateChange(event, id, playerInstance) {
+            const playBtn = document.getElementById('btn-main-play');
+            const isControlled = (players[controlTarget] === playerInstance);
+
+            if (event.data === 1) { 
+                stopTracking(); trackingInterval = setInterval(() => saveMediaTime(playerInstance, id), 5000); 
+                if(playBtn && isControlled) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused'); } 
+            } else { 
+                saveMediaTime(playerInstance, id); stopTracking(); 
+                if(playBtn && isControlled) { playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing'); } 
+            }
+        }
+
+        function saveMediaTime(player, id) {
+            if (!player) return;
+            let currentTime = 0;
+            if (typeof player.getCurrentTime === 'function') { currentTime = player.getCurrentTime(); } 
+            else if (player.tagName === 'AUDIO') { currentTime = player.currentTime; }
+            if (currentTime > 0) { 
+                const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
+                const index = resources.findIndex(v => String(v.id) === String(id)); 
+                if (index !== -1) { resources[index].lastTime = currentTime; localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } 
+            }
+        }
+        function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
+
+        /* ====== BACKUP ====== */
         function downloadBackup() { 
             const d = localStorage.getItem(STORAGE_KEY) || '[]';
             const encodedData = btoa(unescape(encodeURIComponent(d)));
@@ -1035,107 +1112,12 @@ function getYouTubeID(url) {
             r.readAsText(file); 
         }
 
-    function renderGrid(resources) {
-    grid.innerHTML = resources.length ? '' : '<div style="grid-column:1/-1;text-align:center;color:#666;margin-top:40px">No resources found.</div>';
-    
-    resources.forEach((r) => {
-        const hasNote = r.note && r.note.replace(/<[^>]*>/g, '').trim().length > 0;
-        const type = r.type || 'video'; 
-        let mediaContent = '';
-
-        if (type === 'video') {
-            // Extraemos el ID del video real desde la URL para la imagen
-            const videoId = getYouTubeID(r.url);
-            // Pasamos r.id (ID de tarjeta) Y videoId a la función de inicialización
-            mediaContent = `<div class="media-area video" onclick="initGridPlayer(this, '${r.id}', '${videoId}')">
-                <img src="https://img.youtube.com/vi/${videoId}/mqdefault.jpg">
-                <div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-            </div>`;
-        } else if (type === 'audio') {
-            mediaContent = `<div class="media-area audio" onclick="openEditorById('${r.id}')"><div class="audio-icon">🎧</div></div>`;
-        } else if (type === 'web') {
-            const domain = getDomain(r.url || r.id);
-            const faviconUrl = `https://www.google.com/s2/favicons?domain=${r.url || r.id}&sz=128`;
-            mediaContent = `<div class="media-area web" style="background:${r.color || '#e3f2fd'}" onclick="openEditorById('${r.id}')"><div class="web-favicon-box"><img src="${faviconUrl}" onerror="this.src='about:blank'"></div><div class="web-domain-tag">WEB RESOURCE</div><div class="web-domain-text">${domain}</div></div>`;
-        }
-        
-        grid.innerHTML += `
-        <div class="resource-card">
-            ${mediaContent}
-            <div class="card-info">
-                <div class="card-title">${hasNote ? '📝 ' : ''}${r.title}</div>
-                <div class="card-actions">
-                    <button class="btn-action btn-edit" onclick="openEditorById('${r.id}')" title="Open Editor">✏️ Open</button>
-                    <button class="btn-action btn-duplicate" onclick="duplicateResourceById('${r.id}')" title="Duplicate">📄</button>
-                    <button class="btn-action btn-meta" onclick="editResourceMetaById('${r.id}')" title="Edit Data">🔧</button>
-                    <button class="btn-action btn-delete" onclick="deleteResourceById('${r.id}')" title="Delete">🗑️</button>
-                </div>
-            </div>
-        </div>`;
-    });
-}
-
-       function initGridPlayer(el, cardId, videoId) {
-    if (!videoId) return alert("Video ID not found in URL");
-    
-    currentResourceId = cardId; 
-    const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
-    const resData = resources.find(v => v.id === cardId); 
-    const startTime = resData ? (resData.lastTime || 0) : 0;
-    
-    // Usamos el ID de la tarjeta para crear el div del player, evitando duplicados
-    el.innerHTML = `<div id="p-${cardId}" class="video-target"></div>`; 
-    el.onclick = null;
-    
-    gridPlayer = new YT.Player(`p-${cardId}`, { 
-        width:'100%', 
-        height:'100%', 
-        videoId: videoId, // Aquí va el ID real de YouTube
-        playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) }, 
-        events: { 
-            'onReady': (e) => { 
-                e.target.playVideo(); 
-                players[0] = gridPlayer; 
-            }, 
-            'onStateChange': (e) => onPlayerStateChange(e, cardId, gridPlayer) 
-        } 
-    });
-}
-
-        function onPlayerStateChange(event, id, playerInstance) {
-            const playBtn = document.getElementById('btn-main-play');
-            // Update UI only if the event comes from the currently controlled player
-            const isControlled = (players[controlTarget] === playerInstance);
-
-            if (event.data === 1) { 
-                stopTracking(); trackingInterval = setInterval(() => saveMediaTime(playerInstance, id), 5000); 
-                if(playBtn && isControlled) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused'); } 
-            } else { 
-                saveMediaTime(playerInstance, id); stopTracking(); 
-                if(playBtn && isControlled) { playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing'); } 
-            }
-        }
-
-        function saveMediaTime(player, id) {
-            if (!player) return;
-            let currentTime = 0;
-            if (typeof player.getCurrentTime === 'function') { currentTime = player.getCurrentTime(); } 
-            else if (player.tagName === 'AUDIO') { currentTime = player.currentTime; }
-            if (currentTime > 0) { 
-                const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
-                const index = resources.findIndex(v => v.id === id); 
-                if (index !== -1) { resources[index].lastTime = currentTime; localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } 
-            }
-        }
-        function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
-
-        /* ====== NEW CONTROL LOGIC ====== */
+        /* ====== CONTROL LOGIC ====== */
         window.setControlTarget = function(idx) {
             controlTarget = idx;
             document.querySelectorAll('.btn-target').forEach((b, i) => {
                if(i===idx) b.classList.add('active'); else b.classList.remove('active');
             });
-            // Update play button state based on new target
             const p = players[controlTarget];
             const playBtn = document.getElementById('btn-main-play');
             if(p && typeof p.getPlayerState === 'function') {
@@ -1160,211 +1142,38 @@ function getYouTubeID(url) {
             if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState();
         }
         
-        // --- NEW FEATURE: EDIT TAB URL ---
-    window.editTabUrl = function(index, event) {
-    event.stopPropagation();
-    const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    const r = resources[currentEditIndex];
-    
-    let key = 'url';
-    if(index === 1) key = 'url2';
-    if(index === 2) key = 'url3';
-    if(index === 3) key = 'url4';
-    if(index === 4) key = 'url5';
-
-    const newUrl = prompt(`Enter new URL for Tab ${index + 1}:`, r[key] || '');
-    if(newUrl !== null) {
-        const trimmedUrl = newUrl.trim();
-        r[key] = trimmedUrl;
-
-        // Si cambiamos la URL principal (Tab 1), actualizamos el tipo, PERO NO EL ID.
-        if (index === 0) {
-             const ytId = getYouTubeID(trimmedUrl);
-             if (ytId) {
-                 r.type = 'video';
-             } else if (trimmedUrl.match(/\.(mp3|wav|ogg)$/i)) {
-                 r.type = 'audio';
-             } else {
-                 r.type = 'web';
-             }
-        }
-
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-        openEditorById(r.id); // Recargar editor
-    }
-}
-
-        function openEditorById(id) {
+        // --- EDIT TAB URL ---
+        window.editTabUrl = function(index, event) {
+            event.stopPropagation();
             const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
-            const index = resources.findIndex(r => r.id === id);
-            if (index === -1) return;
-            currentEditIndex = index;
-            const resData = resources[index];
-            currentResourceId = resData.id;
-            editorArea.innerHTML = resData.note || "";
-            const type = resData.type || 'video';
-            modal.classList.add('active');
-            document.getElementById('editor-popup').classList.remove('free-mode');
-            document.getElementById('editor-popup').style.opacity = 1;
-            const container = document.getElementById('desktop-media-wrapper');
-            container.innerHTML = ''; 
-            const isDesktop = window.matchMedia("(min-width: 900px)").matches;
-            let startTime = resData.lastTime || 0;
+            const r = resources[currentEditIndex];
             
-            // Reset Players Array (Size 5)
-            players = [null, null, null, null, null];
-            setControlTarget(0); // Reset to 1
+            let key = 'url';
+            if(index === 1) key = 'url2';
+            if(index === 2) key = 'url3';
+            if(index === 3) key = 'url4';
+            if(index === 4) key = 'url5';
 
-            const getYouTubeID = (url) => {
-                if(!url) return null;
-                const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2];
-                return (match && match.length === 11) ? match : null;
-            };
+            const newUrl = prompt(`Enter new URL for Tab ${index + 1}:`, r[key] || '');
+            if(newUrl !== null) {
+                const trimmedUrl = newUrl.trim();
+                r[key] = trimmedUrl;
 
-            const link2 = resData.url2 || '';
-            const link3 = resData.url3 || '';
-            const link4 = resData.url4 || ''; 
-            const link5 = resData.url5 || ''; // GET LINK 5
-            
-            const ytId2 = getYouTubeID(link2);
-            const ytId3 = getYouTubeID(link3);
-            const ytId4 = getYouTubeID(link4); 
-            const ytId5 = getYouTubeID(link5); // GET ID 5
-
-            const renderTabs = (content1, content2, content3, content4, content5) => {
-                // Generates buttons with GEAR icon
-                const getBtn = (idx, link) => {
-                    const activeClass = idx === 0 ? 'active' : '';
-                    return `<button class="web-tab-btn ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">
-                                Tab ${idx + 1}
-                                <span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span>
-                            </button>`;
-                };
-                
-                // Show tab button if link exists OR if it's the main one (idx 0 always visible)
-                return `
-                    <div class="media-iframe-wrapper">
-                        <div class="web-tab-nav">
-                            ${getBtn(0, resData.url)}
-                            ${link2 ? getBtn(1, link2) : getBtn(1, '')}
-                            ${link3 ? getBtn(2, link3) : getBtn(2, '')}
-                            ${link4 ? getBtn(3, link4) : getBtn(3, '')}
-                            ${link5 ? getBtn(4, link5) : getBtn(4, '')}
-                        </div>
-                        <div class="web-content-area">
-                            <div class="web-frame-container active" id="tab-content-0">
-                                ${content1}
-                            </div>
-                            <div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                            <div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
-                        </div>
-                    </div>
-                `;
-            };
-
-            // Helper to generate Content HTML
-            const getTabContent = (link, ytId, index) => {
-                if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
-                if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
-                return null;
-            };
-
-            const htmlContent2 = getTabContent(link2, ytId2, 2);
-            const htmlContent3 = getTabContent(link3, ytId3, 3);
-            const htmlContent4 = getTabContent(link4, ytId4, 4); 
-            const htmlContent5 = getTabContent(link5, ytId5, 5); // CONTENT 5
-
-            // Init Additional Players
-            const initSubPlayers = () => {
-                if(ytId2) players[1] = new YT.Player(`player-tab-2`, { width: '100%', height: '100%', videoId: ytId2, playerVars: { rel: 0 } });
-                if(ytId3) players[2] = new YT.Player(`player-tab-3`, { width: '100%', height: '100%', videoId: ytId3, playerVars: { rel: 0 } });
-                if(ytId4) players[3] = new YT.Player(`player-tab-4`, { width: '100%', height: '100%', videoId: ytId4, playerVars: { rel: 0 } }); 
-                if(ytId5) players[4] = new YT.Player(`player-tab-5`, { width: '100%', height: '100%', videoId: ytId5, playerVars: { rel: 0 } }); // PLAYER 5
-            };
-
-            if (type === 'video') {
-                if (isDesktop) {
-                    if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function' && gridPlayer.getVideoData().video_id === id) { 
-                        startTime = gridPlayer.getCurrentTime(); 
-                        gridPlayer.pauseVideo(); 
-                    }
-
-                    if (htmlContent2 || htmlContent3 || htmlContent4 || htmlContent5) {
-                        container.innerHTML = renderTabs('<div id="desktop-player-target" style="width:100%; height:100%;"></div>', htmlContent2, htmlContent3, htmlContent4, htmlContent5);
-                    } else {
-                        container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
-                    }
-
-                    players[0] = new YT.Player('desktop-player-target', { 
-                        width: '100%', 
-                        height: '100%', 
-                        videoId: id, 
-                        playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, 
-                        events: { 
-                            'onReady': (e) => { }, 
-                            'onStateChange': (e) => onPlayerStateChange(e, id, players[0]) 
-                        } 
-                    });
-                    initSubPlayers();
-
-                } else { 
-                    if (gridPlayer) { players[0] = gridPlayer; gridPlayer.pauseVideo(); } 
+                // Si cambiamos tab principal, actualizamos tipo, pero MANTENEMOS ID TARJETA
+                if (index === 0) {
+                     const ytId = getYouTubeID(trimmedUrl);
+                     if (ytId) {
+                         r.type = 'video';
+                     } else if (trimmedUrl.match(/\.(mp3|wav|ogg)$/i)) {
+                         r.type = 'audio';
+                     } else {
+                         r.type = 'web';
+                     }
                 }
-            } else if (type === 'audio') {
-                if (isDesktop) {
-                    const audioHtml = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
-                    
-                    if (htmlContent2 || htmlContent3 || htmlContent4 || htmlContent5) {
-                        container.innerHTML = renderTabs(audioHtml, htmlContent2, htmlContent3, htmlContent4, htmlContent5);
-                    } else {
-                        container.innerHTML = audioHtml;
-                    }
 
-                    const audioEl = document.getElementById('modal-audio-player');
-                    audioEl.currentTime = startTime; 
-                    players[0] = audioEl;
-                    audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); document.getElementById('btn-main-play').innerText = "⏸️"; });
-                    audioEl.addEventListener('pause', () => { saveMediaTime(audioEl, id); stopTracking(); document.getElementById('btn-main-play').innerText = "▶️"; });
-                    initSubPlayers();
-                }
-            } else if (type === 'web') {
-                if (isDesktop) {
-                    const link1 = resData.url;
-                     let tabHtml = `
-                        <div class="media-iframe-wrapper">
-                            <div class="web-tab-nav">
-                                <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">Main <span class="tab-gear" onclick="window.editTabUrl(0, event)">⚙️</span></button>
-                                ${link2 ? `<button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">Tab 2 <span class="tab-gear" onclick="window.editTabUrl(1, event)">⚙️</span></button>` : `<button class="web-tab-btn" onclick="switchWebTab(1)">Tab 2 <span class="tab-gear" onclick="window.editTabUrl(1, event)">⚙️</span></button>`}
-                                ${link3 ? `<button class="web-tab-btn" onclick="switchWebTab(2)" title="${link3}">Tab 3 <span class="tab-gear" onclick="window.editTabUrl(2, event)">⚙️</span></button>` : `<button class="web-tab-btn" onclick="switchWebTab(2)">Tab 3 <span class="tab-gear" onclick="window.editTabUrl(2, event)">⚙️</span></button>`}
-                                ${link4 ? `<button class="web-tab-btn" onclick="switchWebTab(3)" title="${link4}">Tab 4 <span class="tab-gear" onclick="window.editTabUrl(3, event)">⚙️</span></button>` : `<button class="web-tab-btn" onclick="switchWebTab(3)">Tab 4 <span class="tab-gear" onclick="window.editTabUrl(3, event)">⚙️</span></button>`}
-                                ${link5 ? `<button class="web-tab-btn" onclick="switchWebTab(4)" title="${link5}">Tab 5 <span class="tab-gear" onclick="window.editTabUrl(4, event)">⚙️</span></button>` : `<button class="web-tab-btn" onclick="switchWebTab(4)">Tab 5 <span class="tab-gear" onclick="window.editTabUrl(4, event)">⚙️</span></button>`}
-                                
-                                <div style="flex:1"></div>
-                                <button class="web-tab-btn" style="border-bottom:none; color:var(--text-muted); font-size:0.7rem; padding:0 15px;" onclick="window.open(document.querySelector('.web-frame-container.active iframe').src, '_blank')">↗ Open Externally</button>
-                            </div>
-                            <div class="web-content-area">
-                                <div class="web-frame-container active" id="tab-content-0">
-                                     <div class="web-error-bg">
-                                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                                        <span>Connection Blocked / Not Found</span>
-                                     </div>
-                                     <iframe src="${link1}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
-                                </div>
-                                <div class="web-frame-container" id="tab-content-1">${htmlContent2 || '<div class="web-error-bg"><span>Empty</span></div>'}</div>
-                                <div class="web-frame-container" id="tab-content-2">${htmlContent3 || '<div class="web-error-bg"><span>Empty</span></div>'}</div>
-                                <div class="web-frame-container" id="tab-content-3">${htmlContent4 || '<div class="web-error-bg"><span>Empty</span></div>'}</div>
-                                <div class="web-frame-container" id="tab-content-4">${htmlContent5 || '<div class="web-error-bg"><span>Empty</span></div>'}</div>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML = tabHtml;
-                    players[0] = null;
-                    initSubPlayers();
-                }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
+                openEditorById(r.id); 
             }
-            updateToolbarState();
         }
 
         window.switchWebTab = function(idx) {
@@ -1381,10 +1190,134 @@ function getYouTubeID(url) {
             });
         };
 
+        function openEditorById(id) {
+            const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            const index = resources.findIndex(r => String(r.id) === String(id));
+            if (index === -1) return;
+            currentEditIndex = index;
+            const resData = resources[index];
+            currentResourceId = resData.id;
+            editorArea.innerHTML = resData.note || "";
+            const type = resData.type || 'video';
+            modal.classList.add('active');
+            document.getElementById('editor-popup').classList.remove('free-mode');
+            document.getElementById('editor-popup').style.opacity = 1;
+            const container = document.getElementById('desktop-media-wrapper');
+            container.innerHTML = ''; 
+            const isDesktop = window.matchMedia("(min-width: 900px)").matches;
+            let startTime = resData.lastTime || 0;
+            
+            players = [null, null, null, null, null];
+            setControlTarget(0); 
+
+            // Extraemos los IDs reales de YouTube de las URLs guardadas
+            const ytId1 = getYouTubeID(resData.url);
+            const ytId2 = getYouTubeID(resData.url2);
+            const ytId3 = getYouTubeID(resData.url3);
+            const ytId4 = getYouTubeID(resData.url4); 
+            const ytId5 = getYouTubeID(resData.url5); 
+
+            const renderTabs = (content1, content2, content3, content4, content5) => {
+                const getBtn = (idx, link) => {
+                    const activeClass = idx === 0 ? 'active' : '';
+                    return `<button class="web-tab-btn ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">
+                                Tab ${idx + 1}
+                                <span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span>
+                            </button>`;
+                };
+                
+                return `
+                    <div class="media-iframe-wrapper">
+                        <div class="web-tab-nav">
+                            ${getBtn(0, resData.url)}
+                            ${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}
+                            ${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}
+                            ${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}
+                            ${resData.url5 ? getBtn(4, resData.url5) : getBtn(4, '')}
+                        </div>
+                        <div class="web-content-area">
+                            <div class="web-frame-container active" id="tab-content-0">${content1}</div>
+                            <div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
+                            <div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
+                            <div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
+                            <div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div>
+                        </div>
+                    </div>
+                `;
+            };
+
+            const getTabContent = (link, ytId, index) => {
+                if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
+                if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
+                return null;
+            };
+
+            const htmlContent2 = getTabContent(resData.url2, ytId2, 2);
+            const htmlContent3 = getTabContent(resData.url3, ytId3, 3);
+            const htmlContent4 = getTabContent(resData.url4, ytId4, 4); 
+            const htmlContent5 = getTabContent(resData.url5, ytId5, 5); 
+
+            const initSubPlayers = () => {
+                if(ytId2) players[1] = new YT.Player(`player-tab-2`, { width: '100%', height: '100%', videoId: ytId2, playerVars: { rel: 0 } });
+                if(ytId3) players[2] = new YT.Player(`player-tab-3`, { width: '100%', height: '100%', videoId: ytId3, playerVars: { rel: 0 } });
+                if(ytId4) players[3] = new YT.Player(`player-tab-4`, { width: '100%', height: '100%', videoId: ytId4, playerVars: { rel: 0 } }); 
+                if(ytId5) players[4] = new YT.Player(`player-tab-5`, { width: '100%', height: '100%', videoId: ytId5, playerVars: { rel: 0 } }); 
+            };
+
+            if (type === 'video') {
+                if (isDesktop) {
+                    if (gridPlayer && typeof gridPlayer.getCurrentTime === 'function' && gridPlayer.getVideoData().video_id === ytId1) { 
+                        startTime = gridPlayer.getCurrentTime(); 
+                        gridPlayer.pauseVideo(); 
+                    }
+
+                    if (htmlContent2 || htmlContent3 || htmlContent4 || htmlContent5) {
+                        container.innerHTML = renderTabs('<div id="desktop-player-target" style="width:100%; height:100%;"></div>', htmlContent2, htmlContent3, htmlContent4, htmlContent5);
+                    } else {
+                        container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
+                    }
+
+                    if (ytId1) {
+                        players[0] = new YT.Player('desktop-player-target', { 
+                            width: '100%', height: '100%', videoId: ytId1, 
+                            playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, 
+                            events: { 'onStateChange': (e) => onPlayerStateChange(e, id, players[0]) } 
+                        });
+                    }
+                    initSubPlayers();
+                } else { 
+                    if (gridPlayer) { players[0] = gridPlayer; gridPlayer.pauseVideo(); } 
+                }
+            } else if (type === 'audio') {
+                if (isDesktop) {
+                    const audioHtml = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
+                    if (htmlContent2 || htmlContent3 || htmlContent4 || htmlContent5) {
+                        container.innerHTML = renderTabs(audioHtml, htmlContent2, htmlContent3, htmlContent4, htmlContent5);
+                    } else {
+                        container.innerHTML = audioHtml;
+                    }
+                    const audioEl = document.getElementById('modal-audio-player');
+                    audioEl.currentTime = startTime; 
+                    players[0] = audioEl;
+                    audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); document.getElementById('btn-main-play').innerText = "⏸️"; });
+                    audioEl.addEventListener('pause', () => { saveMediaTime(audioEl, id); stopTracking(); document.getElementById('btn-main-play').innerText = "▶️"; });
+                    initSubPlayers();
+                }
+            } else if (type === 'web') {
+                if (isDesktop) {
+                    // Para web, usamos renderTabs directamente
+                    // El contenido 1 es un iframe con la URL principal
+                    const webContent1 = `<iframe src="${resData.url}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
+                    container.innerHTML = renderTabs(webContent1, htmlContent2, htmlContent3, htmlContent4, htmlContent5);
+                    players[0] = null;
+                    initSubPlayers();
+                }
+            }
+            updateToolbarState();
+        }
+
         function closeEditor() {
-            // Save main player time
             if (players[0] && currentResourceId) { saveMediaTime(players[0], currentResourceId); stopTracking(); } 
-            // Destroy all desktop players
             players.forEach(p => {
                 if (p && typeof p.destroy === 'function') { p.destroy(); }
             });
