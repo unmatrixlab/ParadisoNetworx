@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Verb Trainer - Ultimate Fix</title>
+    <title>MDC Verb Trainer - Final</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;1,600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -21,6 +21,9 @@
             --c-future: #ec4899;
             --c-correct: #10b981;
             --c-wrong: #ef4444;
+            
+            /* Auxiliar Color (Verde) */
+            --c-aux: #059669; 
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -37,20 +40,24 @@
             padding-bottom: 50px;
         }
 
-        /* HEADER */
+        /* ====== HEADER RESTAURADO ====== */
         #mdc-header {
             position: fixed; top: 0; left: 0; width: 100%; height: var(--header-height);
-            background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(16px);
+            background: rgba(31, 41, 55, 0.95); 
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
             z-index: 1000; display: flex; align-items: center; justify-content: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            /* Efecto Lila Difuminado */
+            border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+            box-shadow: 0 4px 30px rgba(139, 92, 246, 0.15);
         }
         #mdc-header a {
-            text-decoration: none; font-weight: 800; font-size: 18px; letter-spacing: 1px;
+            text-decoration: none; font-weight: 800; font-size: 20px; letter-spacing: 1px;
             color: white; transition: opacity 0.2s;
+            text-shadow: 0 2px 10px rgba(167, 139, 250, 0.5);
         }
+        #mdc-header a:hover { opacity: 0.8; }
 
-        /* UI ELEMENTS */
+        /* ====== UI ELEMENTS ====== */
         .app-title { text-align: center; margin-bottom: 30px; padding: 0 20px; }
         .app-title h1 { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: var(--primary); margin-bottom: 5px; }
         .app-title p { color: var(--text-muted); font-size: 0.95rem; letter-spacing: 1px; text-transform: uppercase; }
@@ -135,7 +142,7 @@
         .conjugation-spoiler:hover, .conjugation-spoiler:active { filter: blur(0); opacity: 1; }
         .conjugation { font-size: 1.1rem; font-weight: 700; color: var(--text-main); font-family: 'Playfair Display', serif; }
 
-        /* SENTENCE ROWS */
+        /* SENTENCE ROWS & TEXT COLORS */
         .sentences-container { display: flex; flex-direction: column; gap: 8px; }
         .sentence-row { 
             display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: #4b5563; line-height: 1.4; 
@@ -144,7 +151,12 @@
         .sentence-row:hover { background: #f0f9ff; }
         .icon { font-size: 1rem; min-width: 20px; text-align: center; cursor: pointer; }
         .sentence-text { flex-grow: 1; }
-        .sentence-text b { color: var(--primary); }
+        
+        /* === COLORS FOR TEXT === */
+        /* Verbo en Azul */
+        .sentence-text b { color: var(--primary); } 
+        /* Auxiliar en Verde (Nuevo) */
+        .text-aux { color: var(--c-aux); font-weight: 700; }
 
         /* EXERCISE DROPDOWNS */
         .ex-select {
@@ -201,7 +213,7 @@
 <body>
 
     <div id="mdc-header">
-        <a href="#">MDC ENG</a>
+        <a href="https://paradisonetworx.com/mdceng.html">MDC ENG</a>
     </div>
 
     <div class="app-title">
@@ -255,13 +267,19 @@
                     <input type="radio" name="exMode" value="aux" onchange="saveConfig()">
                 </label>
             </div>
+            <div class="config-option">
+                <label>
+                    <span>👤 Fill Blanks: <b>Subjects</b></span>
+                    <input type="radio" name="exMode" value="subject" onchange="saveConfig()">
+                </label>
+            </div>
             <button class="btn-save-config" onclick="closeModal('configModal'); teachVerb();">Apply & Reload</button>
         </div>
     </div>
 
     <script>
         // === 0. CONFIGURATION & STATE ===
-        let appMode = 'reading'; // 'reading', 'verbs', 'aux'
+        let appMode = 'reading'; // 'reading', 'verbs', 'aux', 'subject'
 
         function openConfig() { document.getElementById('configModal').style.display = "flex"; }
         function closeConfig(e) { if (e.target.id === 'configModal') closeModal('configModal'); }
@@ -560,28 +578,45 @@
             const renderLine = (part, icon) => {
                 let html = "";
                 let fullText = `${part.pre} ${part.aux ? part.aux + ' ' : ''}${part.verb} ${part.post}`;
+                
+                // Helper to wrap aux in green if present and not hidden by game
+                const formatAux = (text) => text ? `<span class="text-aux">${text}</span>` : '';
 
                 // READING MODE
                 if(appMode === 'reading') {
-                    html = `${part.pre} ${part.aux ? part.aux + ' ' : ''}<b>${part.verb}</b> ${part.post}`;
+                    html = `${part.pre} ${part.aux ? formatAux(part.aux) + ' ' : ''}<b>${part.verb}</b> ${part.post}`;
                 }
                 // VERB GAME MODE
                 else if(appMode === 'verbs') {
                     const options = generateOptions(part.verb);
                     const select = `<select class="ex-select" onchange="checkAnswer(this, '${part.verb}')" onclick="event.stopPropagation()"><option value="" disabled selected>...</option>${options.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`;
-                    html = `${part.pre} ${part.aux ? part.aux + ' ' : ''}${select} ${part.post}`;
+                    // Aux should be green here
+                    html = `${part.pre} ${part.aux ? formatAux(part.aux) + ' ' : ''}${select} ${part.post}`;
                 }
                 // AUX GAME MODE
                 else if(appMode === 'aux') {
                     if(part.aux) {
                         const safeAux = part.aux.replace(/'/g, "\\'"); // Escape for JS call
                         const options = generateAuxOptions(part.aux);
+                        // Escape single quote for display value inside HTML attribute
                         const select = `<select class="ex-select" onchange="checkAnswer(this, '${safeAux}')" onclick="event.stopPropagation()"><option value="" disabled selected>...</option>${options.map(o=>`<option value="${o.replace(/'/g, "&#39;") }">${o}</option>`).join('')}</select>`;
                         html = `${part.pre} ${select} <b>${part.verb}</b> ${part.post}`;
                     } else {
-                        // Fallback if no aux (e.g. Present Simple Aff) -> Show text normal
-                        html = `${part.pre} <b>${part.verb}</b> ${part.post}`;
+                        // Fallback if no aux (e.g. Present Simple Aff) -> Show text normal but verb in select to keep it interactive?
+                        // Or just show reading mode? Let's use Reading Mode logic for consistency with "Reading" fallback.
+                        // Actually, let's turn the VERB into a blank if there is no aux, so the user always has something to do.
+                        const options = generateOptions(part.verb);
+                        const select = `<select class="ex-select" onchange="checkAnswer(this, '${part.verb}')" onclick="event.stopPropagation()"><option value="" disabled selected>...</option>${options.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`;
+                        html = `${part.pre} ${select} ${part.post}`;
                     }
+                }
+                // SUBJECT GAME MODE
+                else if(appMode === 'subject') {
+                    const options = generateSubjectOptions(part.pre);
+                    // Safe Subject handling if needed (usually simple words)
+                    const select = `<select class="ex-select" onchange="checkAnswer(this, '${part.pre.replace(/'/g, "\\'")}')" onclick="event.stopPropagation()"><option value="" disabled selected>...</option>${options.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`;
+                    // Aux green, Verb blue
+                    html = `${select} ${part.aux ? formatAux(part.aux) + ' ' : ''}<b>${part.verb}</b> ${part.post}`;
                 }
 
                 return `
@@ -623,6 +658,16 @@
             const set = new Set([correct]);
             while(set.size < 4) {
                 const rnd = auxList[Math.floor(Math.random() * auxList.length)];
+                if(rnd !== correct) set.add(rnd);
+            }
+            return Array.from(set).sort(() => Math.random() - 0.5);
+        }
+
+        function generateSubjectOptions(correct) {
+            const subList = ["I", "You", "He", "She", "It", "We", "They", "The dog", "The teacher"];
+            const set = new Set([correct]);
+            while(set.size < 4) {
+                const rnd = subList[Math.floor(Math.random() * subList.length)];
                 if(rnd !== correct) set.add(rnd);
             }
             return Array.from(set).sort(() => Math.random() - 0.5);
