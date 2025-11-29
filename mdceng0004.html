@@ -238,6 +238,12 @@
         .btn-save-template { background: #fff8e1; color: #d97706; font-size: 0.8rem; width: auto; padding: 0 12px; }
         .color-dot { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; margin: 0 3px;}
         .color-dot.active { border-color: #000; transform: scale(1.15); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* New Target Selector Group */
+        .ctrl-target-group { display: flex; background: #e5e5ea; border-radius: 8px; padding: 2px; margin-right: 8px; }
+        .btn-target { width: 24px; height: 100%; border: none; background: transparent; border-radius: 6px; font-size: 0.7rem; font-weight: 700; color: #8e8e93; cursor: pointer; }
+        .btn-target.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
         .media-controls { display: flex; gap: 8px; }
         .btn-media { padding: 0 14px; height: 38px; background: #f2f2f7; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; display:flex; align-items:center; justify-content:center; }
         #btn-main-play { min-width: 44px; font-size: 1.1rem; }
@@ -395,8 +401,12 @@
                 <input type="text" id="resUrl" placeholder="Paste URL here...">
             </div>
             <div class="input-group" style="margin-top:10px;">
-                <label>URL 2 (Optional, for Tabs)</label>
-                <input type="text" id="resUrl2" placeholder="Second Link...">
+                <label>URL 2 (Tab 2)</label>
+                <input type="text" id="resUrl2" placeholder="Second Link (Video/Web)...">
+            </div>
+            <div class="input-group" style="margin-top:10px;">
+                <label>URL 3 (Tab 3)</label>
+                <input type="text" id="resUrl3" placeholder="Third Link (Video/Web)...">
             </div>
             <div class="input-group" style="margin-top:10px;">
                 <label>Title</label>
@@ -471,6 +481,11 @@
                         <button class="btn-fmt btn-save-template" onclick="saveEditorAsTemplate()" title="Save current editor content as reusable template">💾 Save Template</button>
                     </div>
                     <div class="toolbar-group">
+                        <div class="ctrl-target-group">
+                            <button class="btn-target active" onclick="setControlTarget(0)">1</button>
+                            <button class="btn-target" onclick="setControlTarget(1)">2</button>
+                            <button class="btn-target" onclick="setControlTarget(2)">3</button>
+                        </div>
                         <button class="btn-media" onclick="seekVideo(-3)">-3s</button>
                         <button class="btn-media" id="btn-main-play" onclick="togglePlay()">⏯️</button>
                         <button class="btn-media" onclick="seekVideo(3)">+3s</button>
@@ -699,7 +714,13 @@
         const LANG_NAMES = { 'en': 'English', 'es': 'Spanish', 'pt': 'Portuguese', 'it': 'Italian' };
         
         const grid = document.getElementById('video-grid');
-        let gridPlayer = null; let modalPlayer = null; activePlayer = null; let currentEditIndex = -1; let trackingInterval = null; let currentResourceId = null; let voices = [];
+        let gridPlayer = null; 
+        
+        // Multi-player storage
+        let players = [null, null, null]; 
+        let controlTarget = 0; // 0, 1, or 2
+
+        let currentEditIndex = -1; let trackingInterval = null; let currentResourceId = null; let voices = [];
 
         // V27 Variables
         let selectedResourceType = 'auto';
@@ -776,7 +797,8 @@
 
         function addResource() {
             const url = document.getElementById('resUrl').value.trim();
-            const url2 = document.getElementById('resUrl2').value.trim(); // NEW URL 2
+            const url2 = document.getElementById('resUrl2').value.trim(); 
+            const url3 = document.getElementById('resUrl3').value.trim(); 
             const title = document.getElementById('resTitle').value.trim();
             if (!url) return alert("Please enter a URL");
 
@@ -804,7 +826,8 @@
             resources.unshift({ 
                 id: id, 
                 url: url,
-                url2: url2, // SAVE URL 2
+                url2: url2, 
+                url3: url3,
                 type: type, 
                 title: title || (type === 'web' ? getDomain(url) : "New Resource"), 
                 date: new Date().toLocaleDateString(), 
@@ -817,6 +840,7 @@
             loadResources();
             document.getElementById('resUrl').value = ''; 
             document.getElementById('resUrl2').value = ''; 
+            document.getElementById('resUrl3').value = ''; 
             document.getElementById('resTitle').value = '';
             setResourceType('auto');
         }
@@ -849,12 +873,11 @@
 
         function applySearch() { searchQuery = document.getElementById('searchInput').value.toLowerCase(); loadResources(); }
 
-        /* ====== ROBUST LOADING AND BACKUP (FIXED) ====== */
+        /* ====== ROBUST LOADING AND BACKUP ====== */
         function loadResources() { 
             const data = localStorage.getItem(STORAGE_KEY); 
             let allResources = [];
             
-            // ERROR HANDLING: If data is corrupt, reset to empty array instead of crashing
             try {
                 allResources = data ? JSON.parse(data) : [];
                 if (!Array.isArray(allResources)) throw new Error("Data is not an array");
@@ -874,7 +897,6 @@
 
         function downloadBackup() { 
             const d = localStorage.getItem(STORAGE_KEY) || '[]';
-            // ENCODE to Base64 to prevent HTML breakage
             const encodedData = btoa(unescape(encodeURIComponent(d)));
             
             const htmlContent = `<!DOCTYPE html><html><head><title>MDC Backup</title></head><body>
@@ -901,30 +923,24 @@
             r.onload = e => { 
                 const content = e.target.result;
                 try {
-                    // Try to find new Base64 format
                     let match = content.match(/const backupData = "(.*?)";/);
                     let jsonString = "";
-
                     if (match && match[1]) {
                         jsonString = decodeURIComponent(escape(atob(match[1])));
                     } else {
-                        // Fallback for Legacy Backups
                         match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
                         if (match && match[1]) jsonString = match[1];
                         else throw new Error("No valid backup data found.");
                     }
-
                     const parsed = JSON.parse(jsonString);
                     if (!Array.isArray(parsed)) throw new Error("Invalid data format.");
-
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); 
                     loadResources(); 
                     alert("✅ Backup imported successfully!");
-
                 } catch (err) {
                     alert("❌ Import failed: " + err.message);
                 }
-                inp.value = ''; // Reset input
+                inp.value = ''; 
             }; 
             r.readAsText(file); 
         }
@@ -954,17 +970,20 @@
             const vidData = videos.find(v => v.id === id); 
             const startTime = vidData ? (vidData.lastTime || 0) : 0;
             el.innerHTML = `<div id="p-${id}" class="video-target"></div>`; el.onclick = null;
-            gridPlayer = new YT.Player(`p-${id}`, { width:'100%', height:'100%', videoId: id, playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) }, events: { 'onReady': (e) => { e.target.playVideo(); activePlayer = gridPlayer; }, 'onStateChange': (e) => onPlayerStateChange(e, id, gridPlayer) } });
+            gridPlayer = new YT.Player(`p-${id}`, { width:'100%', height:'100%', videoId: id, playerVars: { autoplay: 1, rel: 0, start: Math.floor(startTime) }, events: { 'onReady': (e) => { e.target.playVideo(); players[0] = gridPlayer; }, 'onStateChange': (e) => onPlayerStateChange(e, id, gridPlayer) } });
         }
 
         function onPlayerStateChange(event, id, playerInstance) {
             const playBtn = document.getElementById('btn-main-play');
+            // Update UI only if the event comes from the currently controlled player
+            const isControlled = (players[controlTarget] === playerInstance);
+
             if (event.data === 1) { 
                 stopTracking(); trackingInterval = setInterval(() => saveMediaTime(playerInstance, id), 5000); 
-                if(playBtn) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused'); } 
+                if(playBtn && isControlled) { playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused'); } 
             } else { 
                 saveMediaTime(playerInstance, id); stopTracking(); 
-                if(playBtn) { playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing'); } 
+                if(playBtn && isControlled) { playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing'); } 
             }
         }
 
@@ -981,10 +1000,35 @@
         }
         function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
+        /* ====== NEW CONTROL LOGIC ====== */
+        window.setControlTarget = function(idx) {
+            controlTarget = idx;
+            document.querySelectorAll('.btn-target').forEach((b, i) => {
+               if(i===idx) b.classList.add('active'); else b.classList.remove('active');
+            });
+            // Update play button state based on new target
+            const p = players[controlTarget];
+            const playBtn = document.getElementById('btn-main-play');
+            if(p && typeof p.getPlayerState === 'function') {
+                if(p.getPlayerState() === 1) {
+                    playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused');
+                } else {
+                    playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing');
+                }
+            } else if (p && p.tagName === 'AUDIO') {
+                if(!p.paused) {
+                    playBtn.innerText = "⏸️"; playBtn.classList.add('is-playing'); playBtn.classList.remove('is-paused');
+                } else {
+                     playBtn.innerText = "▶️"; playBtn.classList.add('is-paused'); playBtn.classList.remove('is-playing');
+                }
+            }
+        }
+
         function openFreeEditor() {
             currentEditIndex = -1; currentResourceId = null;
             editorArea.innerHTML = ""; modal.classList.add('active'); document.getElementById('editor-popup').classList.add('free-mode'); document.getElementById('editor-popup').style.opacity = 1;
-            activePlayer = null; if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState();
+            players = [null, null, null];
+            if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState();
         }
 
       function openEditorById(id) {
@@ -1003,30 +1047,59 @@
             container.innerHTML = ''; 
             const isDesktop = window.matchMedia("(min-width: 900px)").matches;
             let startTime = resData.lastTime || 0;
-            const link2 = resData.url2 || '';
+            
+            // Reset Players Array
+            players = [null, null, null];
+            setControlTarget(0); // Reset to 1
 
-            // Lógica común para generar la estructura de pestañas si existe link2
-            const renderTabs = (content1, content2) => {
+            const getYouTubeID = (url) => {
+                if(!url) return null;
+                const match = (url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|live\/)([^#&?]*).*/) || [])[2];
+                return (match && match.length === 11) ? match : null;
+            };
+
+            const link2 = resData.url2 || '';
+            const link3 = resData.url3 || '';
+            const ytId2 = getYouTubeID(link2);
+            const ytId3 = getYouTubeID(link3);
+
+            const renderTabs = (content1, content2, content3) => {
                 return `
                     <div class="media-iframe-wrapper">
                         <div class="web-tab-nav">
-                            <button class="web-tab-btn active" onclick="switchWebTab(0)">Video / Main</button>
-                            <button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">🔗 Resource 2</button>
+                            <button class="web-tab-btn active" onclick="switchWebTab(0)">Tab 1</button>
+                            ${content2 ? `<button class="web-tab-btn" onclick="switchWebTab(1)" title="Tab 2">Tab 2</button>` : ''}
+                            ${content3 ? `<button class="web-tab-btn" onclick="switchWebTab(2)" title="Tab 3">Tab 3</button>` : ''}
                         </div>
                         <div class="web-content-area">
                             <div class="web-frame-container active" id="tab-content-0">
                                 ${content1}
                             </div>
-                            <div class="web-frame-container" id="tab-content-1">
-                                <div class="web-error-bg">
-                                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                                    <span>Refused to connect / Error</span>
-                                </div>
-                                ${content2}
-                            </div>
+                            ${content2 ? `<div class="web-frame-container" id="tab-content-1">${content2}</div>` : ''}
+                            ${content3 ? `<div class="web-frame-container" id="tab-content-2">${content3}</div>` : ''}
                         </div>
                     </div>
                 `;
+            };
+
+            // Helper to generate Content HTML
+            const getTabContent = (link, ytId, index) => {
+                if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
+                if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
+                return null;
+            };
+
+            const htmlContent2 = getTabContent(link2, ytId2, 2);
+            const htmlContent3 = getTabContent(link3, ytId3, 3);
+
+            // Init Additional Players
+            const initSubPlayers = () => {
+                if(ytId2) {
+                     players[1] = new YT.Player(`player-tab-2`, { width: '100%', height: '100%', videoId: ytId2, playerVars: { rel: 0 } });
+                }
+                if(ytId3) {
+                     players[2] = new YT.Player(`player-tab-3`, { width: '100%', height: '100%', videoId: ytId3, playerVars: { rel: 0 } });
+                }
             };
 
             if (type === 'video') {
@@ -1036,46 +1109,43 @@
                         gridPlayer.pauseVideo(); 
                     }
 
-                    if (link2) {
-                        container.innerHTML = renderTabs(
-                            '<div id="desktop-player-target" style="width:100%; height:100%;"></div>', 
-                            `<iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`
-                        );
+                    if (htmlContent2 || htmlContent3) {
+                        container.innerHTML = renderTabs('<div id="desktop-player-target" style="width:100%; height:100%;"></div>', htmlContent2, htmlContent3);
                     } else {
                         container.innerHTML = '<div id="desktop-player-target" style="width:100%; height:100%;"></div>';
                     }
 
-                    modalPlayer = new YT.Player('desktop-player-target', { 
+                    players[0] = new YT.Player('desktop-player-target', { 
                         width: '100%', 
                         height: '100%', 
                         videoId: id, 
                         playerVars: { autoplay: 0, rel: 0, start: Math.floor(startTime) }, 
                         events: { 
-                            'onReady': (e) => { activePlayer = modalPlayer; }, 
-                            'onStateChange': (e) => onPlayerStateChange(e, id, modalPlayer) 
+                            'onReady': (e) => { }, 
+                            'onStateChange': (e) => onPlayerStateChange(e, id, players[0]) 
                         } 
                     });
+                    initSubPlayers();
 
                 } else { 
-                    if (gridPlayer) { activePlayer = gridPlayer; gridPlayer.pauseVideo(); } 
+                    if (gridPlayer) { players[0] = gridPlayer; gridPlayer.pauseVideo(); } 
                 }
             } else if (type === 'audio') {
                 if (isDesktop) {
                     const audioHtml = `<div class="media-audio-wrapper"><audio controls id="modal-audio-player" src="${resData.url}"></audio></div>`;
                     
-                    if (link2) {
-                        container.innerHTML = renderTabs(
-                            audioHtml,
-                            `<iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`
-                        );
+                    if (htmlContent2 || htmlContent3) {
+                        container.innerHTML = renderTabs(audioHtml, htmlContent2, htmlContent3);
                     } else {
                         container.innerHTML = audioHtml;
                     }
 
                     const audioEl = document.getElementById('modal-audio-player');
-                    audioEl.currentTime = startTime; activePlayer = audioEl;
+                    audioEl.currentTime = startTime; 
+                    players[0] = audioEl;
                     audioEl.addEventListener('play', () => { stopTracking(); trackingInterval = setInterval(() => saveMediaTime(audioEl, id), 5000); document.getElementById('btn-main-play').innerText = "⏸️"; });
                     audioEl.addEventListener('pause', () => { saveMediaTime(audioEl, id); stopTracking(); document.getElementById('btn-main-play').innerText = "▶️"; });
+                    initSubPlayers();
                 }
             } else if (type === 'web') {
                 if (isDesktop) {
@@ -1083,8 +1153,9 @@
                       let tabHtml = `
                         <div class="media-iframe-wrapper">
                             <div class="web-tab-nav">
-                                <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">🔗 Main Resource</button>
-                                ${link2 ? `<button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">🔗 Resource 2</button>` : ''}
+                                <button class="web-tab-btn active" onclick="switchWebTab(0)" title="${link1}">Main</button>
+                                ${link2 ? `<button class="web-tab-btn" onclick="switchWebTab(1)" title="${link2}">Tab 2</button>` : ''}
+                                ${link3 ? `<button class="web-tab-btn" onclick="switchWebTab(2)" title="${link3}">Tab 3</button>` : ''}
                                 <div style="flex:1"></div>
                                 <button class="web-tab-btn" style="border-bottom:none; color:var(--text-muted); font-size:0.7rem; padding:0 15px;" onclick="window.open(document.querySelector('.web-frame-container.active iframe').src, '_blank')">↗ Open Externally</button>
                             </div>
@@ -1096,19 +1167,14 @@
                                      </div>
                                      <iframe src="${link1}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
                                 </div>
-                                ${link2 ? `
-                                <div class="web-frame-container" id="tab-content-1">
-                                    <div class="web-error-bg">
-                                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                                        <span>Connection Blocked / Not Found</span>
-                                    </div>
-                                    <iframe src="${link2}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
-                                </div>` : ''}
+                                ${htmlContent2 ? `<div class="web-frame-container" id="tab-content-1">${htmlContent2}</div>` : ''}
+                                ${htmlContent3 ? `<div class="web-frame-container" id="tab-content-2">${htmlContent3}</div>` : ''}
                             </div>
                         </div>
                     `;
                     container.innerHTML = tabHtml;
-                    activePlayer = null; 
+                    players[0] = null;
+                    initSubPlayers();
                 }
             }
             updateToolbarState();
@@ -1117,7 +1183,11 @@
         window.switchWebTab = function(idx) {
             document.querySelectorAll('.web-tab-btn').forEach((b, i) => {
                 if(b.innerText.includes('Externally')) return;
-                if(i === idx) b.classList.add('active'); else b.classList.remove('active');
+                const buttons = Array.from(document.querySelectorAll('.web-tab-btn')).filter(btn => !btn.innerText.includes('Externally'));
+                if(buttons[idx]) {
+                     buttons.forEach(btn => btn.classList.remove('active'));
+                     buttons[idx].classList.add('active');
+                }
             });
             document.querySelectorAll('.web-frame-container').forEach((f, i) => {
                 if(i === idx) f.classList.add('active'); else f.classList.remove('active');
@@ -1125,21 +1195,48 @@
         };
 
         function closeEditor() {
-            if (activePlayer && currentResourceId) { saveMediaTime(activePlayer, currentResourceId); stopTracking(); } 
-            if (modalPlayer && typeof modalPlayer.destroy === 'function') { modalPlayer.destroy(); modalPlayer = null; }
+            // Save main player time
+            if (players[0] && currentResourceId) { saveMediaTime(players[0], currentResourceId); stopTracking(); } 
+            // Destroy all desktop players
+            players.forEach(p => {
+                if (p && typeof p.destroy === 'function') { p.destroy(); }
+            });
+            players = [null, null, null];
+            
             loadResources(); 
             modal.classList.remove('active');
             document.getElementById('editor-popup').classList.remove('is-fullscreen'); 
             document.getElementById('btn-fullscreen').classList.remove('active');
             document.getElementById('editor-popup').classList.remove('free-mode');
             document.getElementById('desktop-media-wrapper').innerHTML = '';
-            currentEditIndex = -1; activePlayer = null; gridPlayer = null; closeAIMenu();
+            currentEditIndex = -1; gridPlayer = null; closeAIMenu();
         }
 
         function saveNote() { if(currentEditIndex > -1) { const resources = JSON.parse(localStorage.getItem(STORAGE_KEY)); resources[currentEditIndex].note = editorArea.innerHTML; localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } }
-        function seekVideo(s) { if(!activePlayer) return; if(typeof activePlayer.seekTo === 'function') { activePlayer.seekTo(activePlayer.getCurrentTime()+s, true); } else if (activePlayer.tagName === 'AUDIO') { activePlayer.currentTime += s; } }
-        function togglePlay() { if(!activePlayer) return; if(typeof activePlayer.getPlayerState === 'function') { activePlayer.getPlayerState()===1 ? activePlayer.pauseVideo() : activePlayer.playVideo(); } else if (activePlayer.tagName === 'AUDIO') { activePlayer.paused ? activePlayer.play() : activePlayer.pause(); } }
-        function cycleSpeed() { if (!activePlayer) return; let r = 1; const t = document.getElementById('btn-speed').innerText; if(t==='1x') r=0.9; else if(t==='0.9x') r=0.8; else if(t==='0.8x') r=0.7; else if(t==='0.7x') r=0.6; else if(t==='0.6x') r=0.5; if(typeof activePlayer.setPlaybackRate === 'function') { activePlayer.setPlaybackRate(r); } else if (activePlayer.tagName === 'AUDIO') { activePlayer.playbackRate = r; } document.getElementById('btn-speed').innerText=r+'x'; }
+        
+        function seekVideo(s) { 
+            const p = players[controlTarget];
+            if(!p) return; 
+            if(typeof p.seekTo === 'function') { p.seekTo(p.getCurrentTime()+s, true); } 
+            else if (p.tagName === 'AUDIO') { p.currentTime += s; } 
+        }
+        
+        function togglePlay() { 
+            const p = players[controlTarget];
+            if(!p) return; 
+            if(typeof p.getPlayerState === 'function') { p.getPlayerState()===1 ? p.pauseVideo() : p.playVideo(); } 
+            else if (p.tagName === 'AUDIO') { p.paused ? p.play() : p.pause(); } 
+        }
+        
+        function cycleSpeed() { 
+            const p = players[controlTarget];
+            if (!p) return; 
+            let r = 1; const t = document.getElementById('btn-speed').innerText; 
+            if(t==='1x') r=0.9; else if(t==='0.9x') r=0.8; else if(t==='0.8x') r=0.7; else if(t==='0.7x') r=0.6; else if(t==='0.6x') r=0.5; 
+            if(typeof p.setPlaybackRate === 'function') { p.setPlaybackRate(r); } 
+            else if (p.tagName === 'AUDIO') { p.playbackRate = r; } 
+            document.getElementById('btn-speed').innerText=r+'x'; 
+        }
         
         function applyColor(hex) { document.execCommand('foreColor', false, hex); updateToolbarState(); }
         function toggleBold() { document.execCommand('bold'); updateToolbarState(); }
@@ -1205,7 +1302,7 @@
             listContainer.innerHTML = html;
         }
 
-       /* ====== V27.9 PROMPT GENERATION (CORREGIDO) ====== */
+       /* ====== V27.9 PROMPT GENERATION ====== */
         function copyProfessorPrompt() {
             const ctxSel = document.getElementById('ai-context-select').value;
             const graSel = document.getElementById('ai-grammar-select').value;
