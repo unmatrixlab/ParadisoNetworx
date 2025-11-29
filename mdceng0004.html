@@ -1075,25 +1075,43 @@
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
     /* ====== BACKUP MODIFICADO: GUARDA ABSOLUTAMENTE TODO (RECURSOS + IA) ====== */
+/* ====== BACKUP BLINDADO (RECURSOS + MEMORIA IA) ====== */
     function downloadBackup() { 
-        // 1. Obtener Recursos (Tarjetas, texto, web)
-        const resources = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        // 2. Obtener Memoria IA (Plantillas, ejercicios no insertados)
-        const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-        
-        // 3. Crear objeto combinado
+        // 1. Forzar la obtención de datos
+        const rawResources = localStorage.getItem(STORAGE_KEY);
+        const rawMemory = localStorage.getItem(AI_MEM_KEY);
+
+        const resources = rawResources ? JSON.parse(rawResources) : [];
+        const memory = rawMemory ? JSON.parse(rawMemory) : [];
+
+        // 2. VERIFICACIÓN VISUAL (Para que estés seguro de qué se guarda)
+        alert(`Generando Backup:\n📚 Recursos: ${resources.length}\n🧠 Ejercicios IA: ${memory.length}`);
+
+        // 3. Crear estructura completa
         const fullData = {
+            version: 2, // Marcamos versión 2
             resources: resources,
-            memory: memory,
-            version: 2 // Marcador de versión para control futuro
+            memory: memory
         };
 
         const d = JSON.stringify(fullData);
+        // Codificación segura para caracteres especiales (tildes, emojis)
         const encodedData = btoa(unescape(encodeURIComponent(d)));
-        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body><h1>MDC Polyglot Full Backup</h1><p>Contains: Resources, Notes, Exercises, and AI Templates.</p><p>Upload this file using the "Import" button in your app.</p><script>const backupData = "${encodedData}";<\/script></body></html>`;
+        
+        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body>
+        <h1>MDC Polyglot Full Backup</h1>
+        <p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p>
+        <p><strong>Upload this file using the Import button.</strong></p>
+        <script>const backupData = "${encodedData}";<\/script>
+        </body></html>`;
+
         const b = new Blob([htmlContent], {type: 'text/html'}); 
         const a = document.createElement('a'); 
-        a.href = URL.createObjectURL(b); a.download = 'MDC_Full_Backup.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+        a.href = URL.createObjectURL(b); 
+        // Nombre del archivo con fecha para evitar confusiones
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.download = `MDC_FullBackup_${dateStr}.html`; 
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); 
     }
 
     function importBackup(inp) { 
@@ -1101,27 +1119,44 @@
         const r = new FileReader(); 
         r.onload = e => { 
             try { 
-                let match = e.target.result.match(/const backupData = "(.*?)";/);
-                if (!match) match = e.target.result.match(/const backupData=(.*?)(;|<\/script>)/s);
-                if (!match) throw new Error("Invalid backup.");
+                const content = e.target.result;
+                // Regex más flexible para encontrar los datos
+                let match = content.match(/const backupData\s*=\s*"(.*?)";/);
+                if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
                 
-                let json = match[1] ? decodeURIComponent(escape(atob(match[1]))) : match[1];
+                if (!match) throw new Error("No se encontraron datos de respaldo válidos.");
+                
+                let json = match[1];
+                // Decodificación segura
+                try { json = decodeURIComponent(escape(atob(json))); } catch(e) { console.log("Legacy decode fallback"); }
+
                 const parsedData = JSON.parse(json);
 
-                // Detección: ¿Es backup nuevo (todo) o viejo (solo recursos)?
-                if (parsedData.resources && parsedData.memory) {
-                    // Es un FULL BACKUP nuevo
+                // LÓGICA DE RESTAURACIÓN INTELIGENTE
+                if (parsedData.version === 2 || (parsedData.resources && parsedData.memory)) {
+                    // CASO 1: Es un backup NUEVO (Completo)
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
                     localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                    
+                    alert(`✅ RESTAURACIÓN COMPLETA:\n📚 Recursos: ${parsedData.resources.length}\n🧠 Ejercicios IA: ${parsedData.memory.length}`);
+                } else if (Array.isArray(parsedData)) {
+                    // CASO 2: Es un backup VIEJO (Solo tenía recursos)
+                    if(confirm("Este es un backup antiguo (Solo Recursos).\n¿Quieres mantener tus ejercicios de IA actuales?\n\n[Aceptar] = Mantener IA actual + Importar Recursos\n[Cancelar] = Borrar IA y dejar solo Recursos")) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+                        // No tocamos AI_MEM_KEY
+                    } else {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+                        localStorage.setItem(AI_MEM_KEY, '[]'); // Borrar IA
+                    }
+                    alert("✅ Recursos restaurados (Formato antiguo).");
                 } else {
-                    // Es un backup antiguo (solo array de recursos)
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData));
+                    throw new Error("Formato de datos desconocido.");
                 }
                 
                 loadResources(); 
-                renderAiList(); // Actualizar UI de IA también
-                alert("Imported Successfully (Resources + AI Data)!");
-            } catch (err) { alert("Error: " + err.message); }
+                renderAiList(); // IMPORTANTE: Refrescar la lista de IA visualmente
+                
+            } catch (err) { alert("❌ Error al importar: " + err.message); }
             inp.value = ''; 
         }; 
         r.readAsText(file); 
