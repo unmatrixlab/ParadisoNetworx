@@ -586,28 +586,23 @@
             color: #888;
             padding-right: 4px;
         }
-
-        /* Ajuste para el contenedor de QTY/GAPS/OPTS */
+        
+        /* Asegura que los tres selectores compactos estén en la misma línea */
         .ai-card-group > div:nth-child(2) {
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 0 10px 8px 10px; /* Reducido el padding inferior y ajustado los laterales */
-            flex-wrap: wrap; /* Mantiene la flexibilidad si la pantalla es muy pequeña */
+            padding: 0 10px 8px 10px;
+            flex-wrap: nowrap; /* Evita que los elementos se envuelvan si es posible */
+            overflow-x: auto;
         }
         
-        /* Asegurarse de que el input QTY tenga su propio estilo de grupo compacto */
+        /* Ajuste para el input QTY */
         .ai-card-group > div:nth-child(2) > div:last-child {
-            margin-right: 0 !important;
-            flex-grow: 0 !important;
-            min-width: 40px;
+            flex-shrink: 0;
+            min-width: auto;
+            max-width: 70px;
         }
-        
-        .ai-card-group > div:nth-child(2) > div:nth-child(1),
-        .ai-card-group > div:nth-child(2) > div:nth-child(2) {
-            min-width: 120px; /* Asegura un ancho mínimo para los selects */
-        }
-
     </style>
     </head>
     <body>
@@ -848,32 +843,31 @@
 
                     <div class="ai-card-group" style="justify-content: space-between;">
                         <div style="flex: 1;">
-                            <div class="ai-card-label">🏋️ Difficulty, Gaps & Options</div> 
+                            <div class="ai-card-label">🏋️ DIFFICULTY, GAPS & OPTIONS</div> 
                             
-                            <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px 8px 10px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 8px; padding: 0 10px 8px 10px; flex-wrap: nowrap; overflow-x: auto;">
                                 
-                                <div class="ai-select-compact-group">
+                                <div class="ai-select-compact-group" style="min-width: 120px;">
                                     <span>OPTS</span>
                                     <select id="ai-option-count" class="ai-select">
-                                        <option value="3">3</option>
+                                        <option value="3" selected>3</option>
                                         <option value="4">4</option>
                                         <option value="5">5</option>
                                     </select>
                                 </div>
                                 
-                                <div class="ai-select-compact-group">
+                                <div class="ai-select-compact-group" style="min-width: 120px;">
                                     <span>GAPS</span>
                                     <select id="ai-gap-count" class="ai-select">
                                         <option value="1" selected>1</option>
                                         <option value="2">2</option>
                                         <option value="3">3</option>
-                                        <option value="random">Random</option>
                                     </select>
                                 </div>
                                 
-                                <div class="ai-select-compact-group" style="flex-grow: 0; min-width: auto; padding: 0 4px 0 8px;">
+                                <div class="ai-select-compact-group" style="flex-grow: 0; min-width: auto; max-width: 70px; padding: 0 4px 0 8px;">
                                     <span>QTY</span>
-                                    <input type="number" id="ai-sentence-count" value="5" min="1" placeholder="#" style="width: 40px; text-align: center; border:none; outline:none; font-size:0.9rem; font-weight:600; padding:8px 0;">
+                                    <input type="number" id="ai-sentence-count" value="5" min="1" max="15" placeholder="#" style="width: 40px; text-align: center; border:none; outline:none; font-size:0.9rem; font-weight:600; padding:8px 0;">
                                 </div>
 
                             </div>
@@ -1192,7 +1186,7 @@
         const resizer = document.getElementById('drag-resizer'); const leftSide = document.getElementById('desktop-media-wrapper'); const popup = document.getElementById('editor-popup'); let x = 0; let leftWidth = 0;
         const mouseDownHandler = function(e) { x = e.clientX; leftWidth = leftSide.getBoundingClientRect().width; document.addEventListener('mousemove', mouseMoveHandler); document.addEventListener('mouseup', mouseUpHandler); resizer.classList.add('dragging'); leftSide.style.pointerEvents = 'none'; };
         const mouseMoveHandler = function(e) { const dx = e.clientX - x; const newWidth = leftWidth + dx; const percentage = (newWidth / popup.getBoundingClientRect().width) * 100; if (percentage > 20 && percentage < 80) leftSide.style.width = `${percentage}%`; };
-        const mouseUpHandler = function() { document.removeEventListener('mousemove', mouseMoveHandler); document.removeEventListener('mouseup', mouseUpHandler); resizer.classList.remove('dragging'); leftSide.style.pointerEvents = 'auto'; };
+        const mouseUpHandler = function() { document.removeEventListener('mousemove', mouseMoveHandler); document.removeEventListener('mouseup', mouseMoveHandler); resizer.classList.remove('dragging'); leftSide.style.pointerEvents = 'auto'; };
         if(resizer) resizer.addEventListener('mousedown', mouseDownHandler);
     }
     
@@ -1599,16 +1593,16 @@ function copyProfessorPrompt() {
         if (typeStr && typeStr.includes("Find and Fix")) {
             strictInstruction += `TYPE: FIND AND FIX THE MISTAKE.\nVISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap.`;
         } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
-            strictInstruction += `TYPE: VOCABULARY MATCHING.\nFormat: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`;
+            strictInstruction += `TYPE: VOCABULARY MATCHING.\nFormat: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`; 
+            gapInstruction = `Provide exactly ${optionCount} options for the word choice.`;
         } else if (typeStr && typeStr.includes("True or False")) {
             strictInstruction += `TYPE: READING COMPREHENSION (TRUE/FALSE).\nFormat: "Statement about the text... {True|False}"`;
-            gapInstruction = `Provide exactly ${optionCount} options {True|False}.`;
+            gapInstruction = `Provide exactly ${optionCount} options {True|False} (The number of options may be ignored for True/False).`; 
         }
 
-        // Lógica general de GAPS
-        if (!gapInstruction && gapCount === 'random') {
-             gapInstruction = `GAP REQUIREMENT: Provide exactly ${optionCount} options in ${target}. Mix of 1, 2, or 3 gaps per sentence.`; 
-        } else if (!gapInstruction) {
+        // Lógica de Gaps (Ahora usa el selector de Options)
+        if (!gapInstruction) {
+             // El valor de gapCount ya no incluye 'random'
              gapInstruction = `GAP REQUIREMENT: Provide exactly ${optionCount} options in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`; 
         }
 
