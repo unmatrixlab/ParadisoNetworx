@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Exercise Generator</title>
+    <title>MDC - Polyglot Exercise Studio</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #007AFF;
             --primary-dark: #005ec4;
+            --primary-soft: #e3f2fd;
             --danger: #FF3B30;
             --success: #34C759;
             --warning: #FF9500;
@@ -17,450 +18,650 @@
             --text-muted: #8E8E93;
             --card-bg: #FFFFFF;
             --radius: 16px;
+            --shadow-soft: 0 8px 20px rgba(0, 0, 0, 0.04);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
 
         body {
             background: var(--bg-body);
-            font-family: 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
             color: var(--text-main);
-            min-height: 100vh;
             display: flex;
             justify-content: center;
             padding: 20px;
+            min-height: 100vh;
         }
 
-        /* Contenedor Principal (Antes Popup) */
-        .main-container {
-            background: var(--card-bg);
+        /* --- CONTENEDOR PRINCIPAL (Simula la ventana flotante original) --- */
+        .studio-container {
+            background: white;
             width: 100%;
-            max-width: 700px;
-            border-radius: var(--radius);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            max-width: 800px;
+            border-radius: 18px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            height: fit-content;
-            max-height: 95vh;
+            height: 95vh;
         }
 
-        /* Header */
-        .header {
+        .studio-header {
             background: #F9F9FB;
             border-bottom: 1px solid #e5e5ea;
-            padding: 20px;
+            padding: 16px 20px;
+            font-weight: 800;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 1.1rem;
         }
-        .header-title { font-weight: 800; font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
-        
-        .btn-help { 
-            width: 24px; height: 24px; background: #e5e5ea; color: #8e8e93; 
-            border: none; border-radius: 50%; cursor: pointer; font-weight: 700; font-size: 0.8rem;
-        }
-        .btn-help:hover { background: var(--primary); color: white; }
 
-        /* Cuerpo */
-        .content-body {
-            padding: 20px;
+        .studio-body {
+            flex: 1;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 15px;
         }
 
-        /* Elementos de Formulario */
-        .section-label { 
-            font-size: 0.75rem; font-weight: 800; color: #86868b; 
-            text-transform: uppercase; margin-top: 10px; margin-bottom: 5px; 
+        .config-panel {
+            padding: 20px;
+            border-bottom: 1px solid #e5e5ea;
         }
 
-        .select-input, .text-input {
-            width: 100%; padding: 12px; border-radius: 10px; 
-            border: 1px solid #d1d1d6; background: #fff; 
-            font-size: 0.95rem; font-family: inherit; transition: all 0.2s;
+        .preview-panel {
+            padding: 20px;
+            background: #fbfbfd;
+            flex-grow: 1;
+            overflow-y: auto;
         }
-        .select-input:focus, .text-input:focus { border-color: var(--primary); outline: none; }
-        .text-input.override-warning { border-color: var(--warning); background-color: #fffbf0; }
 
-        textarea.text-input { resize: vertical; min-height: 60px; }
+        /* --- ESTILOS ORIGINALES RECUPERADOS --- */
+        .ai-label { font-size: 0.7rem; font-weight: 700; color: #86868b; text-transform: uppercase; margin-bottom: 4px; margin-top: 12px;}
+        .ai-select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #d1d1d6; background: #fff; font-size: 0.9rem; cursor: pointer; transition: all 0.3s; font-family: inherit; }
+        .ai-select.override-warning { border-color: var(--danger); background-color: #fff0f0; color: #b71c1c; opacity: 0.6; }
+        .ai-custom-input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #d1d1d6; background: #fff; font-size: 0.85rem; margin-top: 4px; font-family: inherit; transition: border-color 0.2s; }
+        .ai-custom-input:focus { border-color: var(--primary); outline: none; }
+        textarea.ai-custom-input { resize: vertical; min-height: 60px; }
 
-        /* Grupos de botones (Nivel y Banderas) */
-        .btn-group { display: flex; gap: 10px; }
+        .level-group { display: flex; gap: 8px; margin-top: 5px; }
+        .level-btn { flex: 1; padding: 10px; border: 1px solid #e5e5ea; border-radius: 8px; background: #fff; color: #666; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+        .level-btn.selected { background: var(--primary); color: white; border-color: var(--primary); }
+
+        .flag-group { display: flex; gap: 10px; margin-top: 5px; }
+        .flag-btn { border: 1px solid #e5e5ea; border-radius: 10px; background: #fff; font-size: 1.6rem; width: 50px; height: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.5; filter: grayscale(100%); transition: all 0.2s; }
+        .flag-btn:hover { opacity: 1; filter: grayscale(0%); }
+        .flag-btn.selected { border-color: var(--primary); background: #e3f2fd; opacity: 1; filter: grayscale(0%); }
+        .flag-btn.hidden { display: none !important; }
+        .flag-sm { width: 40px; height: 40px; font-size: 1.2rem; }
+
+        .ai-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+        .btn-ai-action { padding: 14px; border: none; border-radius: 12px; background: #f2f2f7; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.95rem;}
+        .btn-ai-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(0,122,255,0.3); }
+
+        /* --- ESTILOS DE RENDERIZADO DE EJERCICIOS (EXERCISE BOX) --- */
+        .exercise-box { background: #fff; border: 1px solid #e5e5ea; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .exercise-header { font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: 16px; border-bottom: 1px solid #f2f2f7; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .btn-theory { background: var(--primary-soft); color: var(--primary); border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 600; }
+        .btn-del-block { background: #fff5f5; color: var(--danger); border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 600; margin-left: 5px; }
+        .theory-box { display: none; background: #f9f9fb; padding: 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.6; white-space: pre-line; border-left: 4px solid var(--primary); }
         
-        .btn-level {
-            flex: 1; padding: 10px; border: 1px solid #e5e5ea; border-radius: 8px;
-            background: #fff; color: #666; font-size: 0.85rem; font-weight: 600; cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-level.selected { background: var(--primary); color: white; border-color: var(--primary); }
-
-        .btn-flag {
-            border: 1px solid #e5e5ea; border-radius: 10px; background: #fff;
-            font-size: 1.5rem; width: 48px; height: 48px; cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
-            opacity: 0.5; filter: grayscale(100%); transition: all 0.2s;
-        }
-        .btn-flag:hover { opacity: 1; filter: grayscale(0%); }
-        .btn-flag.selected { border-color: var(--primary); background: #e3f2fd; opacity: 1; filter: grayscale(0%); }
-        .btn-flag.hidden { display: none; }
-        .btn-flag.sm { width: 38px; height: 38px; font-size: 1.2rem; }
-
-        /* Acciones Principales */
-        .action-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-top: 15px; }
+        .exercise-row { margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; line-height: 1.8; } 
+        .hint-box, .trans-box { display: none; width: 100%; margin-top: 8px; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; }
+        .hint-box { background: #fffbe6; border-left: 4px solid #f59e0b; color: #78350f; }
+        .trans-box { background: #f0f9ff; border-left: 4px solid #007AFF; color: #0c4a6e; }
+        .trans-line { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
         
-        .btn-action {
-            padding: 14px; border: none; border-radius: 12px; 
-            font-weight: 700; font-size: 0.95rem; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            transition: transform 0.1s;
-        }
-        .btn-action:active { transform: scale(0.98); }
-        .btn-primary { background: linear-gradient(135deg, #007AFF, #005ec4); color: white; box-shadow: 0 4px 10px rgba(0,122,255,0.3); }
-        .btn-secondary { background: #f2f2f7; color: var(--text-main); border: 1px solid #e5e5ea; }
-        
-        .btn-save-tpl {
-            background: #fff8e1; color: #d97706; border: 1px solid #fcd34d;
-            margin-top: 10px; width: 100%;
-        }
+        .ex-select { padding: 8px 14px; border: 1px solid #d1d1d6; border-radius: 8px; background: white; cursor: pointer; outline: none; font-size: 0.95rem; }
+        .ex-select.correct { border-color: var(--success) !important; background-color: #e8f5e9 !important; color: #1b5e20 !important; font-weight: 700; }
+        .ex-select.wrong { border-color: var(--danger) !important; background-color: #ffebee !important; color: #b71c1c !important; animation: shake 0.3s; }
+        @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); } }
 
-        /* Banco de Memoria */
-        .memory-section {
-            margin-top: 30px; border-top: 2px solid #f2f2f7; padding-top: 20px;
-        }
-        .memory-list { 
-            display: flex; flex-direction: column; gap: 10px; 
-            max-height: 250px; overflow-y: auto; margin-top: 10px;
-        }
-        .saved-item {
-            background: #fff; border: 1px solid #e5e5ea; border-radius: 12px;
-            padding: 12px; display: flex; align-items: center; gap: 12px;
-        }
-        .saved-info { flex: 1; }
-        .saved-title { font-weight: 600; font-size: 0.9rem; display: block; color: #333; }
-        .saved-meta { font-size: 0.75rem; color: #86868b; }
-        
-        .btn-icon { 
-            width: 32px; height: 32px; border: none; background: #f2f2f7; 
-            border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
-        }
-        .btn-icon.delete:hover { background: #fff5f5; color: var(--danger); }
-        .btn-icon.export:hover { background: #e3f2fd; color: var(--primary); }
+        .ex-btn-icon { background: #f2f2f7; border: none; border-radius: 8px; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: #1d1d1f; }
+        .ex-btn-icon:hover { background: #e5e5ea; color: var(--primary); }
 
-        /* Utilidades */
-        .help-box { 
-            display: none; background: #eef2ff; color: #3730a3; 
-            padding: 15px; border-radius: 10px; font-size: 0.85rem; 
-            margin-bottom: 15px; border: 1px solid #c7d2fe; line-height: 1.5; 
+        .cloze-gap-container { display: inline-flex; align-items: center; margin: 0 4px; }
+        .btn-mini-speak { background: #fff; border: 1px solid #d1d1d6; border-radius: 50%; width: 24px; height: 24px; font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+        /* --- MEMORY & FOOTER --- */
+        .memory-footer {
+            padding: 15px 20px;
+            background: #fff;
+            border-top: 1px solid #e5e5ea;
         }
+        .btn-save-template { width: 100%; padding: 12px; background: #fff8e1; color: #d97706; border: 1px solid #fcd34d; border-radius: 12px; font-weight: 700; cursor: pointer; margin-bottom: 10px; }
+        .btn-save-template:hover { background: #fff3cd; }
+
+        .memory-list { max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .saved-item { font-size: 0.85rem; padding: 10px; background: #f9f9fb; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e5ea; }
+        .btn-mem-action { background: none; border: none; cursor: pointer; opacity: 0.6; font-size: 1rem; }
+        .btn-mem-action:hover { opacity: 1; }
+
+        /* Tabs de navegación interna */
+        .tab-nav { display: flex; border-bottom: 1px solid #e5e5ea; }
+        .tab-btn { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #8e8e93; background: #f9f9fb; border-bottom: 3px solid transparent; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); background: white; }
+
+        .panel-content { display: none; }
+        .panel-content.active { display: block; }
     </style>
 </head>
 <body>
 
-    <div class="main-container">
-        <div class="header">
-            <div class="header-title">
-                <span>⚡ Polyglot Generator</span>
-            </div>
-            <button class="btn-help" onclick="toggleHelp()">?</button>
+    <div class="studio-container">
+        <div class="studio-header">
+            <span>⚡ Polyglot Studio</span>
+            <button onclick="toggleVoiceSettings()" style="background:none; border:none; cursor:pointer;">⚙️ Voices</button>
         </div>
 
-        <div class="content-body">
+        <div class="tab-nav">
+            <div class="tab-btn active" onclick="switchTab('creator')">1. Creator</div>
+            <div class="tab-btn" onclick="switchTab('preview')">2. Preview & Edit</div>
+        </div>
+
+        <div class="studio-body">
             
-            <div id="help-box" class="help-box">
-                <b>Instructions:</b><br>
-                1. Select your options (Context, Grammar, Type).<br>
-                2. Click <b>Create Mission</b> to copy the prompt.<br>
-                3. Paste into ChatGPT/Claude.<br>
-                4. Copy the JSON response.<br>
-                5. Click <b>Import & Save</b> to store the exercise in the Memory Bank.
-            </div>
+            <div id="panel-creator" class="panel-content active">
+                <div class="config-panel">
+                    
+                    <div class="ai-label">1. Context & Situation:</div>
+                    <select id="ai-context-select" class="ai-select">
+                        <option value="" selected disabled>-- Select Context --</option>
+                        <optgroup label="🏠 Daily Life & Lifestyle">
+                            <option value="Daily Routine & Habits">Daily Routine & Habits</option>
+                            <option value="Family & Relationships">Family & Relationships</option>
+                            <option value="House & Chores">House, Furniture & Chores</option>
+                            <option value="Food, Cooking & Restaurants">Food, Cooking & Restaurants</option>
+                            <option value="Health, Fitness & Body">Health, Fitness & Doctors</option>
+                            <option value="Hobbies, Music & Movies">Hobbies, Music & Movies</option>
+                        </optgroup>
+                        <optgroup label="✈️ Travel & Adventure">
+                            <option value="At the Airport & Flying">At the Airport & Flying</option>
+                            <option value="Hotel Check-in & Problems">Hotel Situations</option>
+                            <option value="Asking for Directions & City">City & Directions</option>
+                            <option value="Car Rental & Driving">Car Rental & Driving</option>
+                        </optgroup>
+                        <optgroup label="💼 Work & Business">
+                            <option value="Job Interviews & CVs">Job Interviews & HR</option>
+                            <option value="Business Meetings & Strategy">Meetings & Negotiations</option>
+                            <option value="Emails & Formal Communication">Formal Emails</option>
+                            <option value="Tech, IT & Programming">Tech, IT & Programming</option>
+                            <option value="Marketing & Sales">Marketing & Sales</option>
+                            <option value="Customer Service Scenarios">Customer Service Issues</option>
+                        </optgroup>
+                        <optgroup label="🎓 Academic & Abstract">
+                            <option value="University & Campus Life">University & Campus Life</option>
+                            <option value="Science & Environment">Science & Environment</option>
+                            <option value="Debating Opinions & Ethics">Debating Opinions</option>
+                            <option value="News & Current Events">News & Current Events</option>
+                        </optgroup>
+                    </select>
+                    <input type="text" id="ai-context-custom" class="ai-custom-input" placeholder="Or type custom context..." oninput="checkOverride('ai-context-custom', 'ai-context-select')">
 
-            <div class="section-label">1. Context & Topic</div>
-            <select id="ai-context-select" class="select-input">
-                <option value="" selected disabled>-- Select Context --</option>
-                <optgroup label="🏠 Daily Life">
-                    <option value="Daily Routine & Habits">Daily Routine & Habits</option>
-                    <option value="Family & Relationships">Family & Relationships</option>
-                    <option value="Food & Cooking">Food & Cooking</option>
-                    <option value="Health & Fitness">Health & Fitness</option>
-                </optgroup>
-                <optgroup label="✈️ Travel">
-                    <option value="At the Airport">At the Airport</option>
-                    <option value="Hotel & Accommodation">Hotel Situations</option>
-                    <option value="Directions & City">City & Directions</option>
-                </optgroup>
-                <optgroup label="💼 Business">
-                    <option value="Job Interviews">Job Interviews</option>
-                    <option value="Meetings & Negotiations">Meetings</option>
-                    <option value="Emails & Calls">Emails & Calls</option>
-                </optgroup>
-            </select>
-            <input type="text" id="ai-context-custom" class="text-input" style="margin-top:5px" placeholder="Or type custom topic..." oninput="checkOverride()">
+                    <div class="ai-label">2. Grammar Focus:</div>
+                    <select id="ai-grammar-select" class="ai-select">
+                        <option value="" selected disabled>-- Select Grammar Topic --</option>
+                        <optgroup label="🕒 Present Tenses">
+                            <option value="Present Simple">Present Simple (Habits & Facts)</option>
+                            <option value="Present Continuous">Present Continuous (Now & Future)</option>
+                            <option value="Present Perfect">Present Perfect (Experiences)</option>
+                            <option value="Present Perfect Continuous">Present Perfect Continuous</option>
+                            <option value="Present Simple vs Continuous">Mix: Simple vs Continuous</option>
+                        </optgroup>
+                        <optgroup label="🔙 Past Tenses">
+                            <option value="Past Simple">Past Simple (Finished Actions)</option>
+                            <option value="Past Continuous">Past Continuous (Interrupted Actions)</option>
+                            <option value="Past Perfect">Past Perfect (The Past before the Past)</option>
+                            <option value="Narrative Tenses Mix">Mix: Narrative Tenses (Storytelling)</option>
+                        </optgroup>
+                        <optgroup label="🚀 Future Tenses">
+                            <option value="Future Simple (Will)">Future Simple (Will - Spontaneous)</option>
+                            <option value="Be Going To">Be Going To (Plans)</option>
+                            <option value="Future Continuous">Future Continuous (In progress later)</option>
+                        </optgroup>
+                        <optgroup label="⚙️ Advanced Structures">
+                            <option value="Conditionals 0 & 1">Conditionals 0 & 1 (Real)</option>
+                            <option value="Conditionals 2 & 3">Conditionals 2 & 3 (Unreal)</option>
+                            <option value="Mixed Conditionals">Mixed Conditionals</option>
+                            <option value="Passive Voice">Passive Voice</option>
+                            <option value="Reported Speech">Reported Speech (Indirect)</option>
+                            <option value="Relative Clauses">Relative Clauses (Who, Which, That)</option>
+                        </optgroup>
+                        <optgroup label="🧩 Particles & Modals">
+                            <option value="Modal Verbs (Can, Could, Should, Must)">Modal Verbs</option>
+                            <option value="Phrasal Verbs">Phrasal Verbs (General)</option>
+                            <option value="Prepositions of Place & Time">Prepositions (In, On, At, By)</option>
+                        </optgroup>
+                    </select>
+                    <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar..." oninput="checkOverride('ai-grammar-custom', 'ai-grammar-select')">
 
-            <div class="section-label">2. Grammar Focus</div>
-            <select id="ai-grammar-select" class="select-input">
-                <option value="" selected disabled>-- Select Grammar --</option>
-                <optgroup label="Tenses">
-                    <option value="Present Simple">Present Simple</option>
-                    <option value="Present Continuous">Present Continuous</option>
-                    <option value="Past Simple">Past Simple</option>
-                    <option value="Past Perfect">Past Perfect</option>
-                    <option value="Future Forms">Future Forms (Will/Going to)</option>
-                </optgroup>
-                <optgroup label="Structures">
-                    <option value="Conditionals">Conditionals (If clauses)</option>
-                    <option value="Passive Voice">Passive Voice</option>
-                    <option value="Reported Speech">Reported Speech</option>
-                    <option value="Modals">Modal Verbs</option>
-                    <option value="Prepositions">Prepositions</option>
-                </optgroup>
-            </select>
-            <input type="text" id="ai-grammar-custom" class="text-input" style="margin-top:5px" placeholder="Or type custom grammar..." oninput="checkOverride()">
+                    <div class="ai-label">3. Exercise Type:</div>
+                    <div style="display:flex; gap:10px;">
+                        <select id="ai-type-select" class="ai-select" style="flex:2">
+                            <option value="" selected disabled>-- Select Format --</option>
+                            <optgroup label="✍️ Standard Practice">
+                                <option value="Fill in the Blanks (Cloze)">Fill in the Blanks (Classic)</option>
+                                <option value="Multiple Choice Quiz">Multiple Choice Quiz</option>
+                                <option value="Find and Fix the Mistake">Find and Fix the Mistake</option>
+                                <option value="True or False (Reading)">True or False (Reading Comp.)</option>
+                            </optgroup>
+                            <optgroup label="🧠 Vocabulary & Logic">
+                                <option value="Vocabulary Matching">Vocabulary Matching (Def - Word)</option>
+                                <option value="Sentence Reordering">Sentence Reordering (Scrambled)</option>
+                                <option value="Choose the Odd One Out">Odd One Out (Logic)</option>
+                            </optgroup>
+                        </select>
+                        <select id="ai-gap-count" class="ai-select" style="flex:1">
+                            <option value="1" selected>1 Gap</option>
+                            <option value="2">2 Gaps</option>
+                            <option value="3">3 Gaps</option>
+                            <option value="random">Random Mix</option>
+                        </select>
+                    </div>
 
-            <div class="section-label">3. Exercise Format</div>
-            <div style="display:flex; gap:10px;">
-                <select id="ai-type-select" class="select-input" style="flex:2">
-                    <option value="Fill in the Blanks (Cloze)" selected>Fill in the Blanks</option>
-                    <option value="Multiple Choice Quiz">Multiple Choice</option>
-                    <option value="Find and Fix the Mistake">Find the Mistake</option>
-                    <option value="Sentence Reordering">Unscramble Sentences</option>
-                    <option value="Vocabulary Matching">Vocabulary Matching</option>
-                    <option value="True or False (Reading)">True or False</option>
-                </select>
-                <select id="ai-gap-count" class="select-input" style="flex:1">
-                    <option value="1">1 Gap</option>
-                    <option value="2">2 Gaps</option>
-                    <option value="random">Mix</option>
-                </select>
-            </div>
+                    <textarea id="ai-extra-data" class="ai-custom-input" placeholder="4. Extra Instructions (e.g. Use British slang, make it funny)..."></textarea>
 
-            <div class="section-label">Target Language</div>
-            <div class="btn-group" id="target-lang-group">
-                <div class="btn-flag selected" onclick="selectTarget(this, 'en')" title="English">🇺🇸</div>
-                <div class="btn-flag" onclick="selectTarget(this, 'es')" title="Spanish">🇪🇸</div>
-                <div class="btn-flag" onclick="selectTarget(this, 'pt')" title="Portuguese">🇧🇷</div>
-                <div class="btn-flag" onclick="selectTarget(this, 'it')" title="Italian">🇮🇹</div>
-                <div class="btn-flag" onclick="selectTarget(this, 'fr')" title="French">🇫🇷</div>
-            </div>
+                    <div class="ai-label">Level:</div>
+                    <div class="level-group" id="level-group">
+                        <button class="level-btn" onclick="selectLevel(this, 'A1-A2 (Beginner)')">A1-A2</button>
+                        <button class="level-btn selected" onclick="selectLevel(this, 'B1-B2 (Intermediate)')">B1-B2</button>
+                        <button class="level-btn" onclick="selectLevel(this, 'C1-C2 (Advanced)')">C1-C2</button>
+                    </div>
 
-            <div class="section-label">Level</div>
-            <div class="btn-group">
-                <button class="btn-level" onclick="selectLevel(this, 'A1-A2 (Beginner)')">A1-A2</button>
-                <button class="btn-level selected" onclick="selectLevel(this, 'B1-B2 (Intermediate)')">B1-B2</button>
-                <button class="btn-level" onclick="selectLevel(this, 'C1-C2 (Advanced)')">C1-C2</button>
-            </div>
+                    <div class="ai-label">Target Language:</div>
+                    <div class="flag-group" id="target-lang-group">
+                        <div class="flag-btn selected" onclick="selectTarget(this, 'en')" title="English">🇺🇸</div>
+                        <div class="flag-btn" onclick="selectTarget(this, 'es')" title="Spanish">🇪🇸</div>
+                        <div class="flag-btn" onclick="selectTarget(this, 'pt')" title="Portuguese">🇧🇷</div>
+                        <div class="flag-btn" onclick="selectTarget(this, 'it')" title="Italian">🇮🇹</div>
+                    </div>
 
-            <textarea id="ai-extra-data" class="text-input" style="margin-top:15px" placeholder="Extra instructions (e.g. 'Use medical vocabulary', 'Make it funny')..."></textarea>
+                    <div class="ai-label">Translations (For hints):</div>
+                    <div class="flag-group" id="trans-lang-group">
+                        <div class="flag-btn flag-sm hidden" data-lang="en" onclick="toggleTrans(this, 'en')">🇺🇸</div>
+                        <div class="flag-btn flag-sm selected" data-lang="es" onclick="toggleTrans(this, 'es')">🇪🇸</div>
+                        <div class="flag-btn flag-sm" data-lang="pt" onclick="toggleTrans(this, 'pt')">🇧🇷</div>
+                        <div class="flag-btn flag-sm" data-lang="it" onclick="toggleTrans(this, 'it')">🇮🇹</div>
+                    </div>
 
-            <div class="action-row">
-                <button class="btn-action btn-primary" onclick="copyProfessorPrompt()">
-                    <span>✨ Create Mission</span>
-                </button>
-                <button class="btn-action btn-secondary" onclick="pasteAIJson()">
-                    <span>📥 Import</span>
-                </button>
-            </div>
+                    <div class="ai-actions">
+                        <button class="btn-ai-action btn-ai-primary" onclick="copyProfessorPrompt()">✨ Create Mission</button>
+                        <button class="btn-ai-action" onclick="pasteAIJson()">📥 Paste & Render</button>
+                    </div>
 
-            <div class="memory-section">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div class="section-label" style="margin:0;">💾 Memory Bank (Templates)</div>
-                    <button class="btn-action btn-secondary" style="padding: 5px 10px; font-size: 0.7rem;" onclick="exportMemoryBank()">Backup JSON</button>
                 </div>
-                
-                <div id="memory-list" class="memory-list">
-                    <div style="text-align:center; padding:20px; color:#aaa;">No saved exercises yet.</div>
+            </div>
+
+            <div id="panel-preview" class="panel-content">
+                <div class="preview-panel" id="editor-area">
+                    <div style="text-align:center; color:#999; margin-top:50px;">
+                        Generated exercises will appear here.<br>
+                        Use the <b>Creator</b> tab to generate logic, then paste the result.
+                    </div>
                 </div>
             </div>
 
+        </div>
+
+        <div class="memory-footer">
+            <button class="btn-save-template" onclick="saveAsTemplate()">💾 Save Current Preview as Template</button>
+            <div class="ai-label">Saved Templates:</div>
+            <div class="memory-list" id="memory-list"></div>
         </div>
     </div>
 
+    <div id="voice-settings" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.3); z-index:9999; width:300px;">
+        <h4 style="margin-bottom:10px;">Voice Settings</h4>
+        <select id="voice-en" class="ai-select" style="margin-bottom:10px;"></select>
+        <select id="voice-es" class="ai-select" style="margin-bottom:10px;"></select>
+        <select id="voice-pt" class="ai-select" style="margin-bottom:10px;"></select>
+        <select id="voice-it" class="ai-select" style="margin-bottom:10px;"></select>
+        <button onclick="document.getElementById('voice-settings').style.display='none'" class="btn-ai-action" style="width:100%;">Close</button>
+    </div>
+
 <script>
-    const AI_MEM_KEY = 'mdc_isolated_ai_mem';
+    const AI_MEM_KEY = 'mdc_studio_templates';
     let currentTargetLang = 'en';
     let currentLevel = 'B1-B2 (Intermediate)';
-    const LANG_NAMES = { 'en': 'English', 'es': 'Spanish', 'pt': 'Portuguese', 'it': 'Italian', 'fr': 'French' };
+    const transLangs = new Set(['es']);
+    const LANG_NAMES = { 'en': 'English', 'es': 'Spanish', 'pt': 'Portuguese', 'it': 'Italian' };
+    let voices = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         renderMemoryList();
+        updateTransFlagsVisibility();
+        initVoices();
     });
 
-    function toggleHelp() {
-        const el = document.getElementById('help-box');
-        el.style.display = el.style.display === 'block' ? 'none' : 'block';
+    /* --- TABS --- */
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+        
+        if(tab === 'creator') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('panel-creator').classList.add('active');
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('panel-preview').classList.add('active');
+        }
     }
 
-    function checkOverride() {
-        // Just visual feedback if user types in custom fields
-        const ctx = document.getElementById('ai-context-custom').value;
-        const gra = document.getElementById('ai-grammar-custom').value;
-        
-        document.getElementById('ai-context-select').style.opacity = ctx ? '0.6' : '1';
-        document.getElementById('ai-grammar-select').style.opacity = gra ? '0.6' : '1';
+    /* --- UI LOGIC --- */
+    function checkOverride(inputId, selectId) {
+        const inputVal = document.getElementById(inputId).value.trim();
+        const selectEl = document.getElementById(selectId);
+        if(inputVal.length > 0) selectEl.classList.add('override-warning');
+        else selectEl.classList.remove('override-warning');
     }
 
     function selectTarget(el, lang) {
-        document.querySelectorAll('#target-lang-group .btn-flag').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('#target-lang-group .flag-btn').forEach(b => b.classList.remove('selected'));
         el.classList.add('selected');
         currentTargetLang = lang;
+        updateTransFlagsVisibility();
     }
 
     function selectLevel(el, level) {
-        document.querySelectorAll('.btn-level').forEach(b => b.classList.remove('selected'));
+        document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
         el.classList.add('selected');
         currentLevel = level;
     }
 
-    /* --- CORE LOGIC --- */
+    function updateTransFlagsVisibility() {
+        document.querySelectorAll('#trans-lang-group .flag-btn').forEach(btn => {
+            const btnLang = btn.getAttribute('data-lang');
+            if (btnLang === currentTargetLang) {
+                btn.classList.add('hidden');
+                btn.classList.remove('selected');
+                transLangs.delete(btnLang);
+            } else {
+                btn.classList.remove('hidden');
+            }
+        });
+    }
 
+    function toggleTrans(el, lang) {
+        if (transLangs.has(lang)) {
+            transLangs.delete(lang);
+            el.classList.remove('selected');
+        } else {
+            if (transLangs.size >= 3) return alert("Max 3 translation languages.");
+            transLangs.add(lang);
+            el.classList.add('selected');
+        }
+    }
+
+    /* --- PROMPT GENERATION (EXACT LOGIC RECOVERED) --- */
     function copyProfessorPrompt() {
         const ctxSel = document.getElementById('ai-context-select').value;
         const graSel = document.getElementById('ai-grammar-select').value;
         const typSel = document.getElementById('ai-type-select').value;
         const gapCount = document.getElementById('ai-gap-count').value;
-        
         const ctxCust = document.getElementById('ai-context-custom').value.trim();
         const graCust = document.getElementById('ai-grammar-custom').value.trim();
         const extraData = document.getElementById('ai-extra-data').value.trim();
 
-        let context = ctxCust || ctxSel;
-        let grammar = graCust || graSel;
-        
-        if (!context && !grammar && !extraData) return alert("Please select at least a Topic or Grammar.");
-
-        const target = LANG_NAMES[currentTargetLang] || 'English';
-        const typeStr = typSel;
-
         let requirements = [];
-        if (context) requirements.push(`Topic: ${context}`);
-        if (grammar) requirements.push(`Grammar: ${grammar}`);
-        requirements.push(`Format: ${typeStr}`);
+        let isGrammarFocus = false;
+        
+        if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`);
+        else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
+        
+        if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; }
+        else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
+        
+        if(typSel) requirements.push(`Exercise Format: ${typSel}`);
 
-        let jsonExample = `{ "title": "Exercise Title", "exercises": [ { "cloze_text": "Sentence in ${target} with {option1|option2} gaps.", "hint": "Tip", "translations": {"es": "..."} } ] }`;
+        if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
 
-        const promptText = `ACT AS: Senior ${target} Linguist. LEVEL: CEFR ${currentLevel}. 
-TASK: Create a structured JSON exercise. 
-REQUIREMENTS: ${requirements.join(", ")}. 
-GAP RULES: Provide ${gapCount} gap(s) per sentence. Options inside gaps {opt1|opt2...} MUST BE in ${target}.
-${extraData ? `EXTRA: ${extraData}` : ''}
-OUTPUT: RAW JSON ONLY. No markdown.
-STRUCTURE: ${jsonExample}`;
+        const target = LANG_NAMES[currentTargetLang];
+        
+        let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**. Do NOT use English words inside the gaps. Example in ${target}: "Ele {fala|falou|falar}..." (NOT "Ele {speak|spoke}...")`;
+        
+        let strictInstruction = "";
+        let gapInstruction = "";
+        
+        if (typSel && typSel.includes("Find and Fix")) {
+            strictInstruction += ` TYPE: FIND AND FIX THE MISTAKE. VISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap. Format: "Yesterday I <s>goed</s> {went|go} to the park."`;
+        } else if (typSel && typSel.includes("Sentence Reordering")) {
+            strictInstruction += ` TYPE: SENTENCE REORDERING via MULTIPLE CHOICE. The prompt MUST be the scrambled words. The options MUST be full sentences in ${target}.`;
+        } else if (typSel && typSel.includes("Vocabulary Matching")) {
+            strictInstruction += ` TYPE: VOCABULARY MATCHING. Format: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`;
+        }
+
+        if (gapCount === 'random') {
+            gapInstruction = ` GAP REQUIREMENT: Provide 3 to 4 options in ${target}. Mix of 1, 2, or 3 gaps per sentence.`;
+        } else {
+            gapInstruction = ` GAP REQUIREMENT: Provide 3 to 4 options in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`;
+        }
+
+        if (isGrammarFocus && !typSel.includes("Reordering")) {
+            strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule (verbs/auxiliaries).`;
+        }
+
+        const jsonExample = ` { "cloze_text": "Sentence in ${target} with {option1|option2|option3} gaps.", "hint": "Brief clue", "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation in ${LANG_NAMES[l]}"`).join(', ')} }, "full_sentence": "Full sentence in ${target} without gaps." }`;
+
+        const promptText = `ACT AS: Senior ${target} Linguist. LEVEL: CEFR ${currentLevel}. TASK: Create a structured JSON exercise. REQUIREMENTS: ${requirements.join(", ")}. ${languageInstruction} GAP DENSITY: ${gapInstruction} ${strictInstruction} ${extraData ? `EXTRA INSTRUCTIONS: ${extraData}` : ''} OUTPUT FORMAT: RAW JSON ONLY. JSON STRUCTURE: { "title": "Short descriptive title in ${target}", "lang_code": "${currentTargetLang}", "theory": "Brief rules explanation...", "exercises": [ ${jsonExample}, ] }`.trim();
 
         navigator.clipboard.writeText(promptText).then(() => {
-            const btn = document.querySelector('.btn-primary');
-            const orig = btn.innerHTML;
-            btn.innerHTML = "<span>✅ Copied to Clipboard!</span>";
-            setTimeout(() => btn.innerHTML = orig, 2000);
-        });
+            const btn = document.querySelector('.btn-ai-primary');
+            const orig = btn.innerText;
+            btn.innerText = "✅ Copied!";
+            setTimeout(() => btn.innerText = orig, 2000);
+        }).catch(err => alert("Error: " + err));
     }
 
+    /* --- RENDERING LOGIC (RECOVERED) --- */
     async function pasteAIJson() {
         let jsonString = "";
         try {
             jsonString = await navigator.clipboard.readText();
         } catch (err) {
-            jsonString = prompt("Paste JSON code here:");
+            jsonString = prompt("Paste JSON here:");
         }
-        
         if (!jsonString) return;
 
         try {
-            // Cleanup typical Markdown wrappers
             let cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
             const aiData = JSON.parse(cleanString);
             
             // Normalize data
-            let finalData = Array.isArray(aiData) ? { title: "Generated Exercise", exercises: aiData } : aiData;
-            
-            // Save to Memory
-            const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-            const newItem = {
-                id: Date.now(),
-                title: finalData.title || `Exercise ${new Date().toLocaleTimeString()}`,
-                lang: currentTargetLang,
-                date: new Date().toLocaleDateString(),
-                data: finalData.exercises
-            };
-            
-            memory.unshift(newItem);
-            localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
-            
-            renderMemoryList();
-            alert("✅ Saved to Memory Bank!");
-            
+            let finalData = Array.isArray(aiData) ? { title: "Exercise", lang_code: currentTargetLang, theory: "Review rules.", exercises: aiData } : aiData;
+            if (!finalData.lang_code) finalData.lang_code = currentTargetLang;
+
+            renderExerciseBlock(finalData);
+            switchTab('preview'); // Auto-switch to see result
+
         } catch (e) {
-            alert("❌ Invalid JSON. Please ensure you copied the AI output correctly.\nError: " + e.message);
+            alert("❌ Invalid JSON.\nError: " + e.message);
         }
+    }
+
+    function renderExerciseBlock(item) {
+        const insertTime = Date.now();
+        const theoryId = `theory-${insertTime}`;
+        const targetLang = item.lang_code || 'en';
+        
+        let htmlBlock = `<div class="exercise-box">
+            <div class="exercise-header">
+                <span>✍️ ${item.title}</span>
+                <div style="display:flex; align-items:center;">
+                    <button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button>
+                    <button class="btn-del-block" onclick="this.closest('.exercise-box').remove()">🗑️</button>
+                </div>
+            </div>
+            <div class="theory-box" id="${theoryId}">${item.theory || "No theory provided."}</div>`;
+
+        item.exercises.forEach((ex, index) => {
+            const hId = `hint-${insertTime}-${index}`;
+            const tId = `trans-${insertTime}-${index}`;
+            let exerciseContent = "";
+
+            if (ex.cloze_text) {
+                // Parse {opt1|opt2}
+                let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
+                    const parts = content.split('|');
+                    const correctAns = parts[0].trim();
+                    const shuffled = [...parts].sort(() => Math.random() - 0.5);
+                    let optsHtml = `<option value="" disabled selected>...</option>`;
+                    shuffled.forEach(opt => {
+                        optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`;
+                    });
+                    return `<span class="cloze-gap-container"><select class="ex-select" onchange="validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`;
+                });
+                exerciseContent = `<span><b>${index + 1}.</b> ${parsedHtml}</span>`;
+            } else {
+                // Old format fallback
+                exerciseContent = `<span><b>${index + 1}.</b> ${ex.question || ''}</span>`;
+            }
+
+            let transContent = "";
+            if (ex.translations) {
+                for (const [key, val] of Object.entries(ex.translations)) {
+                    let f = "🇬🇧";
+                    if(key==='es') f="🇪🇸"; if(key==='pt') f="🇧🇷"; if(key==='it') f="🇮🇹";
+                    transContent += `<div class="trans-line"><button class="btn-mini-speak" onclick="speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${val}</span></div>`;
+                }
+            }
+
+            htmlBlock += `<div class="exercise-row">
+                ${exerciseContent}
+                <div style="display:inline-flex; gap:5px; margin-left:10px;">
+                    <button class="ex-btn-icon" onclick="speakText('${escapeHtml(ex.full_sentence)}', '${targetLang}')">🔊</button>
+                    <button class="ex-btn-icon" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button>
+                    <button class="ex-btn-icon" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button>
+                </div>
+                <div class="hint-box" id="${hId}">💡 ${ex.hint}</div>
+                <div class="trans-box" id="${tId}">${transContent}</div>
+            </div>`;
+        });
+
+        htmlBlock += '</div>';
+        
+        // Append to Preview Area
+        const preview = document.getElementById('editor-area');
+        if(preview.innerText.includes('Generated exercises will appear')) preview.innerHTML = '';
+        preview.insertAdjacentHTML('beforeend', htmlBlock);
+    }
+
+    function validateExercise(s, a) {
+        s.classList.remove('correct', 'wrong');
+        if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) {
+            s.classList.add('correct');
+        } else {
+            s.classList.add('wrong');
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return "";
+        return text.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    }
+
+    /* --- MEMORY & TEMPLATE LOGIC --- */
+    function saveAsTemplate() {
+        const content = document.getElementById('editor-area').innerHTML;
+        if(content.includes('Generated exercises will appear')) return alert("Nothing to save.");
+        
+        const name = prompt("Name this template:");
+        if(!name) return;
+
+        const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+        memory.unshift({
+            id: Date.now(),
+            title: name,
+            html: content,
+            date: new Date().toLocaleDateString()
+        });
+        localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
+        renderMemoryList();
+        alert("Template saved!");
     }
 
     function renderMemoryList() {
         const list = document.getElementById('memory-list');
         const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-        
-        if (memory.length === 0) {
-            list.innerHTML = '<div style="text-align:center; padding:20px; color:#aaa;">No saved exercises yet.</div>';
-            return;
-        }
-
-        let html = '';
+        list.innerHTML = '';
         memory.forEach(item => {
-            let flag = "🇺🇸";
-            if(item.lang === 'es') flag = "🇪🇸";
-            if(item.lang === 'pt') flag = "🇧🇷";
-            if(item.lang === 'it') flag = "🇮🇹";
-            if(item.lang === 'fr') flag = "🇫🇷";
-
-            html += `
+            list.innerHTML += `
             <div class="saved-item">
-                <div class="saved-info">
-                    <span class="saved-title">${flag} ${item.title}</span>
-                    <span class="saved-meta">${item.date} • ${item.data ? item.data.length : 0} Qs</span>
+                <span><b>${item.title}</b> <small>(${item.date})</small></span>
+                <div>
+                    <button class="btn-mem-action" onclick="loadTemplate(${item.id})">📂 Load</button>
+                    <button class="btn-mem-action" onclick="deleteTemplate(${item.id})" style="color:red">×</button>
                 </div>
-                <button class="btn-icon export" onclick="downloadJSON(${item.id})" title="Download JSON">⬇️</button>
-                <button class="btn-icon delete" onclick="deleteItem(${item.id})" title="Delete">🗑️</button>
             </div>`;
         });
-        list.innerHTML = html;
     }
 
-    function deleteItem(id) {
-        if(!confirm("Delete this template?")) return;
+    function loadTemplate(id) {
+        if(!confirm("Load template? This will replace current preview.")) return;
+        const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+        const item = memory.find(i => i.id === id);
+        if(item) {
+            document.getElementById('editor-area').innerHTML = item.html;
+            // Clean state of selects
+            document.querySelectorAll('.ex-select').forEach(s => {
+                s.classList.remove('correct', 'wrong');
+                s.value = "";
+                s.querySelectorAll('option').forEach(o => o.removeAttribute('selected'));
+            });
+            switchTab('preview');
+        }
+    }
+
+    function deleteTemplate(id) {
+        if(!confirm("Delete?")) return;
         let memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
         memory = memory.filter(i => i.id !== id);
         localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
         renderMemoryList();
     }
 
-    function downloadJSON(id) {
-        const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-        const item = memory.find(i => i.id === id);
-        if(!item) return;
-
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(item, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", item.title.replace(/\s+/g, '_') + ".json");
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
+    /* --- VOICE LOGIC --- */
+    function initVoices() {
+        window.speechSynthesis.onvoiceschanged = () => {
+            voices = window.speechSynthesis.getVoices();
+            populateVoiceSelects();
+        };
+        voices = window.speechSynthesis.getVoices();
+        if(voices.length > 0) populateVoiceSelects();
     }
 
-    function exportMemoryBank() {
-        const memory = localStorage.getItem(AI_MEM_KEY);
-        if(!memory) return alert("Nothing to backup.");
-        
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(memory);
-        const a = document.createElement('a');
-        a.href = dataStr;
-        a.download = "mdc_ai_templates_backup.json";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+    function populateVoiceSelects() {
+        const langs = ['en', 'es', 'pt', 'it'];
+        langs.forEach(l => {
+            const sel = document.getElementById(`voice-${l}`);
+            sel.innerHTML = '';
+            const vs = voices.filter(v => v.lang.startsWith(l));
+            vs.forEach(v => {
+                const opt = document.createElement('option');
+                opt.text = v.name;
+                opt.value = v.name;
+                sel.add(opt);
+            });
+        });
+    }
+
+    function toggleVoiceSettings() {
+        const el = document.getElementById('voice-settings');
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function speakText(text, langCode) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            const selName = document.getElementById(`voice-${langCode}`).value;
+            if(selName) {
+                const v = voices.find(val => val.name === selName);
+                if (v) u.voice = v;
+            }
+            u.rate = 0.9;
+            window.speechSynthesis.speak(u);
+        }
     }
 </script>
-
 </body>
 </html>
