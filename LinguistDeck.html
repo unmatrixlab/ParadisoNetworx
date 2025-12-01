@@ -1257,34 +1257,120 @@
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
     /* ====== BACKUP & RESTORE ====== */
-    function downloadBackup() { 
-        const rawResources = localStorage.getItem(STORAGE_KEY); const rawMemory = localStorage.getItem(AI_MEM_KEY); const rawFavs = localStorage.getItem(FAV_KEY); 
-        const resources = rawResources ? JSON.parse(rawResources) : []; const memory = rawMemory ? JSON.parse(rawMemory) : []; const favs = rawFavs ? JSON.parse(rawFavs) : [];
-        alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}`);
-        const fullData = { version: 3, resources: resources, memory: memory, favs: favs }; const d = JSON.stringify(fullData); const encodedData = btoa(unescape(encodeURIComponent(d)));
-        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body><h1>MDC Polyglot Full Backup</h1><p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p><p><strong>Upload this file using the Import button.</strong></p><script>const backupData = "${encodedData}";<\/script></body></html>`;
-        const b = new Blob([htmlContent], {type: 'text/html'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); const dateStr = new Date().toISOString().split('T')[0]; a.download = `MDC_FullBackup_${dateStr}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+function downloadBackup() { 
+        try {
+            const rawResources = localStorage.getItem(STORAGE_KEY);
+            const rawMemory = localStorage.getItem(AI_MEM_KEY);
+            const rawFavs = localStorage.getItem(FAV_KEY);
+
+            const resources = rawResources ? JSON.parse(rawResources) : [];
+            const memory = rawMemory ? JSON.parse(rawMemory) : [];
+            const favs = rawFavs ? JSON.parse(rawFavs) : [];
+
+            alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}`);
+
+            const fullData = { version: 3, resources: resources, memory: memory, favs: favs };
+            
+            // Codificación robusta UTF-8 -> Base64
+            const jsonString = JSON.stringify(fullData);
+            const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
+
+            const htmlContent = `<!DOCTYPE html>
+            <html>
+            <head><title>MDC Full Backup</title><meta charset="UTF-8"></head>
+            <body>
+                <h1>MDC Polyglot Full Backup</h1>
+                <p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p>
+                <p><strong>Upload this file using the Import button.</strong></p>
+                <script>
+                    // DATA_START
+                    const backupData = "${encodedData}";
+                    // DATA_END
+                <\/script>
+            </body>
+            </html>`;
+
+            const b = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(b);
+            const dateStr = new Date().toISOString().split('T')[0];
+            a.download = `MDC_FullBackup_${dateStr}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch(err) {
+            alert("Error creating backup: " + err.message);
+        }
     }
 
-    function importBackup(inp) { 
-        const file = inp.files[0]; if (!file) return;
-        const r = new FileReader(); r.onload = e => { 
+function importBackup(inp) { 
+        const file = inp.files[0]; 
+        if (!file) return;
+
+        const r = new FileReader(); 
+        r.onload = e => { 
             try { 
                 const content = e.target.result;
-                let match = content.match(/const backupData\s*=\s*"(.*?)";/); if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s); if (!match) throw new Error("No backup data found.");
-                let json = match[1]; try { json = decodeURIComponent(escape(atob(json))); } catch(e) { console.log("Legacy decode fallback"); } const parsedData = JSON.parse(json);
+                let parsedData = null;
+
+                // 1. Intento: Buscar el patrón HTML del backup automático
+                let match = content.match(/const backupData\s*=\s*"(.*?)";/);
+                if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
+
+                if (match && match[1]) {
+                    // Es el formato HTML Base64
+                    try {
+                        const jsonString = decodeURIComponent(escape(atob(match[1])));
+                        parsedData = JSON.parse(jsonString);
+                    } catch (decodeErr) {
+                        throw new Error("Corrupted Base64 data in HTML file.");
+                    }
+                } else {
+                    // 2. Intento: Tratar de parsear como JSON puro (por si el usuario subió un .json)
+                    try {
+                        parsedData = JSON.parse(content);
+                    } catch (jsonErr) {
+                        throw new Error("File format not recognized. Use the .html backup file.");
+                    }
+                }
+
+                if (!parsedData) throw new Error("No data found.");
+
+                // Lógica de Restauración
                 if (parsedData.version >= 2 || (parsedData.resources && parsedData.memory)) {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources)); localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
-                    if(parsedData.favs) localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
-                    alert(`✅ RESTORE COMPLETE:\n📚 Resources: ${parsedData.resources.length}\n🧠 AI Exercises: ${parsedData.memory.length}`);
+                    // Formato Moderno V2/V3
+                    if (parsedData.resources) localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
+                    if (parsedData.memory) localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                    if (parsedData.favs) localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
+                    
+                    alert(`✅ RESTORE COMPLETE:\n📚 Resources: ${parsedData.resources ? parsedData.resources.length : 0}\n🧠 AI Exercises: ${parsedData.memory ? parsedData.memory.length : 0}`);
+                
                 } else if (Array.isArray(parsedData)) {
-                    if(confirm("Legacy backup detected. Keep existing AI data?")) { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); } 
-                    else { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); localStorage.setItem(AI_MEM_KEY, '[]'); }
+                    // Formato Legacy (Solo era un array de recursos)
+                    if(confirm("Legacy backup detected (Resources only). Keep existing AI data?")) { 
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
+                    } else { 
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
+                        localStorage.setItem(AI_MEM_KEY, '[]'); 
+                    }
                     alert("✅ Resources restored (Legacy format).");
-                } else { throw new Error("Unknown format."); }
-                loadResources(); renderAiList(); inp.value = ''; 
-            } catch (err) { alert("❌ Error importing: " + err.message); }
-        }; r.readAsText(file); 
+                } else { 
+                    throw new Error("Unknown data structure."); 
+                }
+
+                // Recargar interfaz
+                loadResources(); 
+                renderAiList(); 
+                if(typeof renderTabFavorites === 'function') renderTabFavorites(); // Actualizar favoritos si existe la función
+                
+            } catch (err) { 
+                alert("❌ Error importing: " + err.message); 
+                console.error(err);
+            } finally {
+                inp.value = ''; // Limpiar input para permitir subir el mismo archivo de nuevo si falla
+            }
+        }; 
+        r.readAsText(file); 
     }
 
     /* ====== CONTROL & TAB SWITCHING ====== */
