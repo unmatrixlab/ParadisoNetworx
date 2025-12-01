@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fixed Scroll)</title>
+    <title>MDC Studio Player (Final Stable)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -22,17 +22,22 @@
         .text-input { width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: monospace; transition: 0.2s; }
         .text-input:focus { border-color: var(--primary); outline: none; }
         
+        /* FILE UPLOAD BUTTONS */
         .file-upload-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; color: var(--text-sec); font-weight: 600; cursor: pointer; position: relative; font-size: 14px; transition: 0.2s; background: #f8fafc; }
         .file-upload-btn:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
         .file-upload-btn.loaded { border-color: #10b981; color: #065f46; background: #d1fae5; border-style: solid; }
+        
+        /* CORRECCIÓN DEL BUG DE CLICK */
+        .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
+        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
+        
+        /* INPUT INVISIBLE */
         input[type="file"] { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; top:0; left:0; }
         
         .start-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
         .start-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
         .backup-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
-        .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
-        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
 
         /* LISTA HISTORIAL */
         .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
@@ -49,13 +54,10 @@
         /* === PLAYER UI === */
         #player-ui { display: none; width: 100%; }
         .page-max-width { max-width: 1000px; margin: 0 auto; width: 100%; position: relative; }
-        
         .video-wrapper { position: sticky; top: 0; width: 100%; background: #000; z-index: 500; box-shadow: var(--shadow); }
         .video-inner { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; background: #000; }
         .video-inner iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
-        
-        /* Ajuste de margen para scroll */
-        .dialogue-container { padding: 20px 15px 140px 15px; max-width: 600px; margin: 0 auto; scroll-margin-top: 100px; }
+        .dialogue-container { padding: 20px 15px 140px 15px; max-width: 600px; margin: 0 auto; }
         
         .line { background: var(--card-bg); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; box-shadow: var(--shadow); border-left: 4px solid transparent; transition: 0.2s; }
         .line.active { border-left-color: var(--primary); background-color: #eef2ff; transform: scale(1.02); }
@@ -136,7 +138,7 @@
 
     <div id="player-ui">
         <div class="page-max-width">
-            <div class="video-wrapper" id="video-wrapper">
+            <div class="video-wrapper">
                 <div class="video-inner"><div id="player"></div></div>
             </div>
             <div class="dialogue-container" id="dialogue-root"></div>
@@ -215,6 +217,7 @@
         const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
         const item = history.find(i => i.id === id);
         if(item) {
+            // CORRECCION DE LOGICA: Asegurar reset completo antes de cargar
             if(player && typeof player.stopVideo === 'function') player.stopVideo();
             isSegmentPlaying = false;
             resetButtons();
@@ -261,6 +264,7 @@
         renderHistoryList();
     }
 
+    // --- DATA MANAGEMENT ---
     function addToHistory(id, title, srtEn, srtEs) {
         let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
         history = history.filter(item => item.id !== id);
@@ -307,6 +311,7 @@
         });
     }
 
+    // --- BACKUP & RESTORE ---
     function exportBackup() {
         const data = {};
         for (let i = 0; i < localStorage.length; i++) {
@@ -335,6 +340,7 @@
         reader.readAsText(input.files[0]);
     }
 
+    // --- UTILS ---
     function readFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -357,6 +363,7 @@
         return parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec) + parseInt(ms) / 1000;
     }
 
+    // --- PLAYER LOGIC ---
     let timeOffset = 0.2, endPadding = 0.5; 
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
@@ -421,17 +428,8 @@
         if (activeLine) {
             activeLine.classList.add('active');
             if (autoScroll) {
-                const videoHeight = document.getElementById('video-wrapper').offsetHeight;
                 const rect = activeLine.getBoundingClientRect();
-                const windowHeight = window.innerHeight;
-                
-                // CALCULO MEJORADO: Centrar en el espacio DISPONIBLE (debajo del video)
-                // Espacio disponible = windowHeight - videoHeight
-                // Centro deseado = videoHeight + (Espacio disponible / 2)
-                const visibleCenter = videoHeight + ((windowHeight - videoHeight) / 2);
-                const currentPos = rect.top + (rect.height / 2);
-                const offset = window.pageYOffset + (currentPos - visibleCenter);
-                
+                const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
                 window.scrollTo({ top: offset, behavior: "smooth" });
             }
         }
@@ -474,6 +472,7 @@
         localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
     }
     function toggleTimingMenu() { document.getElementById('timing-menu').classList.toggle('active'); }
+    
     function loadPreferences() {
         const sSpeed = localStorage.getItem(PREF_SPEED);
         if(sSpeed) { currentPlaybackRate = parseFloat(sSpeed); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
@@ -587,11 +586,9 @@
         });
     }
     
-    // KEYBOARD SHORTCUTS
     document.addEventListener('keydown', (e) => {
         if(document.getElementById('setup-screen').style.display !== 'none') return; 
         if(e.target.tagName === 'INPUT') return;
-
         switch(e.code) {
             case 'Space':
                 e.preventDefault();
@@ -602,8 +599,8 @@
                     if(word) word.closest('.line').querySelector('.playBtn').click();
                 }
                 break;
-            case 'ArrowLeft': e.preventDefault(); navigateWords(-1); break;
-            case 'ArrowRight': e.preventDefault(); navigateWords(1); break;
+            case 'ArrowLeft': navigateWords(-1); break;
+            case 'ArrowRight': navigateWords(1); break;
             case 'ArrowUp': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate + 0.1).toFixed(1)); if(currentPlaybackRate > 2.0) currentPlaybackRate = 2.0; cycleSpeedInternal(); break;
             case 'ArrowDown': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1)); if(currentPlaybackRate < 0.5) currentPlaybackRate = 0.5; cycleSpeedInternal(); break;
             case 'KeyR': const activeLineR = document.querySelector('.line.active'); if(activeLineR) activeLineR.querySelector('.saveBtn').click(); break;
