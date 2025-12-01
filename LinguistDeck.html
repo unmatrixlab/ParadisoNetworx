@@ -1422,11 +1422,10 @@ function importBackup(inp) {
         }
     }
 
-  function openFreeEditor() { 
-        // 👇👇👇 CONFIGURACIÓN: PON AQUÍ TU URL FIJA PARA LA PESTAÑA 5 👇👇👇
-        const FIXED_TAB_5_URL = "https://paradisonetworx.com/LinguistDeckVocabulary.html"; 
-        // 👆 Asegúrate de que la web permita ser incrustada (Google/YouTube inicio no suelen dejar)
+ // 👇👇👇 CONFIGURACIÓN GLOBAL: URL FIJA PARA LA PESTAÑA 5 👇👇👇
+    const FIXED_TAB_5_URL = "https://paradisonetworx.com/LinguistDeckVocabulary.html";
 
+    function openFreeEditor() { 
         currentEditIndex = -1; 
         currentResourceId = null; 
         editorArea.innerHTML = ""; 
@@ -1437,22 +1436,19 @@ function importBackup(inp) {
 
         const container = document.getElementById('desktop-media-wrapper'); 
 
-        // Generador de Botones (Modificado para Tab 5)
         const getBtn = (idx) => { 
-            // Si es el índice 4 (Pestaña 5), le ponemos el título para que sepa que hay algo
+            // Si es el índice 4 (Tab 5), forzamos el título
             let titleAttr = (idx === 4) ? `title="${FIXED_TAB_5_URL}"` : '';
             return `<button class="web-tab-btn channel-${idx+1} ${idx===0?'active':''}" onclick="switchWebTab(${idx})" ${titleAttr}>Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`; 
         }; 
 
-        // Generador de Contenido (Modificado para Tab 5)
         const getContent = (idx) => { 
-            // SI ES LA PESTAÑA 5 (Índice 4), CARGAMOS TU URL FIJA
+            // LÓGICA DE URL FIJA
             if (idx === 4) {
                  return `<div class="web-frame-container" id="tab-content-4">
                             <iframe src="${FIXED_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
                         </div>`;
             }
-            // Para el resto (0, 1, 2, 3) seguimos mostrando vacío
             return `<div class="web-frame-container ${idx===0?'active':''}" id="tab-content-${idx}"><div class="web-error-bg"><span>Empty Tab<br><small>Click ⚙️ to add resource</small></span></div></div>`; 
         }; 
 
@@ -1462,19 +1458,6 @@ function importBackup(inp) {
         if(gridPlayer) gridPlayer.pauseVideo(); 
         updateToolbarState(); 
     }
-
-    window.switchWebTab = function(idx, fromSync = false) { 
-        activeTabIndexForPopup = idx;
-        document.querySelectorAll('.web-tab-btn').forEach((b, i) => { 
-            if(b.innerText.includes('Externally')) return; 
-            const buttons = Array.from(document.querySelectorAll('.web-tab-btn')).filter(btn => !btn.innerText.includes('Externally')); 
-            if(buttons[idx]) { buttons.forEach(btn => btn.classList.remove('active')); buttons[idx].classList.add('active'); } 
-        }); 
-        document.querySelectorAll('.web-frame-container').forEach((f, i) => { if(i === idx) f.classList.add('active'); else f.classList.remove('active'); }); 
-        
-        // Sync Lock Logic: Sync Control to Tab
-        if (isSyncLocked && !fromSync) { setControlTarget(idx, true); }
-    };
 
     function openEditorById(id) {
         const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -1491,17 +1474,26 @@ function importBackup(inp) {
         const ytId2 = getYouTubeID(resData.url2);
         const ytId3 = getYouTubeID(resData.url3);
         const ytId4 = getYouTubeID(resData.url4); 
-        const ytId5 = getYouTubeID(resData.url5); 
+        // IGNORAMOS url5 guardada y usamos la fija
+        const ytId5 = null; 
 
         const renderTabs = (content1, content2, content3, content4, content5) => {
             const getBtn = (idx, link) => {
                 const activeClass = idx === 0 ? 'active' : '';
+                // FORZAMOS LINK EN TAB 5
+                if (idx === 4) link = FIXED_TAB_5_URL;
                 return `<button class="web-tab-btn channel-${idx+1} ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
             };
-            return `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0, resData.url)}${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}${resData.url5 ? getBtn(4, resData.url5) : getBtn(4, '')}</div><div class="web-content-area"><div class="web-frame-container active" id="tab-content-0">${content1}</div><div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-4">${content5 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div></div></div>`;
+            // En la llamada a getBtn para el índice 4, pasamos FIXED_TAB_5_URL
+            return `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0, resData.url)}${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}${getBtn(4, FIXED_TAB_5_URL)}</div><div class="web-content-area"><div class="web-frame-container active" id="tab-content-0">${content1}</div><div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-4">${content5}</div></div></div>`;
         };
 
         const getTabContent = (link, ytId, index) => {
+            // LÓGICA DE URL FIJA EN CONTENT
+            if (index === 4) {
+                 return `<iframe src="${FIXED_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
+            }
+
             if (link === 'internal:editor') { return `<div class="embedded-editor-area" contenteditable="true" oninput="document.getElementById('editor-text').innerHTML = this.innerHTML; window.saveNote();">${resData.note || ''}</div><div style="position:absolute; bottom:5px; right:5px; font-size:10px; color:#aaa; background:#fff; padding:2px;">Linked to Main Note</div>`; }
             if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
             if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
@@ -1511,13 +1503,14 @@ function importBackup(inp) {
         const htmlContent2 = getTabContent(resData.url2, ytId2, 2);
         const htmlContent3 = getTabContent(resData.url3, ytId3, 3);
         const htmlContent4 = getTabContent(resData.url4, ytId4, 4); 
-        const htmlContent5 = getTabContent(resData.url5, ytId5, 5); 
+        // Generamos el contenido de la Tab 5 forzada
+        const htmlContent5 = getTabContent(FIXED_TAB_5_URL, null, 4); 
 
         const initSubPlayers = () => {
             if(ytId2) players[1] = new YT.Player(`player-tab-2`, { width: '100%', height: '100%', videoId: ytId2, playerVars: { rel: 0 } });
             if(ytId3) players[2] = new YT.Player(`player-tab-3`, { width: '100%', height: '100%', videoId: ytId3, playerVars: { rel: 0 } });
             if(ytId4) players[3] = new YT.Player(`player-tab-4`, { width: '100%', height: '100%', videoId: ytId4, playerVars: { rel: 0 } }); 
-            if(ytId5) players[4] = new YT.Player(`player-tab-5`, { width: '100%', height: '100%', videoId: ytId5, playerVars: { rel: 0 } }); 
+            // No iniciamos player en tab 5 porque es un iframe fijo
         };
 
         if (type === 'video') {
