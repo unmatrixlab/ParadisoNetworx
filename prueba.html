@@ -1257,34 +1257,151 @@
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
     /* ====== BACKUP & RESTORE ====== */
-    function downloadBackup() { 
-        const rawResources = localStorage.getItem(STORAGE_KEY); const rawMemory = localStorage.getItem(AI_MEM_KEY); const rawFavs = localStorage.getItem(FAV_KEY); 
-        const resources = rawResources ? JSON.parse(rawResources) : []; const memory = rawMemory ? JSON.parse(rawMemory) : []; const favs = rawFavs ? JSON.parse(rawFavs) : [];
-        alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}`);
-        const fullData = { version: 3, resources: resources, memory: memory, favs: favs }; const d = JSON.stringify(fullData); const encodedData = btoa(unescape(encodeURIComponent(d)));
-        const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title></head><body><h1>MDC Polyglot Full Backup</h1><p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p><p><strong>Upload this file using the Import button.</strong></p><script>const backupData = "${encodedData}";<\/script></body></html>`;
-        const b = new Blob([htmlContent], {type: 'text/html'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); const dateStr = new Date().toISOString().split('T')[0]; a.download = `MDC_FullBackup_${dateStr}.html`; document.body.appendChild(a); a.click(); document.body.removeChild(a); 
+function downloadBackup() { 
+        try {
+            const rawResources = localStorage.getItem(STORAGE_KEY);
+            const rawMemory = localStorage.getItem(AI_MEM_KEY);
+            const rawFavs = localStorage.getItem(FAV_KEY);
+
+            const resources = rawResources ? JSON.parse(rawResources) : [];
+            const memory = rawMemory ? JSON.parse(rawMemory) : [];
+            const favs = rawFavs ? JSON.parse(rawFavs) : [];
+
+            alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}`);
+
+            const fullData = { version: 3, resources: resources, memory: memory, favs: favs };
+            
+            // Codificación robusta UTF-8 -> Base64
+            const jsonString = JSON.stringify(fullData);
+            const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
+
+            const htmlContent = `<!DOCTYPE html>
+            <html>
+            <head><title>MDC Full Backup</title><meta charset="UTF-8"></head>
+            <body>
+                <h1>MDC Polyglot Full Backup</h1>
+                <p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p>
+                <p><strong>Upload this file using the Import button.</strong></p>
+                <script>
+                    // DATA_START
+                    const backupData = "${encodedData}";
+                    // DATA_END
+                <\/script>
+            </body>
+            </html>`;
+
+            const b = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(b);
+            const dateStr = new Date().toISOString().split('T')[0];
+            a.download = `MDC_FullBackup_${dateStr}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch(err) {
+            alert("Error creating backup: " + err.message);
+        }
     }
 
-    function importBackup(inp) { 
-        const file = inp.files[0]; if (!file) return;
-        const r = new FileReader(); r.onload = e => { 
+function importBackup(inp) { 
+        const file = inp.files[0]; 
+        if (!file) return;
+
+        const r = new FileReader(); 
+        r.onload = e => { 
             try { 
                 const content = e.target.result;
-                let match = content.match(/const backupData\s*=\s*"(.*?)";/); if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s); if (!match) throw new Error("No backup data found.");
-                let json = match[1]; try { json = decodeURIComponent(escape(atob(json))); } catch(e) { console.log("Legacy decode fallback"); } const parsedData = JSON.parse(json);
-                if (parsedData.version >= 2 || (parsedData.resources && parsedData.memory)) {
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources)); localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
-                    if(parsedData.favs) localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
-                    alert(`✅ RESTORE COMPLETE:\n📚 Resources: ${parsedData.resources.length}\n🧠 AI Exercises: ${parsedData.memory.length}`);
-                } else if (Array.isArray(parsedData)) {
-                    if(confirm("Legacy backup detected. Keep existing AI data?")) { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); } 
-                    else { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); localStorage.setItem(AI_MEM_KEY, '[]'); }
-                    alert("✅ Resources restored (Legacy format).");
-                } else { throw new Error("Unknown format."); }
-                loadResources(); renderAiList(); inp.value = ''; 
-            } catch (err) { alert("❌ Error importing: " + err.message); }
-        }; r.readAsText(file); 
+                let parsedData = null;
+
+                // 1. Intento: Buscar patrón HTML (Base64)
+                let match = content.match(/const backupData\s*=\s*"(.*?)";/);
+                if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
+
+                if (match && match[1]) {
+                    try {
+                        const jsonString = decodeURIComponent(escape(atob(match[1])));
+                        parsedData = JSON.parse(jsonString);
+                    } catch (decodeErr) {
+                        console.warn("Base64 decode fail, trying raw:", decodeErr);
+                    }
+                } 
+                
+                // 2. Intento: Si falló lo anterior o no es HTML, probar JSON directo
+                if (!parsedData) {
+                    try {
+                        parsedData = JSON.parse(content);
+                    } catch (jsonErr) {
+                        throw new Error("Formato de archivo no reconocido (No es HTML válido ni JSON).");
+                    }
+                }
+
+                if (!parsedData) throw new Error("El archivo está vacío o corrupto.");
+
+                // --- LÓGICA PERMISIVA (NUEVO) ---
+                // Verifica si existe AL MENOS UNA de las claves importantes
+                const hasResources = Array.isArray(parsedData.resources);
+                const hasMemory = Array.isArray(parsedData.memory);
+                const hasFavs = Array.isArray(parsedData.favs);
+                const isLegacyArray = Array.isArray(parsedData); // Respaldo muy antiguo (solo array)
+
+                let msg = "✅ RESTAURACIÓN COMPLETADA:\n";
+                let restoredCount = 0;
+
+                if (hasResources || hasMemory || hasFavs) {
+                    // Es un formato estructurado (V2/V3), importamos lo que encontremos
+                    if (hasResources) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
+                        msg += `📚 Recursos: ${parsedData.resources.length}\n`;
+                        restoredCount++;
+                    }
+                    
+                    if (hasMemory) {
+                        localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                        msg += `🧠 Ejercicios AI: ${parsedData.memory.length}\n`;
+                        restoredCount++;
+                    }
+
+                    if (hasFavs) {
+                        localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
+                        msg += `⭐ Favoritos: ${parsedData.favs.length}\n`;
+                        restoredCount++;
+                    }
+
+                    if (restoredCount === 0) throw new Error("Estructura JSON válida pero sin datos reconocibles.");
+                    alert(msg);
+
+                } else if (isLegacyArray) {
+                    // Es un respaldo antiguo que solo contiene la lista de recursos
+                    if(confirm("⚠️ Detectado formato antiguo (Solo Recursos).\n¿Deseas mantener tus datos actuales de IA/Memoria? (Cancelar = Borrar IA)")) { 
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
+                        // No tocamos AI_MEM_KEY
+                    } else { 
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
+                        localStorage.setItem(AI_MEM_KEY, '[]'); 
+                    }
+                    alert("✅ Recursos antiguos restaurados.");
+                } else {
+                    // Depuración: Mostrar qué claves tiene el objeto para entender el error
+                    console.log("Claves encontradas:", Object.keys(parsedData));
+                    throw new Error("Estructura de datos desconocida. Revisa la consola (F12) para más detalles.");
+                }
+
+                // Recargar interfaz
+                loadResources(); 
+                if(typeof renderAiList === 'function') renderAiList(); 
+                if(typeof renderTabFavorites === 'function') renderTabFavorites();
+                
+                // Actualizar el espejo de seguridad inmediatamente para evitar conflictos
+                if(typeof updateSecurityMirror === 'function') updateSecurityMirror();
+
+            } catch (err) { 
+                alert("❌ Error importing: " + err.message); 
+                console.error(err);
+            } finally {
+                inp.value = ''; 
+            }
+        }; 
+        r.readAsText(file); 
     }
 
     /* ====== CONTROL & TAB SWITCHING ====== */
