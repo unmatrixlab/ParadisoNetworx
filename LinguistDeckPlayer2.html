@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player Ultimate</title>
+    <title>MDC Studio Player (Final Stable)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -21,17 +21,23 @@
         .input-label { display: block; font-size: 12px; font-weight: 700; color: var(--text-sec); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
         .text-input { width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: monospace; transition: 0.2s; }
         .text-input:focus { border-color: var(--primary); outline: none; }
+        
+        /* FILE UPLOAD BUTTONS */
         .file-upload-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; color: var(--text-sec); font-weight: 600; cursor: pointer; position: relative; font-size: 14px; transition: 0.2s; background: #f8fafc; }
         .file-upload-btn:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
         .file-upload-btn.loaded { border-color: #10b981; color: #065f46; background: #d1fae5; border-style: solid; }
+        
+        /* CORRECCIÓN DEL BUG DE CLICK */
+        .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
+        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
+        
+        /* INPUT INVISIBLE */
         input[type="file"] { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; top:0; left:0; }
+        
         .start-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
         .start-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
-        /* BACKUP SECTION */
         .backup-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
-        .backup-btn { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
 
         /* LISTA HISTORIAL */
         .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
@@ -156,10 +162,10 @@
             <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
             <button class="bar-btn" id="btn-timing" onclick="toggleTimingMenu()" style="font-size: 16px;">⏱️</button>
             <div class="bar-divider"></div>
-            
             <button class="bar-btn" id="btn-loop" onclick="toggleLoop()" style="font-size: 16px;">🔁</button>
             
             <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">🔒</button>
+            
             <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
             <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
         </div>
@@ -211,6 +217,11 @@
         const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
         const item = history.find(i => i.id === id);
         if(item) {
+            // CORRECCION DE LOGICA: Asegurar reset completo antes de cargar
+            if(player && typeof player.stopVideo === 'function') player.stopVideo();
+            isSegmentPlaying = false;
+            resetButtons();
+            
             YOUTUBE_ID = item.id;
             VIDEO_TITLE = item.title;
             processAndLaunch(item.srtEn, item.srtEs, item.id, item.title);
@@ -224,13 +235,21 @@
             const esItem = parsedEs[index] ? parsedEs[index].text : "...";
             return { s: item.start, e: item.end, en: item.text, es: esItem };
         });
+        
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('player-ui').style.display = 'block';
+        
         renderSubtitles();
         initInteractiveWords();
         loadPreferences();
+        
         if(window.YT && window.YT.Player) {
-            if(player) { player.loadVideoById(id); } else { onYouTubeIframeAPIReady(); }
+            if(player) { 
+                player.loadVideoById(id); 
+                player.setPlaybackRate(currentPlaybackRate);
+            } else { 
+                onYouTubeIframeAPIReady(); 
+            }
         } else {
             const tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
@@ -344,14 +363,14 @@
         return parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec) + parseInt(ms) / 1000;
     }
 
-    // --- PLAYER VARIABLES ---
+    // --- PLAYER LOGIC ---
     let timeOffset = 0.2, endPadding = 0.5; 
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
     const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing';
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
-    let isLooping = false; // NEW STATE
+    let isLooping = false;
 
     window.onYouTubeIframeAPIReady = function() {
         if(!YOUTUBE_ID) return;
@@ -385,7 +404,6 @@
         
         if (isSegmentPlaying && currentTime >= segmentEndTime) {
             if (isLooping) {
-                // LOGICA DE BUCLE
                 const activeBtn = document.querySelector('.playBtn[data-state="playing"]');
                 if(activeBtn) {
                     const line = activeBtn.closest('.line');
@@ -568,65 +586,29 @@
         });
     }
     
-    // --- KEYBOARD SHORTCUTS ---
     document.addEventListener('keydown', (e) => {
         if(document.getElementById('setup-screen').style.display !== 'none') return; 
         if(e.target.tagName === 'INPUT') return;
-
         switch(e.code) {
             case 'Space':
                 e.preventDefault();
-                // Play currently active line if exists
                 const activeLine = document.querySelector('.line.active');
-                if (activeLine) {
-                    const btn = activeLine.querySelector('.playBtn');
-                    if(btn) btn.click();
-                } else if(engSelection.length > 0) {
-                    // Or play selected word context
+                if (activeLine) { activeLine.querySelector('.playBtn').click(); } 
+                else if(engSelection.length > 0) {
                     const word = document.querySelector(`.english-word[data-idx="${activeWordID || engSelection[0]}"]`);
-                    if(word) {
-                        const line = word.closest('.line');
-                        const btn = line.querySelector('.playBtn');
-                        if(btn) btn.click();
-                    }
+                    if(word) word.closest('.line').querySelector('.playBtn').click();
                 }
                 break;
-            case 'ArrowLeft':
-                navigateWords(-1);
-                break;
-            case 'ArrowRight':
-                navigateWords(1);
-                break;
-            case 'ArrowUp':
-                e.preventDefault();
-                currentPlaybackRate = parseFloat((currentPlaybackRate + 0.1).toFixed(1));
-                if(currentPlaybackRate > 2.0) currentPlaybackRate = 2.0;
-                cycleSpeedInternal();
-                break;
-            case 'ArrowDown':
-                e.preventDefault();
-                currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
-                if(currentPlaybackRate < 0.5) currentPlaybackRate = 0.5;
-                cycleSpeedInternal();
-                break;
-            case 'KeyR':
-                const activeLineR = document.querySelector('.line.active');
-                if(activeLineR) {
-                    const btn = activeLineR.querySelector('.saveBtn');
-                    if(btn) saveLineToVocab(btn);
-                }
-                break;
-            case 'KeyL':
-                toggleLoop();
-                break;
+            case 'ArrowLeft': navigateWords(-1); break;
+            case 'ArrowRight': navigateWords(1); break;
+            case 'ArrowUp': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate + 0.1).toFixed(1)); if(currentPlaybackRate > 2.0) currentPlaybackRate = 2.0; cycleSpeedInternal(); break;
+            case 'ArrowDown': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1)); if(currentPlaybackRate < 0.5) currentPlaybackRate = 0.5; cycleSpeedInternal(); break;
+            case 'KeyR': const activeLineR = document.querySelector('.line.active'); if(activeLineR) activeLineR.querySelector('.saveBtn').click(); break;
+            case 'KeyL': toggleLoop(); break;
         }
     });
 
-    function cycleSpeedInternal() {
-        localStorage.setItem(PREF_SPEED, currentPlaybackRate);
-        if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate);
-        document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x';
-    }
+    function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
     function saveLineToVocab(btn) {
         const line = btn.closest('.line'); const vocabKey = 'mdc_vocab_list'; let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
@@ -640,7 +622,6 @@
             const engText = line.querySelector('.english').innerText.trim(); const espText = line.querySelector('.spanish').innerText.trim();
             itemsToAdd.push({ eng: engText, esp: espText, id: Date.now(), isFolder: false, isHighlighted: false });
         }
-        
         const targetFolderName = VIDEO_TITLE || "Saved from Studio"; 
         let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
         if (targetFolder) { itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder);
