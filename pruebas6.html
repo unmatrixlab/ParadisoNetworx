@@ -15,12 +15,12 @@
             --text-muted: #6b7280;
             --header-height: 60px;
             
-            /* Colores de Tiempo (Grouping by Time) */
+            /* Colores de Tiempo */
             --c-past: #6366f1;
             --c-present: #10b981;
             --c-future: #ec4899;
 
-            /* Colores de Tipo (Grouping by Type) */
+            /* Colores de Tipo */
             --c-simple: #3b82f6;      
             --c-cont: #10b981;        
             --c-perf: #f59e0b;        
@@ -30,7 +30,7 @@
             --c-correct: #10b981;
             --c-wrong: #ef4444;
             --c-aux: #059669; 
-            --c-sub: #9333ea; /* Color Nuevo para SUBJECT (Violeta) */
+            --c-sub: #9333ea; /* Color Subject */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,7 +46,7 @@
             padding-bottom: 50px;
         }
 
-        /* ====== HEADER (Oculto como pediste anteriormente) ====== */
+        /* ====== HEADER ====== */
         #mdc-header { display: none !important; }
 
         /* ====== UI ELEMENTS ====== */
@@ -149,6 +149,14 @@
         .tense-header { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; }
         .swap-hint { font-size: 0.7rem; color: #9ca3af; font-weight: 500; opacity: 0.7; }
 
+        /* SPOILER STYLE (RESTAURADO) */
+        .conjugation-spoiler {
+            filter: blur(5px); opacity: 0.6; transition: 0.3s ease; user-select: none;
+            margin-bottom: 15px; cursor: help; text-align: center;
+        }
+        .conjugation-spoiler:hover, .conjugation-spoiler:active { filter: blur(0); opacity: 1; }
+        .conjugation { font-size: 1rem; font-weight: 700; color: var(--primary); font-family: 'Playfair Display', serif; }
+
         /* STRUCTURE SWAP LOGIC */
         .sentences-container, .structures-container {
             display: flex; flex-direction: column; gap: 8px; transition: opacity 0.2s ease;
@@ -186,7 +194,7 @@
         /* Colores estructura */
         .struct-verb { color: var(--primary); font-weight: 800; }
         .struct-aux { color: var(--c-aux); font-weight: 800; }
-        .struct-sub { color: var(--c-sub); font-weight: 700; } /* Nuevo color subject */
+        .struct-sub { color: var(--c-sub); font-weight: 700; }
 
         /* EXERCISE DROPDOWNS */
         .ex-select {
@@ -301,8 +309,8 @@
 
   <script>
         // === 0. CONFIGURATION & STATE ===
-        let appMode = 'reading'; // 'reading', 'verbs', 'aux', 'combo'
-        let groupingMode = 'time'; // 'time', 'type'
+        let appMode = 'reading'; 
+        let groupingMode = 'time'; 
 
         function openConfig() { document.getElementById('configModal').style.display = "flex"; }
         function closeConfig(e) { if (e.target.id === 'configModal') closeModal('configModal'); }
@@ -478,33 +486,25 @@
 
         // --- FORMATTER FOR STRUCTURE COLORS ---
         function formatStructure(str) {
-            // Subject -> Purple, Verbs -> Blue, Aux -> Green
             let html = str;
-            
             // 1. Subject
             html = html.replace(/(Subject|Sub)/g, '<span class="struct-sub">$1</span>');
-            
             // 2. Verbs
             html = html.replace(/(Base Verb|V-ing|V3|V2)/g, '<span class="struct-verb">$1</span>');
-            
             // 3. Auxiliaries
             const auxList = ["am/is/are", "don't/doesn't", "Do/Does", "have/has", "haven't/hasn't", "Have/Has", "was/were", "wasn't/weren't", "Was/Were", "had", "hadn't", "Had", "will", "won't", "Will", "been", "not", "didn't", "Did", "be"];
-            
             auxList.forEach(aux => {
                 const safeAux = aux.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); 
                 const regex = new RegExp(`(^|\\s|\\+)(${safeAux})(\\s|\\+|$)`, 'g'); 
                 html = html.replace(regex, '$1<span class="struct-aux">$2</span>$3');
             });
-
             return html;
         }
 
         // HTML GENERATOR FOR CARDS
         function createCard(title, data, type) {
-            // Find theory struct for this card
             let structData = { aff: "Subject + Verb", neg: "Subject + Not + Verb", q: "Aux + Subject + Verb?" };
             
-            // Look across all theory categories to find match by title
             for (const cat in theoryDB) {
                 const found = theoryDB[cat].find(t => t.title === title);
                 if(found) {
@@ -560,6 +560,10 @@
                     <div class="tense-header">
                         <span>${title}</span>
                         <span class="swap-hint">Click card to see structure</span>
+                    </div>
+
+                    <div class="conjugation-spoiler" title="Hover to see structure" onclick="event.stopPropagation()">
+                        <div class="conjugation">${structData.aff}</div>
                     </div>
                     
                     <div class="sentences-container">
