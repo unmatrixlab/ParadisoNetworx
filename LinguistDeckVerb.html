@@ -210,6 +210,27 @@
          /* ====== OCULTA HEADER ====== */
         #mdc-header { display: none !important; }
         body { padding-top: 0  !important; }
+
+
+ /* ====== ORDENA VERBOS ====== */
+        .sort-controls {
+    margin-top: 10px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #a5b4fc;
+}
+.sort-controls select {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+}
+.sort-controls select option {
+    background: #1e1b4b; /* Color oscuro del fondo para las opciones */
+    color: white;
+}
     </style>
 </head>
 <body>
@@ -233,6 +254,14 @@
 
     <div id="blackboard" class="blackboard">
         <button class="btn-settings" onclick="openConfig()" title="Configure Exercises">⚙️</button>
+        <div class="sort-controls">
+    <label>Sort by:</label>
+    <select id="sortMode" onchange="teachVerb()" class="ex-select">
+        <option value="time">⏳ Time (Pres/Past/Fut)</option>
+        <option value="aspect">🧩 Aspect (Simple/Cont/Perf)</option>
+        <option value="level">📈 Difficulty (Easy to Hard)</option>
+    </select>
+</div>
         <div class="verb-title" id="displayVerb">Verb</div>
         <div id="verbTypeBadge" class="verb-type">Regular</div>
         <p class="teacher-note" id="teacherNote">...</p>
@@ -769,54 +798,101 @@
             document.body.style.overflow = "auto";
         }
 
-        // === RENDER LOGIC ===
-        function teachVerb() {
-            const val = document.getElementById('verbInput').value;
-            if(!val) return;
+      // === REEMPLAZA TU FUNCIÓN teachVerb ACTUAL CON ESTA ===
 
-            localStorage.setItem('mdc_last_verb', val);
+function teachVerb() {
+    const val = document.getElementById('verbInput').value;
+    if(!val) return;
 
-            const d = getVerbData(val);
-            const grid = document.getElementById('lessonGrid');
-            const board = document.getElementById('blackboard');
-            
-            document.getElementById('displayVerb').innerText = d.v1;
-            document.getElementById('teacherNote').innerHTML = d.note;
-            
-            const badge = document.getElementById('verbTypeBadge');
-            if(d.type === 'irr') { badge.innerText = "Irregular Verb"; badge.className = "verb-type type-irr"; } 
-            else { badge.innerText = "Regular Verb"; badge.className = "verb-type type-reg"; }
-            board.style.display = "flex";
+    localStorage.setItem('mdc_last_verb', val);
+    const sortMode = document.getElementById('sortMode').value || 'time'; // Nuevo: Obtener modo
 
-            grid.classList.remove('visible');
-            setTimeout(() => {
-                grid.innerHTML = "";
-                
-                // Present
-                grid.innerHTML += `<div class="section-break" onclick="showTheory('present')" style="color:var(--c-present); border-color:var(--c-present)">The Present <span>ℹ️ Theory</span></div>`;
-                grid.innerHTML += createCard("Present Simple", `${d.v1} / ${d.s}`, createThreeSentencesData('Present Simple', d), "present");
-                grid.innerHTML += createCard("Present Continuous", `am/is/are ${d.ing}`, createThreeSentencesData('Present Continuous', d), "present");
-                grid.innerHTML += createCard("Present Perfect", `have/has ${d.v3}`, createThreeSentencesData('Present Perfect', d), "present");
-                grid.innerHTML += createCard("Present Perf. Cont.", `have/has been ${d.ing}`, createThreeSentencesData('Present Perf. Cont.', d), "present");
+    const d = getVerbData(val);
+    const grid = document.getElementById('lessonGrid');
+    const board = document.getElementById('blackboard');
+    
+    // UI del Pizarrón
+    document.getElementById('displayVerb').innerText = d.v1;
+    document.getElementById('teacherNote').innerHTML = d.note;
+    
+    const badge = document.getElementById('verbTypeBadge');
+    if(d.type === 'irr') { badge.innerText = "Irregular Verb"; badge.className = "verb-type type-irr"; } 
+    else { badge.innerText = "Regular Verb"; badge.className = "verb-type type-reg"; }
+    board.style.display = "flex";
 
-                // Past
-                grid.innerHTML += `<div class="section-break" onclick="showTheory('past')" style="color:var(--c-past); border-color:var(--c-past)">The Past <span>ℹ️ Theory</span></div>`;
-                grid.innerHTML += createCard("Past Simple", d.v2, createThreeSentencesData('Past Simple', d), "past");
-                grid.innerHTML += createCard("Past Continuous", `was/were ${d.ing}`, createThreeSentencesData('Past Continuous', d), "past");
-                grid.innerHTML += createCard("Past Perfect", `had ${d.v3}`, createThreeSentencesData('Past Perfect', d), "past");
-                grid.innerHTML += createCard("Past Perf. Cont.", `had been ${d.ing}`, createThreeSentencesData('Past Perf. Cont.', d), "past");
+    // Definición de las 12 tarjetas con metadatos para poder ordenar
+    // Estructura: title, formula, dataCall, timeGroup, aspectGroup, levelIndex
+    const allTenses = [
+        // Presentes
+        { title: "Present Simple", form: `${d.v1} / ${d.s}`, data: createThreeSentencesData('Present Simple', d), time: 'present', aspect: 'simple', lvl: 1 },
+        { title: "Present Continuous", form: `am/is/are ${d.ing}`, data: createThreeSentencesData('Present Continuous', d), time: 'present', aspect: 'cont', lvl: 2 },
+        { title: "Present Perfect", form: `have/has ${d.v3}`, data: createThreeSentencesData('Present Perfect', d), time: 'present', aspect: 'perf', lvl: 7 },
+        { title: "Present Perf. Cont.", form: `have/has been ${d.ing}`, data: createThreeSentencesData('Present Perf. Cont.', d), time: 'present', aspect: 'perf-cont', lvl: 10 },
 
-                // Future
-                grid.innerHTML += `<div class="section-break" onclick="showTheory('future')" style="color:var(--c-future); border-color:var(--c-future)">The Future <span>ℹ️ Theory</span></div>`;
-                grid.innerHTML += createCard("Future Simple", `will ${d.v1}`, createThreeSentencesData('Future Simple', d), "future");
-                grid.innerHTML += createCard("Future Continuous", `will be ${d.ing}`, createThreeSentencesData('Future Continuous', d), "future");
-                grid.innerHTML += createCard("Future Perfect", `will have ${d.v3}`, createThreeSentencesData('Future Perfect', d), "future");
-                grid.innerHTML += createCard("Future Perf. Cont.", `will have been ${d.ing}`, createThreeSentencesData('Future Perf. Cont.', d), "future");
+        // Pasados
+        { title: "Past Simple", form: d.v2, data: createThreeSentencesData('Past Simple', d), time: 'past', aspect: 'simple', lvl: 3 },
+        { title: "Past Continuous", form: `was/were ${d.ing}`, data: createThreeSentencesData('Past Continuous', d), time: 'past', aspect: 'cont', lvl: 4 },
+        { title: "Past Perfect", form: `had ${d.v3}`, data: createThreeSentencesData('Past Perfect', d), time: 'past', aspect: 'perf', lvl: 8 },
+        { title: "Past Perf. Cont.", form: `had been ${d.ing}`, data: createThreeSentencesData('Past Perf. Cont.', d), time: 'past', aspect: 'perf-cont', lvl: 11 },
 
-                grid.classList.add('visible');
-            }, 100);
+        // Futuros
+        { title: "Future Simple", form: `will ${d.v1}`, data: createThreeSentencesData('Future Simple', d), time: 'future', aspect: 'simple', lvl: 5 },
+        { title: "Future Continuous", form: `will be ${d.ing}`, data: createThreeSentencesData('Future Continuous', d), time: 'future', aspect: 'cont', lvl: 6 },
+        { title: "Future Perfect", form: `will have ${d.v3}`, data: createThreeSentencesData('Future Perfect', d), time: 'future', aspect: 'perf', lvl: 9 },
+        { title: "Future Perf. Cont.", form: `will have been ${d.ing}`, data: createThreeSentencesData('Future Perf. Cont.', d), time: 'future', aspect: 'perf-cont', lvl: 12 },
+    ];
+
+    grid.classList.remove('visible');
+    
+    setTimeout(() => {
+        grid.innerHTML = "";
+        
+        // LOGICA DE ORDENAMIENTO
+        if (sortMode === 'time') {
+            // MODO ORIGINAL (Por tiempos)
+            renderSection(grid, "The Present", allTenses.filter(t => t.time === 'present'), "present", d.type);
+            renderSection(grid, "The Past", allTenses.filter(t => t.time === 'past'), "past", d.type);
+            renderSection(grid, "The Future", allTenses.filter(t => t.time === 'future'), "future", d.type);
+
+        } else if (sortMode === 'aspect') {
+            // MODO ASPECTO (Gramática comparativa)
+            renderSection(grid, "The Simples (Facts)", allTenses.filter(t => t.aspect === 'simple'), "present", d.type);
+            renderSection(grid, "The Continuous (Actions in Progress)", allTenses.filter(t => t.aspect === 'cont'), "present", d.type);
+            renderSection(grid, "The Perfects (Completed)", allTenses.filter(t => t.aspect === 'perf'), "past", d.type);
+            renderSection(grid, "Perfect Continuous (Duration)", allTenses.filter(t => t.aspect === 'perf-cont'), "future", d.type);
+
+        } else if (sortMode === 'level') {
+            // MODO DIFICULTAD (Sin secciones, lista corrida ordenada por nivel)
+            grid.innerHTML += `<div class="section-break" style="color:var(--primary); border-color:var(--primary)">Progression Path (Level 1 - 12)</div>`;
+            const sorted = allTenses.sort((a,b) => a.lvl - b.lvl);
+            sorted.forEach(t => {
+                // Usamos colores según su tiempo original
+                grid.innerHTML += createCard(t.title, t.form, t.data, t.time); 
+            });
         }
 
+        grid.classList.add('visible');
+    }, 100);
+}
+
+// Helper para dibujar secciones (evita repetir código)
+function renderSection(gridElement, title, items, colorClass, verbType) {
+    // Mapeo de colores para los títulos
+    let colorStyle = "";
+    if(colorClass === 'present') colorStyle = "color:var(--c-present); border-color:var(--c-present)";
+    if(colorClass === 'past') colorStyle = "color:var(--c-past); border-color:var(--c-past)";
+    if(colorClass === 'future') colorStyle = "color:var(--c-future); border-color:var(--c-future)";
+    
+    // Link a teoría dinámico (solo si es modo Time, si no, lo ocultamos o dejamos genérico)
+    let theoryClick = `onclick="showTheory('${colorClass}')"`;
+    if(title.includes('Simple') || title.includes('Continuous')) theoryClick = ""; // Desactiva link teoría en modo Aspecto si quieres simplificar
+
+    gridElement.innerHTML += `<div class="section-break" ${theoryClick} style="${colorStyle}">${title}</div>`;
+    
+    items.forEach(t => {
+        gridElement.innerHTML += createCard(t.title, t.form, t.data, t.time);
+    });
+}
         window.addEventListener('DOMContentLoaded', () => {
             const lastVerb = localStorage.getItem('mdc_last_verb');
             if(lastVerb) {
