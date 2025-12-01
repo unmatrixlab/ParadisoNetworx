@@ -908,7 +908,7 @@
     </div>
 
 <script>
-    /* ====== CONFIG & STATE ====== */
+/* ====== CONFIG & STATE ====== */
     const STORAGE_KEY = 'mdc_saved_favorites';
     const AI_MEM_KEY = 'mdc_ai_exercises';
     const FAV_KEY = 'mdc_tab_favs'; 
@@ -916,6 +916,10 @@
     // Data Guardian Keys
     const MIRROR_RES_KEY = 'mdc_mirror_res_bak';
     const MIRROR_AI_KEY = 'mdc_mirror_ai_bak';
+
+    // 👇👇👇 CONFIGURACIÓN GLOBAL: URL FIJA PARA LA PESTAÑA 5 👇👇👇
+    const FIXED_TAB_5_URL = "https://paradisonetworx.com/LinguistDeckVocabulary.html";
+    const DEFAULT_TAB_5_URL = "https://paradisonetworx.com/LinguistDeckVocabulary.html"; // Respaldo
 
     let currentTargetLang = 'en'; 
     let currentLevel = 'B1-B2 (Intermediate)';
@@ -967,7 +971,6 @@
         if(isSyncLocked) {
             btn.innerText = "🔒";
             btn.classList.add('locked');
-            // Al bloquear, sincronizamos inmediatamente el control a la pestaña que estamos viendo
             setControlTarget(activeTabIndexForPopup, true); 
         } else {
             btn.innerText = "🔓";
@@ -976,7 +979,6 @@
     }
 
     /* ====== TAB SETTINGS POPUP LOGIC ====== */
-    
     window.editTabUrl = function(index, event) {
         event.stopPropagation();
         if(currentEditIndex === -1) {
@@ -991,7 +993,6 @@
         const r = resources[currentEditIndex];
         
         let key = index === 0 ? 'url' : `url${index + 1}`;
-        // Para pestañas 2-5, si está vacío intentamos no mostrar 'undefined'
         const currentUrl = r[key] || '';
         
         document.getElementById('tab-url-input').value = currentUrl;
@@ -1001,7 +1002,6 @@
 
     function closeTabPopup() { document.getElementById('tab-settings-modal').classList.remove('active'); }
 
-    /* NUEVAS FUNCIONES PARA EL POPUP (LIMPIAR / COPIAR) */
     function clearTabUrl() {
         document.getElementById('tab-url-input').value = '';
         document.getElementById('tab-url-input').focus();
@@ -1011,7 +1011,6 @@
         const val = document.getElementById('tab-url-input').value;
         if(val) {
             navigator.clipboard.writeText(val);
-            // Efecto visual rápido en el botón
             const btn = document.querySelector('.tab-btn-extra[onclick="copyTabUrlFromInput()"]');
             const original = btn.innerText;
             btn.innerText = "✓";
@@ -1030,12 +1029,9 @@
 
     function applyTabUrlFromInput() {
         const val = document.getElementById('tab-url-input').value.trim();
-        // Permitimos guardar vacío para limpiar la pestaña
-        
         const favs = getTabFavorites(); 
         const exists = favs.some(f => f.url === val);
         
-        // Auto-save a favoritos si es una URL compleja y no existe
         if (val && !exists && val !== 'internal:editor' && val.includes('.')) { 
             if(confirm("Add this site to your Favorites list?")) { 
                 const defaultName = getDomain(val).charAt(0).toUpperCase() + getDomain(val).slice(1);
@@ -1056,7 +1052,6 @@
         let key = idx === 0 ? 'url' : `url${idx + 1}`; 
         r[key] = newUrl;
         
-        // Detect type change only for main tab (0) to update card icon
         if (idx === 0) { 
             const ytId = getYouTubeID(newUrl); 
             if (ytId) r.type = 'video'; 
@@ -1070,9 +1065,7 @@
         setTimeout(() => switchWebTab(idx), 300);
     }
 
-/* ====== FAVORITES LOGIC (AUTOMATIZADA) ====== */
-    
-    // 1. Definimos la lista fija aquí afuera. Agrega o quita lo que quieras aquí.
+    /* ====== FAVORITES LOGIC ====== */
     const DEFAULT_FAVS = [
         { title: "🔤 Alphabet Deck", url: "https://paradisonetworx.com/LinguistDeckAlphabet.html", icon: "https://www.google.com/s2/favicons?domain=paradisonetworx.com" },
         { title: "🆔 Digraphs Deck", url: "https://paradisonetworx.com/LinguistDeckDigraphs.html", icon: "https://www.google.com/s2/favicons?domain=paradisonetworx.com" },
@@ -1083,23 +1076,17 @@
 
     function getTabFavorites() {
         const saved = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
-        // Fusionamos la lista fija de arriba con los guardados
         return [...DEFAULT_FAVS, ...saved];
     }
 
     function renderTabFavorites() {
         const list = document.getElementById('tab-fav-list'); list.innerHTML = '';
         const favs = getTabFavorites();
-        
-        // CÁLCULO AUTOMÁTICO: El código cuenta por ti cuántos defaults hay
         const FIXED_COUNT = DEFAULT_FAVS.length; 
 
         favs.forEach((fav, idx) => {
-            // Usamos el conteo automático para decidir si proteger o borrar
             const isDefault = idx < FIXED_COUNT; 
-            
             const deleteBtn = isDefault ? '' : `<div class="btn-fav-mini btn-fav-del" onclick="deleteTabFavorite(${idx - FIXED_COUNT}, event)" title="Delete">✕</div>`;
-            
             const actionBtns = `
                 <div class="fav-actions">
                     <div class="btn-fav-mini" onclick="copyTabFavorite('${fav.url}', event)" title="Copy">🔗</div>
@@ -1257,7 +1244,7 @@
     function stopTracking() { if (trackingInterval) { clearInterval(trackingInterval); trackingInterval = null; } }
 
     /* ====== BACKUP & RESTORE ====== */
-function downloadBackup() { 
+    function downloadBackup() { 
         try {
             const rawResources = localStorage.getItem(STORAGE_KEY);
             const rawMemory = localStorage.getItem(AI_MEM_KEY);
@@ -1270,138 +1257,47 @@ function downloadBackup() {
             alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}`);
 
             const fullData = { version: 3, resources: resources, memory: memory, favs: favs };
-            
-            // Codificación robusta UTF-8 -> Base64
             const jsonString = JSON.stringify(fullData);
             const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
 
-            const htmlContent = `<!DOCTYPE html>
-            <html>
-            <head><title>MDC Full Backup</title><meta charset="UTF-8"></head>
-            <body>
-                <h1>MDC Polyglot Full Backup</h1>
-                <p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p>
-                <p><strong>Upload this file using the Import button.</strong></p>
-                <script>
-                    // DATA_START
-                    const backupData = "${encodedData}";
-                    // DATA_END
-                <\/script>
-            </body>
-            </html>`;
+            const htmlContent = `<!DOCTYPE html><html><head><title>MDC Full Backup</title><meta charset="UTF-8"></head><body><h1>MDC Polyglot Full Backup</h1><p>Data Summary: ${resources.length} Resources, ${memory.length} AI Exercises.</p><p><strong>Upload this file using the Import button.</strong></p><script>const backupData = "${encodedData}";<\/script></body></html>`;
 
             const b = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(b);
             const dateStr = new Date().toISOString().split('T')[0];
             a.download = `MDC_FullBackup_${dateStr}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } catch(err) {
-            alert("Error creating backup: " + err.message);
-        }
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } catch(err) { alert("Error creating backup: " + err.message); }
     }
 
-function importBackup(inp) { 
-        const file = inp.files[0]; 
-        if (!file) return;
-
+    function importBackup(inp) { 
+        const file = inp.files[0]; if (!file) return;
         const r = new FileReader(); 
         r.onload = e => { 
             try { 
-                const content = e.target.result;
-                let parsedData = null;
-
-                // 1. Intento: Buscar patrón HTML (Base64)
+                const content = e.target.result; let parsedData = null;
                 let match = content.match(/const backupData\s*=\s*"(.*?)";/);
                 if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
+                if (match && match[1]) { try { parsedData = JSON.parse(decodeURIComponent(escape(atob(match[1])))); } catch (e) { console.warn("Base64 fail", e); } } 
+                if (!parsedData) { try { parsedData = JSON.parse(content); } catch (e) { throw new Error("Formato de archivo no reconocido."); } }
+                if (!parsedData) throw new Error("Archivo corrupto o vacío.");
 
-                if (match && match[1]) {
-                    try {
-                        const jsonString = decodeURIComponent(escape(atob(match[1])));
-                        parsedData = JSON.parse(jsonString);
-                    } catch (decodeErr) {
-                        console.warn("Base64 decode fail, trying raw:", decodeErr);
-                    }
-                } 
-                
-                // 2. Intento: Si falló lo anterior o no es HTML, probar JSON directo
-                if (!parsedData) {
-                    try {
-                        parsedData = JSON.parse(content);
-                    } catch (jsonErr) {
-                        throw new Error("Formato de archivo no reconocido (No es HTML válido ni JSON).");
-                    }
-                }
+                let msg = "✅ RESTAURACIÓN COMPLETADA:\n"; let restoredCount = 0;
+                if (parsedData.resources || parsedData.memory || parsedData.favs) {
+                    if (parsedData.resources) { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources)); msg += `📚 Recursos: ${parsedData.resources.length}\n`; restoredCount++; }
+                    if (parsedData.memory) { localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory)); msg += `🧠 Ejercicios: ${parsedData.memory.length}\n`; restoredCount++; }
+                    if (parsedData.favs) { localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs)); msg += `⭐ Favoritos: ${parsedData.favs.length}\n`; restoredCount++; }
+                    if(restoredCount > 0) alert(msg); else throw new Error("Sin datos útiles.");
+                } else if (Array.isArray(parsedData)) {
+                    if(confirm("Formato antiguo (Solo Recursos). ¿Mantener memoria AI?")) { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); } 
+                    else { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); localStorage.setItem(AI_MEM_KEY, '[]'); }
+                    alert("✅ Recursos restaurados.");
+                } else { throw new Error("Estructura desconocida."); }
 
-                if (!parsedData) throw new Error("El archivo está vacío o corrupto.");
-
-                // --- LÓGICA PERMISIVA (NUEVO) ---
-                // Verifica si existe AL MENOS UNA de las claves importantes
-                const hasResources = Array.isArray(parsedData.resources);
-                const hasMemory = Array.isArray(parsedData.memory);
-                const hasFavs = Array.isArray(parsedData.favs);
-                const isLegacyArray = Array.isArray(parsedData); // Respaldo muy antiguo (solo array)
-
-                let msg = "✅ RESTAURACIÓN COMPLETADA:\n";
-                let restoredCount = 0;
-
-                if (hasResources || hasMemory || hasFavs) {
-                    // Es un formato estructurado (V2/V3), importamos lo que encontremos
-                    if (hasResources) {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
-                        msg += `📚 Recursos: ${parsedData.resources.length}\n`;
-                        restoredCount++;
-                    }
-                    
-                    if (hasMemory) {
-                        localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
-                        msg += `🧠 Ejercicios AI: ${parsedData.memory.length}\n`;
-                        restoredCount++;
-                    }
-
-                    if (hasFavs) {
-                        localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
-                        msg += `⭐ Favoritos: ${parsedData.favs.length}\n`;
-                        restoredCount++;
-                    }
-
-                    if (restoredCount === 0) throw new Error("Estructura JSON válida pero sin datos reconocibles.");
-                    alert(msg);
-
-                } else if (isLegacyArray) {
-                    // Es un respaldo antiguo que solo contiene la lista de recursos
-                    if(confirm("⚠️ Detectado formato antiguo (Solo Recursos).\n¿Deseas mantener tus datos actuales de IA/Memoria? (Cancelar = Borrar IA)")) { 
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
-                        // No tocamos AI_MEM_KEY
-                    } else { 
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
-                        localStorage.setItem(AI_MEM_KEY, '[]'); 
-                    }
-                    alert("✅ Recursos antiguos restaurados.");
-                } else {
-                    // Depuración: Mostrar qué claves tiene el objeto para entender el error
-                    console.log("Claves encontradas:", Object.keys(parsedData));
-                    throw new Error("Estructura de datos desconocida. Revisa la consola (F12) para más detalles.");
-                }
-
-                // Recargar interfaz
-                loadResources(); 
-                if(typeof renderAiList === 'function') renderAiList(); 
-                if(typeof renderTabFavorites === 'function') renderTabFavorites();
-                
-                // Actualizar el espejo de seguridad inmediatamente para evitar conflictos
-                if(typeof updateSecurityMirror === 'function') updateSecurityMirror();
-
-            } catch (err) { 
-                alert("❌ Error importing: " + err.message); 
-                console.error(err);
-            } finally {
-                inp.value = ''; 
-            }
-        }; 
-        r.readAsText(file); 
+                loadResources(); if(typeof renderAiList === 'function') renderAiList(); if(typeof updateSecurityMirror === 'function') updateSecurityMirror();
+            } catch (err) { alert("❌ Error: " + err.message); } finally { inp.value = ''; }
+        }; r.readAsText(file); 
     }
 
     /* ====== CONTROL & TAB SWITCHING ====== */
@@ -1410,10 +1306,7 @@ function importBackup(inp) {
         document.querySelectorAll('.btn-target').forEach((b, i) => { 
             if(i === idx) b.classList.add('active'); else b.classList.remove('active'); 
         });
-        
-        // Sync Lock Logic: Sync Tab to Control
         if (isSyncLocked && !fromSync) { switchWebTab(idx, true); }
-
         const p = players[controlTarget];
         const playBtn = document.getElementById('btn-main-play');
         if(p && typeof p.getPlayerState === 'function') {
@@ -1422,42 +1315,30 @@ function importBackup(inp) {
         }
     }
 
-// 👇 TU URL POR DEFECTO (Se carga si no hay nada más guardado)
-    const DEFAULT_TAB_5_URL = "https://paradisonetworx.com/LinguistDeckVocabulary.html";
-
     function openFreeEditor() { 
-        currentEditIndex = -1; 
-        currentResourceId = null; 
-        editorArea.innerHTML = ""; 
-        modal.classList.add('active'); 
-        document.getElementById('editor-popup').classList.remove('free-mode'); 
-        document.getElementById('editor-popup').style.opacity = 1; 
-        players = [null, null, null, null, null]; 
-
+        currentEditIndex = -1; currentResourceId = null; editorArea.innerHTML = ""; 
+        modal.classList.add('active'); document.getElementById('editor-popup').classList.remove('free-mode'); document.getElementById('editor-popup').style.opacity = 1; players = [null, null, null, null, null]; 
         const container = document.getElementById('desktop-media-wrapper'); 
-
         const getBtn = (idx) => { 
-            // Si es la pestaña 5, le ponemos el título por defecto visualmente
-            let titleAttr = (idx === 4) ? `title="${DEFAULT_TAB_5_URL}"` : '';
+            let titleAttr = (idx === 4) ? `title="${FIXED_TAB_5_URL}"` : '';
             return `<button class="web-tab-btn channel-${idx+1} ${idx===0?'active':''}" onclick="switchWebTab(${idx})" ${titleAttr}>Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`; 
         }; 
-
         const getContent = (idx) => { 
-            // Si es la pestaña 5, cargamos el Default visualmente
-            if (idx === 4) {
-                 return `<div class="web-frame-container" id="tab-content-4">
-                            <iframe src="${DEFAULT_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>
-                        </div>`;
-            }
+            if (idx === 4) return `<div class="web-frame-container" id="tab-content-4"><iframe src="${FIXED_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe></div>`;
             return `<div class="web-frame-container ${idx===0?'active':''}" id="tab-content-${idx}"><div class="web-error-bg"><span>Empty Tab<br><small>Click ⚙️ to add resource</small></span></div></div>`; 
         }; 
-
         let tabsHtml = `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0)}${getBtn(1)}${getBtn(2)}${getBtn(3)}${getBtn(4)}</div><div class="web-content-area">${getContent(0)}${getContent(1)}${getContent(2)}${getContent(3)}${getContent(4)}</div></div>`; 
-
-        container.innerHTML = tabsHtml; 
-        if(gridPlayer) gridPlayer.pauseVideo(); 
-        updateToolbarState(); 
+        container.innerHTML = tabsHtml; if(gridPlayer) gridPlayer.pauseVideo(); updateToolbarState(); 
     }
+
+    window.switchWebTab = function(idx, fromSync = false) { 
+        activeTabIndexForPopup = idx;
+        const tabs = document.querySelectorAll('.web-tab-nav .web-tab-btn');
+        tabs.forEach((btn, i) => { if (i === idx) btn.classList.add('active'); else btn.classList.remove('active'); });
+        const frames = document.querySelectorAll('.web-content-area .web-frame-container');
+        frames.forEach((frame, i) => { if (i === idx) { frame.classList.add('active'); frame.style.display = 'block'; } else { frame.classList.remove('active'); frame.style.display = 'none'; } });
+        if (isSyncLocked && !fromSync) { setControlTarget(idx, true); }
+    };
 
     function openEditorById(id) {
         const resources = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -1470,12 +1351,7 @@ function importBackup(inp) {
         const isDesktop = window.matchMedia("(min-width: 900px)").matches; let startTime = resData.lastTime || 0;
         players = [null, null, null, null, null]; setControlTarget(0, true); 
 
-        const ytId1 = getYouTubeID(resData.url);
-        const ytId2 = getYouTubeID(resData.url2);
-        const ytId3 = getYouTubeID(resData.url3);
-        const ytId4 = getYouTubeID(resData.url4); 
-        
-        // 👉 LÓGICA INTELIGENTE: ¿Existe url5 guardada? Úsala. ¿No? Usa la Default.
+        const ytId1 = getYouTubeID(resData.url); const ytId2 = getYouTubeID(resData.url2); const ytId3 = getYouTubeID(resData.url3); const ytId4 = getYouTubeID(resData.url4); 
         const activeUrl5 = (resData.url5 && resData.url5.trim() !== "") ? resData.url5 : DEFAULT_TAB_5_URL;
         const ytId5 = getYouTubeID(activeUrl5); 
 
@@ -1484,25 +1360,18 @@ function importBackup(inp) {
                 const activeClass = idx === 0 ? 'active' : '';
                 return `<button class="web-tab-btn channel-${idx+1} ${activeClass}" onclick="switchWebTab(${idx})" title="${link || ''}">Tab ${idx + 1}<span class="tab-gear" onclick="window.editTabUrl(${idx}, event)">⚙️</span></button>`;
             };
-            // Pasamos activeUrl5 al botón 5
             return `<div class="media-iframe-wrapper"><div class="web-tab-nav">${getBtn(0, resData.url)}${resData.url2 ? getBtn(1, resData.url2) : getBtn(1, '')}${resData.url3 ? getBtn(2, resData.url3) : getBtn(2, '')}${resData.url4 ? getBtn(3, resData.url4) : getBtn(3, '')}${getBtn(4, activeUrl5)}</div><div class="web-content-area"><div class="web-frame-container active" id="tab-content-0">${content1}</div><div class="web-frame-container" id="tab-content-1">${content2 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-2">${content3 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-3">${content4 || '<div class="web-error-bg"><span>Empty Tab</span></div>'}</div><div class="web-frame-container" id="tab-content-4">${content5}</div></div></div>`;
         };
 
         const getTabContent = (link, ytId, index) => {
+            if (index === 4 && link === DEFAULT_TAB_5_URL) return `<iframe src="${DEFAULT_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
             if (link === 'internal:editor') { return `<div class="embedded-editor-area" contenteditable="true" oninput="document.getElementById('editor-text').innerHTML = this.innerHTML; window.saveNote();">${resData.note || ''}</div><div style="position:absolute; bottom:5px; right:5px; font-size:10px; color:#aaa; background:#fff; padding:2px;">Linked to Main Note</div>`; }
             if(ytId) return `<div id="player-tab-${index}" style="width:100%;height:100%"></div>`;
             if(link) return `<iframe src="${link}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
-            
-            // Si es la pestaña 5 y está vacía (no debería pasar por la lógica de arriba, pero por si acaso), forzamos default
-            if(index === 4) return `<iframe src="${DEFAULT_TAB_5_URL}" allowfullscreen style="width:100%;height:100%;border:none;position:relative;z-index:2"></iframe>`;
-            
-            return null;
+            return `<div class="web-error-bg"><span>Empty Tab</span></div>`;
         };
 
-        const htmlContent2 = getTabContent(resData.url2, ytId2, 2);
-        const htmlContent3 = getTabContent(resData.url3, ytId3, 3);
-        const htmlContent4 = getTabContent(resData.url4, ytId4, 4); 
-        // Generamos el contenido de la Tab 5 usando la URL inteligente
+        const htmlContent2 = getTabContent(resData.url2, ytId2, 2); const htmlContent3 = getTabContent(resData.url3, ytId3, 3); const htmlContent4 = getTabContent(resData.url4, ytId4, 4); 
         const htmlContent5 = getTabContent(activeUrl5, ytId5, 4); 
 
         const initSubPlayers = () => {
@@ -1601,7 +1470,6 @@ function importBackup(inp) {
     function deleteMemoryItem(id) { if(confirm("Delete?")) { let memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); memory = memory.filter(item => item.id !== id); localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory)); renderAiList(); } }
     function clearAIMemory() { if(confirm("Clear all?")) { localStorage.removeItem(AI_MEM_KEY); renderAiList(); } }
     
-    // MODIFICADO: Renderiza el último creado arriba y la lista completa abajo
     function renderAiList() { 
         const listContainer = document.getElementById('ai-memory-list'); 
         const previewContainer = document.getElementById('ai-latest-preview');
@@ -1619,8 +1487,6 @@ function importBackup(inp) {
             let flag = "🇬🇧"; if(item.lang === 'es') flag = "🇪🇸"; if(item.lang === 'pt') flag = "🇧🇷"; if(item.lang === 'it') flag = "🇮🇹"; 
             let newBadge = (index === 0 && !isPreview) ? '<span class="badge-new">NEW</span>' : ''; 
             let typeBadge = item.isHtml ? '<span class="badge-tpl">TEMPLATE</span>' : `• ${item.data.length} Qs`; 
-            
-            // Clase diferente si es el preview
             let boxClass = isPreview ? 'saved-item ai-preview-box' : 'saved-item';
             let titlePrefix = isPreview ? '🆕 LATEST CREATED: ' : '';
 
@@ -1639,52 +1505,30 @@ function importBackup(inp) {
             </div>`; 
         };
 
-        // Renderizar el último (preview)
-        if(memory.length > 0) {
-            previewContainer.innerHTML = createItemHtml(memory[0], 0, true);
-        }
-
-        // Renderizar la lista completa (Bank)
+        if(memory.length > 0) { previewContainer.innerHTML = createItemHtml(memory[0], 0, true); }
         let listHtml = '';
-        memory.forEach((item, index) => { 
-            listHtml += createItemHtml(item, index, false);
-        }); 
+        memory.forEach((item, index) => { listHtml += createItemHtml(item, index, false); }); 
         listContainer.innerHTML = listHtml; 
     }
     
-function copyProfessorPrompt() {
+    function copyProfessorPrompt() {
         const ctxSel = document.getElementById('ai-context-select').value;
         const graSel = document.getElementById('ai-grammar-select').value;
         const typSel = document.getElementById('ai-type-select').value;
-        
-        // 1. AQUÍ LEEMOS LOS GAPS
         const gapCount = document.getElementById('ai-gap-count').value;
-        
-        // 2. AQUÍ LEEMOS LAS OPCIONES (NUEVO)
-        const optionCount = document.getElementById('ai-option-count').value; // <--- NUEVO: Lee el valor del selector (2,3,4,5,6)
-
+        const optionCount = document.getElementById('ai-option-count').value; 
         const ctxCust = document.getElementById('ai-context-custom').value.trim();
         const graCust = document.getElementById('ai-grammar-custom').value.trim();
         const typCust = document.getElementById('ai-type-custom').value.trim();
         const extraData = document.getElementById('ai-extra-data').value.trim();
-        
         const quantity = document.getElementById('ai-sentence-count').value || 5;
 
         let requirements = [];
         let isGrammarFocus = false;
         let typeStr = typCust ? typCust : typSel;
 
-        if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`);
-        else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
-
-        if(graCust) {
-            requirements.push(`Grammar Focus: ${graCust}`);
-            isGrammarFocus = true;
-        } else if(graSel) {
-            requirements.push(`Grammar Focus: ${graSel}`);
-            isGrammarFocus = true;
-        }
-
+        if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`); else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
+        if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
         if(typeStr) requirements.push(`Exercise Format: ${typeStr}`);
 
         if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
@@ -1692,12 +1536,10 @@ function copyProfessorPrompt() {
         const finalTopic = requirements.join(", ");
         const target = LANG_NAMES[currentTargetLang];
         
-        // Instrucciones base
         let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**. Do NOT use English words inside the gaps.`;
         let strictInstruction = "QUALITY CONTROL: Sentences must be culturally authentic and idiomatic (not robotic). Distractors inside gaps {opt1|opt2...} must be GRAMMATICALLY PLAUSIBLE (same part of speech, same conjugation) but incorrect contextually. Make it challenging.";
         let gapInstruction = "";
 
-        // Lógica de tipos específicos
         if (typeStr && typeStr.includes("Find and Fix")) {
             strictInstruction += `TYPE: FIND AND FIX THE MISTAKE.\nVISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap.`;
         } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
@@ -1707,15 +1549,11 @@ function copyProfessorPrompt() {
             gapInstruction = "Provide options {True|False}.";
         }
 
-        // 3. AQUÍ APLICAMOS LA LÓGICA DE OPCIONES (NUEVO BLOQUE)
-        // Usamos la variable optionCount en lugar de texto fijo
-        const optInst = `Provide exactly ${optionCount} options`; // <--- NUEVO: Crea la instrucción dinámica
+        const optInst = `Provide exactly ${optionCount} options`; 
 
         if (!gapInstruction && gapCount === 'random') {
-             // Aquí insertamos optInst
              gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Mix of 1, 2, or 3 gaps per sentence.`; 
         } else if (!gapInstruction) {
-             // Aquí insertamos optInst
              gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`; 
         }
 
@@ -1723,8 +1561,7 @@ function copyProfessorPrompt() {
             strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule.`;
         }
         
-        // JSON de ejemplo formateado para claridad
-  const jsonExample = `
+        const jsonExample = `
     {
       "cloze_text": "Natural sentence in ${target} using idiomatic vocabulary with {correct|distractor1|distractor2} gaps.",
       "hint": "A subtle linguistic clue (e.g., 'Refers to future', 'Female noun', 'Subjunctive form'). DO NOT give the answer.",
@@ -1732,61 +1569,20 @@ function copyProfessorPrompt() {
       "full_sentence": "Full sentence without gaps."
     }`;
         
-        // CONSTRUCCIÓN DEL PROMPT CON SALTOS DE LÍNEA (\n)
-        const promptText = 
-`ACT AS: Senior ${target} Linguist.
-LEVEL: CEFR ${currentLevel}.
-TASK: Create a structured JSON exercise with exactly ${quantity} sentences.
-
-REQUIREMENTS: 
-${finalTopic}
-
-RULES:
-1. ${languageInstruction}
-2. GAP DENSITY: ${gapInstruction}
-3. ${strictInstruction}
-${extraData ? `4. EXTRA INSTRUCTIONS: ${extraData}` : ''}
-
-OUTPUT FORMAT: RAW JSON ONLY (No markdown, no text before/after).
-JSON STRUCTURE:
-{ 
-  "title": "Short descriptive title in ${target}", 
-  "lang_code": "${currentTargetLang}", 
-  "theory": "Comprehensive educational guide using HTML tags (<b>, <ul>, <li>, <br>). Explain rules, usage contexts, exceptions, and provide examples.",
-  "exercises": [ ${jsonExample} ] 
-}`.trim();
+        const promptText = `ACT AS: Senior ${target} Linguist.\nLEVEL: CEFR ${currentLevel}.\nTASK: Create a structured JSON exercise with exactly ${quantity} sentences.\n\nREQUIREMENTS: \n${finalTopic}\n\nRULES:\n1. ${languageInstruction}\n2. GAP DENSITY: ${gapInstruction}\n3. ${strictInstruction}\n${extraData ? `4. EXTRA INSTRUCTIONS: ${extraData}` : ''}\n\nOUTPUT FORMAT: RAW JSON ONLY (No markdown, no text before/after).\nJSON STRUCTURE:\n{\n  "title": "Short descriptive title in ${target}",\n  "lang_code": "${currentTargetLang}",\n  "theory": "Comprehensive educational guide using HTML tags (<b>, <ul>, <li>, <br>). Explain rules, usage contexts, exceptions, and provide examples.",\n  "exercises": [ ${jsonExample} ] \n}`.trim();
         
         navigator.clipboard.writeText(promptText).then(() => {
-            const btn = document.querySelector('.btn-ai-primary');
-            const orig = btn.innerText;
-            btn.innerText = "✅ Copied!";
-            setTimeout(() => btn.innerText = orig, 2000);
+            const btn = document.querySelector('.btn-ai-primary'); const orig = btn.innerText;
+            btn.innerText = "✅ Copied!"; setTimeout(() => btn.innerText = orig, 2000);
         }).catch(err => alert("Error copying: " + err));
     }
     
-async function pasteAIJson() {
+    async function pasteAIJson() {
         let jsonString = "";
-        try {
-            jsonString = await navigator.clipboard.readText();
-        } catch (err) {
-            jsonString = prompt("Paste JSON here:");
-        }
-        
+        try { jsonString = await navigator.clipboard.readText(); } catch (err) { jsonString = prompt("Paste JSON here:"); }
         if (!jsonString) return;
-
-        // --- INICIO DEL EFECTO VISUAL ---
-        const btn = document.getElementById('btn-paste-json');
-        const originalContent = btn.innerHTML; // Guardamos el icono y texto original
-        
-        // Cambiamos el texto temporalmente
-        btn.innerHTML = "<span>✅</span> Pasted!";
-        
-        // Esperamos 2 segundos y restauramos el botón original
-        setTimeout(() => {
-            btn.innerHTML = originalContent;
-        }, 2000);
-        // --- FIN DEL EFECTO VISUAL ---
-
+        const btn = document.getElementById('btn-paste-json'); const originalContent = btn.innerHTML; 
+        btn.innerHTML = "<span>✅</span> Pasted!"; setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
         processJsonAndSave(jsonString);
     }
     
@@ -1794,173 +1590,88 @@ async function pasteAIJson() {
         try {
             let cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
             const aiData = JSON.parse(cleanString);
-            let finalData = Array.isArray(aiData) ? {
-                title: "Exercise",
-                lang_code: "en",
-                theory: "Review rules.",
-                exercises: aiData
-            } : aiData;
+            let finalData = Array.isArray(aiData) ? { title: "Exercise", lang_code: "en", theory: "Review rules.", exercises: aiData } : aiData;
             if (!finalData.lang_code) finalData.lang_code = "en";
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-            memory.unshift({
-                id: Date.now(),
-                title: finalData.title || "Untitled",
-                lang: finalData.lang_code,
-                theory: finalData.theory,
-                date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }),
-                data: finalData.exercises
-            });
+            memory.unshift({ id: Date.now(), title: finalData.title || "Untitled", lang: finalData.lang_code, theory: finalData.theory, date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), data: finalData.exercises });
             localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
-            
             renderAiList();
-            
-            // --- NUEVA LÓGICA DE PARPADEO ---
             setTimeout(() => {
                 const previewBox = document.querySelector('#ai-latest-preview .ai-preview-box');
-                if (previewBox) {
-                    previewBox.classList.add('highlight');
-                    // Remover la clase después de que la animación termine (1.5s * 3 repeticiones = 4.5s)
-                    setTimeout(() => {
-                        previewBox.classList.remove('highlight');
-                    }, 4600); 
-                }
+                if (previewBox) { previewBox.classList.add('highlight'); setTimeout(() => { previewBox.classList.remove('highlight'); }, 4600); }
             }, 50);
-
-        } catch (e) {
-            alert("❌ Invalid JSON.\nError: " + e.message);
-        }
+        } catch (e) { alert("❌ Invalid JSON.\nError: " + e.message); }
     }
     
     function insertExerciseFromMem(id) {
         const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-        const item = memory.find(x => x.id === id);
-        if (!item) return;
+        const item = memory.find(x => x.id === id); if (!item) return;
         if (item.isHtml) {
-            if (confirm("Insert template?")) {
-                editorArea.insertAdjacentHTML('beforeend', item.htmlContent + '<p><br></p>');
-                closeAIMenu();
-                window.saveNote();
-            }
-            return;
+            if (confirm("Insert template?")) { editorArea.insertAdjacentHTML('beforeend', item.htmlContent + '<p><br></p>'); closeAIMenu(); window.saveNote(); } return;
         }
-        const insertTime = Date.now();
-        const theoryId = `theory-${id}-${insertTime}`;
-        const targetLang = item.lang || 'en';
+        const insertTime = Date.now(); const theoryId = `theory-${id}-${insertTime}`; const targetLang = item.lang || 'en';
         let htmlBlock = `<div class="exercise-box" contenteditable="false"><div class="exercise-header"><span>✍️ ${item.title}</span><div style="display:flex; align-items:center;"><button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button><button class="btn-reset-block" contenteditable="false" onclick="window.resetExerciseBlock(this)" title="Reset">↺</button><button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete">🗑️</button></div></div><div class="theory-box" id="${theoryId}">${item.theory || "No theory."}</div>`;
         item.data.forEach((ex, index) => {
-            const uId = `ex-${id}-${index}-${insertTime}`;
-            const hId = `hint-${id}-${index}-${insertTime}`;
-            const tId = `trans-${id}-${index}-${insertTime}`;
+            const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
             let exerciseContent = "";
             if (ex.cloze_text) {
                 let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
-                    const parts = content.split('|');
-                    const correctAns = parts[0].trim();
-                    const shuffled = [...parts].sort(() => Math.random() - 0.5);
+                    const parts = content.split('|'); const correctAns = parts[0].trim(); const shuffled = [...parts].sort(() => Math.random() - 0.5);
                     let optsHtml = `<option value="" disabled selected>...</option>`;
-                    shuffled.forEach(opt => {
-                        optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`;
-                    });
+                    shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`; });
                     return `<span class="cloze-gap-container"><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`;
                 });
                 exerciseContent = `<span><b>${index + 1}.</b> ${parsedHtml}</span>`;
             } else {
-                let optsHtml = `<option value="" disabled selected>...</option>`;
-                const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
-                shuffled.forEach(opt => {
-                    optsHtml += `<option value="${escapeHtml(opt)}">${opt}</option>`;
-                });
+                let optsHtml = `<option value="" disabled selected>...</option>`; const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
+                shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt)}">${opt}</option>`; });
                 exerciseContent = `<span><b>${index + 1}.</b> ${ex.pre || ''}</span><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(ex.answer)}')">${optsHtml}</select><span>${ex.post || ''}</span>`;
             }
             let transContent = "";
             if (ex.translations) {
                 for (const [key, val] of Object.entries(ex.translations)) {
-                    let f = "🇬🇧";
-                    if (key === 'es') f = "🇪🇸";
-                    if (key === 'pt') f = "🇧🇷";
-                    if (key === 'it') f = "🇮🇹";
+                    let f = "🇬🇧"; if (key === 'es') f = "🇪🇸"; if (key === 'pt') f = "🇧🇷"; if (key === 'it') f = "🇮🇹";
                     transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${val}</span></div>`;
                 }
-            } else {
-                transContent = "No translation";
-            }
+            } else { transContent = "No translation"; }
             htmlBlock += `<div class="exercise-row" id="${uId}">${exerciseContent}<div style="display:inline-flex; gap:5px; margin-left:10px;"><button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${escapeHtml(ex.full_sentence)}', '${targetLang}')">🔊</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button></div><div class="hint-box" id="${hId}">💡 ${ex.hint}</div><div class="trans-box" id="${tId}">${transContent}</div></div>`;
         });
         htmlBlock += '</div><p><br></p>';
         editorArea.insertAdjacentHTML('beforeend', htmlBlock);
-        setTimeout(() => {
-            editorArea.scrollTop = editorArea.scrollHeight;
-            window.saveNote();
-        }, 50);
+        setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; window.saveNote(); }, 50);
         closeAIMenu();
     }
     
     window.validateExercise = function(s, a) {
         s.classList.remove('correct', 'wrong');
-        if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) {
-            s.classList.add('correct');
-        } else {
-            s.classList.add('wrong');
-            if (navigator.vibrate) navigator.vibrate(200);
-        }
+        if (s.value.trim().toLowerCase() === a.trim().toLowerCase()) { s.classList.add('correct'); } else { s.classList.add('wrong'); if (navigator.vibrate) navigator.vibrate(200); }
         window.saveNote();
     };
     
     window.speakText = function(text, langCode) {
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            const m = {
-                'en': 'en-US',
-                'es': 'es-ES',
-                'pt': 'pt-BR',
-                'it': 'it-IT'
-            };
-            u.lang = m[langCode] || 'en-US';
-            u.rate = 0.9;
-            window.speechSynthesis.speak(u);
-        } else {
-            alert("TTS not supported.");
-        }
+            window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text);
+            const m = { 'en': 'en-US', 'es': 'es-ES', 'pt': 'pt-BR', 'it': 'it-IT' };
+            u.lang = m[langCode] || 'en-US'; u.rate = 0.9; window.speechSynthesis.speak(u);
+        } else { alert("TTS not supported."); }
     };
 
     /* ====== DATA GUARDIAN (SECURITY V2) ====== */
     function initDataGuardian() {
-        if (navigator.storage && navigator.storage.persist) {
-            navigator.storage.persist().then(granted => {
-                if (granted) console.log("🛡️ Data Guardian: Persistence Granted.");
-                else console.warn("⚠️ Data Guardian: Storage not persistent.");
-            });
-        }
-
-        // Auto-Restore Logic
-        const mainRes = localStorage.getItem(STORAGE_KEY);
-        const mirrorRes = localStorage.getItem(MIRROR_RES_KEY);
-
+        if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().then(granted => { if (granted) console.log("🛡️ Data Guardian: Persistence Granted."); else console.warn("⚠️ Data Guardian: Storage not persistent."); }); }
+        const mainRes = localStorage.getItem(STORAGE_KEY); const mirrorRes = localStorage.getItem(MIRROR_RES_KEY);
         if ((!mainRes || mainRes === '[]') && (mirrorRes && mirrorRes.length > 50)) {
             if (confirm("⚠️ SECURITY ALERT ⚠️\n\nYour main library appears empty, but a safety mirror exists.\n\nRESTORE data from mirror?")) {
-                localStorage.setItem(STORAGE_KEY, mirrorRes);
-                alert("✅ Data rescued successfully.");
-                location.reload();
+                localStorage.setItem(STORAGE_KEY, mirrorRes); alert("✅ Data rescued successfully."); location.reload();
             }
         }
-
-        const mainAi = localStorage.getItem(AI_MEM_KEY);
-        const mirrorAi = localStorage.getItem(MIRROR_AI_KEY);
-        if ((!mainAi || mainAi === '[]') && (mirrorAi && mirrorAi.length > 50)) {
-            console.warn("Auto-restoring AI memory from mirror...");
-            localStorage.setItem(AI_MEM_KEY, mirrorAi);
-        }
-
+        const mainAi = localStorage.getItem(AI_MEM_KEY); const mirrorAi = localStorage.getItem(MIRROR_AI_KEY);
+        if ((!mainAi || mainAi === '[]') && (mirrorAi && mirrorAi.length > 50)) { console.warn("Auto-restoring AI memory from mirror..."); localStorage.setItem(AI_MEM_KEY, mirrorAi); }
         setInterval(updateSecurityMirror, 60000);
     }
 
     function updateSecurityMirror() {
-        const currentRes = localStorage.getItem(STORAGE_KEY);
-        const currentAi = localStorage.getItem(AI_MEM_KEY);
+        const currentRes = localStorage.getItem(STORAGE_KEY); const currentAi = localStorage.getItem(AI_MEM_KEY);
         if (currentRes && currentRes.length > 50) localStorage.setItem(MIRROR_RES_KEY, currentRes);
         if (currentAi && currentAi.length > 50) localStorage.setItem(MIRROR_AI_KEY, currentAi);
     }
