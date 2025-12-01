@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC Studio Suite v5.3 (Fixed Save Logic)</title>
+    <title>MDC Studio Suite v5.4 (Timing Control)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         /* === ESTILOS DE LA HERRAMIENTA (GENERADOR) === */
@@ -260,7 +260,7 @@
             document.getElementById('cardOutputContainer').style.display = 'block';
         }
 
-        // === PLANTILLAS HTML GENERADAS (FORMATEADAS PARA LECTURA) ===
+        // === PLANTILLAS HTML GENERADAS (CON BOTON DE AJUSTE AÑADIDO) ===
         
         const TPL_HEAD = `<!doctype html>
 <html lang="en">
@@ -276,7 +276,7 @@
             --bg-body: #f3f4f6; --card-bg: #ffffff; 
             --text-main: #1f2937; --text-sec: #6b7280; 
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
-            --radius: 12px; --header-height: 60px; 
+            --radius: 12px; --header-height: 0px; 
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); padding-top: var(--header-height); padding-bottom: 120px; }
@@ -320,6 +320,24 @@
         .bar-btn.disabled { opacity: 0.3; pointer-events: none; }
         .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
         .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
+
+        /* Estilos nuevos para el menú de tiempos */
+        .timing-popup {
+            position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(10px);
+            padding: 15px; border-radius: 12px; color: white;
+            display: none; flex-direction: column; gap: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 950; min-width: 200px;
+        }
+        .timing-popup.active { display: flex; animation: slideUp 0.2s ease; }
+        .timing-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
+        .timing-input { width: 60px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; text-align: center; font-family: 'Inter', sans-serif; }
+        @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        
+         /* ====== OCULTA HEADER ====== */
+        #mdc-header { display: none !important; }
+        body { padding-top: 0  !important; }
+        
     </style>
 </head>
 <body>
@@ -331,7 +349,20 @@
         <div class="dialogue-container">`;
 
         const TPL_SCRIPT_START = `
-        </div></div><div id="control-bar">
+        </div></div>
+    
+    <div id="timing-menu" class="timing-popup">
+        <div class="timing-row">
+            <span>Start Offset (s)</span>
+            <input type="number" step="0.1" id="input-time-offset" class="timing-input" onchange="updateTimingSettings()">
+        </div>
+        <div class="timing-row">
+            <span>End Padding (s)</span>
+            <input type="number" step="0.1" id="input-end-padding" class="timing-input" onchange="updateTimingSettings()">
+        </div>
+    </div>
+
+    <div id="control-bar">
       <button class="bar-btn disabled" id="btn-prev" onclick="navigateWords(-1)">▲</button>
       <div class="nav-count" id="nav-counter">0/0</div>
       <button class="bar-btn disabled" id="btn-next" onclick="navigateWords(1)">▼</button>
@@ -339,6 +370,7 @@
       <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
       <div class="bar-divider"></div>
       <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
+      <button class="bar-btn" id="btn-timing" onclick="toggleTimingMenu()" style="font-size: 16px;">⏱️</button>
       <div class="bar-divider"></div>
       <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #4f46e5;">📜</button>
       <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
@@ -346,7 +378,10 @@
     </div>
 
     <script>
-    const TIME_OFFSET = 0.2; const END_PADDING = 0.5; const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
+    /* VARIABLES DE TIEMPO AHORA DINAMICAS */
+    let timeOffset = 0.2; 
+    let endPadding = 0.5; 
+    const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     const YOUTUBE_ID = '`;
         
         // --- LOGICA CORREGIDA PARA EL GUARDADO DE PALABRAS ---
@@ -359,45 +394,77 @@
     const PREF_SPEED = 'mdc_pref_speed';
     const PREF_SCROLL = 'mdc_pref_scroll';
     const PREF_TRANS = 'mdc_pref_trans';
+    const PREF_TIMING = 'mdc_pref_timing'; // Nueva key para guardar tiempos
 
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null;
     let currentPlaybackRate = 1.0;
     let allVisible = false;
 
-    // --- FUNCIÓN DE GUARDADO CORREGIDA (Lógica 1 a 1 exacta) ---
+    // --- NUEVA LÓGICA DE TIEMPOS ---
+    function loadTimingPrefs() {
+        const saved = localStorage.getItem(PREF_TIMING);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            timeOffset = parseFloat(parsed.offset);
+            endPadding = parseFloat(parsed.padding);
+        }
+        document.getElementById('input-time-offset').value = timeOffset;
+        document.getElementById('input-end-padding').value = endPadding;
+    }
+
+    function toggleTimingMenu() {
+        const menu = document.getElementById('timing-menu');
+        const btn = document.getElementById('btn-timing');
+        menu.classList.toggle('active');
+        btn.style.color = menu.classList.contains('active') ? '#4f46e5' : 'white';
+    }
+
+    function updateTimingSettings() {
+        const offsetVal = parseFloat(document.getElementById('input-time-offset').value);
+        const paddingVal = parseFloat(document.getElementById('input-end-padding').value);
+        
+        if (!isNaN(offsetVal)) timeOffset = offsetVal;
+        if (!isNaN(paddingVal)) endPadding = paddingVal;
+
+        localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
+    }
+    
+    // Cerrar menú al hacer click fuera
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('timing-menu');
+        const btn = document.getElementById('btn-timing');
+        if (!menu.contains(e.target) && !btn.contains(e.target) && menu.classList.contains('active')) {
+            toggleTimingMenu();
+        }
+    });
+
+    // --- FIN LOGICA TIEMPOS ---
+
     function saveLineToVocab(btn) {
         const line = btn.closest('.line');
         const vocabKey = 'mdc_vocab_list';
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        // OBTENER SELECCIONES DE AMBOS IDIOMAS
         const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
         const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
 
         if (selectedEng.length > 0) {
-            // Caso A: Hay palabras seleccionadas en inglés
-            
-            // Determinamos si hay una correspondencia exacta 1 a 1
             let translation = "";
             if (selectedEng.length === 1 && selectedEsp.length === 1) {
                 translation = selectedEsp[0].innerText.trim();
             }
-            // NOTA: Si hay más de 2 palabras en total seleccionadas (ej: 2 Eng + 0 Esp, o 1 Eng + 2 Esp),
-            // o cualquier combinación que no sea 1-1, la traducción se queda vacía "" para evitar ambigüedad.
-
             selectedEng.forEach(span => {
                 itemsToAdd.push({
                     eng: span.innerText.trim(),
-                    esp: translation, // Usa la traducción solo si fue 1 a 1
+                    esp: translation,
                     id: Date.now() + Math.random(), 
                     isFolder: false, 
                     isHighlighted: false 
                 });
             });
         } else {
-             // CASO B: FRASE COMPLETA (Sin selecciones individuales).
             const engText = line.querySelector('.english').innerText.trim();
             const espText = line.querySelector('.spanish').innerText.trim();
             itemsToAdd.push({
@@ -455,6 +522,7 @@
             allVisible = true;
             document.getElementById('btn-toggle-trans').style.color = '#4f46e5';
         }
+        loadTimingPrefs(); // Cargar preferencias de tiempo
     }
     
     loadPreferences();
@@ -623,7 +691,7 @@
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
       if (savedTime) { 
     player.seekTo(parseFloat(savedTime)); 
-    player.pauseVideo(); // Forzar pausa explícitamente
+    player.pauseVideo(); 
 }
         player.setPlaybackRate(currentPlaybackRate);
     }
@@ -659,7 +727,9 @@
         lines.forEach((line, index) => {
             const start = parseFloat(line.dataset.start);
             const end = parseFloat(line.dataset.end);
-            if (time >= start && time < end + END_PADDING) activeLine = line;
+            // Uso de variables dinámicas aquí también si se quisiera afectar el highlight, 
+            // pero para highlight mejor dejar la lógica pura y usar las variables solo para playback.
+            if (time >= start && time < end + endPadding) activeLine = line; 
             line.classList.remove('active');
         });
         if (activeLine) {
@@ -676,8 +746,9 @@
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const line = btn.closest('.line');
-            const start = parseFloat(line.dataset.start) - TIME_OFFSET; 
-            const end = parseFloat(line.dataset.end) + END_PADDING;
+            // USANDO LAS VARIABLES DINAMICAS timeOffset y endPadding
+            const start = parseFloat(line.dataset.start) - timeOffset; 
+            const end = parseFloat(line.dataset.end) + endPadding;
             
             if (btn.dataset.state === 'playing') {
                 player.pauseVideo();
