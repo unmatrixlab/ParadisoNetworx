@@ -908,10 +908,11 @@
     </div>
 
 <script>
-/* ====== CONFIG & STATE ====== */
-    const STORAGE_KEY = 'mdc_saved_favorites';
+downloadBackup() {
     const AI_MEM_KEY = 'mdc_ai_exercises';
     const FAV_KEY = 'mdc_tab_favs'; 
+    // AGREGAMOS LA CLAVE DEL CÓDIGO 2 PARA LEERLA DIRECTAMENTE
+    const VOCAB_KEY = 'mdc_vocab_list'; 
     
     // Data Guardian Keys
     const MIRROR_RES_KEY = 'mdc_mirror_res_bak';
@@ -1277,8 +1278,24 @@
     }
 
     /* ====== BACKUP & RESTORE (UPDATED FOR BRIDGE) ====== */
+  /* ====== REEMPLAZA ESTA PARTE EN TU SCRIPT DEL CÓDIGO 1 ====== */
+
+    const STORAGE_KEY = 'mdc_saved_favorites';
+    const AI_MEM_KEY = 'mdc_ai_exercises';
+    const FAV_KEY = 'mdc_tab_favs'; 
+    // AGREGAMOS LA CLAVE DEL CÓDIGO 2 PARA LEERLA DIRECTAMENTE
+    const VOCAB_KEY = 'mdc_vocab_list'; 
+    
+    // Data Guardian Keys
+    const MIRROR_RES_KEY = 'mdc_mirror_res_bak';
+    const MIRROR_AI_KEY = 'mdc_mirror_ai_bak';
+
+    // ... (Mantén tu configuración de URLs y variables globales aquí) ...
+
+    /* ====== BACKUP & RESTORE (CORREGIDO) ====== */
     async function downloadBackup() { 
         try {
+            // 1. LEEMOS DATOS PROPIOS
             const rawResources = localStorage.getItem(STORAGE_KEY);
             const rawMemory = localStorage.getItem(AI_MEM_KEY);
             const rawFavs = localStorage.getItem(FAV_KEY);
@@ -1287,22 +1304,18 @@
             const memory = rawMemory ? JSON.parse(rawMemory) : [];
             const favs = rawFavs ? JSON.parse(rawFavs) : [];
 
-            // 1. INTENTAR OBTENER DATOS DEL HIJO (Vocabulario)
-            let vocabData = [];
-            const childData = await getVocabFromChild();
-            if (childData) {
-                vocabData = childData;
-                // alert("Incluyendo datos de Vocabulario en el backup.");
-            }
+            // 2. LEEMOS DATOS DEL VOCABULARIO DIRECTAMENTE (Sin depender del iframe)
+            const rawVocab = localStorage.getItem(VOCAB_KEY);
+            const vocabData = rawVocab ? JSON.parse(rawVocab) : [];
 
-            alert(`Generating Backup:\n📚 Resources: ${resources.length}\n🧠 AI Exercises: ${memory.length}\n⭐ Tab Favorites: ${favs.length}\n🔤 Vocabulary Items: ${vocabData.length}`);
+            alert(`Generando Backup:\n📚 Recursos: ${resources.length}\n🧠 Ejercicios AI: ${memory.length}\n⭐ Favoritos: ${favs.length}\n🔤 Vocabulario: ${vocabData.length}`);
 
             const fullData = { 
                 version: 3, 
                 resources: resources, 
                 memory: memory, 
                 favs: favs,
-                vocab: vocabData // Nuevo campo
+                vocab: vocabData // Aquí guardamos el vocabulario real
             };
             
             const jsonString = JSON.stringify(fullData);
@@ -1338,18 +1351,12 @@
                 if (parsedData.memory) { localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory)); msg += `🧠 Ejercicios: ${parsedData.memory.length}\n`; restoredCount++; }
                 if (parsedData.favs) { localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs)); msg += `⭐ Favoritos: ${parsedData.favs.length}\n`; restoredCount++; }
 
-                // Restaurar Hijo (Vocabulario)
-                if (parsedData.vocab && Array.isArray(parsedData.vocab) && parsedData.vocab.length > 0) {
-                    const iframe = document.querySelector(`iframe[src*="LinguistDeckVocabulary"]`) || document.querySelector(`#tab-content-4 iframe`);
-                    if (iframe && iframe.contentWindow) {
-                        iframe.contentWindow.postMessage({ 
-                            action: 'import_vocab_data', 
-                            data: parsedData.vocab 
-                        }, '*');
-                        msg += `🔤 Vocabulario enviado al módulo: ${parsedData.vocab.length} items\n`;
-                    } else {
-                        msg += `⚠️ Vocabulario detectado (${parsedData.vocab.length}) pero el módulo no está abierto. Abre la Pestaña 5 e importa de nuevo si lo necesitas.\n`;
-                    }
+                // Restaurar Hijo (Vocabulario) DIRECTAMENTE
+                if (parsedData.vocab && Array.isArray(parsedData.vocab)) {
+                    // Guardamos directo en LocalStorage. El "Watcher" del código 2 detectará el cambio automáticamente.
+                    localStorage.setItem(VOCAB_KEY, JSON.stringify(parsedData.vocab));
+                    msg += `🔤 Vocabulario: ${parsedData.vocab.length} items restaurados.\n`;
+                    restoredCount++;
                 }
 
                 if(restoredCount > 0) alert(msg); 
