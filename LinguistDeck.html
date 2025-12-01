@@ -1313,61 +1313,92 @@ function importBackup(inp) {
                 const content = e.target.result;
                 let parsedData = null;
 
-                // 1. Intento: Buscar el patrón HTML del backup automático
+                // 1. Intento: Buscar patrón HTML (Base64)
                 let match = content.match(/const backupData\s*=\s*"(.*?)";/);
                 if (!match) match = content.match(/const backupData=(.*?)(;|<\/script>)/s);
 
                 if (match && match[1]) {
-                    // Es el formato HTML Base64
                     try {
                         const jsonString = decodeURIComponent(escape(atob(match[1])));
                         parsedData = JSON.parse(jsonString);
                     } catch (decodeErr) {
-                        throw new Error("Corrupted Base64 data in HTML file.");
+                        console.warn("Base64 decode fail, trying raw:", decodeErr);
                     }
-                } else {
-                    // 2. Intento: Tratar de parsear como JSON puro (por si el usuario subió un .json)
+                } 
+                
+                // 2. Intento: Si falló lo anterior o no es HTML, probar JSON directo
+                if (!parsedData) {
                     try {
                         parsedData = JSON.parse(content);
                     } catch (jsonErr) {
-                        throw new Error("File format not recognized. Use the .html backup file.");
+                        throw new Error("Formato de archivo no reconocido (No es HTML válido ni JSON).");
                     }
                 }
 
-                if (!parsedData) throw new Error("No data found.");
+                if (!parsedData) throw new Error("El archivo está vacío o corrupto.");
 
-                // Lógica de Restauración
-                if (parsedData.version >= 2 || (parsedData.resources && parsedData.memory)) {
-                    // Formato Moderno V2/V3
-                    if (parsedData.resources) localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
-                    if (parsedData.memory) localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
-                    if (parsedData.favs) localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
+                // --- LÓGICA PERMISIVA (NUEVO) ---
+                // Verifica si existe AL MENOS UNA de las claves importantes
+                const hasResources = Array.isArray(parsedData.resources);
+                const hasMemory = Array.isArray(parsedData.memory);
+                const hasFavs = Array.isArray(parsedData.favs);
+                const isLegacyArray = Array.isArray(parsedData); // Respaldo muy antiguo (solo array)
+
+                let msg = "✅ RESTAURACIÓN COMPLETADA:\n";
+                let restoredCount = 0;
+
+                if (hasResources || hasMemory || hasFavs) {
+                    // Es un formato estructurado (V2/V3), importamos lo que encontremos
+                    if (hasResources) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData.resources));
+                        msg += `📚 Recursos: ${parsedData.resources.length}\n`;
+                        restoredCount++;
+                    }
                     
-                    alert(`✅ RESTORE COMPLETE:\n📚 Resources: ${parsedData.resources ? parsedData.resources.length : 0}\n🧠 AI Exercises: ${parsedData.memory ? parsedData.memory.length : 0}`);
-                
-                } else if (Array.isArray(parsedData)) {
-                    // Formato Legacy (Solo era un array de recursos)
-                    if(confirm("Legacy backup detected (Resources only). Keep existing AI data?")) { 
+                    if (hasMemory) {
+                        localStorage.setItem(AI_MEM_KEY, JSON.stringify(parsedData.memory));
+                        msg += `🧠 Ejercicios AI: ${parsedData.memory.length}\n`;
+                        restoredCount++;
+                    }
+
+                    if (hasFavs) {
+                        localStorage.setItem(FAV_KEY, JSON.stringify(parsedData.favs));
+                        msg += `⭐ Favoritos: ${parsedData.favs.length}\n`;
+                        restoredCount++;
+                    }
+
+                    if (restoredCount === 0) throw new Error("Estructura JSON válida pero sin datos reconocibles.");
+                    alert(msg);
+
+                } else if (isLegacyArray) {
+                    // Es un respaldo antiguo que solo contiene la lista de recursos
+                    if(confirm("⚠️ Detectado formato antiguo (Solo Recursos).\n¿Deseas mantener tus datos actuales de IA/Memoria? (Cancelar = Borrar IA)")) { 
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
+                        // No tocamos AI_MEM_KEY
                     } else { 
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedData)); 
                         localStorage.setItem(AI_MEM_KEY, '[]'); 
                     }
-                    alert("✅ Resources restored (Legacy format).");
-                } else { 
-                    throw new Error("Unknown data structure."); 
+                    alert("✅ Recursos antiguos restaurados.");
+                } else {
+                    // Depuración: Mostrar qué claves tiene el objeto para entender el error
+                    console.log("Claves encontradas:", Object.keys(parsedData));
+                    throw new Error("Estructura de datos desconocida. Revisa la consola (F12) para más detalles.");
                 }
 
                 // Recargar interfaz
                 loadResources(); 
-                renderAiList(); 
-                if(typeof renderTabFavorites === 'function') renderTabFavorites(); // Actualizar favoritos si existe la función
+                if(typeof renderAiList === 'function') renderAiList(); 
+                if(typeof renderTabFavorites === 'function') renderTabFavorites();
                 
+                // Actualizar el espejo de seguridad inmediatamente para evitar conflictos
+                if(typeof updateSecurityMirror === 'function') updateSecurityMirror();
+
             } catch (err) { 
                 alert("❌ Error importing: " + err.message); 
                 console.error(err);
             } finally {
-                inp.value = ''; // Limpiar input para permitir subir el mismo archivo de nuevo si falla
+                inp.value = ''; 
             }
         }; 
         r.readAsText(file); 
