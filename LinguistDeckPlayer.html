@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Final Stable)</title>
+    <title>MDC Studio Player (Stable + Position Slider)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -86,10 +86,17 @@
         .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); }
         .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
         
-        .timing-popup { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(10px); padding: 15px; border-radius: 12px; color: white; display: none; flex-direction: column; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 950; min-width: 200px; }
-        .timing-popup.active { display: flex; animation: slideUp 0.2s ease; }
+        /* POPUPS & MENUS */
+        .popup-menu { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(10px); padding: 15px; border-radius: 12px; color: white; display: none; flex-direction: column; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 950; min-width: 200px; }
+        .popup-menu.active { display: flex; animation: slideUp 0.2s ease; }
+        
         .timing-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
         .timing-input { width: 60px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; text-align: center; font-family: 'Inter', sans-serif; }
+        
+        /* SLIDER STYLES */
+        .slider-label { font-size: 12px; text-align: center; color: #d1d5db; margin-bottom: 5px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        
         @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
         
         #home-btn { position: fixed; top: 15px; left: 15px; z-index: 600; background: rgba(0,0,0,0.5); color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; }
@@ -144,9 +151,15 @@
             <div class="dialogue-container" id="dialogue-root"></div>
         </div>
         
-        <div id="timing-menu" class="timing-popup">
+        <div id="timing-menu" class="popup-menu">
             <div class="timing-row"><span>Start Offset (s)</span><input type="number" step="0.1" id="input-time-offset" class="timing-input" onchange="updateTimingSettings()"></div>
             <div class="timing-row"><span>End Padding (s)</span><input type="number" step="0.1" id="input-end-padding" class="timing-input" onchange="updateTimingSettings()"></div>
+        </div>
+        
+        <div id="position-menu" class="popup-menu">
+            <div class="slider-label">Posición Vertical</div>
+            <input type="range" id="vertical-slider" min="-300" max="300" value="0" step="10" oninput="updateVerticalOffset(this.value)">
+            <div class="slider-label" style="font-size:10px; margin-top:5px; opacity:0.7;">Arriba &nbsp; &nbsp; ↔ &nbsp; &nbsp; Abajo</div>
         </div>
 
         <div id="control-bar">
@@ -160,7 +173,10 @@
             <button class="bar-btn disabled" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
             <div class="bar-divider"></div>
             <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
-            <button class="bar-btn" id="btn-timing" onclick="toggleTimingMenu()" style="font-size: 16px;">⏱️</button>
+            <button class="bar-btn" id="btn-timing" onclick="toggleMenu('timing-menu')" style="font-size: 16px;">⏱️</button>
+            
+            <button class="bar-btn" id="btn-position" onclick="toggleMenu('position-menu')" style="font-size: 18px;">↕️</button>
+            
             <div class="bar-divider"></div>
             <button class="bar-btn" id="btn-loop" onclick="toggleLoop()" style="font-size: 16px;">🔁</button>
             
@@ -367,10 +383,13 @@
     let timeOffset = 0.2, endPadding = 0.5; 
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
-    const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing';
+    // Agregamos PREF_OFFSET a las claves
+    const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing', PREF_OFFSET='mdc_pref_v_offset';
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
+    // Nueva variable para el offset vertical
+    let currentVerticalOffset = 0;
 
     window.onYouTubeIframeAPIReady = function() {
         if(!YOUTUBE_ID) return;
@@ -427,12 +446,17 @@
         });
         if (activeLine) {
             activeLine.classList.add('active');
-            if (autoScroll) {
-                const rect = activeLine.getBoundingClientRect();
-                const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
-                window.scrollTo({ top: offset, behavior: "smooth" });
-            }
+            scrollToActiveElement(activeLine);
         }
+    }
+    
+    // Nueva función centralizada para el scroll con offset
+    function scrollToActiveElement(el) {
+        if (!autoScroll) return;
+        const rect = el.getBoundingClientRect();
+        // Calculo: Centro de pantalla + Offset Manual + Offset fijo base (-40)
+        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40 + currentVerticalOffset;
+        window.scrollTo({ top: offset, behavior: "smooth" });
     }
 
     function renderSubtitles() {
@@ -465,13 +489,41 @@
         const saved = localStorage.getItem(PREF_TIMING);
         if (saved) { const parsed = JSON.parse(saved); timeOffset = parseFloat(parsed.offset); endPadding = parseFloat(parsed.padding); }
         document.getElementById('input-time-offset').value = timeOffset; document.getElementById('input-end-padding').value = endPadding;
+        
+        // CARGA PREFERENCIA DE OFFSET VERTICAL
+        const savedOffset = localStorage.getItem(PREF_OFFSET);
+        if(savedOffset) {
+            currentVerticalOffset = parseInt(savedOffset);
+            document.getElementById('vertical-slider').value = currentVerticalOffset;
+        }
     }
+    
+    // FUNCION PARA ACTUALIZAR OFFSET VERTICAL
+    function updateVerticalOffset(val) {
+        currentVerticalOffset = parseInt(val);
+        localStorage.setItem(PREF_OFFSET, currentVerticalOffset);
+        // Aplicar inmediatamente si hay linea activa
+        const activeLine = document.querySelector('.line.active');
+        if(activeLine) scrollToActiveElement(activeLine);
+    }
+    
     function updateTimingSettings() {
         const offsetVal = parseFloat(document.getElementById('input-time-offset').value); const paddingVal = parseFloat(document.getElementById('input-end-padding').value);
         if (!isNaN(offsetVal)) timeOffset = offsetVal; if (!isNaN(paddingVal)) endPadding = paddingVal;
         localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
     }
-    function toggleTimingMenu() { document.getElementById('timing-menu').classList.toggle('active'); }
+    
+    // Función genérica para abrir menús
+    function toggleMenu(menuId) {
+        // Cierra los otros
+        document.querySelectorAll('.popup-menu').forEach(m => {
+            if(m.id !== menuId) m.classList.remove('active');
+        });
+        document.getElementById(menuId).classList.toggle('active');
+    }
+    
+    // Mantener compatibilidad con el onclick viejo si quedaba alguno
+    function toggleTimingMenu() { toggleMenu('timing-menu'); }
     
     function loadPreferences() {
         const sSpeed = localStorage.getItem(PREF_SPEED);
@@ -632,7 +684,17 @@
     }
     
     function resetButtons() { document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); }); document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); }); }
-    document.addEventListener('click', function(e) { const menu = document.getElementById('timing-menu'); const btn = document.getElementById('btn-timing'); if (!menu.contains(e.target) && !btn.contains(e.target) && menu.classList.contains('active')) { toggleTimingMenu(); } });
+    
+    // Cierre de menús al hacer click fuera
+    document.addEventListener('click', function(e) { 
+        const timingMenu = document.getElementById('timing-menu'); 
+        const timingBtn = document.getElementById('btn-timing'); 
+        const posMenu = document.getElementById('position-menu');
+        const posBtn = document.getElementById('btn-position');
+        
+        if (!timingMenu.contains(e.target) && !timingBtn.contains(e.target) && timingMenu.classList.contains('active')) { toggleMenu('timing-menu'); }
+        if (!posMenu.contains(e.target) && !posBtn.contains(e.target) && posMenu.classList.contains('active')) { toggleMenu('position-menu'); }
+    });
     </script>
 </body>
 </html>
