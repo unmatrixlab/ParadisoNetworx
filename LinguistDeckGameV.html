@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Final Masterpiece</title>
+    <title>Vocabulary Hunter: Final Masterpiece (Fixed)</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -99,7 +99,13 @@
         select { width: 100%; padding: 10px; background: #111; color: var(--neon-green); border: 1px solid var(--neon-green); font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; margin-top: 5px; }
         select:focus { outline: none; background: #222; }
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
+        .reset-btn:hover { background: var(--neon-red); color: #000; }
         .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
+        .close-btn:hover {background:var(--neon-red);color:#000;}
+        
+        ::-webkit-scrollbar {width:10px;}
+        ::-webkit-scrollbar-track {background:#111;}
+        ::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
     </style>
 </head>
 <body>
@@ -361,7 +367,7 @@ function updateConfig(key) {
         userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
         userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
         document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
-        quizTimer = 0; // Reset timer when config changes
+        quizTimer = 0; 
     }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
@@ -436,6 +442,7 @@ function loadVocabData() {
         });
     }
 
+    // 1. Aplicar filtro de Porcentaje
     if (tempVocabList.length > 0) {
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
@@ -444,6 +451,8 @@ function loadVocabData() {
     }
 
     if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+
+    // 2. Generar el Mazo de Juego (Filtrando las desactivadas)
     refreshGameDeck();
 }
 
@@ -502,11 +511,10 @@ function editDistance(s1, s2) {
 
 // --- POP QUIZ LOGIC ---
 function triggerPopQuiz() {
-    gameRunning = false; // Detener loop
+    gameRunning = false; 
     const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
     currentQuizWord = randomItem;
     
-    // 50% chance: Mostrar EN (pedir ES) o Mostrar ES (pedir EN)
     const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
     currentQuizWord.mode = mode;
 
@@ -521,7 +529,7 @@ function triggerPopQuiz() {
         qEl.innerText = `TRANSLATE: ${randomItem.en}`;
         iEl.placeholder = "TYPE IN SPANISH";
     } else {
-        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; // Tomamos la primera traducción
+        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; 
         iEl.placeholder = "TYPE IN ENGLISH";
     }
 
@@ -535,12 +543,11 @@ function checkQuizAnswer() {
     let correctAnswers = [];
     
     if (currentQuizWord.mode === 'EN_TO_ES') {
-        correctAnswers = currentQuizWord.es; // Array de posibles respuestas
+        correctAnswers = currentQuizWord.es; 
     } else {
         correctAnswers = [currentQuizWord.en];
     }
 
-    // Comprobar similitud con CUALQUIERA de las respuestas válidas
     let maxSim = 0;
     let bestMatch = "";
     
@@ -553,27 +560,23 @@ function checkQuizAnswer() {
     });
 
     if (maxSim >= 1.0) {
-        // PERFECTO
         feedback.style.color = '#0f0';
         feedback.innerText = "SYSTEM RESTORED! BOMB CLEAR ACTIVATED!";
         setTimeout(resolveQuizSuccess, 1000);
     } else if (maxSim >= 0.7) {
-        // CASI (70%+)
         feedback.style.color = '#ff0';
         feedback.innerText = `CLOSE ENOUGH! (${bestMatch})`;
         setTimeout(resolveQuizSuccess, 1500);
     } else {
-        // FAIL
         feedback.style.color = '#f00';
         feedback.innerText = `ERROR! CORRECT: ${bestMatch}`;
     }
 }
 
 function resolveQuizSuccess() {
+    quizTimer = 0; // RESET TIMER CORRECTLY
     document.getElementById('quiz-screen').style.display = 'none';
-    // EMP EFFECT: Clear bombs
     enemyBombs = []; 
-    // Clear some enemies too as reward
     enemies.forEach(e => {
         e.fading = true;
         createExplosion(e.x, e.y, e.color, 20);
@@ -585,7 +588,6 @@ function resolveQuizSuccess() {
     gameLoopId = requestAnimationFrame(loop);
 }
 
-// Enter key in quiz
 document.getElementById('quiz-input').addEventListener('keypress', function (e) {
     if (e.key === 'Enter') checkQuizAnswer();
 });
@@ -748,7 +750,7 @@ function update(dt){
         quizTimer += dt;
         if (quizTimer >= userSettings.quizInterval * 1000) {
             triggerPopQuiz();
-            return; // Detener update de juego
+            return; 
         }
     }
 
