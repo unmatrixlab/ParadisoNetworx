@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Final Logic)</title>
+    <title>MDC Studio Player (Split Buttons)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -65,8 +65,17 @@
         .spanish { font-size: 0.95rem; color: var(--text-sec); border-top: 1px solid #eee; padding-top: 6px; display: none; line-height: 1.4; }
         .spanish.visible { display: block; animation: fadeIn 0.3s ease; }
         .controls { display: flex; flex-direction: column; gap: 3px; min-width: 60px; margin-top: -2px; }
+        
         .btn { border: none; border-radius: 6px; padding: 5px 0; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; }
-        .playBtn { background-color: var(--primary); color: white; }
+        
+        /* NUEVO DISEÑO BOTONES DIVIDIDOS */
+        .play-group { display: flex; gap: 4px; width: 100%; }
+        .play-half { flex: 1; padding: 5px 0; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; color: white; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-single { background-color: #4f46e5; } /* Azul Studio */
+        .btn-single:hover { background-color: #4338ca; }
+        .btn-cont { background-color: #059669; } /* Verde Flujo */
+        .btn-cont:hover { background-color: #047857; }
+        
         .speakBtn { background-color: #e5e7eb; color: var(--text-main); }
         .saveBtn { background-color: white; border: 2px solid #10b981; color: #10b981; font-size: 14px; padding: 4px 0; line-height: 1; }
         
@@ -357,14 +366,15 @@
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
     
-    // VARIABLES LÓGICA V3.0
+    // VARIABLES LÓGICA V4.0 (Split Buttons)
     let repeatCountCfg = 1; let pauseTimeCfg = 0;
     let currentRepetitionCount = 0; let isWaitingDelay = false;
     let currentVerticalOffset = 0; 
     
-    // MODO DETECTOR
-    let isSingleMode = false; // true = Botón de subtítulo, false = Play normal de YouTube
-    let activeLineElement = null; // Para saber qué linea estamos tocando en Single Mode
+    // MODO DETECTOR y AUTO-AVANCE
+    let isSingleMode = false; // Ya no solo es 'single', sino 'controlado manualmente'
+    let shouldAutoAdvance = false; // Define si el botón pulsado era "Play Continuous"
+    let activeLineElement = null;
 
     window.onYouTubeIframeAPIReady = function() {
         if(!YOUTUBE_ID) return;
@@ -388,156 +398,116 @@
 
     function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.PLAYING) { 
-            // Si el usuario da play manual en YouTube, asumimos MODO CONTINUO
-            // (a menos que isSingleMode ya sea true porque clickó un botón azul)
+            // Si el usuario da play manual en YouTube, asumimos MODO CONTINUO (Flujo)
             if(!isSingleMode) {
-                // Modo continuo puro
-                isSegmentPlaying = true; // Activar lógica de chequeo
+                isSegmentPlaying = true;
+                shouldAutoAdvance = true; // Play de YT es siempre "Avanzar al siguiente"
             }
             clearInterval(checkInterval); 
             checkInterval = setInterval(checkTime, 100); 
         } else { 
             clearInterval(checkInterval); 
             if(player && player.getCurrentTime) localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime()); 
-            
-            // Si pausa manual, resetear estados temporales
             if(event.data === YT.PlayerState.PAUSED) {
-                isWaitingDelay = false;
+               // No reseteamos isWaitingDelay aquí para no romper la pausa programada
+               // Pero si el usuario pausa manualmente, isSegmentPlaying controlará la lógica
             }
         }
     }
 
     function checkTime() {
+        // BLOQUEO CRÍTICO: Si estamos en pausa, NO ACTUALIZAR UI NI LÓGICA
+        // Esto evita que se "pinte" el siguiente subtítulo antes de tiempo
+        if(isWaitingDelay) return;
+
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
-        // 1. DETERMINAR LÍMITES
-        // En Single Mode, los límites son fijos del botón pulsado.
-        // En Continuous Mode, debemos calcular dinámicamente el subtítulo actual.
-        
         let currentEnd = segmentEndTime;
         
+        // HIGHLIGHT LOGIC
         if (!isSingleMode) {
-            // MODO CONTINUO: Buscar subtítulo actual en vivo
+            // Modo Flujo (YouTube nativo o botón derecho)
             const activeSub = SUBTITLES_DATA.find(s => currentTime >= s.s && currentTime < s.e + endPadding);
             if(activeSub) {
                 currentEnd = activeSub.e + endPadding;
-                // Highlight visual
                 highlightCurrentLine(currentTime);
-            } else {
-                // Estamos en un hueco sin subtítulo, solo dejamos correr el video
-                return;
-            }
+            } else { return; }
         } else {
-             // MODO SINGLE: Highlight solo visual
+             // Modo Controlado (Botones Azules)
+             // Solo highlight visual, pero la lógica de tiempo es fija
              highlightCurrentLine(currentTime);
         }
         
-        // 2. CHEQUEO DE FINALIZACIÓN
+        // CHECK END
         if (currentTime >= currentEnd) {
-            if(isWaitingDelay) return; // Estamos en pausa, no hacer nada
-
             player.pauseVideo();
-            
-            // DESVÍO DE LÓGICA
-            if (isSingleMode) {
-                handleSingleModeEnd();
-            } else {
-                handleContinuousModeEnd();
-            }
+            handleSegmentEnd();
         }
     }
 
-    // --- LÓGICA MODO SINGLE (Botón Azul) ---
-    function handleSingleModeEnd() {
+    function handleSegmentEnd() {
         currentRepetitionCount++;
         
-        // Regla 1: Si LOOP está activo, repite (hasta límite seguridad 20)
+        // 1. REGLA SUPREMA: LOOP
         if (isLooping) {
-            if (currentRepetitionCount < 20) {
-                replayCurrentSegment();
-            } else {
-                // Límite de seguridad alcanzado
-                stopEverything();
-            }
+            // Límite seguridad 20
+            if (currentRepetitionCount < 20) { replayCurrentSegment(); } 
+            else { stopEverything(); }
             return;
         }
 
-        // Regla 2: Si LOOP está apagado, respeta REPS y luego STOP.
+        // 2. REGLA: REPETICIONES
         if (currentRepetitionCount < repeatCountCfg) {
             replayCurrentSegment();
+            return;
+        }
+
+        // 3. DECISIÓN FINAL: ¿AVANZAR O PARAR?
+        if (shouldAutoAdvance) {
+            // Modo Flujo (Botón Derecho o Play de YT) -> PAUSA -> SIGUIENTE
+            isWaitingDelay = true;
+            const delayMs = pauseTimeCfg * 1000;
+            const runNext = () => {
+                 if (!isSegmentPlaying && player.getPlayerState() !== 2) { isWaitingDelay = false; return; }
+                 isWaitingDelay = false; 
+                 currentRepetitionCount = 0; 
+                 playNextSubtitle();
+            };
+            if (delayMs > 0) setTimeout(runNext, delayMs); else runNext();
         } else {
-            // Fin de las repeticiones. STOP. (Single mode nunca avanza)
+            // Modo Estudio (Botón Izquierdo) -> STOP
             stopEverything();
         }
     }
 
-    // --- LÓGICA MODO CONTINUO (YouTube Play) ---
-    function handleContinuousModeEnd() {
-        currentRepetitionCount++;
-        
-        // Regla 1: Si LOOP está activo, nos quedamos aquí por siempre.
-        if (isLooping) {
-            replayCurrentSegment();
-            return;
-        }
-        
-        // Regla 2: Respetar REPS
-        if (currentRepetitionCount < repeatCountCfg) {
-            replayCurrentSegment();
-            return;
-        }
-        
-        // Regla 3: Pausa y Siguiente
-        // Repeticiones cumplidas. Ahora aplicamos Pausa.
-        isWaitingDelay = true;
-        const delayMs = pauseTimeCfg * 1000;
-        
-        const runNext = () => {
-             // Verificar si el usuario pausó manualmente durante la espera
-             // Verificamos estado player
-             if(player.getPlayerState() !== 2 && isSegmentPlaying) { 
-                // En realidad player está pausado por nosotros, pero isSegmentPlaying debe ser true
-             } else if (!isSegmentPlaying) {
-                 isWaitingDelay = false; return;
-             }
-             
-             isWaitingDelay = false; 
-             currentRepetitionCount = 0; 
-             playNextSubtitle();
-        };
-
-        if (delayMs > 0) setTimeout(runNext, delayMs); else runNext();
-    }
-
     function replayCurrentSegment() {
-        // En Single Mode, usamos el activeLineElement guardado
-        // En Continuous Mode, buscamos el activo por clase
         let start = 0;
-        
         if (isSingleMode && activeLineElement) {
              start = parseFloat(activeLineElement.dataset.start) - timeOffset;
         } else {
              const activeLine = document.querySelector('.line.active');
              if(activeLine) start = parseFloat(activeLine.dataset.start) - timeOffset;
-             else {
-                 // Fallback: rebobinar un poco
-                 start = player.getCurrentTime() - 2; 
-             }
+             else start = player.getCurrentTime() - 2; 
         }
-        
         player.seekTo(Math.max(0, start), true);
         player.playVideo();
     }
 
     function playNextSubtitle() {
+        // En este punto isWaitingDelay ya es false, así que al hacer seek,
+        // checkTime volverá a ejecutarse y pintará el nuevo subtítulo.
         const activeLine = document.querySelector('.line.active');
         if(activeLine && activeLine.nextElementSibling && activeLine.nextElementSibling.classList.contains('line')) {
             const nextLine = activeLine.nextElementSibling;
             scrollToActiveElement(nextLine);
-            // Simplemente buscamos al inicio del siguiente y damos play
-            // No activamos Single Mode, seguimos en Continuous
+            
+            // Forzamos modo flujo para el siguiente
+            isSingleMode = false; 
+            shouldAutoAdvance = true; 
+            isSegmentPlaying = true;
+
             const start = parseFloat(nextLine.dataset.start) - timeOffset;
             player.seekTo(Math.max(0, start), true);
             player.playVideo();
@@ -563,6 +533,9 @@
     }
 
     function highlightCurrentLine(time) {
+        // Doble seguridad para no pintar si estamos esperando
+        if(isWaitingDelay) return; 
+
         const lines = document.querySelectorAll('.line'); let activeLine = null;
         lines.forEach((line) => {
             const start = parseFloat(line.dataset.start); const end = parseFloat(line.dataset.end);
@@ -588,7 +561,10 @@
                         <div class="spanish">${sub.es}</div>
                     </div>
                     <div class="controls">
-                        <button class="btn playBtn">Play</button>
+                        <div class="play-group">
+                            <button class="play-half btn-single" title="Repetir este (Stop al final)">◼</button>
+                            <button class="play-half btn-cont" title="Reproducir y Avanzar (Flujo)">⏩</button>
+                        </div>
                         <button class="btn speakBtn">Speak</button>
                         <button class="btn saveBtn" onclick="saveLineToVocab(this)">+</button>
                     </div>
@@ -603,41 +579,20 @@
     }
 
     function attachButtonEvents() {
-        document.querySelectorAll('.playBtn').forEach(btn => {
+        // EVENTO BOTÓN ÚNICO (IZQUIERDA)
+        document.querySelectorAll('.btn-single').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                e.stopPropagation(); 
-                const line = btn.closest('.line');
-                const start = parseFloat(line.dataset.start) - timeOffset; 
-                const end = parseFloat(line.dataset.end) + endPadding;
-                
-                if (btn.dataset.state === 'playing') { 
-                    stopEverything();
-                    return; 
-                }
-                
-                resetButtons(); 
-                window.speechSynthesis.cancel(); 
-                document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
-                
-                // ACTIVAR MODO SINGLE
-                isSingleMode = true; 
-                isSegmentPlaying = true;
-                segmentEndTime = end;
-                activeLineElement = line; // Guardar referencia para repetición
-                
-                currentRepetitionCount = 0;
-                isWaitingDelay = false;
-                scrollEnabled = false; // Desactivar scroll automático en modo estudio manual
-
-                player.seekTo(Math.max(0, start), true); 
-                player.playVideo(); 
-                player.setPlaybackRate(currentPlaybackRate);
-                
-                btn.textContent = "Stop"; 
-                btn.dataset.state = 'playing'; 
-                line.classList.add('active');
+                handlePlayClick(e, btn, false); // false = No avanzar
             });
         });
+
+        // EVENTO BOTÓN FLUJO (DERECHA)
+        document.querySelectorAll('.btn-cont').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                handlePlayClick(e, btn, true); // true = Avanzar
+            });
+        });
+
         document.querySelectorAll('.speakBtn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation(); const line = btn.closest('.line'); const text = line.querySelector('.english').innerText;
@@ -646,6 +601,43 @@
                 speakText(text, () => { btn.textContent = "Stop"; btn.dataset.state = 'speaking'; document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active')); line.classList.add('active'); }, () => { resetButtons(); });
             });
         });
+    }
+
+    function handlePlayClick(e, btn, autoAdvance) {
+        e.stopPropagation(); 
+        const line = btn.closest('.line');
+        const start = parseFloat(line.dataset.start) - timeOffset; 
+        const end = parseFloat(line.dataset.end) + endPadding;
+        
+        // Si ya está reproduciendo ESTE botón, paramos
+        if (btn.classList.contains('active-play-btn')) { 
+            stopEverything();
+            return; 
+        }
+        
+        resetButtons(); 
+        btn.classList.add('active-play-btn'); // Marcador visual
+        
+        window.speechSynthesis.cancel(); 
+        document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
+        
+        // CONFIGURAR ESTADO
+        isSingleMode = true; // Estamos en modo controlado por botones
+        shouldAutoAdvance = autoAdvance; // Aquí definimos si salta o no
+        
+        isSegmentPlaying = true;
+        segmentEndTime = end;
+        activeLineElement = line;
+        
+        currentRepetitionCount = 0;
+        isWaitingDelay = false;
+        scrollEnabled = false;
+
+        player.seekTo(Math.max(0, start), true); 
+        player.playVideo(); 
+        player.setPlaybackRate(currentPlaybackRate);
+        
+        line.classList.add('active');
     }
 
     function loadTimingPrefs() {
@@ -782,8 +774,12 @@
         switch(e.code) {
             case 'Space':
                 e.preventDefault();
-                // Si Single Mode, simula click. Si no, Play nativo YouTube
-                if (isSingleMode && activeLineElement) { activeLineElement.querySelector('.playBtn').click(); } 
+                // Si Single Mode, simula click en el botón activo
+                if (isSingleMode && activeLineElement) { 
+                    // Si el usuario activó con el botón flujo, simulamos flujo. Si fue single, single.
+                    if(shouldAutoAdvance) activeLineElement.querySelector('.btn-cont').click();
+                    else activeLineElement.querySelector('.btn-single').click();
+                } 
                 else { 
                     if(player.getPlayerState() === 1) player.pauseVideo(); else player.playVideo();
                 }
@@ -820,7 +816,9 @@
         setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
     }
     
-    function resetButtons() { document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); }); document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); }); }
+    function resetButtons() { 
+        document.querySelectorAll('.active-play-btn').forEach(b => b.classList.remove('active-play-btn'));
+    }
     
     document.addEventListener('click', function(e) { 
         const timingMenu = document.getElementById('timing-menu'); const timingBtn = document.getElementById('btn-timing');
