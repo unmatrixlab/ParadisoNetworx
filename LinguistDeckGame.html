@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Smart Filter</title>
+    <title>Vocabulary Hunter: Final Masterpiece</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -50,6 +50,48 @@
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
         
+        /* POP QUIZ MODAL MEJORADO */
+        #quiz-overlay {
+            background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
+            padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
+            transition: border-color 0.3s;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
+        #quiz-input {
+            background: #000; border: 2px solid #333; color: #fff;
+            padding: 15px; font-family: 'Press Start 2P'; font-size: 16px;
+            text-align: center; width: 90%; text-transform: uppercase;
+        }
+        #quiz-input:focus { border-color: var(--neon-green); outline: none; }
+        
+        #quiz-feedback { 
+            margin-top: 20px; min-height: 30px; font-size: 10px; 
+            color: var(--neon-yellow); line-height: 1.6; text-align: center;
+        }
+        .correct-ans-highlight {
+            color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
+        }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        /* BOTONES QUIZ */
+        .quiz-actions { display: flex; gap: 10px; margin-top: 15px; width: 100%; justify-content: center; }
+        .quiz-btn {
+            padding: 15px; font-family: 'Press Start 2P'; cursor: pointer; font-size: 10px; border: 2px solid;
+            background: transparent; color: #fff; flex: 1;
+        }
+        .btn-verify { border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-verify:hover { background: var(--neon-green); color: #000; }
+        
+        .btn-skip { border-color: #555; color: #777; font-size: 8px; }
+        .btn-skip:hover { border-color: var(--neon-red); color: var(--neon-red); }
+
         /* MODAL */
         #study-content {
             background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
@@ -72,18 +114,13 @@
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
         .en-word {color:var(--neon-blue);font-weight:bold;}
         .chk-cell { width: 40px; text-align: center; }
-
-        /* CHECKBOX STYLE */
-        input[type=checkbox] {
-            width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer;
-        }
+        input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
 
         .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
         .config-val { color: var(--neon-yellow); }
         .slider-desc { font-size: 8px; color: #666; margin-top: 5px; display: flex; justify-content: space-between; }
-        
         input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon-green); }
         input[type=color] { cursor: pointer; border: none; width: 50px; height: 30px; }
         select { width: 100%; padding: 10px; background: #111; color: var(--neon-green); border: 1px solid var(--neon-green); font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; margin-top: 5px; }
@@ -124,6 +161,21 @@
         <div class="blink">CLICK TO RETRY</div>
     </div>
 
+    <div id="quiz-screen" class="overlay-screen" style="display:none;">
+        <div id="quiz-overlay">
+            <h2 style="color:var(--neon-red);" id="quiz-title">SYSTEM HACK DETECTED!</h2>
+            <p style="font-size:10px; color:#aaa;">TRANSLATE TO RESTORE SYSTEMS</p>
+            <div id="quiz-question">WORD</div>
+            <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
+            <div id="quiz-feedback"></div>
+            
+            <div class="quiz-actions">
+                <button class="quiz-btn btn-skip" onclick="skipQuiz()">FORCE REBOOT (-500 PTS)</button>
+                <button class="quiz-btn btn-verify" onclick="checkQuizAnswer()">VERIFY REPAIR</button>
+            </div>
+        </div>
+    </div>
+
     <div id="study-guide" class="overlay-screen" style="display:none;">
         <div id="study-content">
             <span class="close-btn" onclick="toggleStudyGuide()">X</span>
@@ -134,11 +186,23 @@
             
             <div id="tab-db" class="tab-content active">
                 <h2 id="db-title" class="config-header">ACTIVE VOCABULARY</h2>
+                
                 <div class="config-group" style="margin-bottom: 10px;">
                     <label class="config-label">DATA USAGE LIMIT<span id="lbl-percent" class="config-val">100%</span></label>
                     <input type="range" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
                     <div class="slider-desc"><span>START</span><span>ALL DATA</span></div>
                 </div>
+
+                <div class="config-group" style="border-top: 1px dashed #333; padding-top: 10px;">
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-quiz" onchange="updateConfig('quiz')">
+                        ENABLE POP QUIZ TIMER
+                    </label>
+                    <label class="config-label" style="margin-top:5px;">FREQUENCY<span id="val-quiz-time" class="config-val">30s</span></label>
+                    <input type="range" id="cfg-quiz-time" min="10" max="60" step="5" value="30" oninput="updateConfig('quiz')">
+                    <div class="slider-desc"><span>OFTEN</span><span>RARE</span></div>
+                </div>
+
                 <div id="study-table-container"></div>
             </div>
 
@@ -187,100 +251,49 @@
    1. INTERNAL DATA
    ========================================= */
 const INTERNAL_VOCAB = {
-    // ==================== VERBOS MÁS FRECUENTES (50) ====================
     'VERBS': [
-        {en:"BE", es:"SER/ESTAR"}, {en:"HAVE", es:"TENER"}, {en:"DO", es:"HACER"}, {en:"SAY", es:"DECIR"},
-        {en:"GO", es:"IR"}, {en:"GET", es:"OBTENER"}, {en:"MAKE", es:"HACER"}, {en:"KNOW", es:"SABER"},
-        {en:"THINK", es:"PENSAR"}, {en:"TAKE", es:"TOMAR"}, {en:"SEE", es:"VER"}, {en:"COME", es:"VENIR"},
-        {en:"WANT", es:"QUERER"}, {en:"LOOK", es:"MIRAR"}, {en:"USE", es:"USAR"}, {en:"FIND", es:"ENCONTRAR"},
-        {en:"GIVE", es:"DAR"}, {en:"TELL", es:"DECIR/CONTAR"}, {en:"WORK", es:"TRABAJAR"}, {en:"CALL", es:"LLAMAR"},
-        {en:"TRY", es:"INTENTAR"}, {en:"ASK", es:"PREGUNTAR"}, {en:"NEED", es:"NECESITAR"}, {en:"FEEL", es:"SENTIR"},
-        {en:"BECOME", es:"LLEGAR A SER"}, {en:"LEAVE", es:"SALIR/DEJAR"}, {en:"PUT", es:"PONER"}, {en:"MEAN", es:"SIGNIFICAR"},
-        {en:"KEEP", es:"MANTENER"}, {en:"LET", es:"DEJAR"}, {en:"BEGIN", es:"EMPEZAR"}, {en:"SEEM", es:"PARECER"},
-        {en:"HELP", es:"AYUDAR"}, {en:"TALK", es:"HABLAR"}, {en:"TURN", es:"GIRAR"}, {en:"START", es:"EMPEZAR"},
-        {en:"SHOW", es:"MOSTRAR"}, {en:"HEAR", es:"OÍR"}, {en:"PLAY", es:"JUGAR"}, {en:"RUN", es:"CORRER"},
-        {en:"MOVE", es:"MOVER"}, {en:"LIKE", es:"GUSTAR"}, {en:"LIVE", es:"VIVIR"}, {en:"BELIEVE", es:"CREER"},
-        {en:"HOLD", es:"SOSTENER"}, {en:"BRING", es:"TRAER"}, {en:"HAPPEN", es:"OCURRIR"}, {en:"WRITE", es:"ESCRIBIR"},
-        {en:"SIT", es:"SENTAR"}, {en:"STAND", es:"ESTAR DE PIE"}, {en:"LOSE", es:"PERDER"}
+        {en: "RUN", es: "CORRER"}, {en: "JUMP", es: "SALTAR"}, {en: "EAT", es: "COMER"},
+        {en: "SLEEP", es: "DORMIR"}, {en: "READ", es: "LEER"}, {en: "WRITE", es: "ESCRIBIR"},
+        {en: "WALK", es: "CAMINAR"}, {en: "FLY", es: "VOLAR"}, {en: "SWIM", es: "NADAR"}
     ],
-
-    // ==================== SUSTANTIVOS MÁS FRECUENTES (60) ====================
     'NOUNS': [
-        {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
-        {en:"DAY", es:"DÍA"}, {en:"THING", es:"COSA"}, {en:"MAN", es:"HOMBRE"}, {en:"WORLD", es:"MUNDO"},
-        {en:"LIFE", es:"VIDA"}, {en:"HAND", es:"MANO"}, {en:"PART", es:"PARTE"}, {en:"CHILD", es:"NIÑO/A"},
-        {en:"EYE", es:"OJO"}, {en:"WOMAN", es:"MUJER"}, {en:"PLACE", es:"LUGAR"}, {en:"WORK", es:"TRABAJO"},
-        {en:"WEEK", es:"SEMANA"}, {en:"CASE", es:"CASO"}, {en:"POINT", es:"PUNTO"}, {en:"GOVERNMENT", es:"GOBIERNO"},
-        {en:"COMPANY", es:"EMPRESA"}, {en:"NUMBER", es:"NÚMERO"}, {en:"GROUP", es:"GRUPO"}, {en:"PROBLEM", es:"PROBLEMA"},
-        {en:"FACT", es:"HECHO"}, {en:"HOUSE", es:"CASA"}, {en:"SERVICE", es:"SERVICIO"}, {en:"FRIEND", es:"AMIGO"},
-        {en:"FATHER", es:"PADRE"}, {en:"POWER", es:"PODER"}, {en:"HOUR", es:"HORA"}, {en:"GAME", es:"JUEGO"},
-        {en:"LINE", es:"LÍNEA"}, {en:"END", es:"FIN"}, {en:"MEMBER", es:"MIEMBRO"}, {en:"LAW", es:"LEY"},
-        {en:"CAR", es:"COCHE"}, {en:"CITY", es:"CIUDAD"}, {en:"COMMUNITY", es:"COMUNIDAD"}, {en:"NAME", es:"NOMBRE"},
-        {en:"PRESIDENT", es:"PRESIDENTE"}, {en:"TEAM", es:"EQUIPO"}, {en:"MINUTE", es:"MINUTO"}, {en:"IDEA", es:"IDEA"},
-        {en:"KID", es:"NIÑO"}, {en:"BODY", es:"CUERPO"}, {en:"INFORMATION", es:"INFORMACIÓN"}, {en:"BACK", es:"ESPALDA"},
-        {en:"PARENT", es:"PADRE/MADRE"}, {en:"FACE", es:"CARA"}, {en:"OTHERS", es:"OTROS"}, {en:"HOME", es:"HOGAR"},
-        {en:"SCHOOL", es:"ESCUELA"}, {en:"WATER", es:"AGUA"}, {en:"WORD", es:"PALABRA"}, {en:"AREA", es:"ÁREA"},
-        {en:"MONEY", es:"DINERO"}, {en:"STORY", es:"HISTORIA"}, {en:"MORNING", es:"MAÑANA"}, {en:"MOM", es:"MAMÁ"}
+        {en: "HOUSE", es: "CASA"}, {en: "CAR", es: "COCHE"}, {en: "TREE", es: "ÁRBOL"},
+        {en: "BOOK", es: "LIBRO"}, {en: "DOG", es: "PERRO"}, {en: "CAT", es: "GATO"},
+        {en: "CITY", es: "CIUDAD"}, {en: "WATER", es: "AGUA"}, {en: "TIME", es: "TIEMPO"}
     ],
-
-    // ==================== ADJETIVOS MÁS FRECUENTES (40) ====================
     'ADJECTIVES': [
-        {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
-        {en:"LONG", es:"LARGO"}, {en:"GREAT", es:"GENIAL/GRANDE"}, {en:"LITTLE", es:"PEQUEÑO"}, {en:"OWN", es:"PROPIO"},
-        {en:"OTHER", es:"OTRO"}, {en:"OLD", es:"VIEJO"}, {en:"RIGHT", es:"CORRECTO/DERECHO"}, {en:"BIG", es:"GRANDE"},
-        {en:"HIGH", es:"ALTO"}, {en:"DIFFERENT", es:"DIFERENTE"}, {en:"SMALL", es:"PEQUEÑO"}, {en:"LARGE", es:"GRANDE"},
-        {en:"NEXT", es:"SIGUIENTE"}, {en:"EARLY", es:"TEMPRANO"}, {en:"YOUNG", es:"JOVEN"}, {en:"IMPORTANT", es:"IMPORTANTE"},
-        {en:"FEW", es:"POCOS"}, {en:"PUBLIC", es:"PÚBLICO"}, {en:"BAD", es:"MALO"}, {en:"SAME", es:"MISMO"},
-        {en:"ABLE", es:"CAPAZ"}, {en:"HAPPY", es:"FELIZ"}, {en:"EASY", es:"FÁCIL"}, {en:"BEST", es:"MEJOR"},
-        {en:"BEAUTIFUL", es:"HERMOSO"}, {en:"TRUE", es:"VERDADERO"}, {en:"FREE", es:"LIBRE/GRATIS"}, {en:"HARD", es:"DURO/DIFÍCIL"},
-        {en:"BETTER", es:"MEJOR"}, {en:"SURE", es:"SEGURO"}, {en:"POSSIBLE", es:"POSIBLE"}, {en:"FULL", es:"LLENO"},
-        {en:"STRONG", es:"FUERTE"}, {en:"HOT", es:"CALIENTE"}, {en:"COLD", es:"FRÍO"}, {en:"NICE", es:"AMABLE/LINDO"}
+        {en: "BIG", es: "GRANDE"}, {en: "SMALL", es: "PEQUEÑO"}, {en: "FAST", es: "RÁPIDO"},
+        {en: "SLOW", es: "LENTO"}, {en: "HOT", es: "CALIENTE"}, {en: "COLD", es: "FRÍO"},
+        {en: "HAPPY", es: "FELIZ"}, {en: "SAD", es: "TRISTE"}
     ],
-
-    // ==================== BONUS: PALABRAS FUNCIONALES & PREPOSICIONES (30) ====================
-    'FUNCTION WORDS': [
-        {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
-        {en:"TO", es:"A/PARA"}, {en:"IN", es:"EN"}, {en:"IS", es:"ES"}, {en:"YOU", es:"TÚ/USTED"},
-        {en:"THAT", es:"QUE/ESE"}, {en:"IT", es:"ELLO/LO"}, {en:"HE", es:"ÉL"}, {en:"WAS", es:"ERA/FUE"},
-        {en:"FOR", es:"PARA"}, {en:"ON", es:"SOBRE/EN"}, {en:"ARE", es:"SON/ESTÁN"}, {en:"AS", es:"COMO"},
-        {en:"WITH", es:"CON"}, {en:"HIS", es:"SU (DE ÉL)"}, {en:"THEY", es:"ELLOS"}, {en:"I", es:"YO"},
-        {en:"AT", es:"EN/A"}, {en:"BE", es:"SER/ESTAR"}, {en:"THIS", es:"ESTE"}, {en:"HAVE", es:"TENER"},
-        {en:"FROM", es:"DE/DESDE"}, {en:"OR", es:"O"}, {en:"ONE", es:"UNO"}, {en:"HAD", es:"HABÍA/TUVO"},
-        {en:"BY", es:"POR"}, {en:"BUT", es:"PERO"}
-    ],
-
-    // ==================== ANIMALES COMUNES (20) ====================
     'ANIMALS': [
-        {en:"DOG", es:"PERRO"}, {en:"CAT", es:"GATO"}, {en:"BIRD", es:"PÁJARO"}, {en:"FISH", es:"PEZ"},
-        {en:"HORSE", es:"CABALLO"}, {en:"LION", es:"LEÓN"}, {en:"TIGER", es:"TIGRE"}, {en:"BEAR", es:"OSO"},
-        {en:"ELEPHANT", es:"ELEFANTE"}, {en:"MONKEY", es:"MONO"}, {en:"SNAKE", es:"SERPIENTE"}, {en:"COW", es:"VACA"},
-        {en:"PIG", es:"CERDO"}, {en:"CHICKEN", es:"POLLO"}, {en:"SHEEP", es:"OVEJA"}, {en:"RABBIT", es:"CONEJO"},
-        {en:"FROG", es:"RANA"}, {en:"SPIDER", es:"ARAÑA"}, {en:"WOLF", es:"LOBO"}, {en:"FOX", es:"ZORRO"}
+        {en: "LION", es: "LEÓN"}, {en: "TIGER", es: "TIGRE"}, {en: "BEAR", es: "OSO"},
+        {en: "EAGLE", es: "ÁGUILA"}, {en: "SHARK", es: "TIBURÓN"}, {en: "WOLF", es: "LOBO"}
     ],
-
-    // ==================== COLORES + NÚMEROS BÁSICOS (20) ====================
-    'COLORS & NUMBERS': [
-        {en:"ONE", es:"UNO"}, {en:"TWO", es:"DOS"}, {en:"THREE", es:"TRES"}, {en:"RED", es:"ROJO"},
-        {en:"BLUE", es:"AZUL"}, {en:"GREEN", es:"VERDE"}, {en:"YELLOW", es:"AMARILLO"}, {en:"BLACK", es:"NEGRO"},
-        {en:"WHITE", es:"BLANCO"}, {en:"FOUR", es:"CUATRO"}, {en:"FIVE", es:"CINCO"}, {en:"SIX", es:"SEIS"},
-        {en:"ORANGE", es:"NARANJA"}, {en:"PURPLE", es:"PÚRPURA"}, {en:"PINK", es:"ROSA"}, {en:"BROWN", es:"MARRÓN"},
-        {en:"GRAY", es:"GRIS"}, {en:"SEVEN", es:"SIETE"}, {en:"EIGHT", es:"OCHO"}, {en:"NINE", es:"NUEVE"}
+    'TECH': [
+        {en: "CODE", es: "CÓDIGO"}, {en: "DATA", es: "DATOS"}, {en: "FILE", es: "ARCHIVO"},
+        {en: "USER", es: "USUARIO"}, {en: "WEB", es: "RED"}, {en: "LINK", es: "ENLACE"}
     ]
 };
 
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v7';
+const CONFIG_KEY = 'vocab_robot_config_v9';
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
-    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5'
+    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
+    quizEnabled: false, quizInterval: 30
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
-let disabledWords = new Set(); // SET PARA PALABRAS DESACTIVADAS
+let disabledWords = new Set(); 
+
+// Variables para el Quiz
+let quizTimer = 0;
+let currentQuizWord = null;
 
 // --- MENUS & UI ---
 function renderCategoryBar() {
@@ -331,19 +344,16 @@ function populateSourceMenu() {
 
 function loadConfig() {
     populateSourceMenu();
-    // 1. Config
     const saved = localStorage.getItem(CONFIG_KEY);
     if(saved) {
         try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
         catch(e) { console.error("Config error", e); }
     }
-    // 2. Disabled Words
     const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
     if(savedDisabled) {
         try { disabledWords = new Set(JSON.parse(savedDisabled)); }
         catch(e) { disabledWords = new Set(); }
     }
-
     applyConfigToUI();
     recalcGameVars();
 }
@@ -352,6 +362,10 @@ function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
     document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
     document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
+    document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
+    document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
+    document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
 
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
@@ -380,6 +394,12 @@ function updateConfig(key) {
         loadVocabData(); populateStudyGuide();
         if(gameRunning) enemies = [];
     }
+    else if(key === 'quiz') {
+        userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
+        userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
+        document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
+        quizTimer = 0; 
+    }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
     else if(key === 'bomb') userSettings.bombChance = parseInt(document.getElementById('cfg-bomb').value);
@@ -398,9 +418,9 @@ function updateConfig(key) {
 
 function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
-    localStorage.removeItem(DISABLED_WORDS_KEY); // Resetear también las palabras desactivadas
+    localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5' };
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30 };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -412,16 +432,24 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA LOADING & FILTERING ---
-let activeVocabList = []; // Lista visual completa
-let gameDeck = [];        // Lista real para el juego (filtrada)
+// --- 3. DATA & CLEANING ---
+let activeVocabList = []; 
+let gameDeck = [];        
+
+const cleanText = (str) => {
+    if(!str) return "";
+    return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+};
 
 function loadVocabData() {
     let tempVocabList = [];
     const countWords = (str) => str.trim().split(/\s+/).length;
     const processItem = (en, es) => {
-        if(en && es && countWords(en) <= 2) {
-            tempVocabList.push({en: en.toUpperCase(), es: [es.toUpperCase()]});
+        const safeEn = cleanText(en);
+        const safeEs = cleanText(es);
+        
+        if(safeEn && safeEs && countWords(safeEn) <= 2) {
+            tempVocabList.push({en: safeEn, es: [safeEs]});
         }
     };
 
@@ -453,7 +481,6 @@ function loadVocabData() {
         });
     }
 
-    // 1. Aplicar filtro de Porcentaje
     if (tempVocabList.length > 0) {
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
@@ -462,8 +489,6 @@ function loadVocabData() {
     }
 
     if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
-
-    // 2. Generar el Mazo de Juego (Filtrando las desactivadas)
     refreshGameDeck();
 }
 
@@ -475,14 +500,164 @@ function refreshGameDeck() {
 function toggleWordStatus(engWord) {
     if(disabledWords.has(engWord)) disabledWords.delete(engWord);
     else disabledWords.add(engWord);
-    
     localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
     refreshGameDeck();
-    // No recargamos toda la tabla para que sea rápido, solo la lógica interna
 }
 
+// --- ALGORITMO LEVENSHTEIN ---
+function similarity(s1, s2) {
+    var longer = s1;
+    var shorter = s2;
+    if (s1.length < s2.length) { longer = s2; shorter = s1; }
+    var longerLength = longer.length;
+    if (longerLength == 0) return 1.0;
+    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+}
+
+function editDistance(s1, s2) {
+    s1 = s1.toLowerCase(); s2 = s2.toLowerCase();
+    var costs = new Array();
+    for (var i = 0; i <= s1.length; i++) {
+        var lastValue = i;
+        for (var j = 0; j <= s2.length; j++) {
+            if (i == 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    var newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
+// --- POP QUIZ LOGIC (FIXED) ---
+function triggerPopQuiz() {
+    gameRunning = false; 
+    const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
+    currentQuizWord = randomItem;
+    
+    const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
+    currentQuizWord.mode = mode;
+
+    const qEl = document.getElementById('quiz-question');
+    const iEl = document.getElementById('quiz-input');
+    const fEl = document.getElementById('quiz-feedback');
+    const titleEl = document.getElementById('quiz-title');
+    const overlay = document.getElementById('quiz-overlay');
+    
+    iEl.value = "";
+    fEl.innerText = "";
+    titleEl.innerText = "SYSTEM HACK!";
+    titleEl.style.color = "var(--neon-red)";
+    overlay.style.borderColor = "var(--neon-red)";
+    
+    if (mode === 'EN_TO_ES') {
+        qEl.innerText = `TRANSLATE: ${randomItem.en}`;
+        iEl.placeholder = "TYPE IN SPANISH";
+    } else {
+        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; 
+        iEl.placeholder = "TYPE IN ENGLISH";
+    }
+
+    document.getElementById('quiz-screen').style.display = 'flex';
+    document.getElementById('quiz-input').focus();
+}
+
+function skipQuiz() {
+    score = Math.max(0, score - 500); 
+    scoreEl.innerText = score;
+    const feedback = document.getElementById('quiz-feedback');
+    feedback.style.color = '#ffaa00';
+    feedback.innerText = `CORRECT WAS: ${currentQuizWord.mode === 'EN_TO_ES' ? currentQuizWord.es[0] : currentQuizWord.en}`;
+    
+    setTimeout(() => {
+        document.getElementById('quiz-screen').style.display = 'none';
+        quizTimer = 0; 
+        gameRunning = true;
+        lastTime = performance.now();
+        gameLoopId = requestAnimationFrame(loop);
+    }, 2000); 
+}
+
+function checkQuizAnswer() {
+    const userInput = cleanText(document.getElementById('quiz-input').value);
+    const feedback = document.getElementById('quiz-feedback');
+    const overlay = document.getElementById('quiz-overlay');
+    const titleEl = document.getElementById('quiz-title');
+    
+    let correctAnswers = [];
+    if (currentQuizWord.mode === 'EN_TO_ES') correctAnswers = currentQuizWord.es; 
+    else correctAnswers = [currentQuizWord.en];
+
+    let maxSim = 0;
+    let bestMatch = "";
+    
+    correctAnswers.forEach(ans => {
+        const sim = similarity(userInput, ans);
+        if (sim > maxSim) { maxSim = sim; bestMatch = ans; }
+    });
+
+    if (maxSim >= 1.0) {
+        feedback.style.color = '#0f0';
+        feedback.innerText = "SYSTEM RESTORED! BOMB CLEAR ACTIVATED!";
+        setTimeout(resolveQuizSuccess, 1000);
+    } else {
+        const inputEl = document.getElementById('quiz-input');
+        inputEl.classList.add('shake');
+        setTimeout(()=>inputEl.classList.remove('shake'), 500);
+        titleEl.innerText = "CRITICAL FAILURE!";
+        overlay.style.borderColor = "#ff0000";
+        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
+        inputEl.value = "";
+        inputEl.placeholder = "TYPE THE WORD ABOVE";
+        inputEl.focus();
+    }
+}
+
+function launchFireworks() {
+    for(let i=0; i<10; i++) {
+        setTimeout(() => {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const color = `hsl(${Math.random()*360}, 100%, 50%)`;
+            createExplosion(x, y, color, 40); 
+            playSound('player_hit'); // Usamos el sonido de explosión que ya tenemos
+        }, i * 200); 
+    }
+}
+
+function resolveQuizSuccess() {
+    quizTimer = 0; 
+    document.getElementById('quiz-screen').style.display = 'none';
+    
+    // FIREWORKS & SOUND
+    launchFireworks();
+
+    enemyBombs = []; 
+    enemies.forEach(e => {
+        e.fading = true;
+        createExplosion(e.x, e.y, e.color, 20);
+        score += 50;
+    });
+    
+    gameRunning = true;
+    lastTime = performance.now();
+    gameLoopId = requestAnimationFrame(loop);
+}
+
+document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') checkQuizAnswer();
+});
+
+
 /* =========================================
-   4. GAME ENGINE (OPTIMIZED)
+   4. GAME ENGINE
    ========================================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -498,13 +673,40 @@ const studyTableContainer = document.getElementById('study-table-container');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
+/* =========================================
+   AUDIO MANAGER (QUEUE SYSTEM)
+   ========================================= */
+const audioQueue = [];
+let isSpeaking = false;
+
+setInterval(() => {
+    if (!isSpeaking && audioQueue.length > 0) {
+        const next = audioQueue.shift();
+        playText(next.text, next.lang);
+    }
+}, 100);
+
 function speak(text, lang) {
+    audioQueue.push({text, lang});
+}
+
+function playText(text, lang) {
     if (!window.speechSynthesis) return;
+    
+    isSpeaking = true;
     window.speechSynthesis.cancel();
-    let textToSpeak = text;
+    
+    // CORRECCIÓN TTS: Convertir a minúsculas para evitar deletreo
+    let textToSpeak = text.toLowerCase();
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
+    
     const u = new SpeechSynthesisUtterance(textToSpeak);
-    u.lang = lang; u.rate = 1.1; 
+    u.lang = lang; 
+    u.rate = 1.1; 
+    
+    u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
+    u.onerror = () => { isSpeaking = false; };
+
     window.speechSynthesis.speak(u);
 }
 
@@ -530,7 +732,6 @@ function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');
 function populateStudyGuide(){
     document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
     let html='<table><thead><tr><th class="chk-cell">PLAY?</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
-    
     activeVocabList.forEach(v => {
         const isChecked = !disabledWords.has(v.en);
         html += `<tr>
@@ -581,10 +782,8 @@ function getRandomBombContent() {
 }
 
 function spawnEnemy(){
-    // USA EL MAZO DE JUEGO FILTRADO
     if(gameDeck.length===0) return;
     const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
-    
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
     const vx = (Math.random() - 0.5) * 2.0;
@@ -604,7 +803,7 @@ function spawnEnemy(){
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 150) particles.shift();
+        if(particles.length > 300) particles.shift(); // Aumentado el límite para fuegos artificiales
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -636,6 +835,15 @@ function loop(timestamp) {
 }
 
 function update(dt){
+    // QUIZ TIMER CHECK
+    if (userSettings.quizEnabled) {
+        quizTimer += dt;
+        if (quizTimer >= userSettings.quizInterval * 1000) {
+            triggerPopQuiz();
+            return; 
+        }
+    }
+
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
     if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
@@ -809,6 +1017,7 @@ function startGame(){
     scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
     loadHighScore();
     gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
+    quizTimer = 0;
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
