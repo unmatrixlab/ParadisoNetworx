@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Synonym Hunter</title>
+    <title>Scribe's Shelf: Typing Defense</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body { 
@@ -10,13 +10,56 @@
             font-family: 'Press Start 2P', monospace; color: white; user-select: none;
         }
         canvas { display: block; }
-        #ui { position: absolute; top: 20px; left: 20px; z-index: 10; pointer-events: none; }
-        #start-screen {
+        
+        /* UI Overlays */
+        #ui { 
+            position: absolute; top: 20px; left: 20px; right: 20px; z-index: 10; 
+            pointer-events: none; display: flex; justify-content: space-between;
+        }
+        #lives-panel { color: #ff4444; }
+
+        /* INPUT BAR */
+        #input-bar {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 50px;
+            background: rgba(0, 0, 0, 0.85); z-index: 15;
+            display: flex; justify-content: center; align-items: center;
+            border-top: 2px solid #00ff00;
+        }
+        #typing-input {
+            width: 80%; max-width: 500px;
+            background: #111; color: #00ff00;
+            border: 2px solid #009900; padding: 10px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 14px; text-transform: uppercase;
+            outline: none;
+            text-align: center;
+        }
+        #input-bar label { color: #fff; font-size: 10px; margin-right: 10px;}
+
+        /* CATEGORY BAR */
+        #category-bar-wrapper {
+            position: absolute; bottom: 50px; left: 0; width: 100%;
+            padding: 5px 0; background: rgba(0, 0, 0, 0.5);
+            z-index: 15;
+            overflow-x: scroll; white-space: nowrap; display: flex;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+        }
+        .category-chip {
+            padding: 6px 12px; margin: 0 5px; background: #111; color: #444;
+            font-size: 10px; cursor: pointer; border: 1px solid #444; transition: 0.2s;
+            pointer-events: all; display: inline-block;
+        }
+        .category-chip.active { color: #00ff00; background: #003300; border-color: #00ff00; text-shadow: 0 0 5px #00ff00; }
+
+
+        /* SCREENS */
+        #start-screen, #game-over-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             background: rgba(0,0,0,0.85); z-index: 20; text-align: center;
         }
         h1 { color: #00ff00; text-shadow: 4px 4px #003300; font-size: 35px; margin-bottom: 20px; line-height: 1.5; }
+        h2 { color: #ff0000; font-size: 25px; margin-top: 50px; }
         p { line-height: 2; color: #aaa; font-size: 10px; max-width: 600px;}
         .blink { animation: blinker 1s linear infinite; color: #ffff00; margin-top: 30px; font-size: 14px; cursor: pointer;}
         @keyframes blinker { 50% { opacity: 0; } }
@@ -24,251 +67,81 @@
 </head>
 <body>
 
-    <div id="ui">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
+    <div id="ui">
+        <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
+        <div id="lives-panel">LIVES: <span id="lives">5</span></div>
+        <div id="high-score-panel">HIGH SCORE: <span id="highScore">0</span></div>
+    </div>
     
-    <div id="start-screen">
-        <h1>SYNONYM HUNTER</h1>
+    <div id="category-bar-wrapper"></div>
+
+    <div id="input-bar">
+        <input type="text" id="typing-input" placeholder="TYPE THE ANSWER AND PRESS ENTER">
+    </div>
+
+    <div id="start-screen" onclick="startGame()">
+        <h1>SCRIBE'S SHELF</h1>
         <p>
-            1. Dispara a la palabra en INGLÉS.<br>
-            2. Se volverá VERDE (Español Random).<br>
-            3. ¡Dispara de nuevo rápido para ver SINÓNIMOS!<br>
-            (Cada palabra tiene 3 significados)
+            GOAL: Type the correct word to match the sequence before enemies disappear.<br>
+            <br>
+            SEQUENCE:<br>
+            1. **(White) ENGLISH** → Type SPANISH.<br>
+            2. **(Green) SPANISH** → Type SYNONYM.<br>
+            3. **(Yellow) SYNONYM** → Type ORIGINAL ENGLISH.<br>
+            4. **(Blue) ENGLISH** → Type ENGLISH (Final Match).<br>
         </p>
-        <div class="blink">CLICK PARA INICIAR</div>
+        <div class="blink">CLICK TO START</div>
+    </div>
+
+    <div id="game-over-screen" style="display:none;" onclick="startGame()">
+        <h2>GAME OVER</h2>
+        <p>FINAL SCORE: <span id="finalScore">0</span></p>
+        <p>NEW HIGH SCORE: <span id="newHighScore" style="color: #00ff00;">NO</span></p>
+        <div class="blink">CLICK TO RETRY</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
 <script>
-/* --- BASE DE DATOS DE SINÓNIMOS --- */
-// Estructura: { en: "INGLÉS", es: ["OPCION 1", "OPCION 2", "OPCION 3"] }
-const wordsDB = [
-    {en: "ABATE", es: ["AMAINAR", "MITIGAR", "APLACAR"]},
-    {en: "ABERRANT", es: ["ANÓMALO", "DESVIADO", "PECULIAR"]},
-    {en: "ABJECT", es: ["ABYECTO", "SÓRDIDO", "VIL"]},
-    {en: "ACQUIESCE", es: ["CONSENTIR", "ALLANARSE", "ACCEDER"]},
-    {en: "ADMONISH", es: ["REPRENDER", "RECENSURAR", "APERCIBIR"]},
-    {en: "ADROIT", es: ["HÁBIL", "DIESTRO", "MAÑOSO"]},
-    {en: "ADULATE", es: ["HALAGAR", "ALABAR", "ENCOMIASTICO"]},
-    {en: "ADVERSE", es: ["CONTRARIO", "HOSTIL", "DESFAVORABLE"]},
-    {en: "ALACRITY", es: ["PRESTEZA", "VIVEZA", "DILIGENCIA"]},
-    {en: "AMALGAMATE", es: ["FUSIONAR", "MEZCLAR", "COALESCER"]},
-    {en: "AMBIGUOUS", es: ["INCIERTO", "EQUÍVOCO", "ANFIBOLÓGICO"]},
-    {en: "AMENABLE", es: ["FLEXIBLE", "DÓCIL", "SUMISO"]},
-    {en: "ANACHRONISM", es: ["EXTEMPORANEIDAD", "DESFASADO", "INCONGRUENCIA"]},
-    {en: "ANOMALY", es: ["IRREGULARIDAD", "RAREZA", "DISCREPANCIA"]},
-    {en: "ANTIPATHY", es: ["AVERSION", "ANIMADVERSION", "RECHAZO"]},
-    {en: "APATHY", es: ["INDOLENCIA", "DESIDIA", "PASIVIDAD"]},
-    {en: "APPELLATION", es: ["DENOMINACION", "EPÍTETO", "DICTADO"]},
-    {en: "ARROGATE", es: ["ADJUDICARSE", "APROPIARSE", "USURPAR"]},
-    {en: "ARTICULATE", es: ["ELOCUENTE", "EXPONER", "DISERTAR"]},
-    {en: "ASSIDUOUS", es: ["DILIGENTE", "APLICADO", "ESFORZADO"]},
-    {en: "ASTUTE", es: ["PERSPICAZ", "INGENIOSO", "SAGAZ"]},
-    {en: "AUSPICIOUS", es: ["FAVORABLE", "PROMETEDOR", "VENTUROSO"]},
-    {en: "AVARICE", es: ["CODICIA", "USURA", "CAJETERÍA"]},
-    {en: "AVOW", es: ["AFIRMAR", "CONFESAR", "DECLARAR"]},
-    {en: "BEQUEATH", es: ["LEGADO", "HEREDAR", "TESTAR"]},
-    {en: "BIFURCATE", es: ["DIVIDIR", "SEPARAR", "RAMIFICARSE"]},
-    {en: "BLIGHT", es: ["FLAGELO", "AZOTE", "PLAGA"]},
-    {en: "BOMBASTIC", es: ["GRANDILOCUENTE", "RIMBOMBANTE", "HINCHADO"]},
-    {en: "CAJOLE", es: ["HALAGAR", "PERSUADIR", "SONSACAR"]},
-    {en: "CALLOW", es: ["INEXPERTO", "NOVATO", "BISÓO"]},
-    {en: "CANDID", es: ["FRANCO", "SINCERO", "VERAZ"]},
-    {en: "CAPITULATE", es: ["RENDIRSE", "CLINARSE", "DESISTIR"]},
-    {en: "CAPRICIOUS", es: ["CAPRICHOSO", "VOLUBLE", "VELEIDOSO"]},
-    {en: "CAUSTIC", es: ["CORROSIVO", "CÁUSTICO", "MORDÁZ"]},
-    {en: "CHOLERIC", es: ["IRASCIBLE", "COLÉRICO", "IRACUNDO"]},
-    {en: "CHRONIC", es: ["PERSISTENTE", "CRÓNICO", "INCURABLE"]},
-    {en: "CLANDESTINE", es: ["FURTIVO", "SECRETO", "ESCONDIDO"]},
-    {en: "CUMBERSOME", es: ["ENGORROSO", "INMANEJABLE", "TEDIOSO"]},
-    {en: "DEBAUCHERY", es: ["DISOLUCIÓN", "VÍCIO", "LUJURIA"]},
-    {en: "DEFENESTRATE", es: ["EXPULSAR", "DESTITUIR", "ECHAR"]},
-    {en: "DEIGN", es: ["DIGNARSE", "CONDENSCENDER", "MERCER"]},
-    {en: "DELINEATE", es: ["TRAZAR", "DELIMITAR", "ESBOZAR"]},
-    {en: "DENIGRATE", es: ["DIFAMAR", "CALUMNIAR", "VILIPENDIAR"]},
-    {en: "DEVOID", es: ["DESPROVISTO", "VACÍO", "CARENTE"]},
-    {en: "DILETTANTE", es: ["AFICIONADO", "AMATEUR", "NOVEL"]},
-    {en: "DISCERN", es: ["AVISTAR", "COLUMBRAR", "PERCIBIR"]},
-    {en: "DISCOMFIT", es: ["DESCONCERTAR", "CONFUNDIR", "TURBAR"]},
-    {en: "DISPARATE", es: ["DISCREPANTE", "DISTINTO", "INCONGRUENTE"]},
-    {en: "DISSEMINATE", es: ["DIFUNDIR", "PROPAGAR", "DIVULGAR"]},
-    {en: "DISSIPATE", es: ["DISPERSAR", "DISIPAR", "ESFUMAR"]},
-    {en: "DOCILE", es: ["MANSO", "APLACIBLE", "DÓCIL"]},
-    {en: "DUBIOUS", es: ["DUDOSO", "SOSPECHOSO", "AMBIGUO"]},
-    {en: "DWELLING", es: ["MORADA", "RESIDENCIA", "DOMICILIO"]},
-    {en: "EBULLIENT", es: ["EXUBERANTE", "FERVIENTE", "ANIMADO"]},
-    {en: "EFFUSIVE", es: ["EFUSIVO", "ENTUSIASTA", "CALUROSO"]},
-    {en: "EGREGIOUS", es: ["ATROZ", "MONSTRUOSO", "FLAGRANTE"]},
-    {en: "ELUCIDATE", es: ["ACLARAR", "DILUCIDAR", "EXPLICITAR"]},
-    {en: "EMACIATED", es: ["ENFLAQUECIDO", "DEMACRADO", "ESQUELÉTICO"]},
-    {en: "ENDOWMENT", es: ["DÁDIVA", "PREBENDA", "PRERROGATIVA"]},
-    {en: "ENERVATE", es: ["DEBILITAR", "EXTENUAR", "AGOTAR"]},
-    {en: "ENGENDER", es: ["PRODUCIR", "GENERAR", "ORIGINAR"]},
-    {en: "EPHEMERAL", es: ["EFÍMERO", "FUGAZ", "PERECEDERO"]},
-    {en: "EQUANIMITY", es: ["SERENIDAD", "APLOMO", "CALMA"]},
-    {en: "ERUDITE", es: ["DOCTO", "VERSADO", "SABIO"]},
-    {en: "ESCHEW", es: ["EVITAR", "REHUIR", "ELUDIR"]},
-    {en: "EUPHEMISM", es: ["SUAVIZAR", "RODEO", "PALIATIVO"]},
-    {en: "EXACERBATE", es: ["EMPEORAR", "AGRAVAR", "EXALTAR"]},
-    {en: "EXIGENT", es: ["EXIGENTE", "APREMIANTE", "PERENTORIO"]},
-    {en: "EXQUISITE", es: ["ESPLÉNDIDO", "MAGNÍFICO", "SUBLIME"]},
-    {en: "EXTEMPORANEOUS", es: ["IMPROVISADO", "ESPONTÁNEO", "SIN_PREPARACIÓN"]},
-    {en: "FALLACIOUS", es: ["ENGAÑOSO", "FALSO", "FALAZ"]},
-    {en: "FASTIDIOUS", es: ["METICULOSO", "ESCOGIDO", "EXQUISITO"]},
-    {en: "FATUOUS", es: ["NECIO", "INSENSATO", "VANO"]},
-    {en: "FECKLESS", es: ["IRRESPONSABLE", "INÚTIL", "VAGO"]},
-    {en: "FEIGN", es: ["SIMULAR", "FINGIR", "APARENTAR"]},
-    {en: "FICKLE", es: ["INCONSTANTE", "VOLUBLE", "CAPRICHOSO"]},
-    {en: "FILIBUSTER", es: ["OBSTRUCCIONISTA", "BLOQUEAR", "DILATAR"]},
-    {en: "FLOUT", es: ["BURLAR", "DESAFIAR", "ESCARNECER"]},
-    {en: "FORSWEAR", es: ["RENEGAR", "ABJURAR", "JURAR_FALSO"]},
-    {en: "FULSOME", es: ["EXCESIVO", "EMPALAGOSO", "ADULADOR"]},
-    {en: "GARISH", es: ["CHILLÓN", "OSTENTOSO", "VISTOSO"]},
-    {en: "GARNER", es: ["RECOLECTAR", "ACOPIAR", "ATRAER"]},
-    {en: "GRANDILOQUENCE", es: ["RIMBOMBANTE", "ELOCUENCIA", "INFLADO"]},
-    {en: "GREGARIOUS", es: ["SOCIABLE", "COMPAÑERO", "EXTROVERTIDO"]},
-    {en: "GRIT", es: ["AGALLAS", "TEMPLE", "VALOR"]},
-    {en: "HISTRIONIC", es: ["TEATRAL", "DRAMÁTICO", "EXAGERADO"]},
-    {en: "IGNOMINIOUS", es: ["VERGONZOSO", "VIL", "HUMILLANTE"]},
-    {en: "IMPECABLE", es: ["INMACULADO", "INTACHABLE", "IRREPROCHABLE"]},
-    {en: "IMPERTINENT", es: ["IMPROCEDENTE", "INSOLENTE", "IMPERTINENTE"]},
-    {en: "IMPLACABLE", es: ["INFLEXIBLE", "INTRATABLE", "CRUEL"]},
-    {en: "IMPONDERABLE", es: ["INAPRECIABLE", "INSOSPECHADO", "INESCRUTABLE"]},
-    {en: "INANE", es: ["VACUO", "ESTÚPIDO", "INSENSATO"]},
-    {en: "INCHOATE", es: ["INCIPENTE", "INACABADO", "RUDIMENTARIO"]},
-    {en: "INCORRIGIBLE", es: ["IRREMEDIABLE", "OBSTINADO", "REBELDE"]},
-    {en: "INCURSION", es: ["INVASIÓN", "IRRUPCIÓN", "ATAQUE"]},
-    {en: "INEFFABLE", es: ["INDESCRIPTIBLE", "INEXPRESABLE", "CELESTIAL"]},
-    {en: "INEXORABLE", es: ["INEVITABLE", "IMPLACABLE", "NECESARIO"]},
-    {en: "INGENIOUS", es: ["HÁBIL", "CREATIVO", "LUCIDO"]},
-    {en: "INNUENDO", es: ["INSINUACIÓN", "SOBRENTENDIDO", "ALUSIÓN"]},
-    {en: "INSIPID", es: ["SINSABOR", "INSULSO", "ABURRIDO"]},
-    {en: "INSURGENT", es: ["SUBLEVADO", "REBELDE", "SEDICIOSO"]},
-    {en: "INTERNECINE", es: ["DESTRUCTOR", "MORTAL", "ASOLADOR"]},
-    {en: "INTREPID", es: ["AUDAZ", "OSADO", "VALIENTE"]},
-    {en: "INVEIGH", es: ["ARREMETE", "CRITICAR", "ATACAR"]},
-    {en: "INVETERATE", es: ["ARRAIGADO", "HABITUAL", "ENRAIZADO"]},
-    {en: "JETTISON", es: ["DESECHAR", "ABANDONAR", "DESCARTAR"]},
-    {en: "JUDICIOUS", es: ["JUICIOSO", "PRUDENTE", "SENSIBLE"]},
-    {en: "LACONIC", es: ["CONCISO", "SUCINTO", "BREVE"]},
-    {en: "LASSITUDE", es: ["LASITUD", "FATIGA", "DEBILIDAD"]},
-    {en: "LAUDATORY", es: ["ELOGIOSO", "ENCOMIASTICO", "APLAUSIVO"]},
-    {en: "LEVITY", es: ["LEVEDAD", "INCONSTANCIA", "FRIVOLIDAD"]},
-    {en: "LUCID", es: ["DIÁFANO", "NÍTIDO", "ELUCIDAR"]},
-    {en: "MALAISE", es: ["MALESTAR", "INDISPOSICIÓN", "DECAIMIENTO"]},
-    {en: "MALIGN", es: ["DIFAMAR", "CALUMNIAR", "DETERIORAR"]},
-    {en: "MAUDLIN", es: ["SENTIMENTAL", "MELANCOLICO", "LACRIMOSO"]},
-    {en: "MENDACIOUS", es: ["MENTIROSO", "FALAZ", "EMBUSTERO"]},
-    {en: "MENDICANT", es: ["INDIGENTE", "MENDIGO", "LIMOSNERO"]},
-    {en: "MITIGATE", es: ["APLACAR", "ATENUAR", "SUAVIZAR"]},
-    {en: "MOROSE", es: ["MALHUMORADO", "HOSCO", "TACITURNO"]},
-    {en: "MUNIFICENT", es: ["GENEROSA", "ESPLÉNDIDO", "MAGNÁNIMO"]},
-    {en: "NEFARIOUS", es: ["ABOMINABLE", "RUIN", "VIL"]},
-    {en: "NOMENCLATURE", es: ["TERMINOLOGÍA", "GLOSARIO", "VOCABULARIO"]},
-    {en: "NOXIOUS", es: ["NOCIVO", "PERNICIOSO", "TÓXICO"]},
-    {en: "OBFUSCATE", es: ["CONFUNDIR", "OSCURECER", "VELAR"]},
-    {en: "OBSEQUIOUS", es: ["SERVICIAL", "SUMISO", "ADULADOR"]},
-    {en: "OBSTREPEROUS", es: ["ESTREPITOSO", "RUIDOSO", "TURBULENTO"]},
-    {en: "OMINOUS", es: ["PREMONITORIO", "ACIAMO", "FUNESTO"]},
-    {en: "OVERT", es: ["MANIFIESTO", "CLARO", "PATENTE"]},
-    {en: "PALPABLE", es: ["TANGIBLE", "EVIDENTE", "PERCEPTIBLE"]},
-    {en: "PARAGON", es: ["DECHADO", "MODELO", "EJEMPLAR"]},
-    {en: "PARSIMONIOUS", es: ["TACANO", "MISERABLE", "AVARO"]},
-    {en: "PECUNIARY", es: ["CAUDAL", "NUMERARIO", "DIVISA"]},
-    {en: "PERFIDY", es: ["PERFIDIA", "TRAICIÓN", "DESLEALTAD"]},
-    {en: "PERFUNCTORY", es: ["SUPERFICIAL", "RUTINARIO", "DESCUIDADO"]},
-    {en: "PERNICIOUS", es: ["DAÑINO", "MALIGNO", "PERNICIOSO"]},
-    {en: "PERSPICACIOUS", es: ["PERSPICAZ", "AGUDO", "DISCERNIDOR"]},
-    {en: "PETULANT", es: ["IRASCIBLE", "MALHUMORADO", "CAPRICHOSO"]},
-    {en: "PHILISTINE", es: ["INCULTO", "BORDE", "PALURDO"]},
-    {en: "PLIABLE", es: ["DÚCTIL", "MOLDEABLE", "FLEXIBLE"]},
-    {en: "POLEMIC", es: ["CONTROVERSIA", "DISPUTA", "DISCREPANCIA"]},
-    {en: "PRAGMATIC", es: ["PRÁCTICO", "REALISTA", "FUNCIONAL"]},
-    {en: "PREVARICATE", es: ["ENGAÑAR", "EVASIVA", "MENTIR"]},
-    {en: "PROCLIVITY", es: ["INCLINACIÓN", "TENDENCIA", "PROPENSIÓN"]},
-    {en: "PROLIFERATE", es: ["MULTIPLICARSE", "CRECER", "DISPERSAR"]},
-    {en: "PROSAIC", es: ["VULGAR", "TRIVIAL", "COMÚN"]},
-    {en: "PULSATE", es: ["LATIR", "VIBRAR", "PALPITAR"]},
-    {en: "PUSILLANIMOUS", es: ["COBARDE", "MEDROSO", "APOCADO"]},
-    {en: "QUIESCENT", es: ["QUIETO", "DORMIDO", "LATENTE"]},
-    {en: "RAREFY", es: ["ENRARECER", "ADELGAZAR", "DISPERSAR"]},
-    {en: "RECALCITRANT", es: ["REBELDE", "INDÓCIL", "OBSTINADO"]},
-    {en: "RECONDITE", es: ["OCULTO", "ABSTRUSO", "PROFUNDO"]},
-    {en: "REFRACTORY", es: ["TERCO", "CONTUMAZ", "INTRATABLE"]},
-    {en: "REFUTE", es: ["REFUTAR", "REBATIR", "DESMENTIR"]},
-    {en: "REPUDIATE", es: ["RECHAZAR", "ABJURAR", "RENEGAR"]},
-    {en: "REPUGNANT", es: ["NAUSEABUNDO", "ASQUEROSO", "ABYECTO"]},
-    {en: "RETICENT", es: ["REACIO", "CALLADO", "RESERVADO"]},
-    {en: "SANGUINE", es: ["OPTIMISTA", "ENTUSIASTA", "VITAL"]},
-    {en: "SCRUPULOUS", es: ["ESCRUPULOSO", "DILIGENTE", "CONCIENZUDO"]},
-    {en: "SERENDIPITY", es: ["CASUALIDAD", "FORTUNA", "HALLAZGO_AFORTUNADO"]},
-    {en: "SOPORIFIC", es: ["SOMNÍFERO", "ADORMECEDOR", "NARCÓTICO"]},
-    {en: "SPURIOUS", es: ["FALSO", "ESPURIO", "FRAUDULENTO"]},
-    {en: "SQUANDER", es: ["DERROCHAR", "MALGASTAR", "DESPILFARRAR"]},
-    {en: "STATIC", es: ["ESTÁTICO", "INMÓVIL", "FIJO"]},
-    {en: "STOLID", es: ["IMPÁVIDO", "IMPONENTE", "APLOMADO"]},
-    {en: "STRIDENT", es: ["CHILLÓN", "ESTRIDENTE", "DESAGRADABLE"]},
-    {en: "SUBTERFUGE", es: ["ENGAÑO", "EVSASIVA", "TRIQUIÑUELA"]},
-    {en: "SUCCINCT", es: ["SUCINTO", "CONCISO", "ABREVIADO"]},
-    {en: "SURREPTITIOUS", es: ["FURTIVO", "CLANDESTINO", "ESCONDIDO"]},
-    {en: "SWIFT", es: ["PRESTO", "LIGERO", "AFIANADO"]},
-    {en: "TACITURN", es: ["TACITURNO", "RESERVADO", "CALLADO"]},
-    {en: "TANGENTIAL", es: ["PERIFÉRICO", "IRRELEVANTE", "ACCESORIO"]},
-    {en: "TENACIOUS", es: ["TENAZ", "PERSISTENTE", "FIRME"]},
-    {en: "TENUOUS", es: ["FRÁGIL", "DELGADO", "INSUBSTANCIAL"]},
-    {en: "TIRADE", es: ["INVECTIVA", "FILÍPICA", "PERORATA"]},
-    {en: "TRANSIENT", es: ["TRANSITORIO", "EFÍMERO", "PASAJERO"]},
-    {en: "TREPIDATION", es: ["TEMOR", "MIEDO", "RECELO"]},
-    {en: "TRUNCATE", es: ["TRUNCAR", "CORTAR", "CERCENAR"]},
-    {en: "UBIQUITOUS", es: ["OMNIPRESENTE", "COMÚN", "POR_DOQUIER"]},
-    {en: "UNCTUOUS", es: ["UNTUOSO", "ADULADOR", "RESBALADIZO"]},
-    {en: "UNDULATE", es: ["ONDULAR", "SERPEAR", "FLUCTUAR"]},
-    {en: "UNILATERAL", es: ["PARCIAL", "SESGADO", "EXCLUSIVO"]},
-    {en: "UPBRAID", es: ["CRITICAR", "REPRENDER", "RECENSURAR"]},
-    {en: "USURP", es: ["ARROGAR", "ASUMIR", "DEPOJAR"]},
-    {en: "VACILLATE", es: ["OSCILAR", "DUDAR", "TITUBEAR"]},
-    {en: "VACUOUS", es: ["VACÍO", "INSUBSTANCIAL", "BOBOS"]},
-    {en: "VEHEMENT", es: ["VEHEMENTE", "APASIONADO", "FURIOSO"]},
-    {en: "VENERABLE", es: ["RESPECTABLE", "VETUSTO", "HONORABLE"]},
-    {en: "VERACIOUS", es: ["VERAZ", "SINCERO", "HONESTO"]},
-    {en: "VEX", es: ["ENFADAR", "IRRITAR", "HOSTIGAR"]},
-    {en: "VILIFY", es: ["VILIPENDIAR", "DIFAMAR", "CALUMNIAR"]},
-    {en: "VITUPERATE", es: ["CENSURAR", "INSULTAR", "VITUPERAR"]},
-    {en: "VOLUMINOUS", es: ["ABULTADO", "GRANDE", "EXTENSO"]},
-    {en: "WAN", es: ["PÁLIDO", "LÍVIDO", "DEBILITADO"]},
-    {en: "WHIMSICAL", es: ["CAPRICHOSO", "FANTÁSTICO", "JUGUETÓN"]},
-    {en: "WISTFUL", es: ["MELANCÓLICO", "AÑORANTE", "PENSATIVO"]},
-    {en: "ZEALOUS", es: ["VEHEMENTE", "APASIONADO", "ENTUSIASTA"]},
-    {en: "ACCOLADE", es: ["PREMIO", "HONOR", "GALARDÓN"]},
-    {en: "BALK", es: ["RESISTIRSE", "OBSTACULIZAR", "FRUSTRAR"]},
-    {en: "CHICANERY", es: ["ENGAÑO", "ARGUCIAS", "ARTIMAÑA"]},
-    {en: "EFFRONTERY", es: ["DESCARO", "INSOLENCIA", "OSADÍA"]},
-    {en: "FETTER", es: ["GRILLETE", "CEPO", "ESTORBO"]},
-    {en: "GARRULOUS", es: ["LOCUAZ", "HABLADOR", "CHARLATÁN"]},
-    {en: "IGNOMINY", es: ["VERGÜENZA", "AFRENTA", "DESHONRA"]},
-    {en: "MAELSTROM", es: ["TORBELLINO", "CAOS", "CONFUSIÓN"]},
-    {en: "NOVICE", es: ["NOVATO", "APRENDIZ", "NEÓFITO"]},
-    {en: "OBFUSCATE", es: ["CONFUNDIR", "OSCURECER", "VELAR"]},
-    {en: "PALATIAL", es: ["LUJOSO", "SUNTUOSO", "GRANDIOSO"]},
-    {en: "QUERULOUS", es: ["QUEJOSO", "IRASCIBLE", "PLANIÑERO"]},
-    {en: "RANCOR", es: ["RENCOR", "ODIO", "ENCONO"]},
-    {en: "SATIATE", es: ["SACIAR", "HARTAR", "REPLEGAR"]},
-    {en: "TEMERITY", es: ["TEMERIDAD", "OSADÍA", "AUDACIA"]},
-    {en: "UPBRAID", es: ["CRITICAR", "REPRENDER", "RECENSURAR"]},
-    {en: "VILIFY", es: ["VILIPENDIAR", "DIFAMAR", "CALUMNIAR"]},
-    {en: "WAX", es: ["CRECER", "AUMENTAR", "INCREMENTAR"]},
-    {en: "YOKE", es: ["UNIR", "ATORNILLAR", "CONJUNTAR"]},
-    {en: "ZEPHYR", es: ["BOCANADA", "VIENTO", "BRISA"]},
-];
+/* --- BASE DE DATOS MODULARIZADA (Rich Vocabulary) --- */
+const wordsDB = {
+    'NOUNS': [
+        {en: "MALAISE", es: ["MALESTAR", "INDISPOSICIÓN", "DECAIMIENTO"]},
+        {en: "CULMINATION", es: ["EPÍLOGO", "CESE", "PERORATA"]},
+        {en: "AVARICE", es: ["CODICIA", "USURA", "CAJETERÍA"]},
+        {en: "MENDICANT", es: ["INDIGENTE", "MENDIGO", "LIMOSNERO"]},
+        {en: "TREPIDATION", es: ["TEMOR", "MIEDO", "RECELO"]}
+    ],
+    'VERBS': [
+        {en: "PREVARICATE", es: ["ENGAÑAR", "EVASIVA", "MENTIR"]},
+        {en: "ESCHEW", es: ["EVITAR", "REHUIR", "ELUDIR"]},
+        {en: "JETTISON", es: ["DESECHAR", "ABANDONAR", "DESCARTAR"]},
+        {en: "DENIGRATE", es: ["DIFAMAR", "CALUMNIAR", "VILIPENDIAR"]},
+        {en: "UPBRAID", es: ["CRITICAR", "REPRENDER", "RECENSURAR"]}
+    ],
+    'ADJECTIVES': [
+        {en: "PLIABLE", es: ["DÚCTIL", "MOLDEABLE", "FLEXIBLE"]},
+        {en: "ERUDITE", es: ["DOCTO", "VERSADO", "SABIO"]},
+        {en: "LACONIC", es: ["CONCISO", "SUCINTO", "BREVE"]},
+        {en: "STOLID", es: ["IMPÁVIDO", "IMPONENTE", "APLOMADO"]},
+        {en: "SANGUINE", es: ["OPTIMISTA", "ENTUSIASTA", "VITAL"]}
+    ]
+};
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const comboEl = document.getElementById('combo');
+const livesEl = document.getElementById('lives');
+const highScoreEl = document.getElementById('highScore');
+const typingInput = document.getElementById('typing-input');
+const categoryBarWrapper = document.getElementById('category-bar-wrapper');
 const startScreen = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over-screen');
 
 /* --- AUDIO ENGINE --- */
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let musicInterval;
 
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -278,37 +151,20 @@ function playSound(type) {
     gain.connect(audioCtx.destination);
     const now = audioCtx.currentTime;
 
-    if (type === 'shoot') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(400, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
-    } 
-    else if (type === 'hit_eng') { // Impacto inicial
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.linearRampToValueAtTime(800, now + 0.1);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.15);
-        osc.start(now); osc.stop(now + 0.15);
-    }
-    else if (type === 'hit_syn') { // Impacto sinónimo (Sonido más agudo/premio)
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, now);
-        osc.frequency.linearRampToValueAtTime(1800, now + 0.1); // "Ding!"
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.3);
-        osc.start(now); osc.stop(now + 0.3);
+    if (type === 'hit_correct') { 
+        osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1); gain.gain.setValueAtTime(0.08, now); gain.gain.linearRampToValueAtTime(0, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'hit_review') { 
+        osc.type = 'square'; osc.frequency.setValueAtTime(440, now); gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'hit_final') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(1500, now); osc.frequency.exponentialRampToValueAtTime(800, now + 0.2); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'hit_fail') { 
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); osc.frequency.linearRampToValueAtTime(50, now + 0.3); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.start(now); osc.stop(now + 0.5);
     }
 }
 
-// Música de fondo ambiental
-let musicInterval;
 function startMusic() {
     let step = 0;
-    const melody = [220, 0, 261, 0, 329, 0, 261, 0]; // Arpegio simple
+    const melody = [110, 0, 130, 0, 164, 0, 130, 0];
     if(musicInterval) clearInterval(musicInterval);
     musicInterval = setInterval(() => {
         if(melody[step] > 0) {
@@ -317,69 +173,70 @@ function startMusic() {
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.type = 'triangle';
-            osc.frequency.value = melody[step] * 0.5; // Octava baja
+            osc.frequency.value = melody[step] * 0.5;
             gain.gain.value = 0.02;
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.25);
         }
         step = (step + 1) % melody.length;
-    }, 200);
+    }, 400);
 }
 
-/* --- GAME LOGIC --- */
+/* --- GAME STATE & ENTITIES --- */
 let gameRunning = false;
 let score = 0;
 let combo = 0;
+let lives = 5;
+let highScore = 0;
 let lastTime = 0;
-let spawnTimer = 0;
+let currentCategory = 'NOUNS'; 
 
-// Objetos
-const player = { x: 0, y: 0, w: 40, h: 40, speed: 8, color: '#4f46e5' };
-let bullets = [];
+const SPAWN_INTERVAL = 3000; 
+let spawnTimer = SPAWN_INTERVAL; 
+
 let enemies = [];
 let particles = [];
 let stars = [];
-const keys = {};
+let isInvincible = false;
 
-// Ajustar tamaño
+// Cargar High Score
+function loadHighScore() {
+    const savedScore = localStorage.getItem('scribeShelfHighScore');
+    highScore = savedScore ? parseInt(savedScore) : 0;
+    highScoreEl.innerText = highScore;
+}
+
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    player.y = canvas.height - 60;
-    player.x = canvas.width / 2 - player.w / 2;
 }
 window.addEventListener('resize', resize);
-resize();
 
-// Generar Estrellas
-for(let i=0; i<80; i++) {
-    stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 2,
-        speed: Math.random() * 0.2 + 0.1
-    });
-}
 
 function spawnEnemy() {
-    const data = wordsDB[Math.floor(Math.random() * wordsDB.length)];
+    const categoryWords = wordsDB[currentCategory];
+    if (!categoryWords || categoryWords.length === 0) return;
+
+    const data = categoryWords[Math.floor(Math.random() * categoryWords.length)];
     
-    // Aquí preparamos la lógica de los 3 sinónimos
-    // Creamos una lista de índices [0, 1, 2] y la mezclamos para que el primero sea random
-    let indices = [0, 1, 2].sort(() => Math.random() - 0.5);
-    
+    // Path: Always S1, then S2 or S3 (random choice of 1 or 2 index)
+    const synonymIndex = (Math.random() < 0.5) ? 1 : 2; 
+
+    ctx.font = '16px "Press Start 2P"'; 
+    const textWidth = ctx.measureText(data.en).width * 1.2;
+
     enemies.push({
-        x: Math.random() * (canvas.width - 150) + 75,
-        y: -40,
+        x: canvas.width + 50, // Start off-screen right
+        y: Math.random() * (canvas.height - 150) + 50, // Y position
         wordData: data,
-        text: data.en, // Empieza en Inglés
-        indicesOrder: indices, // El orden random en que aparecerán los sinónimos
-        synonymStage: -1, // -1 = Inglés, 0 = 1er sinónimo, 1 = 2do, 2 = 3ro
-        speed: Math.random() * 0.8 + 0.4,
+        text: data.en,
+        stage: 0, // 0:EN, 1:SP1, 2:SP2/SP3, 3:EN_Review, 4:Fading
+        synonymIndex: synonymIndex,
+        speed: 0.3 + (score / 1500), // Speed increases with score
         color: '#ffffff',
-        timer: 0, // Tiempo de lectura
-        fading: false
+        timer: 0, // Life timer
+        w: textWidth
     });
 }
 
@@ -395,105 +252,146 @@ function createExplosion(x, y, color, count=10) {
     }
 }
 
+// Determines the required input based on the word's current state
+function getRequiredAnswer(enemy) {
+    switch (enemy.stage) {
+        case 0: return enemy.wordData.es[0].toLowerCase().replace(/_/g, ' '); // EN -> SP1 (Primary Translation)
+        case 1: return enemy.wordData.es[enemy.synonymIndex].toLowerCase().replace(/_/g, ' '); // SP1 -> SP2/SP3 (Synonym)
+        case 2: return enemy.wordData.en.toLowerCase(); // SP2/SP3 -> EN (Review)
+        case 3: return enemy.wordData.en.toLowerCase(); // EN -> EN (Final Match)
+        default: return "";
+    }
+}
+
+// Logic triggered by correct typing
+function advanceEnemyStage(enemy) {
+    enemy.stage++;
+    enemy.timer = 0; // Reset life timer
+
+    if (enemy.stage === 1) { 
+        enemy.text = enemy.wordData.es[0];
+        enemy.color = '#00ff00'; // Green
+        playSound('hit_correct');
+        score += 10;
+    } else if (enemy.stage === 2) { 
+        enemy.text = enemy.wordData.es[enemy.synonymIndex];
+        enemy.color = '#ffff00'; // Yellow
+        createExplosion(enemy.x, enemy.y, '#ffff00', 15);
+        playSound('hit_correct');
+        score += 50;
+        combo++;
+    } else if (enemy.stage === 3) { 
+        enemy.text = enemy.wordData.en;
+        enemy.color = '#4f46e5'; // Blue/Review
+        createExplosion(enemy.x, enemy.y, '#4f46e5', 10);
+        playSound('hit_review');
+        score += 100;
+        combo++;
+    } else if (enemy.stage === 4) { // FINAL HIT
+        enemy.fading = true;
+        createExplosion(enemy.x, enemy.y, '#ffffff', 30);
+        playSound('hit_final');
+        score += 150;
+        combo++;
+    }
+}
+
+// Handles user input submission
+function checkAnswer() {
+    const inputVal = typingInput.value.trim().toUpperCase();
+    if (!inputVal) return;
+
+    let targetIndex = -1;
+    let lowestX = Infinity;
+
+    // Find the enemy closest to the 'void' (left side)
+    for (let i = 0; i < enemies.length; i++) {
+        // Only target words currently visible/on-screen
+        if (!enemies[i].fading && enemies[i].x < lowestX) { 
+            lowestX = enemies[i].x;
+            targetIndex = i;
+        }
+    }
+
+    if (targetIndex !== -1) {
+        const target = enemies[targetIndex];
+        const required = getRequiredAnswer(target).toUpperCase();
+
+        if (inputVal === required) {
+            advanceEnemyStage(target);
+            typingInput.value = ''; // Clear on success
+        } else {
+            // Failure logic (Misspelling)
+            lives--;
+            livesEl.innerText = lives;
+            typingInput.style.borderColor = '#ff4444';
+            setTimeout(() => typingInput.style.borderColor = '#009900', 200);
+            playSound('hit_fail');
+            combo = 0;
+            comboEl.innerText = combo;
+
+            if (lives <= 0) {
+                gameOver();
+            }
+        }
+    }
+}
+
+document.addEventListener('keydown', e => {
+    // Submit on Enter key press
+    if (e.key === 'Enter' && gameRunning) {
+        checkAnswer();
+    }
+    // Ensure the input field has focus when typing starts
+    if (gameRunning && e.key.length === 1 && e.key.match(/[a-z0-9 ]/i)) {
+        typingInput.focus();
+    }
+});
+
+
 function update(dt) {
     if (!gameRunning) return;
 
-    // Movimiento Jugador
-    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
-    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
+    spawnTimer -= dt;
+    if (spawnTimer < 0) { spawnEnemy(); spawnTimer = SPAWN_INTERVAL; }
 
-    // Estrellas
-    stars.forEach(s => {
-        s.y += s.speed;
-        if(s.y > canvas.height) s.y = 0;
-    });
+    // Background Stars
+    stars.forEach(s => { s.y += s.speed; if(s.y > canvas.height) s.y = 0; });
 
-    // Spawn
-    spawnTimer += dt;
-    if (spawnTimer > 2500) { spawnEnemy(); spawnTimer = 0; }
-
-    // Balas
-    for (let i = bullets.length - 1; i >= 0; i--) {
-        bullets[i].y -= 12;
-        if (bullets[i].y < 0) bullets.splice(i, 1);
-    }
-
-    // Enemigos (Palabras)
+    // Enemies (Words) move left)
     for (let i = enemies.length - 1; i >= 0; i--) {
         let e = enemies[i];
 
-        // Lógica de caída y desvanecimiento
         if (!e.fading) {
-            e.y += e.speed;
+            e.x -= e.speed;
             
-            // Si ya está traducida, cuenta tiempo para desaparecer
-            if (e.synonymStage >= 0) {
+            // Life timer update
+            if (e.stage >= 1) { 
                 e.timer += dt;
-                // Si pasa mucho tiempo sin recibir otro disparo, se desvanece
-                if (e.timer > 2500) { 
-                    e.fading = true; 
-                }
+                if (e.timer > 3000) { e.fading = true; } 
             }
         } else {
-            // Efecto desvanecer
-            createExplosion(e.x, e.y, e.color, 1); // rastro de partículas
+            createExplosion(e.x, e.y, e.color, 1);
             enemies.splice(i, 1);
             continue;
         }
 
-        // Colisión Bala vs Palabra
-        for (let j = bullets.length - 1; j >= 0; j--) {
-            let b = bullets[j];
-            // Hitbox simple
-            if (b.x > e.x - 40 && b.x < e.x + 40 && b.y > e.y - 20 && b.y < e.y + 10) {
-                
-                bullets.splice(j, 1); // Borrar bala
-
-                // LOGICA DE EVOLUCIÓN DE PALABRA
-                if (e.synonymStage < 2) {
-                    // Avanzamos al siguiente sinónimo
-                    e.synonymStage++;
-                    
-                    // Obtenemos el índice del array mezclado
-                    let nextIndex = e.indicesOrder[e.synonymStage];
-                    e.text = e.wordData.es[nextIndex]; // Cambiar texto
-                    
-                    e.color = '#00ff00'; // Color Verde
-                    e.timer = 0; // REINICIAR TEMPORIZADOR (Para dar tiempo a leer o disparar de nuevo)
-                    e.y -= 5; // Pequeño empujón hacia arriba (feedback visual)
-
-                    if (e.synonymStage === 0) {
-                        playSound('hit_eng'); // Primer golpe
-                        score += 10;
-                    } else {
-                        playSound('hit_syn'); // Golpes de combo (sinónimos)
-                        createExplosion(e.x, e.y, '#ffff00', 20); // Explosión amarilla
-                        score += 50;
-                        combo++;
-                    }
-                } else {
-                    // Ya mostró los 3 sinónimos, explotar final
-                    createExplosion(e.x, e.y, '#00ff00', 30);
-                    playSound('hit_syn');
-                    enemies.splice(i, 1);
-                    score += 100;
-                }
-                
-                scoreEl.innerText = score;
-                comboEl.innerText = combo;
-                break; // Romper bucle de balas para este enemigo
-            }
-        }
-
-        // Game Over (si toca fondo sin traducir)
-        if (e.y > canvas.height) {
-            if(e.synonymStage === -1) combo = 0; // Rompe combo si se escapa en inglés
+        // Enemy reaches the end (The Void)
+        if (e.x < -100) {
+            lives--;
+            livesEl.innerText = lives;
+            enemies.splice(i, 1); 
+            combo = 0;
             comboEl.innerText = combo;
-            enemies.splice(i, 1);
+
+            if (lives <= 0) {
+                gameOver();
+                return;
+            }
         }
     }
 
-    // Partículas
+    // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
         p.x += p.vx; p.y += p.vy;
@@ -503,59 +401,41 @@ function update(dt) {
 }
 
 function draw() {
-    // Fondo con rastro suave
     ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Estrellas
-    ctx.fillStyle = '#fff';
     stars.forEach(s => {
+        ctx.fillStyle = '#fff';
         ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
     });
 
-    if(!gameRunning) return requestAnimationFrame(draw);
+    if(!gameRunning) {
+        requestAnimationFrame(draw);
+        return;
+    }
 
-    // Jugador
-    ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.moveTo(player.x + player.w/2, player.y);
-    ctx.lineTo(player.x + player.w, player.y + player.h);
-    ctx.lineTo(player.x, player.y + player.h);
-    ctx.fill();
-
-    // Balas
-    ctx.fillStyle = '#ff0055';
-    ctx.shadowBlur = 10; ctx.shadowColor = '#ff0055';
-    bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 15));
-    ctx.shadowBlur = 0;
-
-    // Enemigos
+    // Enemies (Words)
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     enemies.forEach(e => {
-        ctx.font = e.synonymStage >= 0 ? '20px "Press Start 2P"' : '16px "Press Start 2P"';
+        ctx.font = e.stage >= 1 ? '20px "Press Start 2P"' : '16px "Press Start 2P"';
         ctx.fillStyle = e.color;
         
-        // Si es sinónimo extra (stage 1 o 2), brilla más
-        if (e.synonymStage > 0) {
-            ctx.shadowBlur = 15; ctx.shadowColor = '#ffff00';
-        }
+        // Shadow/Glow effect for translated words
+        if (e.stage >= 1) { ctx.shadowBlur = 10; ctx.shadowColor = e.color; }
         ctx.fillText(e.text, e.x, e.y);
         ctx.shadowBlur = 0;
         
-        // Indicador de "Vida" (Puntos debajo para saber cuántos sinónimos faltan)
-        // Dibujamos 3 puntitos
-        if (e.synonymStage < 2) {
-            for(let k=0; k<3; k++) {
-                ctx.fillStyle = k <= e.synonymStage ? '#00ff00' : '#444'; 
-                ctx.beginPath();
-                ctx.arc(e.x - 15 + (k*15), e.y + 20, 3, 0, Math.PI*2);
-                ctx.fill();
-            }
+        // Life/Stage dots
+        for(let k=0; k<4; k++) {
+            ctx.fillStyle = k < e.stage ? '#00ff00' : '#444'; 
+            ctx.beginPath();
+            ctx.arc(e.x - 22 + (k*15), e.y + 25, 3, 0, Math.PI*2);
+            ctx.fill();
         }
     });
 
-    // Partículas
+    // Particles
     particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life;
@@ -565,35 +445,94 @@ function draw() {
 
     requestAnimationFrame(() => {
         const now = performance.now();
-        update(now - lastTime);
+        const delta = now - lastTime;
         lastTime = now;
+        update(delta);
         draw();
     });
 }
 
-// Input
-window.addEventListener('keydown', e => {
-    keys[e.code] = true;
-    if (e.code === 'Space' && gameRunning) {
-        bullets.push({ x: player.x + player.w/2, y: player.y });
-        playSound('shoot');
-    }
-});
-window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Start
-document.body.addEventListener('click', () => {
+function gameOver() {
+    gameRunning = false;
+    clearInterval(musicInterval);
+    
+    const isNewHighScore = score > highScore;
+    if (isNewHighScore) {
+        highScore = score;
+        localStorage.setItem('scribeShelfHighScore', highScore);
+        highScoreEl.innerText = highScore;
+    }
+
+    document.getElementById('finalScore').innerText = score;
+    document.getElementById('newHighScore').innerText = isNewHighScore ? 'YES!' : 'NO';
+    gameOverScreen.style.display = 'flex';
+}
+
+// --- CATEGORIES LOGIC ---
+function renderCategoryBar() {
+    categoryBarWrapper.innerHTML = '';
+    const categories = Object.keys(wordsDB);
+    
+    categories.forEach(category => {
+        const chip = document.createElement('div');
+        chip.className = 'category-chip';
+        chip.textContent = category.toUpperCase();
+        chip.onclick = () => setCategory(category);
+        
+        if (category === currentCategory) {
+            chip.classList.add('active');
+        }
+        categoryBarWrapper.appendChild(chip);
+    });
+}
+
+function setCategory(category) {
+    currentCategory = category;
+    renderCategoryBar(); 
+    
+    if (gameRunning) {
+        spawnTimer = 500; 
+        enemies = []; 
+        typingInput.value = '';
+    }
+}
+
+
+function startGame() {
     if (!gameRunning) {
+        resize();
+        loadHighScore();
+
         startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
         gameRunning = true;
-        score = 0; combo = 0;
-        enemies.length = 0; bullets.length = 0; particles.length = 0;
+        
+        score = 0; 
+        combo = 0;
+        lives = 5;
+        enemies.length = 0; 
+        particles.length = 0;
+        
         scoreEl.innerText = '0';
+        comboEl.innerText = '0';
+        livesEl.innerText = '5';
+        
+        renderCategoryBar();
+        
         lastTime = performance.now();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         startMusic();
         draw();
+        typingInput.focus(); // Focus input on game start
     }
+}
+
+// Initial setup
+window.addEventListener('load', () => {
+    resize();
+    renderCategoryBar();
+    loadHighScore();
 });
 
 </script>
