@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Final Masterpiece</title>
+    <title>Vocabulary Hunter: Final Audio Master</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -50,7 +50,7 @@
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
         
-        /* POP QUIZ MODAL MEJORADO */
+        /* POP QUIZ MODAL */
         #quiz-overlay {
             background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
             padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
@@ -80,7 +80,6 @@
             100% { transform: translate(1px, -2px) rotate(-1deg); }
         }
 
-        /* BOTONES QUIZ */
         .quiz-actions { display: flex; gap: 10px; margin-top: 15px; width: 100%; justify-content: center; }
         .quiz-btn {
             padding: 15px; font-family: 'Press Start 2P'; cursor: pointer; font-size: 10px; border: 2px solid;
@@ -88,7 +87,6 @@
         }
         .btn-verify { border-color: var(--neon-green); color: var(--neon-green); }
         .btn-verify:hover { background: var(--neon-green); color: #000; }
-        
         .btn-skip { border-color: #555; color: #777; font-size: 8px; }
         .btn-skip:hover { border-color: var(--neon-red); color: var(--neon-red); }
 
@@ -208,6 +206,13 @@
 
             <div id="tab-settings" class="tab-content">
                 <h2 class="config-header">SYSTEM CONFIG</h2>
+                
+                <div class="config-group">
+                    <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                    <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
+                    <div class="slider-desc"><span>MUTE</span><span>LOUD</span></div>
+                </div>
+
                 <div class="config-group">
                     <label class="config-label">VOCABULARY SOURCE</label>
                     <select id="cfg-source" onchange="updateConfig('source')"></select>
@@ -279,14 +284,15 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v9';
+const CONFIG_KEY = 'vocab_robot_config_v10';
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
     spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
-    quizEnabled: false, quizInterval: 30
+    quizEnabled: false, quizInterval: 30,
+    masterVolume: 50 // New Volume Setting
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -367,6 +373,9 @@ function applyConfigToUI() {
     document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
     document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
 
+    document.getElementById('cfg-volume').value = userSettings.masterVolume;
+    document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -394,6 +403,12 @@ function updateConfig(key) {
         loadVocabData(); populateStudyGuide();
         if(gameRunning) enemies = [];
     }
+    else if(key === 'volume') {
+        userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
+        document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+        // SAMPLE SOUND
+        playSound('shoot'); 
+    }
     else if(key === 'quiz') {
         userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
         userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
@@ -409,7 +424,7 @@ function updateConfig(key) {
         player.color = userSettings.playerColor;
     }
     
-    if(key !== 'percent_only') {
+    if(key !== 'percent_only' && key !== 'volume') {
         applyConfigToUI(); 
     }
     recalcGameVars();
@@ -420,7 +435,7 @@ function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
     localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30 };
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, masterVolume: 50 };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -536,7 +551,7 @@ function editDistance(s1, s2) {
     return costs[s2.length];
 }
 
-// --- POP QUIZ LOGIC (FIXED) ---
+// --- POP QUIZ LOGIC ---
 function triggerPopQuiz() {
     gameRunning = false; 
     const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
@@ -627,7 +642,7 @@ function launchFireworks() {
             const y = Math.random() * canvas.height;
             const color = `hsl(${Math.random()*360}, 100%, 50%)`;
             createExplosion(x, y, color, 40); 
-            playSound('player_hit'); // Usamos el sonido de explosión que ya tenemos
+            playSound('firework'); // NEW SOUND TYPE
         }, i * 200); 
     }
 }
@@ -636,7 +651,6 @@ function resolveQuizSuccess() {
     quizTimer = 0; 
     document.getElementById('quiz-screen').style.display = 'none';
     
-    // FIREWORKS & SOUND
     launchFireworks();
 
     enemyBombs = []; 
@@ -696,7 +710,6 @@ function playText(text, lang) {
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
-    // CORRECCIÓN TTS: Convertir a minúsculas para evitar deletreo
     let textToSpeak = text.toLowerCase();
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
     
@@ -711,14 +724,38 @@ function playText(text, lang) {
 }
 
 function playSound(type) {
+    // Check if context exists/resume it
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    
+    // Master Volume Check
+    if(userSettings.masterVolume <= 0) return;
+    const vol = userSettings.masterVolume / 100;
+
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     const n = audioCtx.currentTime;
-    if(type==='shoot'){o.type='square';o.frequency.setValueAtTime(400,n);o.frequency.exponentialRampToValueAtTime(100,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.1);}
-    else if(type==='hit_eng'){o.type='sawtooth';o.frequency.setValueAtTime(600,n);o.frequency.linearRampToValueAtTime(800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.15);}
-    else if(type==='hit_syn'){o.type='sine';o.frequency.setValueAtTime(1200,n);o.frequency.linearRampToValueAtTime(1800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);}
-    else if(type==='player_hit'){o.type='sawtooth';o.frequency.setValueAtTime(120,n);o.frequency.linearRampToValueAtTime(8,n+.3);g.gain.setValueAtTime(.1,n);g.gain.linearRampToValueAtTime(0,n+.5);}
+    
+    if(type==='shoot'){
+        o.type='square'; o.frequency.setValueAtTime(400,n); o.frequency.exponentialRampToValueAtTime(100,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
+    }
+    else if(type==='hit_eng'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(600,n); o.frequency.linearRampToValueAtTime(800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.15);
+    }
+    else if(type==='hit_syn'){
+        o.type='sine'; o.frequency.setValueAtTime(1200,n); o.frequency.linearRampToValueAtTime(1800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.3);
+    }
+    else if(type==='player_hit'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(120,n); o.frequency.linearRampToValueAtTime(8,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
+    }
+    else if(type==='firework'){ // NEW FIREWORK SOUND
+        o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
+    }
+    
     o.start(n); o.stop(n + 0.5);
 }
 
@@ -757,6 +794,8 @@ function toggleStudyGuide(){
     }else{
         gameRunning=false; cancelAnimationFrame(gameLoopId);
         populateStudyGuide(); studyGuide.style.display='flex';
+        // Wake audio context on interaction
+        if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     }
 }
 
@@ -803,7 +842,7 @@ function spawnEnemy(){
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 300) particles.shift(); // Aumentado el límite para fuegos artificiales
+        if(particles.length > 300) particles.shift(); 
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -1018,7 +1057,10 @@ function startGame(){
     loadHighScore();
     gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
     quizTimer = 0;
+    
+    // Attempt resume on start click
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
+    
     gameLoopId = requestAnimationFrame(loop);
 }
 
