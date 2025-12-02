@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Enhanced)</title>
+    <title>MDC Studio Player (Fixed Logic)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -81,10 +81,7 @@
         .bar-btn:hover { background: rgba(255,255,255,0.2); }
         .bar-btn.active-state { background: rgba(255,255,255,0.9); color: var(--primary); box-shadow: 0 0 10px var(--primary); }
         .bar-btn.disabled { opacity: 0.3; pointer-events: none; }
-        
-        /* Estilos específicos para los botones de texto (números) */
         .bar-btn-text { width: auto; padding: 0 10px; font-size: 13px; font-weight: 700; border-radius: 20px; }
-
         .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); flex-shrink: 0; }
         .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
         
@@ -211,14 +208,10 @@
         const rawInput = document.getElementById('input-yt-id').value.trim();
         const extractedID = extractVideoID(rawInput);
         YOUTUBE_ID = extractedID ? extractedID : rawInput;
-
         if(!YOUTUBE_ID || YOUTUBE_ID.length < 11) return alert("ID o URL inválido.");
-
         const fileEn = document.getElementById('file-en').files[0];
         const fileEs = document.getElementById('file-es').files[0];
-
         if(!fileEn || !fileEs) return alert("Carga ambos archivos SRT.");
-
         try {
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
@@ -234,9 +227,7 @@
             if(player && typeof player.stopVideo === 'function') player.stopVideo();
             isSegmentPlaying = false;
             resetButtons();
-            
-            YOUTUBE_ID = item.id;
-            VIDEO_TITLE = item.title;
+            YOUTUBE_ID = item.id; VIDEO_TITLE = item.title;
             processAndLaunch(item.srtEn, item.srtEs, item.id, item.title);
         }
     }
@@ -248,21 +239,14 @@
             const esItem = parsedEs[index] ? parsedEs[index].text : "...";
             return { s: item.start, e: item.end, en: item.text, es: esItem };
         });
-        
         document.getElementById('setup-screen').style.display = 'none';
         document.getElementById('player-ui').style.display = 'block';
-        
         renderSubtitles();
         initInteractiveWords();
         loadPreferences();
-        
         if(window.YT && window.YT.Player) {
-            if(player) { 
-                player.loadVideoById(id); 
-                player.setPlaybackRate(currentPlaybackRate);
-            } else { 
-                onYouTubeIframeAPIReady(); 
-            }
+            if(player) { player.loadVideoById(id); player.setPlaybackRate(currentPlaybackRate); } 
+            else { onYouTubeIframeAPIReady(); }
         } else {
             const tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
@@ -290,10 +274,7 @@
     function updateHistoryTitle(id, newTitle) {
         let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
         const idx = history.findIndex(i => i.id === id);
-        if(idx !== -1) {
-            history[idx].title = newTitle;
-            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-        }
+        if(idx !== -1) { history[idx].title = newTitle; localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }
     }
 
     function deleteHistoryItem(e, id) {
@@ -451,15 +432,12 @@
     }
 
     function handleSegmentEnd() {
-        isWaitingDelay = true;
+        // Incrementamos contador de repeticiones realizadas (se cuenta la que acaba de terminar)
         currentRepetitionCount++;
 
-        // Si es la configuración por defecto (1 rep, 0 pausa), se detiene (Comportamiento Original)
-        // PERO si se ha modificado repeticiones o pausa, entra la lógica de auto-avance.
+        // Modo por defecto (1 rep, 0 pausa) -> Se detiene y libera controles
         const isDefaultMode = (repeatCountCfg === 1 && pauseTimeCfg === 0);
-
         if (isDefaultMode) {
-             // Stop completely
              isSegmentPlaying = false; 
              resetButtons(); 
              scrollEnabled = true;
@@ -468,29 +446,44 @@
              return;
         }
 
+        // LÓGICA DE REPETICIÓN ESTRICTA
+        // 1. ¿Faltan repeticiones?
+        if (currentRepetitionCount < repeatCountCfg) {
+            // Repetimos inmediatamente SIN pausa
+            replayCurrentSegment();
+            return;
+        }
+
+        // 2. Repeticiones completas. AHORA aplicamos la pausa.
+        isWaitingDelay = true; // Bloquea checkTime
         const delayMs = pauseTimeCfg * 1000;
         
-        setTimeout(() => {
-            // Verificar si el usuario detuvo todo manualmente durante la pausa
-            if (!isSegmentPlaying) { isWaitingDelay = false; return; }
+        // Función auxiliar para pasar al siguiente después del timeout
+        const runNext = () => {
+             if (!isSegmentPlaying) { isWaitingDelay = false; return; } // Si el usuario paró manual
+             isWaitingDelay = false;
+             currentRepetitionCount = 0; // Reset para el siguiente
+             playNextSegment();
+        };
 
-            if (currentRepetitionCount < repeatCountCfg) {
-                // Toca REPETIR el mismo
-                replayCurrentSegment();
-                isWaitingDelay = false; // Permitir que checkTime vuelva a monitorear
-            } else {
-                // Toca SIGUIENTE
-                currentRepetitionCount = 0;
-                isWaitingDelay = false;
-                playNextSegment();
-            }
-        }, delayMs > 0 ? delayMs : 50); // Un mínimo de buffer si es 0
+        if (delayMs > 0) {
+            setTimeout(runNext, delayMs);
+        } else {
+            // Si es 0s, pasamos directo
+            runNext();
+        }
     }
 
     function playNextSegment() {
         const activeLine = document.querySelector('.line.active');
         if(activeLine && activeLine.nextElementSibling && activeLine.nextElementSibling.classList.contains('line')) {
             const nextLine = activeLine.nextElementSibling;
+            
+            // REPARACIÓN DEL SCROLL:
+            // Como estamos en reproducción automática de segmentos, debemos forzar el scroll
+            // hacia el nuevo elemento activo para mantener el "seguimiento".
+            scrollToActiveElement(nextLine);
+
             // Simulamos clic en el siguiente play
             nextLine.querySelector('.playBtn').click();
         } else {
@@ -499,6 +492,14 @@
             resetButtons();
             scrollEnabled = true;
         }
+    }
+
+    function scrollToActiveElement(el) {
+        if (!autoScroll) return;
+        const rect = el.getBoundingClientRect();
+        // Calculamos para centrarlo debajo del video (aprox centro de pantalla - un poco de margen)
+        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
+        window.scrollTo({ top: offset, behavior: "smooth" });
     }
 
     function highlightCurrentLine(time) {
@@ -510,11 +511,8 @@
         });
         if (activeLine) {
             activeLine.classList.add('active');
-            if (autoScroll) {
-                const rect = activeLine.getBoundingClientRect();
-                const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
-                window.scrollTo({ top: offset, behavior: "smooth" });
-            }
+            // Usamos la misma función de scroll centralizado
+            scrollToActiveElement(activeLine);
         }
     }
 
@@ -584,7 +582,6 @@
         repeatCountCfg++;
         if (repeatCountCfg > 5) repeatCountCfg = 1;
         document.getElementById('btn-reps').innerText = repeatCountCfg + "↻";
-        // Si no está en defecto, desactivamos loop normal visualmente para evitar confusion
         if(repeatCountCfg > 1 && isLooping) toggleLoop();
     }
     function cyclePause() {
@@ -608,7 +605,6 @@
         if(isLooping) btn.classList.add('active-state');
         else btn.classList.remove('active-state');
         
-        // Loop simple anula config compleja si se activa
         if(isLooping) {
             repeatCountCfg = 1; pauseTimeCfg = 0;
             document.getElementById('btn-reps').innerText = "1↻";
@@ -676,9 +672,13 @@
                 const start = parseFloat(line.dataset.start) - timeOffset; const end = parseFloat(line.dataset.end) + endPadding;
                 if (btn.dataset.state === 'playing') { player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return; }
                 resetButtons(); window.speechSynthesis.cancel(); document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
-                scrollEnabled = false; isSegmentPlaying = true; segmentEndTime = end;
                 
-                // RESET REPETITIONS FOR NEW LINE
+                // IMPORTANTE: Desactivar scroll global para evitar conflictos, PERO la logica playNextSegment lo forzará
+                scrollEnabled = false; 
+                isSegmentPlaying = true; 
+                segmentEndTime = end;
+                
+                // RESETEO DE CONTADORES PARA LA NUEVA LINEA
                 currentRepetitionCount = 0;
                 isWaitingDelay = false;
 
