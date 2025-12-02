@@ -2,101 +2,249 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Verb Drop: Syntax Sorter</title>
+    <title>Vocabulary Hunter: Final Audio Master</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* TEMA INDUSTRIAL AMBER */
-            --neon-amber: #ffae00;
-            --neon-orange: #ff5500;
-            --neon-blue: #00aaff;
-            --neon-white: #ffffff;
-            --dark-bg: #100a00;
-            --panel-bg: rgba(20, 10, 0, 0.95);
+            --neon-green: #0f0;
+            --neon-red: #ff4444;
+            --neon-blue: #4f46e5;
+            --neon-yellow: #ffff00;
+            --dark-bg: #050505;
+            --panel-bg: rgba(0, 15, 0, 0.95);
         }
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
         canvas {display:block;}
-        
-        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.25) 50%);background-size:100% 4px;z-index:999;pointer-events:none;}
+        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));background-size:100% 4px;z-index:999;pointer-events:none;}
         
         #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
-        #lives-panel {color:var(--neon-orange);}
-        #score-panel {color:var(--neon-amber);}
+        #lives-panel {color:var(--neon-red);}
+        #score-panel {color:var(--neon-green);}
         
-        /* Category Bar Styling */
-        #category-bar-wrapper {position:absolute;top:60px;left:0;width:100%;padding:10px 0;z-index:15;display:flex;justify-content:center;pointer-events:none;}
-        .category-chip {padding:5px 10px;margin:0 5px;background:#221100;color:#664400;font-size:10px;border:1px solid #442200;display:inline-block;pointer-events:auto;cursor:pointer;}
-        .category-chip.active {color:var(--neon-amber);border-color:var(--neon-amber);box-shadow:0 0 5px var(--neon-amber);}
+        /* BARRA INFERIOR */
+        #category-bar-wrapper {
+            position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
+            background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
+            display:flex; justify-content:center; border-top:1px solid #333;
+            box-shadow:0 -5px 15px rgba(0,255,0,0.1);
+        }
+        .category-chip {
+            padding:8px 16px; margin:0 8px; background:#111; color:#666;
+            font-size:10px; cursor:pointer; border:1px solid #444; transition:.2s;
+            pointer-events:all; display:inline-block;
+        }
+        .category-chip:hover { border-color:#888; color:#888; }
+        .category-chip.active {
+            color:var(--neon-green); background:#002200;
+            border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green);
+        }
+        .category-chip.help-btn { border-color:var(--neon-yellow); color:var(--neon-yellow); }
+        .category-chip.help-btn:hover { background:#222200; box-shadow:0 0 10px var(--neon-yellow); }
         
-        /* Help Button */
-        #help-btn {position:absolute;bottom:20px;right:20px;padding:10px 20px;border:2px solid var(--neon-blue);color:var(--neon-blue);background:black;cursor:pointer;z-index:20;font-size:12px;transition:0.2s;}
-        #help-btn:hover {background:var(--neon-blue);color:black;}
-
-        .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,2,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
-        
-        h1 {color:var(--neon-amber);text-shadow:4px 4px #442200;font-size:35px;margin-bottom:20px;}
-        h2 {color:var(--neon-orange);font-size:25px;margin-bottom:20px;}
+        /* OVERLAYS */
+        .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+        h1 {color:var(--neon-green);text-shadow:4px 4px #003300;font-size:35px;margin-bottom:20px;line-height:1.5;}
+        h2 {color:var(--neon-red);font-size:30px;margin-bottom:20px;text-shadow:3px 3px 0 #300;}
         p {line-height:2;color:#aaa;font-size:12px;max-width:600px;padding:0 20px;}
-        
-        .key-hint {display:inline-block;padding:4px 8px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;margin:0 2px;}
-        .blink {animation:blinker 1s linear infinite;color:var(--neon-white);margin-top:40px;cursor:pointer;}
+        .key-hint {display:inline-block;padding:2px 6px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;}
+        .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
+        
+        /* POP QUIZ MODAL */
+        #quiz-overlay {
+            background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
+            padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
+            transition: border-color 0.3s;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
+        #quiz-input {
+            background: #000; border: 2px solid #333; color: #fff;
+            padding: 15px; font-family: 'Press Start 2P'; font-size: 16px;
+            text-align: center; width: 90%; text-transform: uppercase;
+        }
+        #quiz-input:focus { border-color: var(--neon-green); outline: none; }
+        
+        #quiz-feedback { 
+            margin-top: 20px; min-height: 30px; font-size: 10px; 
+            color: var(--neon-yellow); line-height: 1.6; text-align: center;
+        }
+        .correct-ans-highlight {
+            color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
+        }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
 
-        /* Study Guide - Reusing your robust structure */
-        #study-guide {display:none;}
-        #study-content {background:var(--panel-bg);padding:30px;border:2px solid var(--neon-amber);width:80%;max-width:800px;height:70%;overflow-y:auto;position:relative;box-shadow:0 0 30px rgba(255,174,0,0.2);text-align:left;}
-        #study-content::-webkit-scrollbar {width:10px;}
-        #study-content::-webkit-scrollbar-track {background:#111;}
-        #study-content::-webkit-scrollbar-thumb {background:#442200;border:1px solid var(--neon-amber);}
+        .quiz-actions { display: flex; gap: 10px; margin-top: 15px; width: 100%; justify-content: center; }
+        .quiz-btn {
+            padding: 15px; font-family: 'Press Start 2P'; cursor: pointer; font-size: 10px; border: 2px solid;
+            background: transparent; color: #fff; flex: 1;
+        }
+        .btn-verify { border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-verify:hover { background: var(--neon-green); color: #000; }
+        .btn-skip { border-color: #555; color: #777; font-size: 8px; }
+        .btn-skip:hover { border-color: var(--neon-red); color: var(--neon-red); }
+
+        /* MODAL */
+        #study-content {
+            background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
+            width:80%; max-width:800px; height:70%; display: flex; flex-direction: column;
+            position:relative; box-shadow:0 0 30px rgba(0,255,0,0.2); text-align:left;
+        }
+        .tabs-header { display: flex; border-bottom: 2px solid var(--neon-green); margin-bottom: 20px; }
+        .tab-btn {
+            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 12px;
+            background: transparent; border: none; color: #666; font-family: 'Press Start 2P'; transition: 0.2s;
+        }
+        .tab-btn:hover { background: #002200; color: #fff; }
+        .tab-btn.active { background: var(--neon-green); color: #000; font-weight: bold; }
+        .tab-content { flex: 1; overflow-y: auto; display: none; }
+        .tab-content.active { display: block; }
         
-        #study-content table {width:100%;border-collapse:separate;border-spacing:0;margin-top:20px;font-size:12px;}
-        #study-content th {color:var(--neon-amber);text-align:left;border-bottom:2px solid var(--neon-amber);padding:10px;position:sticky;top:0;background:#221100;z-index:2;}
-        #study-content td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
-        #study-content tr:hover td {background:#331100;color:#fff;}
+        table {width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+        th {color:var(--neon-green);text-align:left;border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;z-index:2;}
+        td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
+        tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
+        .en-word {color:var(--neon-blue);font-weight:bold;}
+        .chk-cell { width: 40px; text-align: center; }
+        input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
+
+        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
+        .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
+        .config-val { color: var(--neon-yellow); }
+        .slider-desc { font-size: 8px; color: #666; margin-top: 5px; display: flex; justify-content: space-between; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon-green); }
+        input[type=color] { cursor: pointer; border: none; width: 50px; height: 30px; }
+        select { width: 100%; padding: 10px; background: #111; color: var(--neon-green); border: 1px solid var(--neon-green); font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; margin-top: 5px; }
+        select:focus { outline: none; background: #222; }
+        .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
+        .reset-btn:hover { background: var(--neon-red); color: #000; }
+        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
+        .close-btn:hover {background:var(--neon-red);color:#000;}
         
-        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-orange);cursor:pointer;border:1px solid var(--neon-orange);padding:5px 10px;}
-        .close-btn:hover {background:var(--neon-orange);color:#000;}
+        ::-webkit-scrollbar {width:10px;}
+        ::-webkit-scrollbar-track {background:#111;}
+        ::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
     </style>
 </head>
 <body>
-    <div class="scanlines"></div>
     <div id="ui">
-        <div id="score-panel">SCORE: <span id="score">0</span></div>
+        <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
         <div id="lives-panel">LIVES: <span id="lives">5</span></div>
+        <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
-    <div id="category-bar-wrapper">
-        </div>
-    <div id="help-btn" onclick="toggleStudyGuide()">DATABASE / PAUSE</div>
+    <div id="category-bar-wrapper"></div>
 
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
-        <h1>VERB DROP:<br>SYNTAX SORTER</h1>
+        <h1>VOCAB ROBOT</h1>
         <p>
-            1. Verbs fall from the sky.<br>
-            2. Identify their GRAMMATICAL FORM.<br>
-            3. Guide them into the correct processing bin.<br><br>
-            <span class="key-hint">←</span> <span class="key-hint">→</span> Move Lane <br>
-            <span class="key-hint">↓</span> Fast Drop <br>
-            <span class="key-hint">TAB</span> Pause/Study
+            1. Enemies drop English words & <strong>Bombs</strong>.<br>
+            2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
+            3. Shoot Parachutes to hear them.<br><br>
+            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Menu
         </p>
-        <div class="blink">CLICK TO INITIALIZE</div>
+        <div class="blink">CLICK TO START</div>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
-        <h2>SYSTEM FAILURE</h2>
-        <p>DATA SORTED: <span id="finalScore" style="color:white;">0</span></p>
-        <div class="blink">CLICK TO REBOOT</div>
+        <h2>MISSION FAILED</h2>
+        <p>FINAL SCORE: <span id="finalScore" style="color:white;">0</span></p>
+        <div class="blink">CLICK TO RETRY</div>
     </div>
 
-    <div id="study-guide" class="overlay-screen">
+    <div id="quiz-screen" class="overlay-screen" style="display:none;">
+        <div id="quiz-overlay">
+            <h2 style="color:var(--neon-red);" id="quiz-title">SYSTEM HACK DETECTED!</h2>
+            <p style="font-size:10px; color:#aaa;">TRANSLATE TO RESTORE SYSTEMS</p>
+            <div id="quiz-question">WORD</div>
+            <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
+            <div id="quiz-feedback"></div>
+            
+            <div class="quiz-actions">
+                <button class="quiz-btn btn-skip" onclick="skipQuiz()">FORCE REBOOT (-500 PTS)</button>
+                <button class="quiz-btn btn-verify" onclick="checkQuizAnswer()">VERIFY REPAIR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="study-guide" class="overlay-screen" style="display:none;">
         <div id="study-content">
             <span class="close-btn" onclick="toggleStudyGuide()">X</span>
-            <h2 style="color:var(--neon-amber);margin-top:0;text-transform:uppercase;border-bottom:1px solid #333;padding-bottom:10px;font-size:18px;">
-                MORPHOLOGY DB: <span id="study-category-title" style="color:white;">MIX 1</span>
-            </h2>
-            <div id="study-table-container"></div>
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab('db')">DATABASE</button>
+                <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
+            </div>
+            
+            <div id="tab-db" class="tab-content active">
+                <h2 id="db-title" class="config-header">ACTIVE VOCABULARY</h2>
+                
+                <div class="config-group" style="margin-bottom: 10px;">
+                    <label class="config-label">DATA USAGE LIMIT<span id="lbl-percent" class="config-val">100%</span></label>
+                    <input type="range" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
+                    <div class="slider-desc"><span>START</span><span>ALL DATA</span></div>
+                </div>
+
+                <div class="config-group" style="border-top: 1px dashed #333; padding-top: 10px;">
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-quiz" onchange="updateConfig('quiz')">
+                        ENABLE POP QUIZ TIMER
+                    </label>
+                    <label class="config-label" style="margin-top:5px;">FREQUENCY<span id="val-quiz-time" class="config-val">30s</span></label>
+                    <input type="range" id="cfg-quiz-time" min="10" max="60" step="5" value="30" oninput="updateConfig('quiz')">
+                    <div class="slider-desc"><span>OFTEN</span><span>RARE</span></div>
+                </div>
+
+                <div id="study-table-container"></div>
+            </div>
+
+            <div id="tab-settings" class="tab-content">
+                <h2 class="config-header">SYSTEM CONFIG</h2>
+                
+                <div class="config-group">
+                    <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                    <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
+                    <div class="slider-desc"><span>MUTE</span><span>LOUD</span></div>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">VOCABULARY SOURCE</label>
+                    <select id="cfg-source" onchange="updateConfig('source')"></select>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">5</span></label>
+                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="5" oninput="updateConfig('spawn')">
+                    <div class="slider-desc"><span>FEW</span><span>MANY</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">1.0x</span></label>
+                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="1.0" oninput="updateConfig('speed')">
+                    <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">30%</span></label>
+                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="30" oninput="updateConfig('bomb')">
+                    <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">2.0</span></label>
+                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="2.0" oninput="updateConfig('bspeed')">
+                    <div class="slider-desc"><span>FLOAT</span><span>DROP</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">PLAYER COLOR</label>
+                    <input type="color" id="cfg-color" value="#4f46e5" onchange="updateConfig('color')">
+                </div>
+                <button class="reset-btn" onclick="resetConfig()">RESET DEFAULTS</button>
+            </div>
             <p style="margin-top:20px;text-align:center;color:#666;font-size:10px;">
-                PRESS <span class="key-hint">TAB</span> OR <span class="key-hint">ESC</span> TO RESUME
+                GAME PAUSED. PRESS <span class="key-hint">TAB</span> TO RESUME.
             </p>
         </div>
     </div>
@@ -104,407 +252,828 @@
     <canvas id="gameCanvas"></canvas>
 
 <script>
-// --- DB LINGÜÍSTICA ---
-// v1: Infinitivo, v2: Pasado, v3: Participio, ing: Gerundio, tr: Traducción
-const verbDB = {
-    'LEVEL_1': [
-        {v1:"GO", v2:"WENT", v3:"GONE", ing:"GOING", tr:"IR"},
-        {v1:"DO", v2:"DID", v3:"DONE", ing:"DOING", tr:"HACER"},
-        {v1:"EAT", v2:"ATE", v3:"EATEN", ing:"EATING", tr:"COMER"},
-        {v1:"SEE", v2:"SAW", v3:"SEEN", ing:"SEEING", tr:"VER"}
-    ],
-    'LEVEL_2': [
-        {v1:"WRITE", v2:"WROTE", v3:"WRITTEN", ing:"WRITING", tr:"ESCRIBIR"},
-        {v1:"SPEAK", v2:"SPOKE", v3:"SPOKEN", ing:"SPEAKING", tr:"HABLAR"},
-        {v1:"TAKE", v2:"TOOK", v3:"TAKEN", ing:"TAKING", tr:"TOMAR"},
-        {v1:"BREAK", v2:"BROKE", v3:"BROKEN", ing:"BREAKING", tr:"ROMPER"}
-    ],
-    'LEVEL_3': [
-        {v1:"BUY", v2:"BOUGHT", v3:"BOUGHT", ing:"BUYING", tr:"COMPRAR"},
-        {v1:"THINK", v2:"THOUGHT", v3:"THOUGHT", ing:"THINKING", tr:"PENSAR"},
-        {v1:"CATCH", v2:"CAUGHT", v3:"CAUGHT", ing:"CATCHING", tr:"ATRAPAR"},
-        {v1:"TEACH", v2:"TAUGHT", v3:"TAUGHT", ing:"TEACHING", tr:"ENSEÑAR"}
-    ]
+/* =========================================
+   1. INTERNAL DATA
+   ========================================= */
+const INTERNAL_VOCAB = {
+ 'VERBS': [
+    {en:"BE", es:"SER/ESTAR"}, {en:"HAVE", es:"TENER"}, {en:"DO", es:"HACER"}, {en:"SAY", es:"DECIR"},
+    {en:"UNLOCK", es:"DESBLOQUEAR"}, {en:"SIGN", es:"FIRMAR"}, {en:"CANCEL", es:"CANCELAR"}, {en:"CONFIRM", es:"CONFIRMAR"}
+],
+  'NOUNS': [
+    {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
+    {en:"SYSTEM", es:"SISTEMA"}, {en:"NETWORK", es:"RED"}, {en:"WEBSITE", es:"SITIO WEB"}, {en:"APP", es:"APLICACIÓN"}
+],
+'ADJECTIVES': [
+    {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
+    {en:"CHALLENGING", es:"DESAFIANTE"}, {en:"ENJOYABLE", es:"AGRADABLE"}, {en:"MEMORABLE", es:"MEMORABLE"}
+],
+ 'FUNCTION WORDS': [
+    {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
+    {en:"ALTHOUGH", es:"AUNQUE"}, {en:"WHEREUPON", es:"DESPUÉS DE LO CUAL"}
+]
 };
 
-// Setup Canvas
+/* =========================================
+   2. CONFIGURATION & STATE
+   ========================================= */
+const CONFIG_KEY = 'vocab_robot_config_v10';
+const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
+
+let userSettings = {
+    vocabSource: 'LOCAL', 
+    dataPercent: 100, 
+    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
+    quizEnabled: false, quizInterval: 30,
+    masterVolume: 50 // New Volume Setting
+};
+let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
+let disabledWords = new Set(); 
+
+// Variables para el Quiz
+let quizTimer = 0;
+let currentQuizWord = null;
+
+// --- MENUS & UI ---
+function renderCategoryBar() {
+    const wrapper = document.getElementById('category-bar-wrapper');
+    wrapper.innerHTML = '';
+    const opts = [{val: 'LOCAL', txt: 'MY DB'}, {val: 'MIXED', txt: 'MIXED'}, {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}];
+    Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: key}));
+
+    opts.forEach(o => {
+        const chip = document.createElement('div');
+        chip.className = 'category-chip' + (userSettings.vocabSource === o.val ? ' active' : '');
+        chip.textContent = o.txt;
+        chip.onclick = () => {
+            document.getElementById('cfg-source').value = o.val;
+            updateConfig('source');
+        };
+        wrapper.appendChild(chip);
+    });
+
+    const help = document.createElement('div');
+    help.className = 'category-chip help-btn';
+    help.textContent = 'CONFIG / HELP';
+    help.onclick = toggleStudyGuide;
+    wrapper.appendChild(help);
+}
+
+function updateDataPercent(val) {
+    userSettings.dataPercent = parseInt(val);
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+    updateConfig('percent_only');
+}
+
+function populateSourceMenu() {
+    const select = document.getElementById('cfg-source');
+    select.innerHTML = '';
+    const opts = [
+        {val: 'LOCAL', txt: 'MY DATABASE (Custom)'},
+        {val: 'ALL_INTERNAL', txt: 'INTERNAL: ALL MIXED'},
+        {val: 'MIXED', txt: 'EVERYTHING (Local + Internal)'}
+    ];
+    Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: `INTERNAL: ${key}`}));
+    opts.forEach(o => {
+        const op = document.createElement('option');
+        op.value = o.val; op.textContent = o.txt;
+        select.appendChild(op);
+    });
+}
+
+function loadConfig() {
+    populateSourceMenu();
+    const saved = localStorage.getItem(CONFIG_KEY);
+    if(saved) {
+        try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
+        catch(e) { console.error("Config error", e); }
+    }
+    const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
+    if(savedDisabled) {
+        try { disabledWords = new Set(JSON.parse(savedDisabled)); }
+        catch(e) { disabledWords = new Set(); }
+    }
+    applyConfigToUI();
+    recalcGameVars();
+}
+
+function applyConfigToUI() {
+    document.getElementById('cfg-source').value = userSettings.vocabSource;
+    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
+    document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
+    document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
+    document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
+
+    document.getElementById('cfg-volume').value = userSettings.masterVolume;
+    document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+
+    document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
+    document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
+    document.getElementById('cfg-speed').value = userSettings.enemySpeed;
+    document.getElementById('val-speed').textContent = userSettings.enemySpeed + "x";
+    document.getElementById('cfg-bomb').value = userSettings.bombChance;
+    document.getElementById('val-bomb').textContent = userSettings.bombChance + "%";
+    document.getElementById('cfg-bspeed').value = userSettings.bombSpeed;
+    document.getElementById('val-bspeed').textContent = userSettings.bombSpeed;
+    document.getElementById('cfg-color').value = userSettings.playerColor;
+    player.color = userSettings.playerColor;
+}
+
+function recalcGameVars() {
+    gameVars.spawnInterval = 5500 - (userSettings.spawnLevel * 500); 
+    gameVars.bombProb = userSettings.bombChance / 2000; 
+}
+
+function updateConfig(key) {
+    if(key === 'source') {
+        userSettings.vocabSource = document.getElementById('cfg-source').value;
+        loadVocabData(); populateStudyGuide(); renderCategoryBar();
+        if(gameRunning) enemies = []; 
+    }
+    else if(key === 'percent_only') {
+        loadVocabData(); populateStudyGuide();
+        if(gameRunning) enemies = [];
+    }
+    else if(key === 'volume') {
+        userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
+        document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+        // SAMPLE SOUND
+        playSound('shoot'); 
+    }
+    else if(key === 'quiz') {
+        userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
+        userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
+        document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
+        quizTimer = 0; 
+    }
+    else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
+    else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
+    else if(key === 'bomb') userSettings.bombChance = parseInt(document.getElementById('cfg-bomb').value);
+    else if(key === 'bspeed') userSettings.bombSpeed = parseFloat(document.getElementById('cfg-bspeed').value);
+    else if(key === 'color') {
+        userSettings.playerColor = document.getElementById('cfg-color').value;
+        player.color = userSettings.playerColor;
+    }
+    
+    if(key !== 'percent_only' && key !== 'volume') {
+        applyConfigToUI(); 
+    }
+    recalcGameVars();
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(userSettings));
+}
+
+function resetConfig() {
+    localStorage.removeItem(CONFIG_KEY);
+    localStorage.removeItem(DISABLED_WORDS_KEY);
+    disabledWords.clear();
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, masterVolume: 50 };
+    loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    if(tabName === 'db') document.querySelector('button[onclick="switchTab(\'db\')"]').classList.add('active');
+    else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
+}
+
+// --- 3. DATA & CLEANING ---
+let activeVocabList = []; 
+let gameDeck = [];        
+
+const cleanText = (str) => {
+    if(!str) return "";
+    return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+};
+
+function loadVocabData() {
+    let tempVocabList = [];
+    const countWords = (str) => str.trim().split(/\s+/).length;
+    const processItem = (en, es) => {
+        const safeEn = cleanText(en);
+        const safeEs = cleanText(es);
+        
+        if(safeEn && safeEs && countWords(safeEn) <= 2) {
+            tempVocabList.push({en: safeEn, es: [safeEs]});
+        }
+    };
+
+    if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
+        try {
+            const saved = localStorage.getItem('mdc_vocab_list');
+            const items = saved ? JSON.parse(saved) : [];
+            items.forEach(item => {
+                if (item.isFolder && item.items) {
+                    item.items.forEach(sub => processItem(sub.eng, sub.esp));
+                } else if (!item.isFolder) {
+                    processItem(item.eng, item.esp);
+                }
+            });
+        } catch (e) { console.error("Local Load Error", e); }
+    }
+
+    if (userSettings.vocabSource !== 'LOCAL') {
+        let sourcesToLoad = [];
+        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED') {
+            sourcesToLoad = Object.keys(INTERNAL_VOCAB);
+        } else {
+            sourcesToLoad = [userSettings.vocabSource];
+        }
+        sourcesToLoad.forEach(catKey => {
+            if(INTERNAL_VOCAB[catKey]) {
+                INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
+            }
+        });
+    }
+
+    if (tempVocabList.length > 0) {
+        const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
+        activeVocabList = tempVocabList.slice(0, limit);
+    } else {
+        activeVocabList = [];
+    }
+
+    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+    refreshGameDeck();
+}
+
+function refreshGameDeck() {
+    gameDeck = activeVocabList.filter(item => !disabledWords.has(item.en));
+    if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
+}
+
+function toggleWordStatus(engWord) {
+    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
+    else disabledWords.add(engWord);
+    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    refreshGameDeck();
+}
+
+// --- ALGORITMO LEVENSHTEIN ---
+function similarity(s1, s2) {
+    var longer = s1;
+    var shorter = s2;
+    if (s1.length < s2.length) { longer = s2; shorter = s1; }
+    var longerLength = longer.length;
+    if (longerLength == 0) return 1.0;
+    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+}
+
+function editDistance(s1, s2) {
+    s1 = s1.toLowerCase(); s2 = s2.toLowerCase();
+    var costs = new Array();
+    for (var i = 0; i <= s1.length; i++) {
+        var lastValue = i;
+        for (var j = 0; j <= s2.length; j++) {
+            if (i == 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    var newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
+// --- POP QUIZ LOGIC ---
+function triggerPopQuiz() {
+    gameRunning = false; 
+    const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
+    currentQuizWord = randomItem;
+    
+    const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
+    currentQuizWord.mode = mode;
+
+    const qEl = document.getElementById('quiz-question');
+    const iEl = document.getElementById('quiz-input');
+    const fEl = document.getElementById('quiz-feedback');
+    const titleEl = document.getElementById('quiz-title');
+    const overlay = document.getElementById('quiz-overlay');
+    
+    iEl.value = "";
+    fEl.innerText = "";
+    titleEl.innerText = "SYSTEM HACK!";
+    titleEl.style.color = "var(--neon-red)";
+    overlay.style.borderColor = "var(--neon-red)";
+    
+    if (mode === 'EN_TO_ES') {
+        qEl.innerText = `TRANSLATE: ${randomItem.en}`;
+        iEl.placeholder = "TYPE IN SPANISH";
+    } else {
+        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; 
+        iEl.placeholder = "TYPE IN ENGLISH";
+    }
+
+    document.getElementById('quiz-screen').style.display = 'flex';
+    document.getElementById('quiz-input').focus();
+}
+
+function skipQuiz() {
+    score = Math.max(0, score - 500); 
+    scoreEl.innerText = score;
+    const feedback = document.getElementById('quiz-feedback');
+    feedback.style.color = '#ffaa00';
+    feedback.innerText = `CORRECT WAS: ${currentQuizWord.mode === 'EN_TO_ES' ? currentQuizWord.es[0] : currentQuizWord.en}`;
+    
+    setTimeout(() => {
+        document.getElementById('quiz-screen').style.display = 'none';
+        quizTimer = 0; 
+        gameRunning = true;
+        lastTime = performance.now();
+        gameLoopId = requestAnimationFrame(loop);
+    }, 2000); 
+}
+
+function checkQuizAnswer() {
+    const userInput = cleanText(document.getElementById('quiz-input').value);
+    const feedback = document.getElementById('quiz-feedback');
+    const overlay = document.getElementById('quiz-overlay');
+    const titleEl = document.getElementById('quiz-title');
+    
+    let correctAnswers = [];
+    if (currentQuizWord.mode === 'EN_TO_ES') correctAnswers = currentQuizWord.es; 
+    else correctAnswers = [currentQuizWord.en];
+
+    let maxSim = 0;
+    let bestMatch = "";
+    
+    correctAnswers.forEach(ans => {
+        const sim = similarity(userInput, ans);
+        if (sim > maxSim) { maxSim = sim; bestMatch = ans; }
+    });
+
+    if (maxSim >= 1.0) {
+        feedback.style.color = '#0f0';
+        feedback.innerText = "SYSTEM RESTORED! BOMB CLEAR ACTIVATED!";
+        setTimeout(resolveQuizSuccess, 1000);
+    } else {
+        const inputEl = document.getElementById('quiz-input');
+        inputEl.classList.add('shake');
+        setTimeout(()=>inputEl.classList.remove('shake'), 500);
+        titleEl.innerText = "CRITICAL FAILURE!";
+        overlay.style.borderColor = "#ff0000";
+        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
+        inputEl.value = "";
+        inputEl.placeholder = "TYPE THE WORD ABOVE";
+        inputEl.focus();
+    }
+}
+
+function launchFireworks() {
+    for(let i=0; i<10; i++) {
+        setTimeout(() => {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const color = `hsl(${Math.random()*360}, 100%, 50%)`;
+            createExplosion(x, y, color, 40); 
+            playSound('firework'); // NEW SOUND TYPE
+        }, i * 200); 
+    }
+}
+
+function resolveQuizSuccess() {
+    quizTimer = 0; 
+    document.getElementById('quiz-screen').style.display = 'none';
+    
+    launchFireworks();
+
+    enemyBombs = []; 
+    enemies.forEach(e => {
+        e.fading = true;
+        createExplosion(e.x, e.y, e.color, 20);
+        score += 50;
+    });
+    
+    gameRunning = true;
+    lastTime = performance.now();
+    gameLoopId = requestAnimationFrame(loop);
+}
+
+document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') checkQuizAnswer();
+});
+
+
+/* =========================================
+   4. GAME ENGINE
+   ========================================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-
-// Elementos UI
 const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
 const livesEl = document.getElementById('lives');
+const highScoreEl = document.getElementById('highScore');
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 const studyGuide = document.getElementById('study-guide');
-const categoryWrapper = document.getElementById('category-bar-wrapper');
 const studyTableContainer = document.getElementById('study-table-container');
-const studyTitle = document.getElementById('study-category-title');
 
-// Audio setup (Tu mismo sistema robusto)
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let musicInterval;
+let gameLoopId;
+
+/* =========================================
+   AUDIO MANAGER (QUEUE SYSTEM)
+   ========================================= */
+const audioQueue = [];
+let isSpeaking = false;
+
+setInterval(() => {
+    if (!isSpeaking && audioQueue.length > 0) {
+        const next = audioQueue.shift();
+        playText(next.text, next.lang);
+    }
+}, 100);
+
+function speak(text, lang) {
+    audioQueue.push({text, lang});
+}
+
+function playText(text, lang) {
+    if (!window.speechSynthesis) return;
+    
+    isSpeaking = true;
+    window.speechSynthesis.cancel();
+    
+    let textToSpeak = text.toLowerCase();
+    if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
+    
+    const u = new SpeechSynthesisUtterance(textToSpeak);
+    u.lang = lang; 
+    u.rate = 1.1; 
+    
+    u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
+    u.onerror = () => { isSpeaking = false; };
+
+    window.speechSynthesis.speak(u);
+}
 
 function playSound(type) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // Check if context exists/resume it
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    
+    // Master Volume Check
+    if(userSettings.masterVolume <= 0) return;
+    const vol = userSettings.masterVolume / 100;
+
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     const n = audioCtx.currentTime;
     
-    if(type==='move'){
-        o.type='triangle';o.frequency.setValueAtTime(200,n);g.gain.setValueAtTime(.02,n);g.gain.exponentialRampToValueAtTime(.001,n+.05);
-    } else if(type==='correct'){
-        o.type='sine';o.frequency.setValueAtTime(440,n);o.frequency.exponentialRampToValueAtTime(880,n+.1);
-        g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);
-    } else if(type==='wrong'){
-        o.type='sawtooth';o.frequency.setValueAtTime(150,n);o.frequency.linearRampToValueAtTime(100,n+.2);
-        g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);
+    if(type==='shoot'){
+        o.type='square'; o.frequency.setValueAtTime(400,n); o.frequency.exponentialRampToValueAtTime(100,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
     }
-    o.start(n); o.stop(n+0.4);
-}
-
-function startMusic(){
-    let s=0; 
-    // Bassline oscura estilo industrial
-    const m=[55,0,55,0,65,0,55,0,82,0,55,0,73,0,55,0]; 
-    clearInterval(musicInterval);
-    musicInterval=setInterval(()=>{
-        if(m[s]>0){
-            const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-            o.type='square';o.frequency.value=m[s];
-            // Filtro lowpass para que suene como bajo
-            const f = audioCtx.createBiquadFilter();
-            f.type = 'lowpass'; f.frequency.value = 400;
-            o.connect(f); f.connect(g); g.connect(audioCtx.destination);
-            
-            g.gain.value=.03;g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.15);
-            o.start();o.stop(audioCtx.currentTime+.2);
-        }
-        s=(s+1)%m.length;
-    },200);
-}
-
-// Variables de Juego
-let gameRunning = false;
-let lastTime = 0;
-let score = 0;
-let lives = 5;
-let currentCategory = 'LEVEL_1';
-let dropSpeed = 2; // Velocidad base
-
-// Sistema de Carriles (Lanes)
-const LANES = 4;
-let laneWidth = 0;
-// Las 4 categorías gramaticales
-const BASKETS = [
-    {label: "V1", sub: "INFINITIVE", color: "#00aaff", type: "v1"},
-    {label: "V2", sub: "PAST", color: "#ffae00", type: "v2"},
-    {label: "V3", sub: "PARTICIPLE", color: "#ff5500", type: "v3"},
-    {label: "ING", sub: "GERUND", color: "#00ff88", type: "ing"}
-];
-
-// Objeto que cae
-let fallingWord = null; // {text: "WENT", type: "v2", lane: 1, y: 0, color: "white"}
-let particles = [];
-let feedbacks = []; // Textos flotantes "CORRECT!"
-
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    laneWidth = canvas.width / LANES;
-}
-window.addEventListener('resize', resize);
-
-// Render Categorías
-function renderCategories(){
-    categoryWrapper.innerHTML = '';
-    Object.keys(verbDB).forEach(k => {
-        const d = document.createElement('div');
-        d.className = 'category-chip' + (k===currentCategory ? ' active' : '');
-        d.innerText = k;
-        d.onclick = () => { currentCategory = k; renderCategories(); populateStudyGuide(); };
-        categoryWrapper.appendChild(d);
-    });
-}
-
-function spawnWord() {
-    const list = verbDB[currentCategory];
-    const verbObj = list[Math.floor(Math.random() * list.length)];
-    
-    // Elegir una forma aleatoria (v1, v2, v3, ing)
-    const types = ['v1', 'v2', 'v3', 'ing'];
-    const selectedType = types[Math.floor(Math.random() * types.length)];
-    const text = verbObj[selectedType];
-    
-    // Lane aleatorio inicial
-    const startLane = Math.floor(Math.random() * LANES);
-    
-    fallingWord = {
-        text: text,
-        type: selectedType, // La respuesta correcta
-        lane: startLane, // 0-3
-        y: -50,
-        verbRef: verbObj // Referencia para validaciones complejas si fuera necesario
-    };
-}
-
-function createExplosion(x, y, color) {
-    for(let i=0; i<15; i++){
-        particles.push({
-            x: x, y: y,
-            vx: (Math.random()-0.5)*10,
-            vy: (Math.random()-0.5)*10,
-            life: 1.0,
-            color: color
-        });
+    else if(type==='hit_eng'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(600,n); o.frequency.linearRampToValueAtTime(800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.15);
     }
-}
-
-function showFeedback(text, x, y, color) {
-    feedbacks.push({text, x, y, color, life: 1.0, yOffset: 0});
-}
-
-function update(dt) {
-    if(!gameRunning) return;
-    
-    // Mover palabra
-    if(fallingWord) {
-        let speed = dropSpeed;
-        if(keys['ArrowDown']) speed *= 4; // Fast drop
-        fallingWord.y += speed * (dt/16); // Normalizar con framerate
-        
-        // Colisión con el fondo (zona de canastas)
-        const basketY = canvas.height - 100;
-        
-        if(fallingWord.y > basketY) {
-            // Verificar respuesta
-            const targetBasket = BASKETS[fallingWord.lane];
-            const centerX = (fallingWord.lane * laneWidth) + (laneWidth/2);
-            
-            // Lógica Lingüística: ¿Coincide el tipo?
-            // Nota: Manejo básico de ambigüedad (si V2 y V3 son iguales, aceptamos estricto por ahora según spawn, o mejoramos lógica)
-            // Para simplificar y hacerlo justo: Comparamos el TEXTO contra la forma esperada en esa canasta.
-            // Si la palabra es "CUT" (V1) y cae en V2 (que también es "CUT"), es correcto.
-            
-            const expectedTextInBasket = fallingWord.verbRef[targetBasket.type];
-            
-            if (fallingWord.text === expectedTextInBasket) {
-                // Correcto
-                score += 10;
-                scoreEl.innerText = score;
-                createExplosion(centerX, basketY, targetBasket.color);
-                showFeedback("CORRECT!", centerX, basketY - 50, "#fff");
-                playSound('correct');
-                dropSpeed += 0.1; // Aumentar dificultad ligeramente
-            } else {
-                // Incorrecto
-                lives--;
-                livesEl.innerText = lives;
-                createExplosion(centerX, basketY, "#ff0000");
-                showFeedback("WRONG!", centerX, basketY - 50, "#ff0000");
-                playSound('wrong');
-                if(lives <= 0) { gameOver(); return; }
-            }
-            spawnWord();
-        }
-    } else {
-        spawnWord();
+    else if(type==='hit_syn'){
+        o.type='sine'; o.frequency.setValueAtTime(1200,n); o.frequency.linearRampToValueAtTime(1800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.3);
+    }
+    else if(type==='player_hit'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(120,n); o.frequency.linearRampToValueAtTime(8,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
+    }
+    else if(type==='firework'){ // NEW FIREWORK SOUND
+        o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
     }
     
-    // Partículas
-    for(let i=particles.length-1; i>=0; i--){
-        let p = particles[i];
-        p.x += p.vx; p.y += p.vy; p.life -= 0.05;
-        if(p.life <= 0) particles.splice(i,1);
-    }
-    
-    // Feedbacks
-    for(let i=feedbacks.length-1; i>=0; i--){
-        let f = feedbacks[i];
-        f.yOffset -= 1; f.life -= 0.02;
-        if(f.life <= 0) feedbacks.splice(i,1);
-    }
+    o.start(n); o.stop(n + 0.5);
 }
 
-function draw() {
-    if(!gameRunning) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Dibujar Carriles (Fondo)
-    for(let i=0; i<LANES; i++) {
-        ctx.strokeStyle = '#221100';
-        ctx.beginPath();
-        ctx.moveTo(i*laneWidth, 0);
-        ctx.lineTo(i*laneWidth, canvas.height);
-        ctx.stroke();
-    }
-    
-    // Dibujar Canastas
-    const basketH = 100;
-    const basketY = canvas.height - basketH;
-    
-    for(let i=0; i<LANES; i++) {
-        const b = BASKETS[i];
-        const x = i * laneWidth;
-        
-        // Fondo de canasta
-        ctx.fillStyle = 'rgba(10,5,0,0.8)';
-        ctx.fillRect(x + 5, basketY, laneWidth - 10, basketH);
-        
-        // Borde brillante
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x + 5, basketY, laneWidth - 10, basketH);
-        
-        // Texto
-        ctx.fillStyle = b.color;
-        ctx.textAlign = 'center';
-        ctx.font = '20px "Press Start 2P"';
-        ctx.fillText(b.label, x + laneWidth/2, basketY + 40);
-        ctx.font = '10px "Press Start 2P"';
-        ctx.fillStyle = '#aaa';
-        ctx.fillText(b.sub, x + laneWidth/2, basketY + 70);
-    }
-    
-    // Dibujar Palabra cayendo
-    if(fallingWord) {
-        const x = (fallingWord.lane * laneWidth) + (laneWidth/2);
-        ctx.fillStyle = "#fff";
-        ctx.textAlign = 'center';
-        ctx.font = '20px "Press Start 2P"';
-        ctx.shadowColor = BASKETS[fallingWord.lane].color; // Glow del carril actual
-        ctx.shadowBlur = 10;
-        ctx.fillText(fallingWord.text, x, fallingWord.y);
-        ctx.shadowBlur = 0;
-    }
-    
-    // Partículas
-    particles.forEach(p => {
-        ctx.globalAlpha = p.life;
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x, p.y, 4, 4);
-    });
-    ctx.globalAlpha = 1;
-    
-    // Feedback text
-    feedbacks.forEach(f => {
-        ctx.globalAlpha = f.life;
-        ctx.fillStyle = f.color;
-        ctx.font = '12px "Press Start 2P"';
-        ctx.fillText(f.text, f.x, f.y + f.yOffset);
-    });
-    ctx.globalAlpha = 1;
+let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
+let spawnTimer = 0;
+const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
+let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
-    requestAnimationFrame(() => {
-        const now = performance.now();
-        update(now - lastTime);
-        lastTime = now;
-        draw();
-    });
-}
+function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');highScore=s?parseInt(s):0;highScoreEl.innerText=highScore;}
 
-function gameOver(){
-    gameRunning = false;
-    clearInterval(musicInterval);
-    document.getElementById('finalScore').innerText = score;
-    gameOverScreen.style.display = 'flex';
-}
-
-function startGame(){
-    if(gameRunning) return;
-    resize();
-    startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
-    score=0; lives=5; dropSpeed=2; particles=[]; feedbacks=[];
-    scoreEl.innerText='0'; livesEl.innerText='5';
-    populateStudyGuide();
-    spawnWord();
-    gameRunning=true; lastTime=performance.now();
-    if(audioCtx.state==='suspended') audioCtx.resume();
-    startMusic();
-    draw();
-}
-
-// --- STUDY GUIDE LOGIC ---
 function populateStudyGuide(){
-    studyTitle.textContent = currentCategory;
-    const list = verbDB[currentCategory];
-    let html = '<table><thead><tr><th>INFINITIVE</th><th>PAST</th><th>PARTICIPLE</th><th>GERUND</th><th>TRAD.</th></tr></thead><tbody>';
-    list.forEach(w => {
+    document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
+    let html='<table><thead><tr><th class="chk-cell">PLAY?</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    activeVocabList.forEach(v => {
+        const isChecked = !disabledWords.has(v.en);
         html += `<tr>
-            <td style="color:#00aaff">${w.v1}</td>
-            <td style="color:#ffae00">${w.v2}</td>
-            <td style="color:#ff5500">${w.v3}</td>
-            <td style="color:#00ff88">${w.ing}</td>
-            <td style="color:#fff">${w.tr}</td>
+            <td class="chk-cell">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${v.en.replace(/'/g, "\\'")}')">
+            </td>
+            <td class="en-word">${v.en}</td>
+            <td>${v.es[0]||"-"}</td>
         </tr>`;
     });
-    html += '</tbody></table>';
-    studyTableContainer.innerHTML = html;
+    html+='</tbody></table>';
+    studyTableContainer.innerHTML=html;
 }
 
 function toggleStudyGuide(){
-    const isOpen = studyGuide.style.display === 'flex';
-    if(isOpen) {
-        studyGuide.style.display = 'none';
+    const isOpen = studyGuide.style.display==='flex';
+    if(isOpen){
+        studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
-            gameRunning = true;
-            lastTime = performance.now();
-            startMusic();
-            draw();
+            gameRunning=true; lastTime=performance.now(); 
+            gameLoopId = requestAnimationFrame(loop);
         }
-        // Foco seguro
-        requestAnimationFrame(()=>{
-             if(document.activeElement) document.activeElement.blur();
-             const resumeHandler = () => {
-                 document.removeEventListener('click', resumeHandler);
-                 document.removeEventListener('keydown', resumeHandler);
-                 document.getElementById('resumeHint')?.remove();
-             };
-             document.addEventListener('click', resumeHandler);
-             document.addEventListener('keydown', resumeHandler);
-             
-             const msg = document.createElement('div');
-             msg.id = 'resumeHint';
-             msg.textContent = 'PRESS ANY KEY TO RESUME';
-             msg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--neon-amber);padding:20px;border:1px solid var(--neon-amber);background:rgba(0,0,0,0.8);animation:blinker 1.5s infinite;pointer-events:none;';
-             document.body.appendChild(msg);
-        });
-    } else {
-        gameRunning = false;
-        clearInterval(musicInterval);
-        populateStudyGuide();
-        studyGuide.style.display = 'flex';
+    }else{
+        gameRunning=false; cancelAnimationFrame(gameLoopId);
+        populateStudyGuide(); studyGuide.style.display='flex';
+        // Wake audio context on interaction
+        if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     }
 }
 
-// --- CONTROLES (Left/Right para Lanes) ---
-let keys = {};
-document.addEventListener('keydown', e => {
-    if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
-        e.preventDefault(); toggleStudyGuide(); return;
-    }
-    keys[e.code] = true;
-    
-    if(!gameRunning) return;
-    
-    if(e.code === 'ArrowLeft') {
-        if(fallingWord && fallingWord.lane > 0) {
-            fallingWord.lane--;
-            playSound('move');
-        }
-    }
-    if(e.code === 'ArrowRight') {
-        if(fallingWord && fallingWord.lane < LANES - 1) {
-            fallingWord.lane++;
-            playSound('move');
-        }
-    }
+function resize(){
+    canvas.width=innerWidth; canvas.height=innerHeight;
+    player.y=canvas.height-130; player.x=canvas.width/2-player.w/2;
+}
+window.addEventListener('resize',resize);
+
+for(let i=0;i<80;i++) stars.push({
+    x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+    size:Math.random()*2, speed:Math.random()*0.2+0.1,
+    alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
 });
 
-document.addEventListener('keyup', e => keys[e.code] = false);
+function getRandomBombContent() {
+    if (Math.random() > 0.5) {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        return chars.charAt(Math.floor(Math.random() * chars.length));
+    } else {
+        return Math.floor(Math.random() * (9999 - 10) + 10).toString();
+    }
+}
 
-// Init
-window.onload = () => { resize(); renderCategories(); populateStudyGuide(); };
+function spawnEnemy(){
+    if(gameDeck.length===0) return;
+    const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
+    ctx.font='16px "Press Start 2P"';
+    const textWidth=ctx.measureText(d.en).width;
+    const vx = (Math.random() - 0.5) * 2.0;
+    const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
+
+    enemies.push({
+        x:Math.random()*(canvas.width-textWidth-50)+textWidth/2+25, 
+        y:-40, 
+        wordData:d, text:d.en, 
+        stage:0, hits:0, 
+        speed: baseSpeed, 
+        vx: vx, 
+        color:'#ffffff', 
+        timer:0, fading:false, w:textWidth, droppedBomb: false 
+    });
+}
+
+function createExplosion(x,y,c,n=10){
+    for(let i=0;i<n;i++) {
+        if(particles.length > 300) particles.shift(); 
+        particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
+    }
+}
+
+function checkCollisionRect(r1, r2) {
+    return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+}
+
+function drawRobot(ctx, x, y, w, h, color) {
+    ctx.fillStyle = color; ctx.fillRect(x + 8, y + 15, w - 16, h - 20);
+    ctx.fillStyle = '#ccc'; ctx.fillRect(x + 4, y, w - 8, 20);
+    ctx.fillStyle = gameRunning ? '#0f0' : '#f00';
+    ctx.fillRect(x + 10, y + 5, 8, 8); ctx.fillRect(x + w - 18, y + 5, 8, 8);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + w/2, y); ctx.lineTo(x + w/2, y - 10); ctx.stroke();
+    const time = Date.now();
+    ctx.fillStyle = (Math.floor(time/200)%2===0) ? 'red' : '#500';
+    ctx.beginPath(); ctx.arc(x + w/2, y - 10, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
+}
+
+function loop(timestamp) {
+    if (!gameRunning) return;
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+    update(dt);
+    draw(timestamp);
+    gameLoopId = requestAnimationFrame(loop);
+}
+
+function update(dt){
+    // QUIZ TIMER CHECK
+    if (userSettings.quizEnabled) {
+        quizTimer += dt;
+        if (quizTimer >= userSettings.quizInterval * 1000) {
+            triggerPopQuiz();
+            return; 
+        }
+    }
+
+    if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
+    
+    if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
+    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
+    
+    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
+    
+    spawnTimer-=dt; 
+    if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
+    
+    for(let i=enemyBombs.length-1; i>=0; i--){
+        let b = enemyBombs[i];
+        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
+        
+        if(!player.invincible && checkCollisionRect(player, b)){
+             lives--; livesEl.innerText=lives;
+             createExplosion(player.x+player.w/2, player.y+player.h/2, '#ff4444', 30);
+             playSound('player_hit');
+             player.invincible=true; player.invTimer=2000;
+             enemyBombs.splice(i,1);
+             if(lives<=0){gameOver();return;}
+             continue;
+        }
+
+        for(let j=bullets.length-1; j>=0; j--){
+            let bullet = bullets[j];
+            if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
+                bullets.splice(j,1);
+                createExplosion(b.x, b.y, b.color, 15);
+                playSound('hit_eng');
+                speak(b.text, 'en-US');
+                score += 25; scoreEl.innerText = score;
+                enemyBombs.splice(i,1);
+                break;
+            }
+        }
+        if(b.y > canvas.height) enemyBombs.splice(i,1);
+    }
+
+    for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
+    
+    for(let i=enemies.length-1;i>=0;i--){
+        const e=enemies[i];
+        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
+            e.droppedBomb = true; 
+            enemyBombs.push({
+                x: e.x, y: e.y + 40,
+                text: getRandomBombContent(),
+                color: `hsl(${Math.random()*360}, 100%, 70%)`,
+                vy: e.speed + userSettings.bombSpeed, 
+                w: 20, h: 30
+            });
+        }
+
+        if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
+        
+        e.y += e.speed; e.x += e.vx; 
+
+        if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
+            e.vx *= -1; 
+            if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
+            if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+        }
+
+        const eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
+        if(!player.invincible && checkCollisionRect(player, eRect)){
+            lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
+            player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
+            if(lives<=0){gameOver();return;}
+            continue;
+        }
+        
+        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
+        
+        for(let j=bullets.length-1;j>=0;j--){
+            const b=bullets[j];
+            if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
+                bullets.splice(j,1); e.timer=0;
+                
+                if(e.stage===0){
+                    e.hits++; 
+                    if(e.hits === 1) speak(e.text, 'en-US');
+                    playSound('hit_eng');score+=10;
+                    if(e.hits >= 3) {
+                        e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
+                        createExplosion(e.x,e.y,'#00ff00',20);
+                        score+=50; combo++;
+                        ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                    }
+                }
+                else if(e.stage===1){
+                    e.fading=true;
+                    createExplosion(e.x,e.y,'#ffffff',40);
+                    playSound('hit_syn'); score+=150; combo++;
+                    speak(e.text, 'es-ES');
+                }
+                scoreEl.innerText=score;comboEl.innerText=combo;
+                break;
+            }
+        }
+        if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
+    }
+    
+    for(let i=particles.length-1;i>=0;i--){
+        const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
+        if(p.life<=0)particles.splice(i,1);
+    }
+}
+
+function draw(timestamp){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    
+    stars.forEach(s=>{
+        const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
+        ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
+        ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
+    });
+    
+    if(!player.invincible||(Math.floor(Date.now()/100)%2===0)){
+        drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
+    }
+
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    
+    enemyBombs.forEach(b => {
+        ctx.strokeStyle='#fff'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(b.x+10, b.y-15); ctx.lineTo(b.x+4, b.y); ctx.stroke();
+        ctx.fillStyle=b.color;
+        ctx.beginPath(); ctx.arc(b.x, b.y-15, 12, Math.PI, 0); ctx.fill();
+        ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff';
+        ctx.fillText(b.text, b.x, b.y+10);
+    });
+
+    ctx.shadowBlur=5; ctx.shadowColor='#ff0055'; ctx.fillStyle='#ff0055';
+    bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
+    ctx.shadowBlur=0; 
+    
+    enemies.forEach(e=>{
+        ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
+        ctx.fillStyle=e.color;
+        if(e.stage>=1){ctx.shadowBlur=10;ctx.shadowColor='#00ff00';}
+        ctx.fillText(e.text,e.x,e.y);
+        ctx.shadowBlur=0; 
+        
+        for(let k=0;k<4;k++){
+            if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
+            else ctx.fillStyle = '#444';
+            ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
+        }
+    });
+    
+    particles.forEach(p=>{
+        ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
+    });
+    ctx.globalAlpha=1;
+}
+
+function gameOver(){
+    gameRunning=false; cancelAnimationFrame(gameLoopId);
+    if(score>highScore){highScore=score;localStorage.setItem('synonymHunterHighScore',highScore);highScoreEl.innerText=highScore;}
+    document.getElementById('finalScore').innerText=score;
+    gameOverScreen.style.display='flex';
+}
+
+function startGame(){
+    if(gameRunning)return;
+    resize();
+    startScreen.style.display='none';gameOverScreen.style.display='none';studyGuide.style.display='none';
+    score=combo=0;lives=5;enemies=[];bullets=[];particles=[];enemyBombs=[];player.invincible=false;
+    scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
+    loadHighScore();
+    gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
+    quizTimer = 0;
+    
+    // Attempt resume on start click
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
+    
+    gameLoopId = requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown', e=>{
+    if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
+    keys[e.code]=true;
+    if(e.code==='Space' && gameRunning){
+        e.preventDefault();
+        bullets.push({x:player.x+player.w/2,y:player.y});
+        playSound('shoot');
+    }
+});
+document.addEventListener('keyup', e=>keys[e.code]=false);
+
+window.onload=()=>{
+    loadConfig(); 
+    loadVocabData();
+    resize();
+    renderCategoryBar();
+};
 </script>
 </body>
 </html>
