@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Space Translator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #050505; 
+            font-family: 'Press Start 2P', monospace;
+            color: white;
+            user-select: none;
+        }
+        canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.85);
+            z-index: 20;
+            text-align: center;
+        }
+        h1 { color: #4f46e5; text-shadow: 2px 2px #ec4899; font-size: 40px; margin-bottom: 20px;}
+        p { line-height: 1.8; color: #aaa; font-size: 12px; }
+        .blink { animation: blinker 1s linear infinite; color: #00ff00; margin-top: 30px; font-size: 14px;}
+        @keyframes blinker { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+    <div id="ui">SCORE: <span id="score">0</span></div>
+    
+    <div id="start-screen">
+        <h1>ASTRO TRANSLATOR</h1>
+        <p>MOVER: Flechas Izq/Der<br>DISPARAR: Espacio</p>
+        <div class="blink">CLICK PARA INICIAR</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+/* --- CONFIGURACIÓN Y VOCABULARIO --- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const startScreen = document.getElementById('start-screen');
+
+// Palabras para el juego
+const wordsDB = [
+    {en: "LOVE", es: "AMOR"}, {en: "HOUSE", es: "CASA"}, {en: "TIME", es: "TIEMPO"},
+    {en: "WORLD", es: "MUNDO"}, {en: "LIFE", es: "VIDA"}, {en: "HAND", es: "MANO"},
+    {en: "EYE", es: "OJO"}, {en: "WAY", es: "CAMINO"}, {en: "DAY", es: "DIA"},
+    {en: "MAN", es: "HOMBRE"}, {en: "BOOK", es: "LIBRO"}, {en: "WATER", es: "AGUA"},
+    {en: "FIRE", es: "FUEGO"}, {en: "MOON", es: "LUNA"}, {en: "SUN", es: "SOL"},
+    {en: "STAR", es: "ESTRELLA"}, {en: "RED", es: "ROJO"}, {en: "BLUE", es: "AZUL"}
+];
+
+/* --- MOTOR DE AUDIO 8-BIT (WEB AUDIO API) --- */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let isMuted = false;
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+
+    if (type === 'shoot') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'hit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    } else if (type === 'music') {
+        // Simple bassline loop
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(110, now); // A2
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    }
+}
+
+// Secuenciador muy básico
+let musicInterval;
+function startMusic() {
+    let note = 0;
+    const notes = [110, 110, 130, 110, 164, 146, 110, 98]; // Frecuencias
+    if(musicInterval) clearInterval(musicInterval);
+    musicInterval = setInterval(() => {
+        if(Math.random() > 0.5) { // Ritmo aleatorio suave
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'square';
+            osc.frequency.value = notes[note % notes.length] * 0.5;
+            gain.gain.value = 0.03;
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+            note++;
+        }
+    }, 250); // 240 BPM aprox
+}
+
+/* --- LÓGICA DEL JUEGO --- */
+let gameRunning = false;
+let score = 0;
+let lastTime = 0;
+let spawnTimer = 0;
+
+// Entidades
+const player = { x: 0, y: 0, w: 40, h: 40, speed: 7, color: '#4f46e5' };
+const bullets = [];
+const enemies = [];
+const particles = [];
+const stars = [];
+
+// Controles
+const keys = {};
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    player.y = canvas.height - 60;
+    player.x = canvas.width / 2 - player.w / 2;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Estrellas de fondo
+for(let i=0; i<100; i++) {
+    stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 2,
+        speed: Math.random() * 0.5 + 0.1
+    });
+}
+
+function spawnEnemy() {
+    const wordObj = wordsDB[Math.floor(Math.random() * wordsDB.length)];
+    enemies.push({
+        x: Math.random() * (canvas.width - 100) + 50,
+        y: -30,
+        text: wordObj.en,
+        translation: wordObj.es,
+        speed: Math.random() * 1 + 0.5,
+        state: 'en', // 'en', 'hit', 'fading'
+        timer: 0,
+        color: '#ffffff'
+    });
+}
+
+function createExplosion(x, y, color) {
+    for(let i=0; i<15; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 5,
+            vy: (Math.random() - 0.5) * 5,
+            life: 1,
+            color: color
+        });
+    }
+}
+
+function update(deltaTime) {
+    if (!gameRunning) return;
+
+    // Player Move
+    if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+    if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
+
+    // Background Stars
+    stars.forEach(s => {
+        s.y += s.speed;
+        if(s.y > canvas.height) s.y = 0;
+    });
+
+    // Spawner
+    spawnTimer += deltaTime;
+    if (spawnTimer > 2000) { // Cada 2 segundos
+        spawnEnemy();
+        spawnTimer = 0;
+    }
+
+    // Bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.y -= 10;
+        if (b.y < 0) bullets.splice(i, 1);
+    }
+
+    // Enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        
+        if (e.state === 'en') {
+            e.y += e.speed;
+            
+            // Collision Bullet-Enemy
+            for (let j = bullets.length - 1; j >= 0; j--) {
+                let b = bullets[j];
+                // Simple box collision approximation
+                if (b.x > e.x - 20 && b.x < e.x + 60 && b.y > e.y - 20 && b.y < e.y + 20) {
+                    playSound('hit');
+                    e.state = 'translated';
+                    e.text = e.translation;
+                    e.color = '#00ff00'; // Verde al traducir
+                    bullets.splice(j, 1);
+                    score += 10;
+                    scoreEl.innerText = score;
+                    createExplosion(e.x, e.y, '#00ff00');
+                    break;
+                }
+            }
+        } else if (e.state === 'translated') {
+            e.timer += deltaTime;
+            if (e.timer > 1000) { // Espera 1 segundo leyendo en español
+                e.state = 'fading';
+            }
+        } else if (e.state === 'fading') {
+            createExplosion(e.x, e.y, '#4f46e5');
+            enemies.splice(i, 1);
+        }
+
+        if (e.y > canvas.height) {
+            enemies.splice(i, 1); // Perdiste la palabra
+        }
+    }
+
+    // Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.05;
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+}
+
+function draw() {
+    // Clear
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Stars
+    ctx.fillStyle = '#ffffff';
+    stars.forEach(s => {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    if(!gameRunning) return requestAnimationFrame(draw);
+
+    // Player (Ship shape)
+    ctx.fillStyle = player.color;
+    ctx.beginPath();
+    ctx.moveTo(player.x + player.w/2, player.y);
+    ctx.lineTo(player.x + player.w, player.y + player.h);
+    ctx.lineTo(player.x + player.w/2, player.y + player.h - 10);
+    ctx.lineTo(player.x, player.y + player.h);
+    ctx.closePath();
+    ctx.fill();
+    // Engine glow
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ec4899';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Bullets
+    ctx.fillStyle = '#ff0055';
+    bullets.forEach(b => {
+        ctx.fillRect(b.x - 2, b.y, 4, 10);
+    });
+
+    // Enemies (Words)
+    ctx.font = '16px "Press Start 2P"';
+    ctx.textAlign = 'center';
+    enemies.forEach(e => {
+        ctx.fillStyle = e.color;
+        ctx.fillText(e.text, e.x, e.y);
+        if(e.state === 'translated') {
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 2;
+            ctx.strokeText(e.text, e.x, e.y);
+        }
+    });
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x, p.y, 4, 4);
+        ctx.globalAlpha = 1;
+    });
+
+    requestAnimationFrame(() => {
+        const now = performance.now();
+        update(now - lastTime);
+        lastTime = now;
+        draw();
+    });
+}
+
+/* --- EVENTOS DE ENTRADA --- */
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space' && gameRunning) {
+        bullets.push({ x: player.x + player.w/2, y: player.y });
+        playSound('shoot');
+    }
+});
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+// Iniciar Juego
+document.body.addEventListener('click', () => {
+    if (!gameRunning) {
+        startScreen.style.display = 'none';
+        gameRunning = true;
+        score = 0;
+        enemies.length = 0;
+        bullets.length = 0;
+        scoreEl.innerText = '0';
+        lastTime = performance.now();
+        
+        // Iniciar audio context
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        startMusic();
+        
+        draw();
+    }
+});
+
+</script>
+</body>
+</html>
