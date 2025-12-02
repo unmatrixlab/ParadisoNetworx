@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: OPTIMIZED</title>
+    <title>Vocabulary Hunter: Focus Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -15,34 +15,61 @@
         }
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
         canvas {display:block;}
-        
-        /* Scanlines optimizadas (CSS es más barato que Canvas) */
-        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));background-size:100% 4px;z-index:999;pointer-events:none;}
+        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.2) 50%,rgba(0,0,0,0.2));background-size:100% 4px;z-index:999;pointer-events:none;}
         
         #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
-        /* BARRA INFERIOR */
+        /* --- NUEVA BARRA INFERIOR HÍBRIDA --- */
         #category-bar-wrapper {
-            position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
-            background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
-            display:flex; justify-content:center; border-top:1px solid #333;
+            position:absolute; bottom:20px; left:5%; width:90%; height: 50px;
+            background:rgba(0,0,0,0.9); z-index:15; 
+            display:flex; align-items: center; justify-content: space-between;
+            border:1px solid #333; border-radius: 4px;
             box-shadow:0 -5px 15px rgba(0,255,0,0.1);
         }
+
+        /* ZONA DE CHIPS (SCROLL) */
+        #cat-scroll-area {
+            flex: 1; 
+            overflow-x: auto; 
+            white-space: nowrap; 
+            padding: 0 10px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            /* Ocultar barra scroll estéticamente */
+            scrollbar-width: none; 
+        }
+        #cat-scroll-area::-webkit-scrollbar { display: none; }
+
         .category-chip {
-            padding:8px 16px; margin:0 8px; background:#111; color:#666;
-            font-size:10px; cursor:pointer; border:1px solid #444; transition:.2s;
-            pointer-events:all; display:inline-block;
+            padding:6px 10px; margin:0 4px; background:#111; color:#666;
+            font-size:8px; cursor:pointer; border:1px solid #444; transition:.2s;
+            display:inline-block; flex-shrink: 0;
         }
         .category-chip:hover { border-color:#888; color:#888; }
         .category-chip.active {
             color:var(--neon-green); background:#002200;
-            border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green);
+            border-color:var(--neon-green);
         }
         .category-chip.help-btn { border-color:var(--neon-yellow); color:var(--neon-yellow); }
-        .category-chip.help-btn:hover { background:#222200; box-shadow:0 0 10px var(--neon-yellow); }
-        
+
+        /* ZONA DEL SLIDER DE PORCENTAJE (FIJA A LA DERECHA) */
+        #data-limit-ctrl {
+            width: 130px; 
+            padding: 0 10px;
+            border-left: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+            background: #080808;
+        }
+        .ctrl-label { font-size: 8px; color: var(--neon-blue); margin-bottom: 4px; display:flex; justify-content:space-between; }
+        .mini-slider { width: 100%; height: 4px; accent-color: var(--neon-blue); cursor: pointer; }
+
         /* OVERLAYS */
         .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
         h1 {color:var(--neon-green);text-shadow:4px 4px #003300;font-size:35px;margin-bottom:20px;line-height:1.5;}
@@ -74,6 +101,7 @@
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
         .en-word {color:var(--neon-blue);font-weight:bold;}
 
+        /* CONFIG STYLES */
         .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
@@ -84,30 +112,31 @@
         select { width: 100%; padding: 10px; background: #111; color: var(--neon-green); border: 1px solid var(--neon-green); font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; margin-top: 5px; }
         select:focus { outline: none; background: #222; }
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
-        .reset-btn:hover { background: var(--neon-red); color: #000; }
         .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
-        .close-btn:hover {background:var(--neon-red);color:#000;}
-        
-        ::-webkit-scrollbar {width:10px;}
-        ::-webkit-scrollbar-track {background:#111;}
-        ::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
     </style>
 </head>
 <body>
+    <div class="scanlines"></div>
     <div id="ui">
         <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
         <div id="lives-panel">LIVES: <span id="lives">5</span></div>
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
-    <div id="category-bar-wrapper"></div>
+    <div id="category-bar-wrapper">
+        <div id="cat-scroll-area"></div>
+        <div id="data-limit-ctrl">
+            <div class="ctrl-label">DATA USE: <span id="lbl-percent">100%</span></div>
+            <input type="range" class="mini-slider" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
+        </div>
+    </div>
 
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
         <h1>VOCAB ROBOT</h1>
         <p>
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
-            3. Shoot Parachutes to hear them.<br><br>
+            3. Shoot Parachutes (Letters/Numbers) to hear them.<br><br>
             <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Menu
         </p>
         <div class="blink">CLICK TO START</div>
@@ -152,11 +181,6 @@
                     <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">2.0</span></label>
-                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="2.0" oninput="updateConfig('bspeed')">
-                    <div class="slider-desc"><span>FLOAT</span><span>DROP</span></div>
-                </div>
-                <div class="config-group">
                     <label class="config-label">PLAYER COLOR</label>
                     <input type="color" id="cfg-color" value="#4f46e5" onchange="updateConfig('color')">
                 </div>
@@ -178,42 +202,47 @@ const INTERNAL_VOCAB = {
     'VERBS': [
         {en: "RUN", es: "CORRER"}, {en: "JUMP", es: "SALTAR"}, {en: "EAT", es: "COMER"},
         {en: "SLEEP", es: "DORMIR"}, {en: "READ", es: "LEER"}, {en: "WRITE", es: "ESCRIBIR"},
-        {en: "WALK", es: "CAMINAR"}, {en: "FLY", es: "VOLAR"}, {en: "SWIM", es: "NADAR"}
+        {en: "WALK", es: "CAMINAR"}, {en: "FLY", es: "VOLAR"}, {en: "SWIM", es: "NADAR"},
+        {en: "THINK", es: "PENSAR"}, {en: "SPEAK", es: "HABLAR"}, {en: "LISTEN", es: "ESCUCHAR"},
+        {en: "DRIVE", es: "CONDUCIR"}, {en: "WORK", es: "TRABAJAR"}, {en: "PLAY", es: "JUGAR"}
     ],
     'NOUNS': [
         {en: "HOUSE", es: "CASA"}, {en: "CAR", es: "COCHE"}, {en: "TREE", es: "ÁRBOL"},
         {en: "BOOK", es: "LIBRO"}, {en: "DOG", es: "PERRO"}, {en: "CAT", es: "GATO"},
-        {en: "CITY", es: "CIUDAD"}, {en: "WATER", es: "AGUA"}, {en: "TIME", es: "TIEMPO"}
+        {en: "CITY", es: "CIUDAD"}, {en: "WATER", es: "AGUA"}, {en: "TIME", es: "TIEMPO"},
+        {en: "HAND", es: "MANO"}, {en: "FACE", es: "CARA"}, {en: "EYE", es: "OJO"}
     ],
     'ADJECTIVES': [
         {en: "BIG", es: "GRANDE"}, {en: "SMALL", es: "PEQUEÑO"}, {en: "FAST", es: "RÁPIDO"},
         {en: "SLOW", es: "LENTO"}, {en: "HOT", es: "CALIENTE"}, {en: "COLD", es: "FRÍO"},
-        {en: "HAPPY", es: "FELIZ"}, {en: "SAD", es: "TRISTE"}
+        {en: "HAPPY", es: "FELIZ"}, {en: "SAD", es: "TRISTE"}, {en: "GOOD", es: "BUENO"}
     ],
     'ANIMALS': [
         {en: "LION", es: "LEÓN"}, {en: "TIGER", es: "TIGRE"}, {en: "BEAR", es: "OSO"},
-        {en: "EAGLE", es: "ÁGUILA"}, {en: "SHARK", es: "TIBURÓN"}, {en: "WOLF", es: "LOBO"}
+        {en: "EAGLE", es: "ÁGUILA"}, {en: "SHARK", es: "TIBURÓN"}, {en: "WOLF", es: "LOBO"},
+        {en: "SNAKE", es: "SERPIENTE"}, {en: "BIRD", es: "PÁJARO"}, {en: "FISH", es: "PEZ"}
     ],
     'TECH': [
         {en: "CODE", es: "CÓDIGO"}, {en: "DATA", es: "DATOS"}, {en: "FILE", es: "ARCHIVO"},
-        {en: "USER", es: "USUARIO"}, {en: "WEB", es: "RED"}, {en: "LINK", es: "ENLACE"}
+        {en: "USER", es: "USUARIO"}, {en: "WEB", es: "RED"}, {en: "LINK", es: "ENLACE"},
+        {en: "MOUSE", es: "RATÓN"}, {en: "SCREEN", es: "PANTALLA"}, {en: "KEY", es: "TECLA"}
     ]
 };
 
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v4';
+const CONFIG_KEY = 'vocab_robot_config_v5';
 let userSettings = {
     vocabSource: 'LOCAL', 
+    dataPercent: 100, // PORCENTAJE DE DATOS A USAR
     spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5'
 };
-// Valores calculados para el juego
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 
 // --- MENUS & UI ---
 function renderCategoryBar() {
-    const wrapper = document.getElementById('category-bar-wrapper');
+    const wrapper = document.getElementById('cat-scroll-area');
     wrapper.innerHTML = '';
     const opts = [{val: 'LOCAL', txt: 'MY DB'}, {val: 'MIXED', txt: 'MIXED'}, {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}];
     Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: key}));
@@ -229,11 +258,18 @@ function renderCategoryBar() {
         wrapper.appendChild(chip);
     });
 
+    // El botón de Configuración ahora está al final del scroll
     const help = document.createElement('div');
     help.className = 'category-chip help-btn';
-    help.textContent = 'CONFIG / HELP';
+    help.textContent = 'MENU';
     help.onclick = toggleStudyGuide;
     wrapper.appendChild(help);
+}
+
+function updateDataPercent(val) {
+    userSettings.dataPercent = parseInt(val);
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+    updateConfig('percent_only'); // Guardar y recargar lógica
 }
 
 function populateSourceMenu() {
@@ -265,6 +301,10 @@ function loadConfig() {
 
 function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
+    // Nuevo Slider inferior
+    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -286,7 +326,12 @@ function updateConfig(key) {
     if(key === 'source') {
         userSettings.vocabSource = document.getElementById('cfg-source').value;
         loadVocabData(); populateStudyGuide(); renderCategoryBar();
-        if(gameRunning) enemies = []; // Limpiar enemigos antiguos
+        if(gameRunning) enemies = [];
+    }
+    else if(key === 'percent_only') {
+        // Solo recarga datos, no redibuja todo el UI de config
+        loadVocabData(); populateStudyGuide();
+        if(gameRunning) enemies = [];
     }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
@@ -296,13 +341,17 @@ function updateConfig(key) {
         userSettings.playerColor = document.getElementById('cfg-color').value;
         player.color = userSettings.playerColor;
     }
-    applyConfigToUI(); recalcGameVars();
+    
+    if(key !== 'percent_only') {
+        applyConfigToUI(); 
+    }
+    recalcGameVars();
     localStorage.setItem(CONFIG_KEY, JSON.stringify(userSettings));
 }
 
 function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
-    userSettings = { vocabSource: 'LOCAL', spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5' };
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5' };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -314,15 +363,15 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA LOADING ---
+// --- 3. CARGA DE DATOS CON PORCENTAJE ---
 let activeVocabList = [];
 
 function loadVocabData() {
-    activeVocabList = [];
+    let tempVocabList = [];
     const countWords = (str) => str.trim().split(/\s+/).length;
     const processItem = (en, es) => {
         if(en && es && countWords(en) <= 2) {
-            activeVocabList.push({en: en.toUpperCase(), es: [es.toUpperCase()]});
+            tempVocabList.push({en: en.toUpperCase(), es: [es.toUpperCase()]});
         }
     };
 
@@ -352,6 +401,14 @@ function loadVocabData() {
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
             }
         });
+    }
+
+    // APLICAR FILTRO DE PORCENTAJE (Primer X%)
+    if (tempVocabList.length > 0) {
+        const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
+        activeVocabList = tempVocabList.slice(0, limit);
+    } else {
+        activeVocabList = [];
     }
 
     if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
@@ -396,7 +453,6 @@ function playSound(type) {
     o.start(n); o.stop(n + 0.5);
 }
 
-// Variables Globales del Juego
 let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
 let spawnTimer = 0;
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
@@ -417,7 +473,6 @@ function toggleStudyGuide(){
         studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
             gameRunning=true; lastTime=performance.now(); 
-            // audioCtx.resume(); // Ensure audio is ready
             gameLoopId = requestAnimationFrame(loop);
         }
     }else{
@@ -432,14 +487,10 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 
-// Inicializar Estrellas (OPTIMIZADO: pre-calcular alpha base)
 for(let i=0;i<80;i++) stars.push({
-    x:Math.random()*innerWidth,
-    y:Math.random()*innerHeight,
-    size:Math.random()*2,
-    speed:Math.random()*0.2+0.1,
-    alphaBase: Math.random()*0.5+0.3,
-    phase: Math.random() * Math.PI * 2
+    x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+    size:Math.random()*2, speed:Math.random()*0.2+0.1,
+    alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
 });
 
 function getRandomBombContent() {
@@ -454,8 +505,6 @@ function getRandomBombContent() {
 function spawnEnemy(){
     if(activeVocabList.length===0) return;
     const d=activeVocabList[Math.floor(Math.random()*activeVocabList.length)];
-    
-    // Medimos el texto una sola vez al nacer
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
     const vx = (Math.random() - 0.5) * 2.0;
@@ -469,14 +518,13 @@ function spawnEnemy(){
         speed: baseSpeed, 
         vx: vx, 
         color:'#ffffff', 
-        timer:0, fading:false, w:textWidth,
-        droppedBomb: false 
+        timer:0, fading:false, w:textWidth, droppedBomb: false 
     });
 }
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 150) particles.shift(); // Límite de partículas
+        if(particles.length > 150) particles.shift();
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -498,7 +546,6 @@ function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
 }
 
-// --- OPTIMIZED GAME LOOP ---
 function loop(timestamp) {
     if (!gameRunning) return;
     const dt = timestamp - lastTime;
@@ -511,25 +558,17 @@ function loop(timestamp) {
 function update(dt){
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    // Player Move
     if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
     
-    // Stars
-    stars.forEach(s=>{
-        s.y+=s.speed;
-        if(s.y>canvas.height)s.y=0;
-    });
+    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
     
-    // Spawn
     spawnTimer-=dt; 
     if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
-    // Bombs Update
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
-        b.y += b.vy;
-        b.x += Math.sin(b.y * 0.05) * 1.5; 
+        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
         
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
@@ -556,13 +595,10 @@ function update(dt){
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
-    // Bullets
     for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
     
-    // Enemies
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        // Bomb Drop Logic
         if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
             e.droppedBomb = true; 
             enemyBombs.push({
@@ -607,7 +643,6 @@ function update(dt){
                         e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
                         createExplosion(e.x,e.y,'#00ff00',20);
                         score+=50; combo++;
-                        // Recalcular ancho solo al cambiar texto
                         ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
                     }
                 }
@@ -624,7 +659,6 @@ function update(dt){
         if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
     }
     
-    // Particles
     for(let i=particles.length-1;i>=0;i--){
         const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
         if(p.life<=0)particles.splice(i,1);
@@ -634,9 +668,7 @@ function update(dt){
 function draw(timestamp){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     
-    // OPTIMIZADO: Estrellas sin math.random
     stars.forEach(s=>{
-        // Parpadeo suave usando seno del tiempo
         const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
         ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
         ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
@@ -646,10 +678,8 @@ function draw(timestamp){
         drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
     }
 
-    // STATE CHANGE BATCHING: Texto
     ctx.textAlign='center'; ctx.textBaseline='middle';
     
-    // Draw Bombs
     enemyBombs.forEach(b => {
         ctx.strokeStyle='#fff'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
@@ -660,23 +690,17 @@ function draw(timestamp){
         ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets (Batching shadow)
     ctx.shadowBlur=5; ctx.shadowColor='#ff0055'; ctx.fillStyle='#ff0055';
     bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
-    ctx.shadowBlur=0; // Reset ASAP
+    ctx.shadowBlur=0; 
     
-    // Enemies
     enemies.forEach(e=>{
         ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
         ctx.fillStyle=e.color;
-        
-        // Solo activamos sombra si es necesario (Stage 1 = Español)
         if(e.stage>=1){ctx.shadowBlur=10;ctx.shadowColor='#00ff00';}
-        
         ctx.fillText(e.text,e.x,e.y);
-        ctx.shadowBlur=0; // Reset
+        ctx.shadowBlur=0; 
         
-        // Dots
         for(let k=0;k<4;k++){
             if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
             else ctx.fillStyle = '#444';
@@ -684,7 +708,6 @@ function draw(timestamp){
         }
     });
     
-    // Particles
     particles.forEach(p=>{
         ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
     });
@@ -706,10 +729,7 @@ function startGame(){
     scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
     loadHighScore();
     gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
-    
-    // Audio Context Resume Optimization
-    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>console.log(e));
-    
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
 
@@ -728,7 +748,7 @@ window.onload=()=>{
     loadConfig(); 
     loadVocabData();
     resize();
-    renderCategoryBar();
+    renderCategoryBar(); // Renderiza la barra inferior al inicio
 };
 </script>
 </body>
