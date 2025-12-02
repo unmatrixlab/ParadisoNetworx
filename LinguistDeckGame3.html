@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Word Fall: Catch & Match</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root{--neon-green:#0f0;--neon-red:#ff4444;--neon-blue:#4f46e5;--neon-yellow:#ffff00;--dark-bg:#050505;--panel-bg:rgba(0,15,0,0.95);}
+        body{margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
+        canvas{display:block;}
+        .scanlines{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0)50%,rgba(0,0,0,.2)50%,rgba(0,0,0,.2));background-size:100% 4px;z-index:999;pointer-events:none;}
+        #ui{position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
+        #lives-panel{color:var(--neon-red);}
+        #score-panel{color:var(--neon-green);}
+        #category-bar-wrapper{position:absolute;bottom:30px;left:0;width:100%;padding:10px 0;background:rgba(0,0,0,0.85);z-index:15;overflow-x:auto;white-space:nowrap;display:flex;justify-content:center;border-top:1px solid #333;}
+        .category-chip{padding:8px 16px;margin:0 8px;background:#111;color:#666;font-size:10px;cursor:pointer;border:1px solid #444;transition:.2s;pointer-events:all;display:inline-block;}
+        .category-chip:hover{border-color:#888;color:#888;}
+        .category-chip.active{color:var(--neon-green);background:#002200;border-color:var(--neon-green);box-shadow:0 0 10px var(--neon-green);}
+        .category-chip.help-btn{border-color:var(--neon-yellow);color:var(--neon-yellow);}
+        .category-chip.help-btn:hover{background:#222200;box-shadow:0 0 10px var(--neon-yellow);}
+        .overlay-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+        h1{color:var(--neon-green);text-shadow:4px 4px #003300;font-size:32px;margin-bottom:30px;}
+        .blink{animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:30px;cursor:pointer;}
+        @keyframes blinker{50%{opacity:0;}}
+        @keyframes blinker-soft{50%{opacity:0.3;}}
+        #study-content{background:var(--panel-bg);padding:30px;border:2px solid var(--neon-green);width:80%;max-width:800px;height:70%;overflow-y:auto;position:relative;box-shadow:0 0 30px rgba(0,255,0,0.2);}
+        #study-content table{width:100%;border-collapse:separate;border-spacing:0;margin-top:20px;font-size:12px;}
+        #study-content th{color:var(--neon-green);border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;}
+        #study-content td{padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
+        #study-content tr:hover td{background:#002200;color:#fff;}
+        #study-content .en-word{color:var(--neon-blue);font-weight:bold;}
+        .close-btn{position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;}
+        .close-btn:hover{background:var(--neon-red);color:#000;}
+        .key-hint{display:inline-block;padding:2px 6px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;}
+        #catcher{position:absolute;bottom:140px;width:120px;height:50px;background:rgba(0,255,0,0.3);border:3px solid var(--neon-green);border-top:none;box-shadow:0 0 20px var(--neon-green);}
+        #bins{display:flex;position:absolute;bottom:80px;left:50%;transform:translateX(-50%);gap:80px;}
+        .bin{width:180px;height:60px;background:#111;border:2px solid #444;text-align:center;line-height:56px;font-size:14px;color:#aaa;}
+        .bin.correct{border-color:var(--neon-green);box-shadow:0 0 15px var(--neon-green);}
+        .bin.wrong{border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red);}
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div id="ui">
+        <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
+        <div id="lives-panel">LIVES: <span id="lives">5</span></div>
+        <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
+    </div>
+    <div id="category-bar-wrapper"></div>
+    <div id="catcher"></div>
+    <div id="bins"><div class="bin" id="bin1"></div><div class="bin" id="bin2"></div><div class="bin" id="bin3"></div></div>
+
+    <div id="start-screen" class="overlay-screen" onclick="startGame()">
+        <h1>WORD FALL<br><span style="font-size:16px;">CATCH & MATCH</span></h1>
+        <p>Mueve con ← → el receptor verde<br>y atrapa la palabra en la caja correcta<br><br>
+           <span class="key-hint">← →</span> Mover  <span class="key-hint">TAB</span> Study Guide</p>
+        <div class="blink">CLICK PARA INICIAR</div>
+    </div>
+
+    <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
+        <h1 style="color:var(--neon-red);">GAME OVER</h1>
+        <p>SCORE FINAL: <span id="finalScore" style="color:white;">0</span></p>
+        <div class="blink">CLICK PARA REINTENTAR</div>
+    </div>
+
+    <div id="study-guide" class="overlay-screen" style="display:none;">
+        <div id="study-content">
+            <span class="close-btn" onclick="toggleStudyGuide()">X</span>
+            <h2 style="color:var(--neon-green);margin-top:0;border-bottom:1px solid #333;padding-bottom:10px;">
+                DATABASE: <span id="study-category-title" style="color:white;">NOUNS</span>
+            </h2>
+            <div id="study-table-container"></div>
+            <p style="margin-top:20px;text-align:center;color:#666;font-size:10px;">
+                PAUSA · <span class="key-hint">TAB</span> o <span class="key-hint">ESC</span> para continuar
+            </p>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const wordsDB = {
+    'NOUNS':[{en:"MALAISE",es:["MALESTAR","INDISPOSICIÓN","DECAIMIENTO"]},{en:"AVARICE",es:["CODICIA","USURA","AVARICIA"]},{en:"TREPIDATION",es:["TEMOR","MIEDO","RECELO"]},{en:"CULMINATION",es:["CULMINACIÓN","CLÍMAX","APOGEO"]},{en:"MENDICANT",es:["MENDIGO","INDIGENTE","LIMOSNERO"]}],
+    'VERBS':[{en:"ESCHEW",es:["EVITAR","REHUIR","ELUDIR"]},{en:"DENIGRATE",es:["DIFAMAR","CALUMNIAR","VILIPENDIAR"]},{en:"JETTISON",es:["DESECHAR","ABANDONAR","EYECTAR"]},{en:"UPBRAID",es:["REPRENDER","REÑIR","REPROCHAR"]},{en:"PREVARICATE",es:["PREVARICAR","MENTIR","ENGAÑAR"]}],
+    'ADJECTIVES':[{en:"LACONIC",es:["LACÓNICO","CONCISO","BREVE"]},{en:"ERUDITE",es:["ERUDITO","DOCTO","CULTIVADO"]},{en:"SANGUINE",es:["SANGUÍNEO","OPTIMISTA","VITAL"]},{en:"PLIABLE",es:["FLEXIBLE","MALEABLE","DÚCTIL"]},{en:"STOLID",es:["ESTÓLIDO","IMPASIBLE","FRÍO"]}]
+};
+
+const canvas=document.getElementById('gameCanvas'),ctx=canvas.getContext('2d');
+const scoreEl=document.getElementById('score'),comboEl=document.getElementById('combo'),livesEl=document.getElementById('lives'),highScoreEl=document.getElementById('highScore');
+const catcher=document.getElementById('catcher'),bins=[document.getElementById('bin1'),document.getElementById('bin2'),document.getElementById('bin3')];
+const startScreen=document.getElementById('start-screen'),gameOverScreen=document.getElementById('game-over-screen'),studyGuide=document.getElementById('study-guide');
+const categoryBar=document.getElementById('category-bar-wrapper');
+
+let gameRunning=false,score=0,combo=0,lives=5,highScore=localStorage.getItem('wordFallHS')||0;
+highScoreEl.innerText=highScore;
+let currentCategory='NOUNS',currentWord=null,fallSpeed=0.7,keys={};
+
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq=440,vol=.05,dur=.1,type='sine'){if(audioCtx.state==='suspended')audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.value=freq;g.gain.value=vol;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);}
+
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;catcher.style.left=(innerWidth/2-60)+'px';}
+window.addEventListener('resize',resize);
+
+function newWord(){
+    const list=wordsDB[currentCategory];
+    const word=list[Math.floor(Math.random()*list.length)];
+    const correct1=word.es[0];
+    const correct2=word.es[1]||word.es[0];
+    const distractors=["FELICIDAD","ALEGRÍA","VALENTÍA","ODIO","RISA","DOLOR","SUERTE","PAZ","TRISTEZA","AMOR","ÉXITO","FRACASO","CALOR","FRÍO","LUZ","OSCURIDAD"];
+    const wrong=distractors[Math.floor(Math.random()*distractors.length)];
+    const options=[correct1,correct2,wrong];
+    options.sort(()=>Math.random()-.5);
+    const correctBins=[];
+    options.forEach((opt,i)=>{bins[i].textContent=opt;if(opt===correct1||opt===correct2)correctBins.push(i);});
+    bins.forEach(b=>b.className='bin');
+    currentWord={word:word.en,x:innerWidth/2,y:-50,speed:fallSpeed,correctBins};
+    beep(880,.06,.15,'square');
+}
+
+function renderCategoryBar(){
+    categoryBar.innerHTML='';
+    Object.keys(wordsDB).forEach(cat=>{
+        const chip=document.createElement('div');
+        chip.className='category-chip'+(cat===currentCategory?' active':'');
+        chip.textContent=cat;
+        chip.onclick=()=>{currentCategory=cat;renderCategoryBar();if(gameRunning)newWord();};
+        categoryBar.appendChild(chip);
+    });
+    const help=document.createElement('div');
+    help.className='category-chip help-btn';
+    help.textContent='HELP / STUDY';
+    help.onclick=toggleStudyGuide;
+    categoryBar.appendChild(help);
+}
+
+function populateStudyGuide(){
+    document.getElementById('study-category-title').textContent=currentCategory;
+    const words=wordsDB[currentCategory];
+    let html='<table><thead><tr><th>ENGLISH</th><th>PRIMARY</th><th>SYN A</th><th>SYN B</th></tr></thead><tbody>';
+    words.forEach(w=>html+=`<tr><td class="en-word">${w.en}</td><td>${w.es[0]||"-"}</td><td>${w.es[1]||"-"}</td><td>${w.es[2]||"-"}</td></tr>`);
+    html+='</tbody></table>';
+    document.getElementById('study-table-container').innerHTML=html;
+}
+
+function toggleStudyGuide(){
+    const open=studyGuide.style.display==='flex';
+    if(open){
+        studyGuide.style.display='none';
+        if(gameRunning){lastTime=performance.now();draw();}
+        requestAnimationFrame(()=>{
+            const msg=document.createElement('div');
+            msg.id='resumeMsg';
+            msg.textContent='CLICK O TECLA PARA REANUDAR';
+            msg.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,255,0,0.2);color:#0f0;padding:20px 40px;font-size:20px;z-index:10000;pointer-events:none;animation:blinker-soft 1.5s linear infinite;';
+            document.body.appendChild(msg);
+            const resume=()=>{document.removeEventListener('click',resume);document.removeEventListener('keydown',resume);if(msg.parentNode)msg.parentNode.removeChild(msg);};
+            document.addEventListener('click',resume);
+            document.addEventListener('keydown',resume);
+        });
+    }else{
+        gameRunning=false;
+        populateStudyGuide();
+        studyGuide.style.display='flex';
+        document.getElementById('resumeMsg')?.remove();
+    }
+}
+
+function update(dt){
+    if(!gameRunning||!currentWord)return;
+    currentWord.y+=currentWord.speed*dt/16;
+    const catcherX=parseInt(catcher.style.left)+10;
+    const catcherW=100;
+
+    if(currentWord.y>innerHeight-200){
+        const binIndex=Math.floor((catcherX+catcherW/2- (innerWidth-540)/2 ) / 180);
+        const correct=currentWord.correctBins.includes(binIndex);
+        if(correct){
+            score+=100+(combo*10);combo++;beep(1200,.1,.2,'sine');
+            bins.forEach(b=>b.classList.remove('correct','wrong'));
+            bins[binIndex].classList.add('correct');
+        }else{
+            lives--;livesEl.innerText=lives;combo=0;beep(200,.15,.4,'sawtooth');
+            bins[binIndex].classList.add('wrong');
+            if(lives<=0)return gameOver();
+        }
+        scoreEl.innerText=score;comboEl.innerText=combo;
+        setTimeout(()=>{bins.forEach(b=>b.className='bin');newWord();},600);
+        currentWord=null;
+        if(score>highScore){highScore=score;localStorage.setItem('wordFallHS',highScore);highScoreEl.innerText=highScore;}
+        if(combo%10===0 && fallSpeed<3)fallSpeed+=0.15;
+    }
+}
+
+function draw(){
+    if(!gameRunning)return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(currentWord){
+        ctx.font='28px "Press Start 2P"';
+        ctx.fillStyle='#fff';ctx.strokeStyle='#000';ctx.lineWidth=6;
+        ctx.strokeText(currentWord.word,currentWord.x,currentWord.y);
+        ctx.fillText(currentWord.word,currentWord.x,currentWord.y);
+    }
+    requestAnimationFrame(()=>{const now=performance.now();update(now-lastTime);lastTime=now;draw();});
+}
+
+function gameOver(){
+    gameRunning=false;
+    document.getElementById('finalScore').innerText=score;
+    gameOverScreen.style.display='flex';
+}
+
+function startGame(){
+    resize();renderCategoryBar();
+    startScreen.style.display='none';gameOverScreen.style.display='none';studyGuide.style.display='none';
+    score=combo=0;lives=5;fallSpeed=0.7;
+    scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
+    newWord();gameRunning=true;lastTime=performance.now();draw();
+}
+
+document.addEventListener('keydown',e=>{
+    if((e.code==='Tab'||e.code==='Escape')&&startScreen.style.display==='none'&&gameOverScreen.style.display==='none'){
+        e.preventDefault();toggleStudyGuide();
+    }
+    keys[e.code]=true;
+});
+document.addEventListener('keyup',e=>keys[e.code]=false);
+
+setInterval(()=>{
+    if(!gameRunning)return;
+    const catcherEl=document.getElementById('catcher');
+    let x=parseInt(catcherEl.style.left)||innerWidth/2-60;
+    if(keys['ArrowLeft'])x-=12;
+    if(keys['ArrowRight'])x+=12;
+    x=Math.max(0,Math.min(innerWidth-120,x));
+    catcherEl.style.left=x+'px';
+},16);
+
+window.onload=()=>{resize();renderCategoryBar();};
+</script>
+</body>
+</html>
