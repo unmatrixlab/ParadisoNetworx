@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fixed Logic)</title>
+    <title>MDC Studio Player (Custom Position)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -85,10 +85,17 @@
         .bar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); flex-shrink: 0; }
         .nav-count { font-size: 13px; font-weight: 600; color: #e5e7eb; min-width: 40px; text-align: center; }
         
-        .timing-popup { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(10px); padding: 15px; border-radius: 12px; color: white; display: none; flex-direction: column; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 950; min-width: 200px; }
-        .timing-popup.active { display: flex; animation: slideUp 0.2s ease; }
+        /* Menús flotantes (Timing y Position) */
+        .float-menu { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(31, 41, 55, 0.95); backdrop-filter: blur(10px); padding: 15px; border-radius: 12px; color: white; display: none; flex-direction: column; gap: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 950; min-width: 200px; }
+        .float-menu.active { display: flex; animation: slideUp 0.2s ease; }
+        
         .timing-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
         .timing-input { width: 60px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px; text-align: center; font-family: 'Inter', sans-serif; }
+        
+        /* Estilos Slider Vertical */
+        .slider-label { font-size: 12px; text-align: center; color: #d1d5db; margin-bottom: 5px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        
         @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
         
         #home-btn { position: fixed; top: 15px; left: 15px; z-index: 600; background: rgba(0,0,0,0.5); color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; }
@@ -143,7 +150,7 @@
             <div class="dialogue-container" id="dialogue-root"></div>
         </div>
         
-        <div id="timing-menu" class="timing-popup">
+        <div id="timing-menu" class="float-menu timing-popup">
             <div class="timing-row">
                 <span>Start Offset (s)</span>
                 <input type="number" step="0.1" id="input-time-offset" class="timing-input" oninput="updateTimingSettings()">
@@ -152,6 +159,12 @@
                 <span>End Padding (s)</span>
                 <input type="number" step="0.1" id="input-end-padding" class="timing-input" oninput="updateTimingSettings()">
             </div>
+        </div>
+
+        <div id="position-menu" class="float-menu">
+            <div class="slider-label">Posición Vertical (Drag me)</div>
+            <input type="range" id="vertical-slider" min="-300" max="300" value="0" step="10" oninput="updateVerticalOffset(this.value)">
+            <div class="slider-label" style="font-size:10px; margin-top:5px; opacity:0.7;">Arriba &nbsp; &nbsp; ↔ &nbsp; &nbsp; Abajo</div>
         </div>
 
         <div id="control-bar">
@@ -171,7 +184,11 @@
             <div class="bar-divider"></div>
 
             <button class="bar-btn bar-btn-text" id="btn-speed" onclick="cycleSpeed()">1x</button>
-            <button class="bar-btn" id="btn-timing" onclick="toggleTimingMenu()" style="font-size: 16px;">⏱️</button>
+            
+            <button class="bar-btn" id="btn-timing" onclick="toggleMenu('timing-menu')" style="font-size: 16px;">⏱️</button>
+            
+            <button class="bar-btn" id="btn-position" onclick="toggleMenu('position-menu')" style="font-size: 18px;">↕️</button>
+
             <div class="bar-divider"></div>
             <button class="bar-btn" id="btn-loop" onclick="toggleLoop()" style="font-size: 16px;">🔁</button>
             
@@ -361,16 +378,17 @@
     let timeOffset = 0.2, endPadding = 0.5; 
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
-    const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing';
+    const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing', PREF_OFFSET='mdc_pref_v_offset';
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
     
-    // VARIABLES PARA NUEVA LOGICA DE REPETICION
-    let repeatCountCfg = 1; // 1 a 5
-    let pauseTimeCfg = 0;   // 0 a 10 (segundos)
-    let currentRepetitionCount = 0;
-    let isWaitingDelay = false;
+    // VARIABLES REPETICION
+    let repeatCountCfg = 1; let pauseTimeCfg = 0;
+    let currentRepetitionCount = 0; let isWaitingDelay = false;
+    
+    // VARIABLE POSICION (SLIDER)
+    let currentVerticalOffset = 0; // 0 = centro
 
     window.onYouTubeIframeAPIReady = function() {
         if(!YOUTUBE_ID) return;
@@ -403,18 +421,9 @@
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
         if (isSegmentPlaying && currentTime >= segmentEndTime) {
-            // Se acabó el segmento
-            if(isWaitingDelay) return; // Ya estamos gestionando la pausa/repetición
-
+            if(isWaitingDelay) return;
             player.pauseVideo();
-            
-            // LOGICA ANTIGUA SOLO SI ESTAMOS EN MODO LOOP BASICO
-            if (isLooping && repeatCountCfg === 1 && pauseTimeCfg === 0) {
-               replayCurrentSegment();
-               return;
-            }
-
-            // NUEVA LOGICA AVANZADA
+            if (isLooping && repeatCountCfg === 1 && pauseTimeCfg === 0) { replayCurrentSegment(); return; }
             handleSegmentEnd();
             return;
         }
@@ -432,73 +441,39 @@
     }
 
     function handleSegmentEnd() {
-        // Incrementamos contador de repeticiones realizadas (se cuenta la que acaba de terminar)
         currentRepetitionCount++;
-
-        // Modo por defecto (1 rep, 0 pausa) -> Se detiene y libera controles
         const isDefaultMode = (repeatCountCfg === 1 && pauseTimeCfg === 0);
         if (isDefaultMode) {
-             isSegmentPlaying = false; 
-             resetButtons(); 
-             scrollEnabled = true;
-             isWaitingDelay = false;
-             currentRepetitionCount = 0;
-             return;
+             isSegmentPlaying = false; resetButtons(); scrollEnabled = true; isWaitingDelay = false; currentRepetitionCount = 0; return;
         }
-
-        // LÓGICA DE REPETICIÓN ESTRICTA
-        // 1. ¿Faltan repeticiones?
-        if (currentRepetitionCount < repeatCountCfg) {
-            // Repetimos inmediatamente SIN pausa
-            replayCurrentSegment();
-            return;
-        }
-
-        // 2. Repeticiones completas. AHORA aplicamos la pausa.
-        isWaitingDelay = true; // Bloquea checkTime
-        const delayMs = pauseTimeCfg * 1000;
+        if (currentRepetitionCount < repeatCountCfg) { replayCurrentSegment(); return; }
         
-        // Función auxiliar para pasar al siguiente después del timeout
+        isWaitingDelay = true;
+        const delayMs = pauseTimeCfg * 1000;
         const runNext = () => {
-             if (!isSegmentPlaying) { isWaitingDelay = false; return; } // Si el usuario paró manual
-             isWaitingDelay = false;
-             currentRepetitionCount = 0; // Reset para el siguiente
-             playNextSegment();
+             if (!isSegmentPlaying) { isWaitingDelay = false; return; }
+             isWaitingDelay = false; currentRepetitionCount = 0; playNextSegment();
         };
-
-        if (delayMs > 0) {
-            setTimeout(runNext, delayMs);
-        } else {
-            // Si es 0s, pasamos directo
-            runNext();
-        }
+        if (delayMs > 0) setTimeout(runNext, delayMs); else runNext();
     }
 
     function playNextSegment() {
         const activeLine = document.querySelector('.line.active');
         if(activeLine && activeLine.nextElementSibling && activeLine.nextElementSibling.classList.contains('line')) {
             const nextLine = activeLine.nextElementSibling;
-            
-            // REPARACIÓN DEL SCROLL:
-            // Como estamos en reproducción automática de segmentos, debemos forzar el scroll
-            // hacia el nuevo elemento activo para mantener el "seguimiento".
             scrollToActiveElement(nextLine);
-
-            // Simulamos clic en el siguiente play
             nextLine.querySelector('.playBtn').click();
         } else {
-            // Fin de todo
-            isSegmentPlaying = false;
-            resetButtons();
-            scrollEnabled = true;
+            isSegmentPlaying = false; resetButtons(); scrollEnabled = true;
         }
     }
 
     function scrollToActiveElement(el) {
         if (!autoScroll) return;
         const rect = el.getBoundingClientRect();
-        // Calculamos para centrarlo debajo del video (aprox centro de pantalla - un poco de margen)
-        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40;
+        // OFFSET CALCULATION: Centro + Ajuste Manual
+        // -40 es un ajuste base para que no quede pegado. currentVerticalOffset es el slider.
+        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40 + currentVerticalOffset;
         window.scrollTo({ top: offset, behavior: "smooth" });
     }
 
@@ -511,7 +486,6 @@
         });
         if (activeLine) {
             activeLine.classList.add('active');
-            // Usamos la misma función de scroll centralizado
             scrollToActiveElement(activeLine);
         }
     }
@@ -546,13 +520,40 @@
         const saved = localStorage.getItem(PREF_TIMING);
         if (saved) { const parsed = JSON.parse(saved); timeOffset = parseFloat(parsed.offset); endPadding = parseFloat(parsed.padding); }
         document.getElementById('input-time-offset').value = timeOffset; document.getElementById('input-end-padding').value = endPadding;
+        
+        // Cargar Vertical Offset
+        const savedOffset = localStorage.getItem(PREF_OFFSET);
+        if(savedOffset) {
+            currentVerticalOffset = parseInt(savedOffset);
+            document.getElementById('vertical-slider').value = currentVerticalOffset;
+        }
     }
+    
+    // FUNCION PARA ACTUALIZAR POSICION VERTICAL
+    function updateVerticalOffset(val) {
+        currentVerticalOffset = parseInt(val);
+        localStorage.setItem(PREF_OFFSET, currentVerticalOffset);
+        
+        // Efecto Inmediato si hay linea activa
+        const activeLine = document.querySelector('.line.active');
+        if(activeLine) scrollToActiveElement(activeLine);
+    }
+    
     function updateTimingSettings() {
         const offsetVal = parseFloat(document.getElementById('input-time-offset').value); const paddingVal = parseFloat(document.getElementById('input-end-padding').value);
         if (!isNaN(offsetVal)) timeOffset = offsetVal; if (!isNaN(paddingVal)) endPadding = paddingVal;
         localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
     }
-    function toggleTimingMenu() { document.getElementById('timing-menu').classList.toggle('active'); }
+
+    // GESTION GENERICA DE MENUS
+    function toggleMenu(menuId) {
+        // Cierra todos primero
+        document.querySelectorAll('.float-menu').forEach(m => {
+            if(m.id !== menuId) m.classList.remove('active');
+        });
+        // Toggle el seleccionado
+        document.getElementById(menuId).classList.toggle('active');
+    }
     
     function loadPreferences() {
         const sSpeed = localStorage.getItem(PREF_SPEED);
@@ -577,16 +578,13 @@
         document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x';
     }
     
-    // FUNCIONES PARA LOS NUEVOS BOTONES
     function cycleReps() {
-        repeatCountCfg++;
-        if (repeatCountCfg > 5) repeatCountCfg = 1;
+        repeatCountCfg++; if (repeatCountCfg > 5) repeatCountCfg = 1;
         document.getElementById('btn-reps').innerText = repeatCountCfg + "↻";
         if(repeatCountCfg > 1 && isLooping) toggleLoop();
     }
     function cyclePause() {
-        pauseTimeCfg++;
-        if (pauseTimeCfg > 10) pauseTimeCfg = 0;
+        pauseTimeCfg++; if (pauseTimeCfg > 10) pauseTimeCfg = 0;
         document.getElementById('btn-pause').innerText = pauseTimeCfg + "s";
     }
 
@@ -602,14 +600,8 @@
     function toggleLoop() {
         isLooping = !isLooping;
         const btn = document.getElementById('btn-loop');
-        if(isLooping) btn.classList.add('active-state');
-        else btn.classList.remove('active-state');
-        
-        if(isLooping) {
-            repeatCountCfg = 1; pauseTimeCfg = 0;
-            document.getElementById('btn-reps').innerText = "1↻";
-            document.getElementById('btn-pause').innerText = "0s";
-        }
+        if(isLooping) btn.classList.add('active-state'); else btn.classList.remove('active-state');
+        if(isLooping) { repeatCountCfg = 1; pauseTimeCfg = 0; document.getElementById('btn-reps').innerText = "1↻"; document.getElementById('btn-pause').innerText = "0s"; }
     }
 
     function initInteractiveWords() {
@@ -673,12 +665,9 @@
                 if (btn.dataset.state === 'playing') { player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return; }
                 resetButtons(); window.speechSynthesis.cancel(); document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
                 
-                // IMPORTANTE: Desactivar scroll global para evitar conflictos, PERO la logica playNextSegment lo forzará
                 scrollEnabled = false; 
                 isSegmentPlaying = true; 
                 segmentEndTime = end;
-                
-                // RESETEO DE CONTADORES PARA LA NUEVA LINEA
                 currentRepetitionCount = 0;
                 isWaitingDelay = false;
 
@@ -742,7 +731,17 @@
     }
     
     function resetButtons() { document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); }); document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); }); }
-    document.addEventListener('click', function(e) { const menu = document.getElementById('timing-menu'); const btn = document.getElementById('btn-timing'); if (!menu.contains(e.target) && !btn.contains(e.target) && menu.classList.contains('active')) { toggleTimingMenu(); } });
+    
+    // Cierre de menús al hacer click fuera
+    document.addEventListener('click', function(e) { 
+        const timingMenu = document.getElementById('timing-menu'); 
+        const timingBtn = document.getElementById('btn-timing');
+        const posMenu = document.getElementById('position-menu');
+        const posBtn = document.getElementById('btn-position');
+        
+        if (!timingMenu.contains(e.target) && !timingBtn.contains(e.target) && timingMenu.classList.contains('active')) { toggleMenu('timing-menu'); }
+        if (!posMenu.contains(e.target) && !posBtn.contains(e.target) && posMenu.classList.contains('active')) { toggleMenu('position-menu'); }
+    });
     </script>
 </body>
 </html>
