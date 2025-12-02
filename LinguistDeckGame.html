@@ -2,147 +2,229 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Space Translator</title>
+    <title>Synonym Hunter: Categories</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: #050505; 
-            font-family: 'Press Start 2P', monospace;
-            color: white;
-            user-select: none;
+            margin: 0; overflow: hidden; background: #050505; 
+            font-family: 'Press Start 2P', monospace; color: white; user-select: none;
         }
         canvas { display: block; }
-        #ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10;
-            pointer-events: none;
+        #ui { 
+            position: absolute; top: 20px; left: 20px; right: 20px; z-index: 10; 
+            pointer-events: none; display: flex; justify-content: space-between;
         }
-        #start-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.85);
-            z-index: 20;
-            text-align: center;
+        
+        /* BARRA DE CATEGORÍAS (Overlay) */
+        #category-bar-wrapper {
+            position: absolute; bottom: 65px; left: 0; width: 100%;
+            padding: 5px 0; background: rgba(0, 0, 0, 0.5);
+            z-index: 15;
+            overflow-x: scroll; /* Hace la barra deslizable */
+            white-space: nowrap;
+            display: flex;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+            border-top: 1px solid #00ff00;
         }
-        h1 { color: #4f46e5; text-shadow: 2px 2px #ec4899; font-size: 40px; margin-bottom: 20px;}
-        p { line-height: 1.8; color: #aaa; font-size: 12px; }
-        .blink { animation: blinker 1s linear infinite; color: #00ff00; margin-top: 30px; font-size: 14px;}
+        .category-chip {
+            padding: 6px 12px; margin: 0 5px;
+            background: #111; color: #444;
+            font-size: 10px; cursor: pointer;
+            border: 1px solid #444;
+            transition: 0.2s;
+            pointer-events: all; /* Permite el click */
+            display: inline-block;
+        }
+        .category-chip.active {
+            color: #00ff00;
+            background: #003300;
+            border-color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.85); z-index: 20; text-align: center;
+        }
+        h1 { color: #00ff00; text-shadow: 4px 4px #003300; font-size: 35px; margin-bottom: 20px; line-height: 1.5; }
+        h2 { color: #ff0000; font-size: 25px; margin-top: 50px; }
+        p { line-height: 2; color: #aaa; font-size: 10px; max-width: 600px;}
+        .blink { animation: blinker 1s linear infinite; color: #ffff00; margin-top: 30px; font-size: 14px; cursor: pointer;}
         @keyframes blinker { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
-    <div id="ui">SCORE: <span id="score">0</span></div>
+    <div id="ui">
+        <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
+        <div id="lives-panel">LIVES: <span id="lives">5</span></div>
+        <div id="high-score-panel">HIGH SCORE: <span id="highScore">0</span></div>
+    </div>
     
-    <div id="start-screen">
-        <h1>ASTRO TRANSLATOR</h1>
-        <p>MOVER: Flechas Izq/Der<br>DISPARAR: Espacio</p>
+    <div id="category-bar-wrapper">
+        </div>
+
+    <div id="start-screen" onclick="startGame()">
+        <h1>ULTIMATE REVIEW</h1>
+        <p>
+            Selecciona una categoría para empezar. (Defecto: NOUNS)<br>
+            Ciclo: EN → SP1 → SP-RANDOM → EN (Repaso)
+        </p>
         <div class="blink">CLICK PARA INICIAR</div>
+    </div>
+
+    <div id="game-over-screen" style="display:none;" onclick="startGame()">
+        <h2>GAME OVER</h2>
+        <p>PUNTUACIÓN FINAL: <span id="finalScore">0</span></p>
+        <p>NUEVO HIGH SCORE: <span id="newHighScore" style="color: #00ff00;">NO</span></p>
+        <div class="blink">CLICK PARA REINTENTAR</div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
 
 <script>
-/* --- CONFIGURACIÓN Y VOCABULARIO --- */
+/* --- BASE DE DATOS MODULARIZADA (MANEJABLE) --- */
+const wordsDB = {
+    'NOUNS': [
+        {en: "MALAISE", es: ["MALESTAR", "INDISPOSICIÓN", "DECAIMIENTO"]},
+        {en: "CULMINATION", es: ["EPÍLOGO", "CESE", "PERORATA"]},
+        {en: "AVARICE", es: ["CODICIA", "USURA", "CAJETERÍA"]},
+        {en: "MENDICANT", es: ["INDIGENTE", "MENDIGO", "LIMOSNERO"]},
+        {en: "TREPIDATION", es: ["TEMOR", "MIEDO", "RECELO"]}
+    ],
+    'VERBS': [
+        {en: "PREVARICATE", es: ["ENGAÑAR", "EVASIVA", "MENTIR"]},
+        {en: "ESCHEW", es: ["EVITAR", "REHUIR", "ELUDIR"]},
+        {en: "JETTISON", es: ["DESECHAR", "ABANDONAR", "DESCARTAR"]},
+        {en: "DENIGRATE", es: ["DIFAMAR", "CALUMNIAR", "VILIPENDIAR"]},
+        {en: "UPBRAID", es: ["CRITICAR", "REPRENDER", "RECENSURAR"]}
+    ],
+    'ADJECTIVES': [
+        {en: "PLIABLE", es: ["DÚCTIL", "MOLDEABLE", "FLEXIBLE"]},
+        {en: "ERUDITE", es: ["DOCTO", "VERSADO", "SABIO"]},
+        {en: "LACONIC", es: ["CONCISO", "SUCINTO", "BREVE"]},
+        {en: "STOLID", es: ["IMPÁVIDO", "IMPONENTE", "APLOMADO"]},
+        {en: "SANGUINE", es: ["OPTIMISTA", "ENTUSIASTA", "VITAL"]}
+    ]
+};
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+const livesEl = document.getElementById('lives');
+const highScoreEl = document.getElementById('highScore');
 const startScreen = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over-screen');
+const categoryBarWrapper = document.getElementById('category-bar-wrapper');
 
-// Palabras para el juego
-const wordsDB = [
-    {en: "LOVE", es: "AMOR"}, {en: "HOUSE", es: "CASA"}, {en: "TIME", es: "TIEMPO"},
-    {en: "WORLD", es: "MUNDO"}, {en: "LIFE", es: "VIDA"}, {en: "HAND", es: "MANO"},
-    {en: "EYE", es: "OJO"}, {en: "WAY", es: "CAMINO"}, {en: "DAY", es: "DIA"},
-    {en: "MAN", es: "HOMBRE"}, {en: "BOOK", es: "LIBRO"}, {en: "WATER", es: "AGUA"},
-    {en: "FIRE", es: "FUEGO"}, {en: "MOON", es: "LUNA"}, {en: "SUN", es: "SOL"},
-    {en: "STAR", es: "ESTRELLA"}, {en: "RED", es: "ROJO"}, {en: "BLUE", es: "AZUL"}
-];
-
-/* --- MOTOR DE AUDIO 8-BIT (WEB AUDIO API) --- */
+/* --- AUDIO ENGINE (Mismo código de las respuestas anteriores) --- */
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let isMuted = false;
+let musicInterval;
 
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    osc.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
     const now = audioCtx.currentTime;
 
     if (type === 'shoot') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
-        gainNode.gain.setValueAtTime(0.1, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-        osc.start(now);
-        osc.stop(now + 0.1);
-    } else if (type === 'hit') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(200, now);
-        osc.frequency.linearRampToValueAtTime(600, now + 0.1);
-        gainNode.gain.setValueAtTime(0.1, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
-    } else if (type === 'music') {
-        // Simple bassline loop
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(110, now); // A2
-        gainNode.gain.setValueAtTime(0.05, now);
-        gainNode.gain.linearRampToValueAtTime(0, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
+        osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.1); gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.1); osc.start(now); osc.stop(now + 0.1);
+    } else if (type === 'hit_eng') { 
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(600, now); osc.frequency.linearRampToValueAtTime(800, now + 0.1); gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'hit_syn') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); osc.frequency.linearRampToValueAtTime(1800, now + 0.1); gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); osc.start(now); osc.stop(now + 0.3);
+    } else if (type === 'hit_review') { 
+        osc.type = 'square'; osc.frequency.setValueAtTime(440, now); gain.gain.setValueAtTime(0.08, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.15);
+    } else if (type === 'player_hit') { 
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, now); osc.frequency.linearRampToValueAtTime(80, now + 0.3); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.5); osc.start(now); osc.stop(now + 0.5);
     }
 }
 
-// Secuenciador muy básico
-let musicInterval;
 function startMusic() {
-    let note = 0;
-    const notes = [110, 110, 130, 110, 164, 146, 110, 98]; // Frecuencias
+    let step = 0;
+    const melody = [220, 0, 261, 0, 329, 0, 261, 0];
     if(musicInterval) clearInterval(musicInterval);
     musicInterval = setInterval(() => {
-        if(Math.random() > 0.5) { // Ritmo aleatorio suave
+        if(melody[step] > 0) {
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.connect(gain);
             gain.connect(audioCtx.destination);
-            osc.type = 'square';
-            osc.frequency.value = notes[note % notes.length] * 0.5;
-            gain.gain.value = 0.03;
+            osc.type = 'triangle';
+            osc.frequency.value = melody[step] * 0.5;
+            gain.gain.value = 0.02;
             gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
             osc.start();
-            osc.stop(audioCtx.currentTime + 0.2);
-            note++;
+            osc.stop(audioCtx.currentTime + 0.25);
         }
-    }, 250); // 240 BPM aprox
+        step = (step + 1) % melody.length;
+    }, 200);
 }
 
-/* --- LÓGICA DEL JUEGO --- */
+
+/* --- GAME STATE --- */
 let gameRunning = false;
 let score = 0;
+let combo = 0;
+let lives = 5;
+let highScore = 0;
 let lastTime = 0;
-let spawnTimer = 0;
+let currentCategory = 'NOUNS'; // Categoría inicial
 
-// Entidades
-const player = { x: 0, y: 0, w: 40, h: 40, speed: 7, color: '#4f46e5' };
-const bullets = [];
-const enemies = [];
-const particles = [];
-const stars = [];
+const SPAWN_INTERVAL = 3500; 
+let spawnTimer = SPAWN_INTERVAL; 
 
-// Controles
+const player = { x: 0, y: 0, w: 40, h: 40, speed: 8, color: '#4f46e5', invincible: false, invTimer: 0 };
+let bullets = [];
+let enemies = [];
+let particles = [];
+let stars = [];
 const keys = {};
+
+// Cargar High Score al inicio
+function loadHighScore() {
+    const savedScore = localStorage.getItem('synonymHunterHighScore');
+    highScore = savedScore ? parseInt(savedScore) : 0;
+    highScoreEl.innerText = highScore;
+}
+loadHighScore(); 
+
+/* --- LÓGICA DE CATEGORÍAS --- */
+
+// Renderiza los botones de la barra de categorías
+function renderCategoryBar() {
+    categoryBarWrapper.innerHTML = '';
+    const categories = Object.keys(wordsDB);
+    
+    categories.forEach(category => {
+        const chip = document.createElement('div');
+        chip.className = 'category-chip';
+        chip.textContent = category.toUpperCase();
+        chip.onclick = () => setCategory(category);
+        
+        if (category === currentCategory) {
+            chip.classList.add('active');
+        }
+        categoryBarWrapper.appendChild(chip);
+    });
+}
+
+// Establece la categoría de spawn activa
+function setCategory(category) {
+    currentCategory = category;
+    renderCategoryBar(); 
+    
+    if (gameRunning) {
+        spawnTimer = 500; 
+        enemies = []; 
+    }
+}
+
+/* --- INICIALIZACIÓN Y BUCLE DE JUEGO --- */
 
 function resize() {
     canvas.width = window.innerWidth;
@@ -150,186 +232,296 @@ function resize() {
     player.y = canvas.height - 60;
     player.x = canvas.width / 2 - player.w / 2;
 }
-window.addEventListener('resize', resize);
-resize();
 
-// Estrellas de fondo
-for(let i=0; i<100; i++) {
+// FIX: Llama resize solo cuando la ventana carga
+window.addEventListener('resize', resize);
+// Ya no se llama resize() inmediatamente aquí
+
+for(let i=0; i<80; i++) {
     stars.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         size: Math.random() * 2,
-        speed: Math.random() * 0.5 + 0.1
+        speed: Math.random() * 0.2 + 0.1
     });
 }
 
 function spawnEnemy() {
-    const wordObj = wordsDB[Math.floor(Math.random() * wordsDB.length)];
+    const categoryWords = wordsDB[currentCategory];
+    if (!categoryWords || categoryWords.length === 0) return;
+
+    const data = categoryWords[Math.floor(Math.random() * categoryWords.length)];
+    
+    let indices = [1, 2].sort(() => Math.random() - 0.5); 
+    const synonymPath = [0, indices[0]]; 
+
+    ctx.font = '16px "Press Start 2P"'; 
+    const textWidth = ctx.measureText(data.en).width;
+
     enemies.push({
-        x: Math.random() * (canvas.width - 100) + 50,
-        y: -30,
-        text: wordObj.en,
-        translation: wordObj.es,
-        speed: Math.random() * 1 + 0.5,
-        state: 'en', // 'en', 'hit', 'fading'
+        x: Math.random() * (canvas.width - textWidth - 50) + textWidth/2 + 25,
+        y: -40,
+        wordData: data,
+        text: data.en,
+        stage: 0, // 0:EN, 1:SP1, 2:SP2/SP3, 3:EN_Review, 4:Fading
+        synonymPath: synonymPath,
+        speed: Math.random() * 0.8 + 0.4,
+        color: '#ffffff',
         timer: 0,
-        color: '#ffffff'
+        fading: false,
+        w: textWidth
     });
 }
 
-function createExplosion(x, y, color) {
-    for(let i=0; i<15; i++) {
+function createExplosion(x, y, color, count=10) {
+    for(let i=0; i<count; i++) {
         particles.push({
             x: x, y: y,
-            vx: (Math.random() - 0.5) * 5,
-            vy: (Math.random() - 0.5) * 5,
-            life: 1,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            life: 1.0,
             color: color
         });
     }
 }
 
-function update(deltaTime) {
+function checkCollision(e) {
+    const playerBox = { x: player.x, y: player.y, w: player.w, h: player.h };
+    const enemyBox = { x: e.x - e.w/2, y: e.y - 15, w: e.w, h: 30 };
+
+    return playerBox.x < enemyBox.x + enemyBox.w &&
+           playerBox.x + playerBox.w > enemyBox.x &&
+           playerBox.y < enemyBox.y + enemyBox.h &&
+           playerBox.y + playerBox.h > enemyBox.y;
+}
+
+
+function update(dt) {
     if (!gameRunning) return;
 
-    // Player Move
+    if (player.invincible) {
+        player.invTimer -= dt;
+        if (player.invTimer <= 0) player.invincible = false;
+    }
+
     if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
     if (keys['ArrowRight'] && player.x < canvas.width - player.w) player.x += player.speed;
 
-    // Background Stars
-    stars.forEach(s => {
-        s.y += s.speed;
-        if(s.y > canvas.height) s.y = 0;
-    });
+    stars.forEach(s => { s.y += s.speed; if(s.y > canvas.height) s.y = 0; });
+    spawnTimer -= dt;
+    if (spawnTimer < 0) { spawnEnemy(); spawnTimer = SPAWN_INTERVAL; }
 
-    // Spawner
-    spawnTimer += deltaTime;
-    if (spawnTimer > 2000) { // Cada 2 segundos
-        spawnEnemy();
-        spawnTimer = 0;
-    }
-
-    // Bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.y -= 10;
-        if (b.y < 0) bullets.splice(i, 1);
+        bullets[i].y -= 12;
+        if (bullets[i].y < 0) bullets.splice(i, 1);
     }
 
-    // Enemies
     for (let i = enemies.length - 1; i >= 0; i--) {
         let e = enemies[i];
-        
-        if (e.state === 'en') {
+
+        if (!e.fading) {
             e.y += e.speed;
             
-            // Collision Bullet-Enemy
-            for (let j = bullets.length - 1; j >= 0; j--) {
-                let b = bullets[j];
-                // Simple box collision approximation
-                if (b.x > e.x - 20 && b.x < e.x + 60 && b.y > e.y - 20 && b.y < e.y + 20) {
-                    playSound('hit');
-                    e.state = 'translated';
-                    e.text = e.translation;
-                    e.color = '#00ff00'; // Verde al traducir
-                    bullets.splice(j, 1);
-                    score += 10;
-                    scoreEl.innerText = score;
-                    createExplosion(e.x, e.y, '#00ff00');
-                    break;
+            // Colisión con el jugador
+            if (!player.invincible && checkCollision(e)) {
+                lives--;
+                livesEl.innerText = lives;
+                createExplosion(player.x + player.w/2, player.y + player.h/2, '#ff0000', 30);
+                // playSound('player_hit');
+                player.invincible = true;
+                player.invTimer = 2000;
+                enemies.splice(i, 1);
+                combo = 0;
+                comboEl.innerText = combo;
+
+                if (lives <= 0) {
+                    gameOver();
+                    return;
                 }
+                continue;
             }
-        } else if (e.state === 'translated') {
-            e.timer += deltaTime;
-            if (e.timer > 1000) { // Espera 1 segundo leyendo en español
-                e.state = 'fading';
+
+            if (e.stage >= 1) { 
+                e.timer += dt;
+                if (e.timer > 3000) { e.fading = true; } 
             }
-        } else if (e.state === 'fading') {
-            createExplosion(e.x, e.y, '#4f46e5');
+        } else {
+            createExplosion(e.x, e.y, e.color, 1);
             enemies.splice(i, 1);
+            continue;
+        }
+
+        // Colisión Bala vs Palabra
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            let b = bullets[j];
+            if (b.x > e.x - 40 && b.x < e.x + 40 && b.y > e.y - 20 && b.y < e.y + 10) {
+                
+                bullets.splice(j, 1); 
+                e.timer = 0; 
+                e.stage++; 
+
+                if (e.stage === 1) { // 1er HIT: EN -> SP1 (Principal, fijo [0])
+                    e.text = e.wordData.es[0];
+                    e.color = '#00ff00'; 
+                    playSound('hit_eng');
+                    score += 10;
+                } else if (e.stage === 2) { // 2do HIT: SP1 -> SP2/SP3 (Sinónimo Random)
+                    const synIdx = e.synonymPath[1];
+                    e.text = e.wordData.es[synIdx];
+                    e.color = '#ffff00'; 
+                    createExplosion(e.x, e.y, '#ffff00', 20);
+                    playSound('hit_syn');
+                    score += 50;
+                    combo++;
+                } else if (e.stage === 3) { // 3er HIT: SP2/SP3 -> EN (Repaso)
+                    e.text = e.wordData.en;
+                    e.color = '#4f46e5'; 
+                    createExplosion(e.x, e.y, '#4f46e5', 10);
+                    playSound('hit_review');
+                    score += 100;
+                    combo++;
+                } else if (e.stage === 4) { // 4to HIT: EN -> DESTRUCCIÓN
+                    e.fading = true;
+                    createExplosion(e.x, e.y, '#ffffff', 40);
+                    playSound('hit_syn');
+                    score += 150;
+                    combo++;
+                }
+                
+                scoreEl.innerText = score;
+                comboEl.innerText = combo;
+                break;
+            }
         }
 
         if (e.y > canvas.height) {
-            enemies.splice(i, 1); // Perdiste la palabra
+            if (e.stage < 4) combo = 0; 
+            comboEl.innerText = combo;
+            enemies.splice(i, 1);
         }
     }
 
-    // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 0.05;
+        p.x += p.vx; p.y += p.vy;
+        p.life -= 0.04;
         if(p.life <= 0) particles.splice(i, 1);
     }
 }
 
 function draw() {
-    // Clear
-    ctx.fillStyle = '#050505';
+    ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Stars
-    ctx.fillStyle = '#ffffff';
     stars.forEach(s => {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
+    });
+
+    if(!gameRunning) {
+        requestAnimationFrame(draw);
+        return;
+    }
+
+    // Player (Efecto Invencibilidad)
+    if (!player.invincible || (Math.floor(player.invTimer / 100) % 2 === 0)) {
+        ctx.fillStyle = player.color;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+        ctx.moveTo(player.x + player.w/2, player.y);
+        ctx.lineTo(player.x + player.w, player.y + player.h);
+        ctx.lineTo(player.x, player.y + player.h);
         ctx.fill();
-    });
+    }
 
-    if(!gameRunning) return requestAnimationFrame(draw);
-
-    // Player (Ship shape)
-    ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.moveTo(player.x + player.w/2, player.y);
-    ctx.lineTo(player.x + player.w, player.y + player.h);
-    ctx.lineTo(player.x + player.w/2, player.y + player.h - 10);
-    ctx.lineTo(player.x, player.y + player.h);
-    ctx.closePath();
-    ctx.fill();
-    // Engine glow
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = '#ec4899';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // Bullets
+    // Balas
     ctx.fillStyle = '#ff0055';
-    bullets.forEach(b => {
-        ctx.fillRect(b.x - 2, b.y, 4, 10);
-    });
+    bullets.forEach(b => ctx.fillRect(b.x - 2, b.y, 4, 15));
 
-    // Enemies (Words)
-    ctx.font = '16px "Press Start 2P"';
+    // Enemigos
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     enemies.forEach(e => {
+        ctx.font = e.stage >= 1 ? '20px "Press Start 2P"' : '16px "Press Start 2P"';
         ctx.fillStyle = e.color;
+        
+        if (e.stage >= 2) { ctx.shadowBlur = 10; ctx.shadowColor = (e.stage === 3) ? '#4f46e5' : '#ffff00'; }
         ctx.fillText(e.text, e.x, e.y);
-        if(e.state === 'translated') {
-            ctx.strokeStyle = '#00ff00';
-            ctx.lineWidth = 2;
-            ctx.strokeText(e.text, e.x, e.y);
+        ctx.shadowBlur = 0;
+        
+        // Puntos de vida: 4 puntitos
+        for(let k=0; k<4; k++) {
+            ctx.fillStyle = k < e.stage ? '#00ff00' : '#444'; 
+            ctx.beginPath();
+            ctx.arc(e.x - 22 + (k*15), e.y + 25, 3, 0, Math.PI*2);
+            ctx.fill();
         }
     });
 
-    // Particles
+    // Partículas
     particles.forEach(p => {
         ctx.fillStyle = p.color;
         ctx.globalAlpha = p.life;
-        ctx.fillRect(p.x, p.y, 4, 4);
+        ctx.fillRect(p.x, p.y, 3, 3);
         ctx.globalAlpha = 1;
     });
 
     requestAnimationFrame(() => {
         const now = performance.now();
-        update(now - lastTime);
+        const delta = now - lastTime;
         lastTime = now;
+        update(delta);
         draw();
     });
 }
 
-/* --- EVENTOS DE ENTRADA --- */
+
+function gameOver() {
+    gameRunning = false;
+    clearInterval(musicInterval);
+    
+    const isNewHighScore = score > highScore;
+    if (isNewHighScore) {
+        highScore = score;
+        localStorage.setItem('synonymHunterHighScore', highScore);
+        highScoreEl.innerText = highScore;
+    }
+
+    document.getElementById('finalScore').innerText = score;
+    document.getElementById('newHighScore').innerText = isNewHighScore ? '¡SÍ!' : 'NO';
+    gameOverScreen.style.display = 'flex';
+}
+
+function startGame() {
+    if (!gameRunning) {
+        // FIX: Se llama a resize() aquí
+        resize();
+
+        startScreen.style.display = 'none';
+        gameOverScreen.style.display = 'none';
+        gameRunning = true;
+        
+        score = 0; 
+        combo = 0;
+        lives = 5;
+        enemies.length = 0; 
+        bullets.length = 0; 
+        particles.length = 0;
+        player.invincible = false;
+        
+        scoreEl.innerText = '0';
+        comboEl.innerText = '0';
+        livesEl.innerText = '5';
+        
+        renderCategoryBar();
+        loadHighScore(); 
+        lastTime = performance.now();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        startMusic();
+        draw();
+    }
+}
+
+// Input
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (e.code === 'Space' && gameRunning) {
@@ -339,25 +531,8 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Iniciar Juego
-document.body.addEventListener('click', () => {
-    if (!gameRunning) {
-        startScreen.style.display = 'none';
-        gameRunning = true;
-        score = 0;
-        enemies.length = 0;
-        bullets.length = 0;
-        scoreEl.innerText = '0';
-        lastTime = performance.now();
-        
-        // Iniciar audio context
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        startMusic();
-        
-        draw();
-    }
-});
-
+// Llamada inicial para renderizar los botones de categoría
+renderCategoryBar();
 </script>
 </body>
 </html>
