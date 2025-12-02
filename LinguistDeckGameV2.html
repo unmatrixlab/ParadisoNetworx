@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: OPTIMIZED</title>
+    <title>Vocabulary Hunter: Clean & Smart</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -15,8 +15,6 @@
         }
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
         canvas {display:block;}
-        
-        /* Scanlines optimizadas (CSS es más barato que Canvas) */
         .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));background-size:100% 4px;z-index:999;pointer-events:none;}
         
         #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
@@ -52,6 +50,44 @@
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
         
+        /* POP QUIZ MODAL MEJORADO */
+        #quiz-overlay {
+            background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
+            padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
+            transition: border-color 0.3s;
+        }
+        #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
+        #quiz-input {
+            background: #000; border: 2px solid #333; color: #fff;
+            padding: 15px; font-family: 'Press Start 2P'; font-size: 16px;
+            text-align: center; width: 90%; text-transform: uppercase;
+        }
+        #quiz-input:focus { border-color: var(--neon-green); outline: none; }
+        
+        /* Feedback inteligente */
+        #quiz-feedback { 
+            margin-top: 20px; min-height: 30px; font-size: 12px; 
+            color: var(--neon-yellow); line-height: 1.6;
+        }
+        .correct-ans-highlight {
+            color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
+        }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
         /* MODAL */
         #study-content {
             background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
@@ -73,6 +109,8 @@
         td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
         .en-word {color:var(--neon-blue);font-weight:bold;}
+        .chk-cell { width: 40px; text-align: center; }
+        input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
 
         .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
@@ -119,6 +157,17 @@
         <div class="blink">CLICK TO RETRY</div>
     </div>
 
+    <div id="quiz-screen" class="overlay-screen" style="display:none;">
+        <div id="quiz-overlay">
+            <h2 style="color:var(--neon-red);" id="quiz-title">SYSTEM HACK!</h2>
+            <p style="font-size:10px; color:#aaa;">TRANSLATE TO RESTORE SYSTEMS</p>
+            <div id="quiz-question">WORD</div>
+            <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
+            <div id="quiz-feedback"></div>
+            <button class="reset-btn" style="margin-top:15px; border-color:#fff; color:#fff;" onclick="checkQuizAnswer()">VERIFY / REPAIR</button>
+        </div>
+    </div>
+
     <div id="study-guide" class="overlay-screen" style="display:none;">
         <div id="study-content">
             <span class="close-btn" onclick="toggleStudyGuide()">X</span>
@@ -126,10 +175,29 @@
                 <button class="tab-btn active" onclick="switchTab('db')">DATABASE</button>
                 <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
             </div>
+            
             <div id="tab-db" class="tab-content active">
-                <h2 class="config-header">ACTIVE VOCABULARY</h2>
+                <h2 id="db-title" class="config-header">ACTIVE VOCABULARY</h2>
+                
+                <div class="config-group" style="margin-bottom: 10px;">
+                    <label class="config-label">DATA USAGE LIMIT<span id="lbl-percent" class="config-val">100%</span></label>
+                    <input type="range" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
+                    <div class="slider-desc"><span>START</span><span>ALL DATA</span></div>
+                </div>
+
+                <div class="config-group" style="border-top: 1px dashed #333; padding-top: 10px;">
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-quiz" onchange="updateConfig('quiz')">
+                        ENABLE POP QUIZ TIMER
+                    </label>
+                    <label class="config-label" style="margin-top:5px;">FREQUENCY<span id="val-quiz-time" class="config-val">30s</span></label>
+                    <input type="range" id="cfg-quiz-time" min="10" max="60" step="5" value="30" oninput="updateConfig('quiz')">
+                    <div class="slider-desc"><span>OFTEN</span><span>RARE</span></div>
+                </div>
+
                 <div id="study-table-container"></div>
             </div>
+
             <div id="tab-settings" class="tab-content">
                 <h2 class="config-header">SYSTEM CONFIG</h2>
                 <div class="config-group">
@@ -203,13 +271,21 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v4';
+const CONFIG_KEY = 'vocab_robot_config_v9';
+const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
+
 let userSettings = {
     vocabSource: 'LOCAL', 
-    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5'
+    dataPercent: 100, 
+    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
+    quizEnabled: false, quizInterval: 30
 };
-// Valores calculados para el juego
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
+let disabledWords = new Set(); 
+
+// Variables para el Quiz
+let quizTimer = 0;
+let currentQuizWord = null;
 
 // --- MENUS & UI ---
 function renderCategoryBar() {
@@ -236,6 +312,12 @@ function renderCategoryBar() {
     wrapper.appendChild(help);
 }
 
+function updateDataPercent(val) {
+    userSettings.dataPercent = parseInt(val);
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+    updateConfig('percent_only');
+}
+
 function populateSourceMenu() {
     const select = document.getElementById('cfg-source');
     select.innerHTML = '';
@@ -259,12 +341,24 @@ function loadConfig() {
         try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
         catch(e) { console.error("Config error", e); }
     }
+    const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
+    if(savedDisabled) {
+        try { disabledWords = new Set(JSON.parse(savedDisabled)); }
+        catch(e) { disabledWords = new Set(); }
+    }
     applyConfigToUI();
     recalcGameVars();
 }
 
 function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
+    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
+    document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
+    document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
+    document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
+
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -286,7 +380,17 @@ function updateConfig(key) {
     if(key === 'source') {
         userSettings.vocabSource = document.getElementById('cfg-source').value;
         loadVocabData(); populateStudyGuide(); renderCategoryBar();
-        if(gameRunning) enemies = []; // Limpiar enemigos antiguos
+        if(gameRunning) enemies = []; 
+    }
+    else if(key === 'percent_only') {
+        loadVocabData(); populateStudyGuide();
+        if(gameRunning) enemies = [];
+    }
+    else if(key === 'quiz') {
+        userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
+        userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
+        document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
+        quizTimer = 0; 
     }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
@@ -296,13 +400,19 @@ function updateConfig(key) {
         userSettings.playerColor = document.getElementById('cfg-color').value;
         player.color = userSettings.playerColor;
     }
-    applyConfigToUI(); recalcGameVars();
+    
+    if(key !== 'percent_only') {
+        applyConfigToUI(); 
+    }
+    recalcGameVars();
     localStorage.setItem(CONFIG_KEY, JSON.stringify(userSettings));
 }
 
 function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
-    userSettings = { vocabSource: 'LOCAL', spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5' };
+    localStorage.removeItem(DISABLED_WORDS_KEY);
+    disabledWords.clear();
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30 };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -314,15 +424,26 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA LOADING ---
-let activeVocabList = [];
+// --- 3. DATA & CLEANING ---
+let activeVocabList = []; 
+let gameDeck = [];        
+
+// 1) LIMPIEZA DE DATOS (Eliminar comas, puntos, etc)
+const cleanText = (str) => {
+    if(!str) return "";
+    return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+};
 
 function loadVocabData() {
-    activeVocabList = [];
+    let tempVocabList = [];
     const countWords = (str) => str.trim().split(/\s+/).length;
     const processItem = (en, es) => {
-        if(en && es && countWords(en) <= 2) {
-            activeVocabList.push({en: en.toUpperCase(), es: [es.toUpperCase()]});
+        // Limpiamos antes de guardar
+        const safeEn = cleanText(en);
+        const safeEs = cleanText(es);
+        
+        if(safeEn && safeEs && countWords(safeEn) <= 2) {
+            tempVocabList.push({en: safeEn, es: [safeEs]});
         }
     };
 
@@ -354,11 +475,159 @@ function loadVocabData() {
         });
     }
 
+    if (tempVocabList.length > 0) {
+        const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
+        activeVocabList = tempVocabList.slice(0, limit);
+    } else {
+        activeVocabList = [];
+    }
+
     if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+    refreshGameDeck();
 }
 
+function refreshGameDeck() {
+    gameDeck = activeVocabList.filter(item => !disabledWords.has(item.en));
+    if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
+}
+
+function toggleWordStatus(engWord) {
+    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
+    else disabledWords.add(engWord);
+    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    refreshGameDeck();
+}
+
+// --- ALGORITMO LEVENSHTEIN ---
+function similarity(s1, s2) {
+    var longer = s1;
+    var shorter = s2;
+    if (s1.length < s2.length) { longer = s2; shorter = s1; }
+    var longerLength = longer.length;
+    if (longerLength == 0) return 1.0;
+    return (longerLength - editDistance(longer, shorter)) / parseFloat(longerLength);
+}
+
+function editDistance(s1, s2) {
+    s1 = s1.toLowerCase(); s2 = s2.toLowerCase();
+    var costs = new Array();
+    for (var i = 0; i <= s1.length; i++) {
+        var lastValue = i;
+        for (var j = 0; j <= s2.length; j++) {
+            if (i == 0) costs[j] = j;
+            else {
+                if (j > 0) {
+                    var newValue = costs[j - 1];
+                    if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                        newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+                }
+            }
+        }
+        if (i > 0) costs[s2.length] = lastValue;
+    }
+    return costs[s2.length];
+}
+
+// --- 2) REFUERZO DE APRENDIZAJE (FALLO) ---
+function triggerPopQuiz() {
+    gameRunning = false; 
+    const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
+    currentQuizWord = randomItem;
+    
+    const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
+    currentQuizWord.mode = mode;
+
+    const qEl = document.getElementById('quiz-question');
+    const iEl = document.getElementById('quiz-input');
+    const fEl = document.getElementById('quiz-feedback');
+    const titleEl = document.getElementById('quiz-title');
+    const overlay = document.getElementById('quiz-overlay');
+    
+    iEl.value = "";
+    fEl.innerText = "";
+    titleEl.innerText = "SYSTEM HACK!";
+    titleEl.style.color = "var(--neon-red)";
+    overlay.style.borderColor = "var(--neon-red)";
+    
+    if (mode === 'EN_TO_ES') {
+        qEl.innerText = `TRANSLATE: ${randomItem.en}`;
+        iEl.placeholder = "TYPE IN SPANISH";
+    } else {
+        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; 
+        iEl.placeholder = "TYPE IN ENGLISH";
+    }
+
+    document.getElementById('quiz-screen').style.display = 'flex';
+    document.getElementById('quiz-input').focus();
+}
+
+function checkQuizAnswer() {
+    const userInput = cleanText(document.getElementById('quiz-input').value); // Limpiamos input usuario también
+    const feedback = document.getElementById('quiz-feedback');
+    const overlay = document.getElementById('quiz-overlay');
+    const titleEl = document.getElementById('quiz-title');
+    
+    let correctAnswers = [];
+    if (currentQuizWord.mode === 'EN_TO_ES') correctAnswers = currentQuizWord.es; 
+    else correctAnswers = [currentQuizWord.en];
+
+    let maxSim = 0;
+    let bestMatch = "";
+    
+    correctAnswers.forEach(ans => {
+        const sim = similarity(userInput, ans);
+        if (sim > maxSim) { maxSim = sim; bestMatch = ans; }
+    });
+
+    if (maxSim >= 1.0) {
+        // SUCCESS
+        feedback.style.color = '#0f0';
+        feedback.innerText = "SYSTEM RESTORED! BOMB CLEAR ACTIVATED!";
+        setTimeout(resolveQuizSuccess, 1000);
+    } else {
+        // FALLO -> REFUERZO
+        // No cerramos. Mostramos la palabra correcta y obligamos a copiarla.
+        const inputEl = document.getElementById('quiz-input');
+        
+        // Animacion de error
+        inputEl.classList.add('shake');
+        setTimeout(()=>inputEl.classList.remove('shake'), 500);
+        
+        titleEl.innerText = "CRITICAL FAILURE!";
+        overlay.style.borderColor = "#ff0000";
+        
+        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
+        
+        // Limpiamos input para que escriba de nuevo
+        inputEl.value = "";
+        inputEl.placeholder = "TYPE THE WORD ABOVE";
+        inputEl.focus();
+    }
+}
+
+function resolveQuizSuccess() {
+    quizTimer = 0; 
+    document.getElementById('quiz-screen').style.display = 'none';
+    enemyBombs = []; 
+    enemies.forEach(e => {
+        e.fading = true;
+        createExplosion(e.x, e.y, e.color, 20);
+        score += 50;
+    });
+    gameRunning = true;
+    lastTime = performance.now();
+    gameLoopId = requestAnimationFrame(loop);
+}
+
+document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') checkQuizAnswer();
+});
+
+
 /* =========================================
-   4. GAME ENGINE (OPTIMIZED)
+   4. GAME ENGINE
    ========================================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -396,7 +665,6 @@ function playSound(type) {
     o.start(n); o.stop(n + 0.5);
 }
 
-// Variables Globales del Juego
 let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
 let spawnTimer = 0;
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
@@ -405,8 +673,18 @@ let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');highScore=s?parseInt(s):0;highScoreEl.innerText=highScore;}
 
 function populateStudyGuide(){
-    let html='<table><thead><tr><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
-    activeVocabList.forEach(v=>html+=`<tr><td class="en-word">${v.en}</td><td>${v.es[0]||"-"}</td></tr>`);
+    document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
+    let html='<table><thead><tr><th class="chk-cell">PLAY?</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    activeVocabList.forEach(v => {
+        const isChecked = !disabledWords.has(v.en);
+        html += `<tr>
+            <td class="chk-cell">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${v.en.replace(/'/g, "\\'")}')">
+            </td>
+            <td class="en-word">${v.en}</td>
+            <td>${v.es[0]||"-"}</td>
+        </tr>`;
+    });
     html+='</tbody></table>';
     studyTableContainer.innerHTML=html;
 }
@@ -417,7 +695,6 @@ function toggleStudyGuide(){
         studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
             gameRunning=true; lastTime=performance.now(); 
-            // audioCtx.resume(); // Ensure audio is ready
             gameLoopId = requestAnimationFrame(loop);
         }
     }else{
@@ -432,14 +709,10 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 
-// Inicializar Estrellas (OPTIMIZADO: pre-calcular alpha base)
 for(let i=0;i<80;i++) stars.push({
-    x:Math.random()*innerWidth,
-    y:Math.random()*innerHeight,
-    size:Math.random()*2,
-    speed:Math.random()*0.2+0.1,
-    alphaBase: Math.random()*0.5+0.3,
-    phase: Math.random() * Math.PI * 2
+    x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+    size:Math.random()*2, speed:Math.random()*0.2+0.1,
+    alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
 });
 
 function getRandomBombContent() {
@@ -452,10 +725,8 @@ function getRandomBombContent() {
 }
 
 function spawnEnemy(){
-    if(activeVocabList.length===0) return;
-    const d=activeVocabList[Math.floor(Math.random()*activeVocabList.length)];
-    
-    // Medimos el texto una sola vez al nacer
+    if(gameDeck.length===0) return;
+    const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
     const vx = (Math.random() - 0.5) * 2.0;
@@ -469,14 +740,13 @@ function spawnEnemy(){
         speed: baseSpeed, 
         vx: vx, 
         color:'#ffffff', 
-        timer:0, fading:false, w:textWidth,
-        droppedBomb: false 
+        timer:0, fading:false, w:textWidth, droppedBomb: false 
     });
 }
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 150) particles.shift(); // Límite de partículas
+        if(particles.length > 150) particles.shift();
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -498,7 +768,6 @@ function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
 }
 
-// --- OPTIMIZED GAME LOOP ---
 function loop(timestamp) {
     if (!gameRunning) return;
     const dt = timestamp - lastTime;
@@ -509,27 +778,28 @@ function loop(timestamp) {
 }
 
 function update(dt){
+    // QUIZ TIMER CHECK
+    if (userSettings.quizEnabled) {
+        quizTimer += dt;
+        if (quizTimer >= userSettings.quizInterval * 1000) {
+            triggerPopQuiz();
+            return; 
+        }
+    }
+
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    // Player Move
     if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
     
-    // Stars
-    stars.forEach(s=>{
-        s.y+=s.speed;
-        if(s.y>canvas.height)s.y=0;
-    });
+    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
     
-    // Spawn
     spawnTimer-=dt; 
     if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
-    // Bombs Update
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
-        b.y += b.vy;
-        b.x += Math.sin(b.y * 0.05) * 1.5; 
+        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
         
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
@@ -556,13 +826,10 @@ function update(dt){
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
-    // Bullets
     for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
     
-    // Enemies
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        // Bomb Drop Logic
         if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
             e.droppedBomb = true; 
             enemyBombs.push({
@@ -607,7 +874,6 @@ function update(dt){
                         e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
                         createExplosion(e.x,e.y,'#00ff00',20);
                         score+=50; combo++;
-                        // Recalcular ancho solo al cambiar texto
                         ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
                     }
                 }
@@ -624,7 +890,6 @@ function update(dt){
         if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
     }
     
-    // Particles
     for(let i=particles.length-1;i>=0;i--){
         const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
         if(p.life<=0)particles.splice(i,1);
@@ -634,9 +899,7 @@ function update(dt){
 function draw(timestamp){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     
-    // OPTIMIZADO: Estrellas sin math.random
     stars.forEach(s=>{
-        // Parpadeo suave usando seno del tiempo
         const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
         ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
         ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
@@ -646,10 +909,8 @@ function draw(timestamp){
         drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
     }
 
-    // STATE CHANGE BATCHING: Texto
     ctx.textAlign='center'; ctx.textBaseline='middle';
     
-    // Draw Bombs
     enemyBombs.forEach(b => {
         ctx.strokeStyle='#fff'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
@@ -660,23 +921,17 @@ function draw(timestamp){
         ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets (Batching shadow)
     ctx.shadowBlur=5; ctx.shadowColor='#ff0055'; ctx.fillStyle='#ff0055';
     bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
-    ctx.shadowBlur=0; // Reset ASAP
+    ctx.shadowBlur=0; 
     
-    // Enemies
     enemies.forEach(e=>{
         ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
         ctx.fillStyle=e.color;
-        
-        // Solo activamos sombra si es necesario (Stage 1 = Español)
         if(e.stage>=1){ctx.shadowBlur=10;ctx.shadowColor='#00ff00';}
-        
         ctx.fillText(e.text,e.x,e.y);
-        ctx.shadowBlur=0; // Reset
+        ctx.shadowBlur=0; 
         
-        // Dots
         for(let k=0;k<4;k++){
             if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
             else ctx.fillStyle = '#444';
@@ -684,7 +939,6 @@ function draw(timestamp){
         }
     });
     
-    // Particles
     particles.forEach(p=>{
         ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
     });
@@ -706,10 +960,8 @@ function startGame(){
     scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
     loadHighScore();
     gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
-    
-    // Audio Context Resume Optimization
-    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>console.log(e));
-    
+    quizTimer = 0;
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
 
