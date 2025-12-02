@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live HTML Editor Pro</title>
+    <title>HTML Code Runner (Hard Reset)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -21,25 +21,24 @@
             display: flex; flex-direction: column;
             height: 100vh; overflow: hidden;
             font-family: 'Inter', sans-serif;
-            background-color: white;
+            background-color: black;
         }
 
-        /* --- EDITOR PANEL (Deslizable) --- */
+        /* --- EDITOR (Panel Superior) --- */
         .editor-wrapper {
-            position: absolute; top: 0; left: 0; width: 100%; height: 50%;
+            position: absolute; top: 0; left: 0; width: 100%; height: 55%;
             background-color: var(--bg-editor);
             display: flex; flex-direction: column;
             border-bottom: 4px solid var(--accent);
-            z-index: 10;
+            z-index: 100;
             transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
 
         .editor-wrapper.collapsed {
             transform: translateY(-100%);
         }
 
-        /* HEADER DEL EDITOR */
         .editor-header {
             display: flex; justify-content: space-between; align-items: center;
             padding: 10px 15px; background: var(--bg-ui); border-bottom: 1px solid var(--border);
@@ -47,7 +46,6 @@
         .app-title { font-size: 14px; font-weight: 700; color: var(--text-sec); letter-spacing: 1px; }
         .app-title span { color: var(--accent); }
 
-        /* AREA DE TEXTO */
         #htmlInput {
             flex-grow: 1;
             background-color: var(--bg-editor);
@@ -61,7 +59,6 @@
             line-height: 1.5;
         }
 
-        /* BARRA DE ACCIONES (Botones + Historial) */
         .action-bar {
             padding: 10px 15px;
             background: var(--bg-ui);
@@ -69,24 +66,23 @@
             border-top: 1px solid var(--border);
         }
 
+        /* --- BOTONES --- */
         .btn {
             border: none; border-radius: 6px; padding: 10px 20px;
             font-size: 13px; font-weight: 700; cursor: pointer;
             transition: 0.2s; font-family: 'Inter', sans-serif;
         }
-        .btn-run { background-color: var(--accent); color: white; flex-grow: 1; max-width: 200px; display: flex; justify-content: space-between; align-items: center; }
-        .btn-run:hover { background-color: var(--accent-hover); }
-        .btn-secondary { background: #3f3f46; color: white; }
-        .btn-secondary:hover { background: #52525b; }
+        .btn-run { background-color: var(--accent); color: white; flex-grow: 1; max-width: 200px; display: flex; justify-content: center; gap: 10px; align-items: center; }
+        .btn-run:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
+        .btn-run:active { transform: translateY(0); }
+        
+        .btn-icon { background: transparent; color: var(--text-sec); padding: 10px; font-size: 16px; }
+        .btn-icon:hover { color: white; background: rgba(255,255,255,0.1); }
 
-        /* MENU DE HISTORIAL */
+        /* --- HISTORIAL --- */
         .history-container {
-            flex-grow: 1;
-            display: flex; gap: 5px;
-            overflow-x: auto;
-            padding-bottom: 2px;
+            flex-grow: 1; display: flex; gap: 5px; overflow-x: auto; padding-bottom: 2px;
         }
-        /* Scrollbar fina para el historial */
         .history-container::-webkit-scrollbar { height: 4px; }
         .history-container::-webkit-scrollbar-thumb { background: #52525b; border-radius: 4px; }
 
@@ -99,22 +95,28 @@
         }
         .hist-chip:hover { border-color: var(--accent); color: white; background: #3f3f46; }
 
-        /* --- VISUALIZADOR (IFRAME) --- */
-        #preview {
-            width: 100%; height: 100%; border: none;
-            background-color: white; /* Lienzo blanco por defecto */
-            display: block;
+        /* --- CONTENEDOR DEL RESULTADO --- */
+        #preview-container {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: black;
+            z-index: 1;
+        }
+        
+        /* Iframe generado dinámicamente */
+        iframe {
+            width: 100%; height: 100%; border: none; display: block;
         }
 
-        /* --- BOTÓN FLOTANTE (Para volver a editar) --- */
+        /* --- BOTÓN FLOTANTE EDITAR --- */
         #floating-edit {
             position: fixed; top: 15px; right: 15px;
             background: var(--bg-ui); color: white;
             padding: 10px 15px; border-radius: 30px;
             font-weight: 700; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             border: 1px solid var(--border);
-            z-index: 5;
+            z-index: 200;
             transform: translateY(-150%);
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             display: flex; align-items: center; gap: 8px; font-size: 13px;
@@ -128,99 +130,98 @@
 
     <div class="editor-wrapper" id="editorPanel">
         <div class="editor-header">
-            <div class="app-title">HTML <span>LIVE</span> RUNNER</div>
-            <div style="font-size: 11px; color: #666;">Ctrl + Enter to Run</div>
+            <div class="app-title">CODE <span>RUNNER</span></div>
+            <div style="font-size: 11px; color: #666;">Ctrl + Enter</div>
         </div>
         
-        <textarea id="htmlInput" placeholder="<h1>Hola Mundo</h1>
-<style>
-  body { font-family: sans-serif; padding: 20px; }
-  h1 { color: #4f46e5; }
-</style>" spellcheck="false"></textarea>
+        <textarea id="htmlInput" placeholder="Pega tu código aquí..." spellcheck="false"></textarea>
 
         <div class="action-bar">
-            <div class="history-container" id="historyList">
-                </div>
-            <button class="btn btn-secondary" onclick="clearEditor()" title="Limpiar">🗑️</button>
+            <div class="history-container" id="historyList"></div>
+            <button class="btn btn-icon" onclick="clearEditor()" title="Borrar">🗑️</button>
             <button class="btn btn-run" id="runBtn">
-                EJECUTAR <span>▶</span>
+                RUN <span>▶</span>
             </button>
         </div>
     </div>
 
-    <button id="floating-edit" onclick="toggleEditor(true)">
-        ✏️ Editar Código
-    </button>
+    <button id="floating-edit" onclick="toggleEditor(true)">✏️ EDIT</button>
 
-    <iframe id="preview" sandbox="allow-scripts allow-modals"></iframe>
+    <div id="preview-container"></div>
 
     <script>
-        // CONFIGURACIÓN
         const MAX_HISTORY = 10;
-        const STORAGE_KEY = 'mdc_html_history';
+        const STORAGE_KEY = 'mdc_code_runner_v3';
 
-        // REFERENCIAS DOM
+        // Elementos
         const editorPanel = document.getElementById('editorPanel');
         const floatingBtn = document.getElementById('floating-edit');
         const input = document.getElementById('htmlInput');
-        const iframe = document.getElementById('preview');
+        const container = document.getElementById('preview-container');
         const runBtn = document.getElementById('runBtn');
         const historyList = document.getElementById('historyList');
 
-        // --- FUNCIONES PRINCIPALES ---
-
-        // 1. Ejecutar Código
+        // --- FUNCIÓN NUCLEAR: RUN ---
         function runCode() {
             const code = input.value;
             
-            // Inyectar en Iframe
-            const doc = iframe.contentWindow.document;
-            doc.open();
-            doc.write(code);
-            doc.close();
+            // 1. Limpieza Total: Borramos el iframe anterior si existe
+            container.innerHTML = '';
 
-            // Guardar en historial si no está vacío
-            if(code.trim().length > 0) {
-                saveToHistory(code);
-            }
+            // 2. Creación Dinámica: Creamos un iframe nuevo desde cero
+            const iframe = document.createElement('iframe');
+            
+            // Atributos de seguridad permisivos para juegos locales
+            iframe.setAttribute('sandbox', 'allow-scripts allow-modals allow-same-origin allow-pointer-lock allow-forms');
+            
+            // 3. Inyección en el DOM
+            container.appendChild(iframe);
 
-            // Ocultar editor (Modo Inmersivo)
+            // 4. Escritura del código
+            // Usamos un pequeño timeout para asegurar que el iframe está listo en el DOM
+            setTimeout(() => {
+                const doc = iframe.contentWindow.document;
+                doc.open();
+                doc.write(code);
+                doc.close();
+
+                // 5. ENFOQUE (CRUCIAL PARA EL JUEGO)
+                // Le damos el foco a la ventana del iframe para que capte el teclado
+                iframe.contentWindow.focus();
+            }, 10);
+
+            // 6. Guardar y Ocultar UI
+            if(code.trim().length > 0) saveToHistory(code);
             toggleEditor(false);
         }
 
-        // 2. Controlar la Visibilidad del Editor
+        // --- UI ---
         function toggleEditor(show) {
             if(show) {
                 editorPanel.classList.remove('collapsed');
                 floatingBtn.classList.remove('visible');
-                input.focus(); // Enfocar al abrir
+                input.focus();
             } else {
                 editorPanel.classList.add('collapsed');
                 floatingBtn.classList.add('visible');
             }
         }
 
-        // 3. Sistema de Persistencia (Historial)
+        // --- HISTORIAL ---
         function loadHistory() {
             const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             renderHistoryUI(history);
-            // Cargar el último código automáticamente si existe
-            if(history.length > 0 && input.value === '') {
-                input.value = history[0];
-            }
+            if(history.length > 0 && input.value === '') input.value = history[0];
         }
 
         function saveToHistory(code) {
             let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-            
-            // Evitar duplicados consecutivos y mover al principio si ya existe
-            history = history.filter(item => item !== code);
+            if (history.length > 0 && history[0] === code) return; // No duplicar el actual
+
+            history = history.filter(item => item !== code); // Mover al principio si existe
             history.unshift(code);
             
-            // Limitar a 10
-            if(history.length > MAX_HISTORY) {
-                history = history.slice(0, MAX_HISTORY);
-            }
+            if(history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
             renderHistoryUI(history);
@@ -228,53 +229,52 @@
 
         function renderHistoryUI(history) {
             historyList.innerHTML = '';
-            
             if(history.length === 0) {
-                historyList.innerHTML = '<span style="font-size:11px; color:#555; padding:5px;">Sin historial reciente</span>';
+                historyList.innerHTML = '<span style="font-size:11px; color:#555; padding:5px;">Historial vacío</span>';
                 return;
             }
-
             history.forEach((snippet, index) => {
-                // Crear un "título" para el chip basado en el contenido
-                let previewText = snippet.substring(0, 15).replace(/\n/g, ' ').trim() || "Código vacío";
+                // Intentar sacar un título del código (<title> o primeros caracteres)
+                let titleMatch = snippet.match(/<title>(.*?)<\/title>/i);
+                let cleanSnippet = snippet.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+                let displayTitle = titleMatch ? titleMatch[1] : (cleanSnippet.substring(0, 12) || `Code ${index + 1}`);
                 
                 const chip = document.createElement('div');
                 chip.className = 'hist-chip';
-                chip.textContent = `${index + 1}. ${previewText}...`;
-                chip.title = "Cargar este código";
-                
-                chip.addEventListener('click', () => {
+                chip.textContent = displayTitle;
+                chip.onclick = () => {
                     input.value = snippet;
-                    // Efecto visual de carga
+                    // Feedback visual
                     input.style.opacity = '0.5';
-                    setTimeout(() => input.style.opacity = '1', 150);
-                });
-
+                    setTimeout(() => input.style.opacity = '1', 200);
+                };
                 historyList.appendChild(chip);
             });
         }
 
         function clearEditor() {
-            if(confirm("¿Borrar editor?")) input.value = '';
+            if(confirm("¿Borrar código actual?")) {
+                input.value = '';
+                input.focus();
+            }
         }
 
-        // --- EVENT LISTENERS ---
-
+        // --- EVENTOS ---
         runBtn.addEventListener('click', runCode);
 
-        // Atajo de teclado: Ctrl + Enter para ejecutar
         document.addEventListener('keydown', (e) => {
+            // Ejecutar con Ctrl + Enter
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                e.preventDefault(); // Evitar salto de línea si está en textarea
+                e.preventDefault();
                 runCode();
             }
-            // Escape para volver a abrir el editor si está cerrado
+            // Abrir editor con Escape si está oculto
             if (e.key === 'Escape' && editorPanel.classList.contains('collapsed')) {
                 toggleEditor(true);
             }
         });
 
-        // Inicializar
+        // Iniciar
         loadHistory();
 
     </script>
