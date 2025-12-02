@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Split Buttons)</title>
+    <title>MDC Studio Player (Flow Fixed)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -68,13 +68,14 @@
         
         .btn { border: none; border-radius: 6px; padding: 5px 0; font-size: 12px; font-weight: 600; cursor: pointer; width: 100%; }
         
-        /* NUEVO DISEÑO BOTONES DIVIDIDOS */
+        /* DISEÑO BOTONES DIVIDIDOS */
         .play-group { display: flex; gap: 4px; width: 100%; }
         .play-half { flex: 1; padding: 5px 0; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; color: white; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
-        .btn-single { background-color: #4f46e5; } /* Azul Studio */
+        .btn-single { background-color: #4f46e5; }
         .btn-single:hover { background-color: #4338ca; }
-        .btn-cont { background-color: #059669; } /* Verde Flujo */
+        .btn-cont { background-color: #059669; }
         .btn-cont:hover { background-color: #047857; }
+        .active-play-btn { box-shadow: inset 0 3px 5px rgba(0,0,0,0.2); filter: brightness(0.9); }
         
         .speakBtn { background-color: #e5e7eb; color: var(--text-main); }
         .saveBtn { background-color: white; border: 2px solid #10b981; color: #10b981; font-size: 14px; padding: 4px 0; line-height: 1; }
@@ -366,14 +367,13 @@
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
     
-    // VARIABLES LÓGICA V4.0 (Split Buttons)
+    // VARIABLES LÓGICA V5.0 (Chain Flow Fix)
     let repeatCountCfg = 1; let pauseTimeCfg = 0;
     let currentRepetitionCount = 0; let isWaitingDelay = false;
     let currentVerticalOffset = 0; 
     
-    // MODO DETECTOR y AUTO-AVANCE
-    let isSingleMode = false; // Ya no solo es 'single', sino 'controlado manualmente'
-    let shouldAutoAdvance = false; // Define si el botón pulsado era "Play Continuous"
+    let isSingleMode = false; 
+    let shouldAutoAdvance = false; 
     let activeLineElement = null;
 
     window.onYouTubeIframeAPIReady = function() {
@@ -398,27 +398,20 @@
 
     function onPlayerStateChange(event) {
         if (event.data === YT.PlayerState.PLAYING) { 
-            // Si el usuario da play manual en YouTube, asumimos MODO CONTINUO (Flujo)
             if(!isSingleMode) {
                 isSegmentPlaying = true;
-                shouldAutoAdvance = true; // Play de YT es siempre "Avanzar al siguiente"
+                shouldAutoAdvance = true; 
             }
             clearInterval(checkInterval); 
             checkInterval = setInterval(checkTime, 100); 
         } else { 
             clearInterval(checkInterval); 
             if(player && player.getCurrentTime) localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime()); 
-            if(event.data === YT.PlayerState.PAUSED) {
-               // No reseteamos isWaitingDelay aquí para no romper la pausa programada
-               // Pero si el usuario pausa manualmente, isSegmentPlaying controlará la lógica
-            }
         }
     }
 
     function checkTime() {
-        // BLOQUEO CRÍTICO: Si estamos en pausa, NO ACTUALIZAR UI NI LÓGICA
-        // Esto evita que se "pinte" el siguiente subtítulo antes de tiempo
-        if(isWaitingDelay) return;
+        if(isWaitingDelay) return; // BLOQUEO CRÍTICO: NO TOCAR UI DURANTE PAUSA
 
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
@@ -426,21 +419,16 @@
         
         let currentEnd = segmentEndTime;
         
-        // HIGHLIGHT LOGIC
         if (!isSingleMode) {
-            // Modo Flujo (YouTube nativo o botón derecho)
             const activeSub = SUBTITLES_DATA.find(s => currentTime >= s.s && currentTime < s.e + endPadding);
             if(activeSub) {
                 currentEnd = activeSub.e + endPadding;
                 highlightCurrentLine(currentTime);
             } else { return; }
         } else {
-             // Modo Controlado (Botones Azules)
-             // Solo highlight visual, pero la lógica de tiempo es fija
              highlightCurrentLine(currentTime);
         }
         
-        // CHECK END
         if (currentTime >= currentEnd) {
             player.pauseVideo();
             handleSegmentEnd();
@@ -450,34 +438,29 @@
     function handleSegmentEnd() {
         currentRepetitionCount++;
         
-        // 1. REGLA SUPREMA: LOOP
         if (isLooping) {
-            // Límite seguridad 20
-            if (currentRepetitionCount < 20) { replayCurrentSegment(); } 
-            else { stopEverything(); }
+            if (currentRepetitionCount < 20) { replayCurrentSegment(); } else { stopEverything(); }
             return;
         }
 
-        // 2. REGLA: REPETICIONES
         if (currentRepetitionCount < repeatCountCfg) {
             replayCurrentSegment();
             return;
         }
 
-        // 3. DECISIÓN FINAL: ¿AVANZAR O PARAR?
         if (shouldAutoAdvance) {
-            // Modo Flujo (Botón Derecho o Play de YT) -> PAUSA -> SIGUIENTE
             isWaitingDelay = true;
             const delayMs = pauseTimeCfg * 1000;
             const runNext = () => {
-                 if (!isSegmentPlaying && player.getPlayerState() !== 2) { isWaitingDelay = false; return; }
+                 // Verificamos si el usuario no lo paró manualmente
+                 if (!isSegmentPlaying) { isWaitingDelay = false; return; }
+                 
                  isWaitingDelay = false; 
                  currentRepetitionCount = 0; 
                  playNextSubtitle();
             };
             if (delayMs > 0) setTimeout(runNext, delayMs); else runNext();
         } else {
-            // Modo Estudio (Botón Izquierdo) -> STOP
             stopEverything();
         }
     }
@@ -496,21 +479,18 @@
     }
 
     function playNextSubtitle() {
-        // En este punto isWaitingDelay ya es false, así que al hacer seek,
-        // checkTime volverá a ejecutarse y pintará el nuevo subtítulo.
         const activeLine = document.querySelector('.line.active');
         if(activeLine && activeLine.nextElementSibling && activeLine.nextElementSibling.classList.contains('line')) {
             const nextLine = activeLine.nextElementSibling;
             scrollToActiveElement(nextLine);
             
-            // Forzamos modo flujo para el siguiente
-            isSingleMode = false; 
-            shouldAutoAdvance = true; 
-            isSegmentPlaying = true;
-
-            const start = parseFloat(nextLine.dataset.start) - timeOffset;
-            player.seekTo(Math.max(0, start), true);
-            player.playVideo();
+            // LÓGICA CORREGIDA: Simular click en el botón "Flow" de la siguiente línea
+            // Esto asegura que se establezca correctamente el estado para la nueva línea
+            const nextFlowBtn = nextLine.querySelector('.btn-cont');
+            if(nextFlowBtn) {
+                // Pasamos un objeto mockeado para stopPropagation
+                handlePlayClick({ stopPropagation: ()=>{} }, nextFlowBtn, true);
+            }
         } else {
             stopEverything();
         }
@@ -533,7 +513,6 @@
     }
 
     function highlightCurrentLine(time) {
-        // Doble seguridad para no pintar si estamos esperando
         if(isWaitingDelay) return; 
 
         const lines = document.querySelectorAll('.line'); let activeLine = null;
@@ -579,18 +558,12 @@
     }
 
     function attachButtonEvents() {
-        // EVENTO BOTÓN ÚNICO (IZQUIERDA)
         document.querySelectorAll('.btn-single').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                handlePlayClick(e, btn, false); // false = No avanzar
-            });
+            btn.addEventListener('click', (e) => { handlePlayClick(e, btn, false); });
         });
 
-        // EVENTO BOTÓN FLUJO (DERECHA)
         document.querySelectorAll('.btn-cont').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                handlePlayClick(e, btn, true); // true = Avanzar
-            });
+            btn.addEventListener('click', (e) => { handlePlayClick(e, btn, true); });
         });
 
         document.querySelectorAll('.speakBtn').forEach(btn => {
@@ -609,21 +582,16 @@
         const start = parseFloat(line.dataset.start) - timeOffset; 
         const end = parseFloat(line.dataset.end) + endPadding;
         
-        // Si ya está reproduciendo ESTE botón, paramos
-        if (btn.classList.contains('active-play-btn')) { 
-            stopEverything();
-            return; 
-        }
+        if (btn.classList.contains('active-play-btn')) { stopEverything(); return; }
         
         resetButtons(); 
-        btn.classList.add('active-play-btn'); // Marcador visual
+        btn.classList.add('active-play-btn');
         
         window.speechSynthesis.cancel(); 
         document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
         
-        // CONFIGURAR ESTADO
-        isSingleMode = true; // Estamos en modo controlado por botones
-        shouldAutoAdvance = autoAdvance; // Aquí definimos si salta o no
+        isSingleMode = true; 
+        shouldAutoAdvance = autoAdvance; 
         
         isSegmentPlaying = true;
         segmentEndTime = end;
@@ -774,9 +742,7 @@
         switch(e.code) {
             case 'Space':
                 e.preventDefault();
-                // Si Single Mode, simula click en el botón activo
                 if (isSingleMode && activeLineElement) { 
-                    // Si el usuario activó con el botón flujo, simulamos flujo. Si fue single, single.
                     if(shouldAutoAdvance) activeLineElement.querySelector('.btn-cont').click();
                     else activeLineElement.querySelector('.btn-single').click();
                 } 
