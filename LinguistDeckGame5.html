@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verb Drop: Syntax Sorter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* TEMA INDUSTRIAL AMBER */
+            --neon-amber: #ffae00;
+            --neon-orange: #ff5500;
+            --neon-blue: #00aaff;
+            --neon-white: #ffffff;
+            --dark-bg: #100a00;
+            --panel-bg: rgba(20, 10, 0, 0.95);
+        }
+        body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
+        canvas {display:block;}
+        
+        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(0,0,0,0) 50%,rgba(0,0,0,0.25) 50%);background-size:100% 4px;z-index:999;pointer-events:none;}
+        
+        #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
+        #lives-panel {color:var(--neon-orange);}
+        #score-panel {color:var(--neon-amber);}
+        
+        /* Category Bar Styling */
+        #category-bar-wrapper {position:absolute;top:60px;left:0;width:100%;padding:10px 0;z-index:15;display:flex;justify-content:center;pointer-events:none;}
+        .category-chip {padding:5px 10px;margin:0 5px;background:#221100;color:#664400;font-size:10px;border:1px solid #442200;display:inline-block;pointer-events:auto;cursor:pointer;}
+        .category-chip.active {color:var(--neon-amber);border-color:var(--neon-amber);box-shadow:0 0 5px var(--neon-amber);}
+        
+        /* Help Button */
+        #help-btn {position:absolute;bottom:20px;right:20px;padding:10px 20px;border:2px solid var(--neon-blue);color:var(--neon-blue);background:black;cursor:pointer;z-index:20;font-size:12px;transition:0.2s;}
+        #help-btn:hover {background:var(--neon-blue);color:black;}
+
+        .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,2,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
+        
+        h1 {color:var(--neon-amber);text-shadow:4px 4px #442200;font-size:35px;margin-bottom:20px;}
+        h2 {color:var(--neon-orange);font-size:25px;margin-bottom:20px;}
+        p {line-height:2;color:#aaa;font-size:12px;max-width:600px;padding:0 20px;}
+        
+        .key-hint {display:inline-block;padding:4px 8px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;margin:0 2px;}
+        .blink {animation:blinker 1s linear infinite;color:var(--neon-white);margin-top:40px;cursor:pointer;}
+        @keyframes blinker {50%{opacity:0;}}
+
+        /* Study Guide - Reusing your robust structure */
+        #study-guide {display:none;}
+        #study-content {background:var(--panel-bg);padding:30px;border:2px solid var(--neon-amber);width:80%;max-width:800px;height:70%;overflow-y:auto;position:relative;box-shadow:0 0 30px rgba(255,174,0,0.2);text-align:left;}
+        #study-content::-webkit-scrollbar {width:10px;}
+        #study-content::-webkit-scrollbar-track {background:#111;}
+        #study-content::-webkit-scrollbar-thumb {background:#442200;border:1px solid var(--neon-amber);}
+        
+        #study-content table {width:100%;border-collapse:separate;border-spacing:0;margin-top:20px;font-size:12px;}
+        #study-content th {color:var(--neon-amber);text-align:left;border-bottom:2px solid var(--neon-amber);padding:10px;position:sticky;top:0;background:#221100;z-index:2;}
+        #study-content td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
+        #study-content tr:hover td {background:#331100;color:#fff;}
+        
+        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-orange);cursor:pointer;border:1px solid var(--neon-orange);padding:5px 10px;}
+        .close-btn:hover {background:var(--neon-orange);color:#000;}
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div id="ui">
+        <div id="score-panel">SCORE: <span id="score">0</span></div>
+        <div id="lives-panel">LIVES: <span id="lives">5</span></div>
+    </div>
+    
+    <div id="category-bar-wrapper">
+        </div>
+    <div id="help-btn" onclick="toggleStudyGuide()">DATABASE / PAUSE</div>
+
+    <div id="start-screen" class="overlay-screen" onclick="startGame()">
+        <h1>VERB DROP:<br>SYNTAX SORTER</h1>
+        <p>
+            1. Verbs fall from the sky.<br>
+            2. Identify their GRAMMATICAL FORM.<br>
+            3. Guide them into the correct processing bin.<br><br>
+            <span class="key-hint">←</span> <span class="key-hint">→</span> Move Lane <br>
+            <span class="key-hint">↓</span> Fast Drop <br>
+            <span class="key-hint">TAB</span> Pause/Study
+        </p>
+        <div class="blink">CLICK TO INITIALIZE</div>
+    </div>
+
+    <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
+        <h2>SYSTEM FAILURE</h2>
+        <p>DATA SORTED: <span id="finalScore" style="color:white;">0</span></p>
+        <div class="blink">CLICK TO REBOOT</div>
+    </div>
+
+    <div id="study-guide" class="overlay-screen">
+        <div id="study-content">
+            <span class="close-btn" onclick="toggleStudyGuide()">X</span>
+            <h2 style="color:var(--neon-amber);margin-top:0;text-transform:uppercase;border-bottom:1px solid #333;padding-bottom:10px;font-size:18px;">
+                MORPHOLOGY DB: <span id="study-category-title" style="color:white;">MIX 1</span>
+            </h2>
+            <div id="study-table-container"></div>
+            <p style="margin-top:20px;text-align:center;color:#666;font-size:10px;">
+                PRESS <span class="key-hint">TAB</span> OR <span class="key-hint">ESC</span> TO RESUME
+            </p>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+// --- DB LINGÜÍSTICA ---
+// v1: Infinitivo, v2: Pasado, v3: Participio, ing: Gerundio, tr: Traducción
+const verbDB = {
+    'LEVEL_1': [
+        {v1:"GO", v2:"WENT", v3:"GONE", ing:"GOING", tr:"IR"},
+        {v1:"DO", v2:"DID", v3:"DONE", ing:"DOING", tr:"HACER"},
+        {v1:"EAT", v2:"ATE", v3:"EATEN", ing:"EATING", tr:"COMER"},
+        {v1:"SEE", v2:"SAW", v3:"SEEN", ing:"SEEING", tr:"VER"}
+    ],
+    'LEVEL_2': [
+        {v1:"WRITE", v2:"WROTE", v3:"WRITTEN", ing:"WRITING", tr:"ESCRIBIR"},
+        {v1:"SPEAK", v2:"SPOKE", v3:"SPOKEN", ing:"SPEAKING", tr:"HABLAR"},
+        {v1:"TAKE", v2:"TOOK", v3:"TAKEN", ing:"TAKING", tr:"TOMAR"},
+        {v1:"BREAK", v2:"BROKE", v3:"BROKEN", ing:"BREAKING", tr:"ROMPER"}
+    ],
+    'LEVEL_3': [
+        {v1:"BUY", v2:"BOUGHT", v3:"BOUGHT", ing:"BUYING", tr:"COMPRAR"},
+        {v1:"THINK", v2:"THOUGHT", v3:"THOUGHT", ing:"THINKING", tr:"PENSAR"},
+        {v1:"CATCH", v2:"CAUGHT", v3:"CAUGHT", ing:"CATCHING", tr:"ATRAPAR"},
+        {v1:"TEACH", v2:"TAUGHT", v3:"TAUGHT", ing:"TEACHING", tr:"ENSEÑAR"}
+    ]
+};
+
+// Setup Canvas
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Elementos UI
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const startScreen = document.getElementById('start-screen');
+const gameOverScreen = document.getElementById('game-over-screen');
+const studyGuide = document.getElementById('study-guide');
+const categoryWrapper = document.getElementById('category-bar-wrapper');
+const studyTableContainer = document.getElementById('study-table-container');
+const studyTitle = document.getElementById('study-category-title');
+
+// Audio setup (Tu mismo sistema robusto)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let musicInterval;
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    const n = audioCtx.currentTime;
+    
+    if(type==='move'){
+        o.type='triangle';o.frequency.setValueAtTime(200,n);g.gain.setValueAtTime(.02,n);g.gain.exponentialRampToValueAtTime(.001,n+.05);
+    } else if(type==='correct'){
+        o.type='sine';o.frequency.setValueAtTime(440,n);o.frequency.exponentialRampToValueAtTime(880,n+.1);
+        g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);
+    } else if(type==='wrong'){
+        o.type='sawtooth';o.frequency.setValueAtTime(150,n);o.frequency.linearRampToValueAtTime(100,n+.2);
+        g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);
+    }
+    o.start(n); o.stop(n+0.4);
+}
+
+function startMusic(){
+    let s=0; 
+    // Bassline oscura estilo industrial
+    const m=[55,0,55,0,65,0,55,0,82,0,55,0,73,0,55,0]; 
+    clearInterval(musicInterval);
+    musicInterval=setInterval(()=>{
+        if(m[s]>0){
+            const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+            o.type='square';o.frequency.value=m[s];
+            // Filtro lowpass para que suene como bajo
+            const f = audioCtx.createBiquadFilter();
+            f.type = 'lowpass'; f.frequency.value = 400;
+            o.connect(f); f.connect(g); g.connect(audioCtx.destination);
+            
+            g.gain.value=.03;g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.15);
+            o.start();o.stop(audioCtx.currentTime+.2);
+        }
+        s=(s+1)%m.length;
+    },200);
+}
+
+// Variables de Juego
+let gameRunning = false;
+let lastTime = 0;
+let score = 0;
+let lives = 5;
+let currentCategory = 'LEVEL_1';
+let dropSpeed = 2; // Velocidad base
+
+// Sistema de Carriles (Lanes)
+const LANES = 4;
+let laneWidth = 0;
+// Las 4 categorías gramaticales
+const BASKETS = [
+    {label: "V1", sub: "INFINITIVE", color: "#00aaff", type: "v1"},
+    {label: "V2", sub: "PAST", color: "#ffae00", type: "v2"},
+    {label: "V3", sub: "PARTICIPLE", color: "#ff5500", type: "v3"},
+    {label: "ING", sub: "GERUND", color: "#00ff88", type: "ing"}
+];
+
+// Objeto que cae
+let fallingWord = null; // {text: "WENT", type: "v2", lane: 1, y: 0, color: "white"}
+let particles = [];
+let feedbacks = []; // Textos flotantes "CORRECT!"
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    laneWidth = canvas.width / LANES;
+}
+window.addEventListener('resize', resize);
+
+// Render Categorías
+function renderCategories(){
+    categoryWrapper.innerHTML = '';
+    Object.keys(verbDB).forEach(k => {
+        const d = document.createElement('div');
+        d.className = 'category-chip' + (k===currentCategory ? ' active' : '');
+        d.innerText = k;
+        d.onclick = () => { currentCategory = k; renderCategories(); populateStudyGuide(); };
+        categoryWrapper.appendChild(d);
+    });
+}
+
+function spawnWord() {
+    const list = verbDB[currentCategory];
+    const verbObj = list[Math.floor(Math.random() * list.length)];
+    
+    // Elegir una forma aleatoria (v1, v2, v3, ing)
+    const types = ['v1', 'v2', 'v3', 'ing'];
+    const selectedType = types[Math.floor(Math.random() * types.length)];
+    const text = verbObj[selectedType];
+    
+    // Lane aleatorio inicial
+    const startLane = Math.floor(Math.random() * LANES);
+    
+    fallingWord = {
+        text: text,
+        type: selectedType, // La respuesta correcta
+        lane: startLane, // 0-3
+        y: -50,
+        verbRef: verbObj // Referencia para validaciones complejas si fuera necesario
+    };
+}
+
+function createExplosion(x, y, color) {
+    for(let i=0; i<15; i++){
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random()-0.5)*10,
+            vy: (Math.random()-0.5)*10,
+            life: 1.0,
+            color: color
+        });
+    }
+}
+
+function showFeedback(text, x, y, color) {
+    feedbacks.push({text, x, y, color, life: 1.0, yOffset: 0});
+}
+
+function update(dt) {
+    if(!gameRunning) return;
+    
+    // Mover palabra
+    if(fallingWord) {
+        let speed = dropSpeed;
+        if(keys['ArrowDown']) speed *= 4; // Fast drop
+        fallingWord.y += speed * (dt/16); // Normalizar con framerate
+        
+        // Colisión con el fondo (zona de canastas)
+        const basketY = canvas.height - 100;
+        
+        if(fallingWord.y > basketY) {
+            // Verificar respuesta
+            const targetBasket = BASKETS[fallingWord.lane];
+            const centerX = (fallingWord.lane * laneWidth) + (laneWidth/2);
+            
+            // Lógica Lingüística: ¿Coincide el tipo?
+            // Nota: Manejo básico de ambigüedad (si V2 y V3 son iguales, aceptamos estricto por ahora según spawn, o mejoramos lógica)
+            // Para simplificar y hacerlo justo: Comparamos el TEXTO contra la forma esperada en esa canasta.
+            // Si la palabra es "CUT" (V1) y cae en V2 (que también es "CUT"), es correcto.
+            
+            const expectedTextInBasket = fallingWord.verbRef[targetBasket.type];
+            
+            if (fallingWord.text === expectedTextInBasket) {
+                // Correcto
+                score += 10;
+                scoreEl.innerText = score;
+                createExplosion(centerX, basketY, targetBasket.color);
+                showFeedback("CORRECT!", centerX, basketY - 50, "#fff");
+                playSound('correct');
+                dropSpeed += 0.1; // Aumentar dificultad ligeramente
+            } else {
+                // Incorrecto
+                lives--;
+                livesEl.innerText = lives;
+                createExplosion(centerX, basketY, "#ff0000");
+                showFeedback("WRONG!", centerX, basketY - 50, "#ff0000");
+                playSound('wrong');
+                if(lives <= 0) { gameOver(); return; }
+            }
+            spawnWord();
+        }
+    } else {
+        spawnWord();
+    }
+    
+    // Partículas
+    for(let i=particles.length-1; i>=0; i--){
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+        if(p.life <= 0) particles.splice(i,1);
+    }
+    
+    // Feedbacks
+    for(let i=feedbacks.length-1; i>=0; i--){
+        let f = feedbacks[i];
+        f.yOffset -= 1; f.life -= 0.02;
+        if(f.life <= 0) feedbacks.splice(i,1);
+    }
+}
+
+function draw() {
+    if(!gameRunning) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Dibujar Carriles (Fondo)
+    for(let i=0; i<LANES; i++) {
+        ctx.strokeStyle = '#221100';
+        ctx.beginPath();
+        ctx.moveTo(i*laneWidth, 0);
+        ctx.lineTo(i*laneWidth, canvas.height);
+        ctx.stroke();
+    }
+    
+    // Dibujar Canastas
+    const basketH = 100;
+    const basketY = canvas.height - basketH;
+    
+    for(let i=0; i<LANES; i++) {
+        const b = BASKETS[i];
+        const x = i * laneWidth;
+        
+        // Fondo de canasta
+        ctx.fillStyle = 'rgba(10,5,0,0.8)';
+        ctx.fillRect(x + 5, basketY, laneWidth - 10, basketH);
+        
+        // Borde brillante
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 5, basketY, laneWidth - 10, basketH);
+        
+        // Texto
+        ctx.fillStyle = b.color;
+        ctx.textAlign = 'center';
+        ctx.font = '20px "Press Start 2P"';
+        ctx.fillText(b.label, x + laneWidth/2, basketY + 40);
+        ctx.font = '10px "Press Start 2P"';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText(b.sub, x + laneWidth/2, basketY + 70);
+    }
+    
+    // Dibujar Palabra cayendo
+    if(fallingWord) {
+        const x = (fallingWord.lane * laneWidth) + (laneWidth/2);
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = 'center';
+        ctx.font = '20px "Press Start 2P"';
+        ctx.shadowColor = BASKETS[fallingWord.lane].color; // Glow del carril actual
+        ctx.shadowBlur = 10;
+        ctx.fillText(fallingWord.text, x, fallingWord.y);
+        ctx.shadowBlur = 0;
+    }
+    
+    // Partículas
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 4, 4);
+    });
+    ctx.globalAlpha = 1;
+    
+    // Feedback text
+    feedbacks.forEach(f => {
+        ctx.globalAlpha = f.life;
+        ctx.fillStyle = f.color;
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText(f.text, f.x, f.y + f.yOffset);
+    });
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(() => {
+        const now = performance.now();
+        update(now - lastTime);
+        lastTime = now;
+        draw();
+    });
+}
+
+function gameOver(){
+    gameRunning = false;
+    clearInterval(musicInterval);
+    document.getElementById('finalScore').innerText = score;
+    gameOverScreen.style.display = 'flex';
+}
+
+function startGame(){
+    if(gameRunning) return;
+    resize();
+    startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
+    score=0; lives=5; dropSpeed=2; particles=[]; feedbacks=[];
+    scoreEl.innerText='0'; livesEl.innerText='5';
+    populateStudyGuide();
+    spawnWord();
+    gameRunning=true; lastTime=performance.now();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    startMusic();
+    draw();
+}
+
+// --- STUDY GUIDE LOGIC ---
+function populateStudyGuide(){
+    studyTitle.textContent = currentCategory;
+    const list = verbDB[currentCategory];
+    let html = '<table><thead><tr><th>INFINITIVE</th><th>PAST</th><th>PARTICIPLE</th><th>GERUND</th><th>TRAD.</th></tr></thead><tbody>';
+    list.forEach(w => {
+        html += `<tr>
+            <td style="color:#00aaff">${w.v1}</td>
+            <td style="color:#ffae00">${w.v2}</td>
+            <td style="color:#ff5500">${w.v3}</td>
+            <td style="color:#00ff88">${w.ing}</td>
+            <td style="color:#fff">${w.tr}</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    studyTableContainer.innerHTML = html;
+}
+
+function toggleStudyGuide(){
+    const isOpen = studyGuide.style.display === 'flex';
+    if(isOpen) {
+        studyGuide.style.display = 'none';
+        if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
+            gameRunning = true;
+            lastTime = performance.now();
+            startMusic();
+            draw();
+        }
+        // Foco seguro
+        requestAnimationFrame(()=>{
+             if(document.activeElement) document.activeElement.blur();
+             const resumeHandler = () => {
+                 document.removeEventListener('click', resumeHandler);
+                 document.removeEventListener('keydown', resumeHandler);
+                 document.getElementById('resumeHint')?.remove();
+             };
+             document.addEventListener('click', resumeHandler);
+             document.addEventListener('keydown', resumeHandler);
+             
+             const msg = document.createElement('div');
+             msg.id = 'resumeHint';
+             msg.textContent = 'PRESS ANY KEY TO RESUME';
+             msg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--neon-amber);padding:20px;border:1px solid var(--neon-amber);background:rgba(0,0,0,0.8);animation:blinker 1.5s infinite;pointer-events:none;';
+             document.body.appendChild(msg);
+        });
+    } else {
+        gameRunning = false;
+        clearInterval(musicInterval);
+        populateStudyGuide();
+        studyGuide.style.display = 'flex';
+    }
+}
+
+// --- CONTROLES (Left/Right para Lanes) ---
+let keys = {};
+document.addEventListener('keydown', e => {
+    if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
+        e.preventDefault(); toggleStudyGuide(); return;
+    }
+    keys[e.code] = true;
+    
+    if(!gameRunning) return;
+    
+    if(e.code === 'ArrowLeft') {
+        if(fallingWord && fallingWord.lane > 0) {
+            fallingWord.lane--;
+            playSound('move');
+        }
+    }
+    if(e.code === 'ArrowRight') {
+        if(fallingWord && fallingWord.lane < LANES - 1) {
+            fallingWord.lane++;
+            playSound('move');
+        }
+    }
+});
+
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+// Init
+window.onload = () => { resize(); renderCategories(); populateStudyGuide(); };
+</script>
+</body>
+</html>
