@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Synonym Hunter: Neon Edition</title>
+    <title>Vocabulary Hunter: Smart Filter</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -15,16 +15,33 @@
         }
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
         canvas {display:block;}
-        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.2) 50%,rgba(0,0,0,0.2));background-size:100% 4px;z-index:999;pointer-events:none;}
+        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));background-size:100% 4px;z-index:999;pointer-events:none;}
+        
         #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
-        #category-bar-wrapper {position:absolute;bottom:30px;left:0;width:100%;padding:10px 0;background:rgba(0,0,0,0.85);z-index:15;overflow-x:auto;white-space:nowrap;display:flex;justify-content:center;border-top:1px solid #333;box-shadow:0 -5px 15px rgba(0,255,0,0.1);}
-        .category-chip {padding:8px 16px;margin:0 8px;background:#111;color:#666;font-size:10px;cursor:pointer;border:1px solid #444;transition:.2s;pointer-events:all;display:inline-block;}
-        .category-chip:hover {border-color:#888;color:#888;}
-        .category-chip.active {color:var(--neon-green);background:#002200;border-color:var(--neon-green);box-shadow:0 0 10px var(--neon-green);}
-        .category-chip.help-btn {border-color:var(--neon-yellow);color:var(--neon-yellow);}
-        .category-chip.help-btn:hover {background:#222200;box-shadow:0 0 10px var(--neon-yellow);}
+        
+        /* BARRA INFERIOR */
+        #category-bar-wrapper {
+            position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
+            background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
+            display:flex; justify-content:center; border-top:1px solid #333;
+            box-shadow:0 -5px 15px rgba(0,255,0,0.1);
+        }
+        .category-chip {
+            padding:8px 16px; margin:0 8px; background:#111; color:#666;
+            font-size:10px; cursor:pointer; border:1px solid #444; transition:.2s;
+            pointer-events:all; display:inline-block;
+        }
+        .category-chip:hover { border-color:#888; color:#888; }
+        .category-chip.active {
+            color:var(--neon-green); background:#002200;
+            border-color:var(--neon-green); box-shadow:0 0 10px var(--neon-green);
+        }
+        .category-chip.help-btn { border-color:var(--neon-yellow); color:var(--neon-yellow); }
+        .category-chip.help-btn:hover { background:#222200; box-shadow:0 0 10px var(--neon-yellow); }
+        
+        /* OVERLAYS */
         .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
         h1 {color:var(--neon-green);text-shadow:4px 4px #003300;font-size:35px;margin-bottom:20px;line-height:1.5;}
         h2 {color:var(--neon-red);font-size:30px;margin-bottom:20px;text-shadow:3px 3px 0 #300;}
@@ -32,56 +49,133 @@
         .key-hint {display:inline-block;padding:2px 6px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;}
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
-        @keyframes blinker-soft {50%{opacity:0.3;}}
-        #study-content {background:var(--panel-bg);padding:30px;border:2px solid var(--neon-green);width:80%;max-width:800px;height:70%;overflow-y:auto;position:relative;box-shadow:0 0 30px rgba(0,255,0,0.2);text-align:left;}
-        #study-content::-webkit-scrollbar {width:10px;}
-        #study-content::-webkit-scrollbar-track {background:#111;}
-        #study-content::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
-        #study-content table {width:100%;border-collapse:separate;border-spacing:0;margin-top:20px;font-size:12px;}
-        #study-content th {color:var(--neon-green);text-align:left;border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;z-index:2;}
-        #study-content td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
-        #study-content tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
-        #study-content .en-word {color:var(--neon-blue);font-weight:bold;}
-        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;}
+        
+        /* MODAL */
+        #study-content {
+            background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
+            width:80%; max-width:800px; height:70%; display: flex; flex-direction: column;
+            position:relative; box-shadow:0 0 30px rgba(0,255,0,0.2); text-align:left;
+        }
+        .tabs-header { display: flex; border-bottom: 2px solid var(--neon-green); margin-bottom: 20px; }
+        .tab-btn {
+            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 12px;
+            background: transparent; border: none; color: #666; font-family: 'Press Start 2P'; transition: 0.2s;
+        }
+        .tab-btn:hover { background: #002200; color: #fff; }
+        .tab-btn.active { background: var(--neon-green); color: #000; font-weight: bold; }
+        .tab-content { flex: 1; overflow-y: auto; display: none; }
+        .tab-content.active { display: block; }
+        
+        table {width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+        th {color:var(--neon-green);text-align:left;border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;z-index:2;}
+        td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
+        tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
+        .en-word {color:var(--neon-blue);font-weight:bold;}
+        .chk-cell { width: 40px; text-align: center; }
+
+        /* CHECKBOX STYLE */
+        input[type=checkbox] {
+            width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer;
+        }
+
+        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
+        .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
+        .config-val { color: var(--neon-yellow); }
+        .slider-desc { font-size: 8px; color: #666; margin-top: 5px; display: flex; justify-content: space-between; }
+        
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon-green); }
+        input[type=color] { cursor: pointer; border: none; width: 50px; height: 30px; }
+        select { width: 100%; padding: 10px; background: #111; color: var(--neon-green); border: 1px solid var(--neon-green); font-family: 'Press Start 2P'; font-size: 10px; cursor: pointer; margin-top: 5px; }
+        select:focus { outline: none; background: #222; }
+        .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
+        .reset-btn:hover { background: var(--neon-red); color: #000; }
+        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
         .close-btn:hover {background:var(--neon-red);color:#000;}
+        
+        ::-webkit-scrollbar {width:10px;}
+        ::-webkit-scrollbar-track {background:#111;}
+        ::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
     </style>
 </head>
 <body>
-    <div class="scanlines"></div>
     <div id="ui">
         <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
         <div id="lives-panel">LIVES: <span id="lives">5</span></div>
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
+    
     <div id="category-bar-wrapper"></div>
 
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
-        <h1>SYNONYM HUNTER</h1>
+        <h1>VOCAB ROBOT</h1>
         <p>
-            1. Enemies descend with English words.<br>
-            2. Shoot to cycle them through translations.<br>
-            3. Cycle: EN → SP (Primary) → SP (Synonym) → EN → DESTROY<br><br>
-            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Help
+            1. Enemies drop English words & <strong>Bombs</strong>.<br>
+            2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
+            3. Shoot Parachutes to hear them.<br><br>
+            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Menu
         </p>
-        <div class="blink">CLICK TO START MISSION</div>
+        <div class="blink">CLICK TO START</div>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
         <h2>MISSION FAILED</h2>
         <p>FINAL SCORE: <span id="finalScore" style="color:white;">0</span></p>
-        <p>NEW HIGH SCORE: <span id="newHighScore" style="color:var(--neon-green);">NO</span></p>
         <div class="blink">CLICK TO RETRY</div>
     </div>
 
     <div id="study-guide" class="overlay-screen" style="display:none;">
         <div id="study-content">
             <span class="close-btn" onclick="toggleStudyGuide()">X</span>
-            <h2 style="color:var(--neon-green);margin-top:0;text-transform:uppercase;border-bottom:1px solid #333;padding-bottom:10px;font-size:18px;">
-                DATABASE: <span id="study-category-title" style="color:white;">NOUNS</span>
-            </h2>
-            <div id="study-table-container"></div>
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab('db')">DATABASE</button>
+                <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
+            </div>
+            
+            <div id="tab-db" class="tab-content active">
+                <h2 id="db-title" class="config-header">ACTIVE VOCABULARY</h2>
+                <div class="config-group" style="margin-bottom: 10px;">
+                    <label class="config-label">DATA USAGE LIMIT<span id="lbl-percent" class="config-val">100%</span></label>
+                    <input type="range" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
+                    <div class="slider-desc"><span>START</span><span>ALL DATA</span></div>
+                </div>
+                <div id="study-table-container"></div>
+            </div>
+
+            <div id="tab-settings" class="tab-content">
+                <h2 class="config-header">SYSTEM CONFIG</h2>
+                <div class="config-group">
+                    <label class="config-label">VOCABULARY SOURCE</label>
+                    <select id="cfg-source" onchange="updateConfig('source')"></select>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">5</span></label>
+                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="5" oninput="updateConfig('spawn')">
+                    <div class="slider-desc"><span>FEW</span><span>MANY</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">1.0x</span></label>
+                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="1.0" oninput="updateConfig('speed')">
+                    <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">30%</span></label>
+                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="30" oninput="updateConfig('bomb')">
+                    <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">2.0</span></label>
+                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="2.0" oninput="updateConfig('bspeed')">
+                    <div class="slider-desc"><span>FLOAT</span><span>DROP</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">PLAYER COLOR</label>
+                    <input type="color" id="cfg-color" value="#4f46e5" onchange="updateConfig('color')">
+                </div>
+                <button class="reset-btn" onclick="resetConfig()">RESET DEFAULTS</button>
+            </div>
             <p style="margin-top:20px;text-align:center;color:#666;font-size:10px;">
-                GAME PAUSED. PRESS <span class="key-hint">TAB</span> OR <span class="key-hint">ESC</span> TO RESUME.
+                GAME PAUSED. PRESS <span class="key-hint">TAB</span> TO RESUME.
             </p>
         </div>
     </div>
@@ -89,30 +183,307 @@
     <canvas id="gameCanvas"></canvas>
 
 <script>
-const wordsDB = {
-    'NOUNS': [
-        {en: "MALAISE", es: ["MALESTAR", "INDISPOSICIÓN", "DECAIMIENTO"]},
-        {en: "CULMINATION", es: ["EPÍLOGO", "CESE", "PERORATA"]},
-        {en: "AVARICE", es: ["CODICIA", "USURA", "CAJETERÍA"]},
-        {en: "MENDICANT", es: ["INDIGENTE", "MENDIGO", "LIMOSNERO"]},
-        {en: "TREPIDATION", es: ["TEMOR", "MIEDO", "RECELO"]}
-    ],
+/* =========================================
+   1. INTERNAL DATA
+   ========================================= */
+const INTERNAL_VOCAB = {
+    // ==================== VERBOS MÁS FRECUENTES (50) ====================
     'VERBS': [
-        {en: "PREVARICATE", es: ["ENGAÑAR", "EVASIVA", "MENTIR"]},
-        {en: "ESCHEW", es: ["EVITAR", "REHUIR", "ELUDIR"]},
-        {en: "JETTISON", es: ["DESECHAR", "ABANDONAR", "DESCARTAR"]},
-        {en: "DENIGRATE", es: ["DIFAMAR", "CALUMNIAR", "VILIPENDIAR"]},
-        {en: "UPBRAID", es: ["CRITICAR", "REPRENDER", "RECENSURAR"]}
+        {en:"BE", es:"SER/ESTAR"}, {en:"HAVE", es:"TENER"}, {en:"DO", es:"HACER"}, {en:"SAY", es:"DECIR"},
+        {en:"GO", es:"IR"}, {en:"GET", es:"OBTENER"}, {en:"MAKE", es:"HACER"}, {en:"KNOW", es:"SABER"},
+        {en:"THINK", es:"PENSAR"}, {en:"TAKE", es:"TOMAR"}, {en:"SEE", es:"VER"}, {en:"COME", es:"VENIR"},
+        {en:"WANT", es:"QUERER"}, {en:"LOOK", es:"MIRAR"}, {en:"USE", es:"USAR"}, {en:"FIND", es:"ENCONTRAR"},
+        {en:"GIVE", es:"DAR"}, {en:"TELL", es:"DECIR/CONTAR"}, {en:"WORK", es:"TRABAJAR"}, {en:"CALL", es:"LLAMAR"},
+        {en:"TRY", es:"INTENTAR"}, {en:"ASK", es:"PREGUNTAR"}, {en:"NEED", es:"NECESITAR"}, {en:"FEEL", es:"SENTIR"},
+        {en:"BECOME", es:"LLEGAR A SER"}, {en:"LEAVE", es:"SALIR/DEJAR"}, {en:"PUT", es:"PONER"}, {en:"MEAN", es:"SIGNIFICAR"},
+        {en:"KEEP", es:"MANTENER"}, {en:"LET", es:"DEJAR"}, {en:"BEGIN", es:"EMPEZAR"}, {en:"SEEM", es:"PARECER"},
+        {en:"HELP", es:"AYUDAR"}, {en:"TALK", es:"HABLAR"}, {en:"TURN", es:"GIRAR"}, {en:"START", es:"EMPEZAR"},
+        {en:"SHOW", es:"MOSTRAR"}, {en:"HEAR", es:"OÍR"}, {en:"PLAY", es:"JUGAR"}, {en:"RUN", es:"CORRER"},
+        {en:"MOVE", es:"MOVER"}, {en:"LIKE", es:"GUSTAR"}, {en:"LIVE", es:"VIVIR"}, {en:"BELIEVE", es:"CREER"},
+        {en:"HOLD", es:"SOSTENER"}, {en:"BRING", es:"TRAER"}, {en:"HAPPEN", es:"OCURRIR"}, {en:"WRITE", es:"ESCRIBIR"},
+        {en:"SIT", es:"SENTAR"}, {en:"STAND", es:"ESTAR DE PIE"}, {en:"LOSE", es:"PERDER"}
     ],
+
+    // ==================== SUSTANTIVOS MÁS FRECUENTES (60) ====================
+    'NOUNS': [
+        {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
+        {en:"DAY", es:"DÍA"}, {en:"THING", es:"COSA"}, {en:"MAN", es:"HOMBRE"}, {en:"WORLD", es:"MUNDO"},
+        {en:"LIFE", es:"VIDA"}, {en:"HAND", es:"MANO"}, {en:"PART", es:"PARTE"}, {en:"CHILD", es:"NIÑO/A"},
+        {en:"EYE", es:"OJO"}, {en:"WOMAN", es:"MUJER"}, {en:"PLACE", es:"LUGAR"}, {en:"WORK", es:"TRABAJO"},
+        {en:"WEEK", es:"SEMANA"}, {en:"CASE", es:"CASO"}, {en:"POINT", es:"PUNTO"}, {en:"GOVERNMENT", es:"GOBIERNO"},
+        {en:"COMPANY", es:"EMPRESA"}, {en:"NUMBER", es:"NÚMERO"}, {en:"GROUP", es:"GRUPO"}, {en:"PROBLEM", es:"PROBLEMA"},
+        {en:"FACT", es:"HECHO"}, {en:"HOUSE", es:"CASA"}, {en:"SERVICE", es:"SERVICIO"}, {en:"FRIEND", es:"AMIGO"},
+        {en:"FATHER", es:"PADRE"}, {en:"POWER", es:"PODER"}, {en:"HOUR", es:"HORA"}, {en:"GAME", es:"JUEGO"},
+        {en:"LINE", es:"LÍNEA"}, {en:"END", es:"FIN"}, {en:"MEMBER", es:"MIEMBRO"}, {en:"LAW", es:"LEY"},
+        {en:"CAR", es:"COCHE"}, {en:"CITY", es:"CIUDAD"}, {en:"COMMUNITY", es:"COMUNIDAD"}, {en:"NAME", es:"NOMBRE"},
+        {en:"PRESIDENT", es:"PRESIDENTE"}, {en:"TEAM", es:"EQUIPO"}, {en:"MINUTE", es:"MINUTO"}, {en:"IDEA", es:"IDEA"},
+        {en:"KID", es:"NIÑO"}, {en:"BODY", es:"CUERPO"}, {en:"INFORMATION", es:"INFORMACIÓN"}, {en:"BACK", es:"ESPALDA"},
+        {en:"PARENT", es:"PADRE/MADRE"}, {en:"FACE", es:"CARA"}, {en:"OTHERS", es:"OTROS"}, {en:"HOME", es:"HOGAR"},
+        {en:"SCHOOL", es:"ESCUELA"}, {en:"WATER", es:"AGUA"}, {en:"WORD", es:"PALABRA"}, {en:"AREA", es:"ÁREA"},
+        {en:"MONEY", es:"DINERO"}, {en:"STORY", es:"HISTORIA"}, {en:"MORNING", es:"MAÑANA"}, {en:"MOM", es:"MAMÁ"}
+    ],
+
+    // ==================== ADJETIVOS MÁS FRECUENTES (40) ====================
     'ADJECTIVES': [
-        {en: "PLIABLE", es: ["DÚCTIL", "MOLDEABLE", "FLEXIBLE"]},
-        {en: "ERUDITE", es: ["DOCTO", "VERSADO", "SABIO"]},
-        {en: "LACONIC", es: ["CONCISO", "SUCINTO", "BREVE"]},
-        {en: "STOLID", es: ["IMPÁVIDO", "IMPONENTE", "APLOMADO"]},
-        {en: "SANGUINE", es: ["OPTIMISTA", "ENTUSIASTA", "VITAL"]}
+        {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
+        {en:"LONG", es:"LARGO"}, {en:"GREAT", es:"GENIAL/GRANDE"}, {en:"LITTLE", es:"PEQUEÑO"}, {en:"OWN", es:"PROPIO"},
+        {en:"OTHER", es:"OTRO"}, {en:"OLD", es:"VIEJO"}, {en:"RIGHT", es:"CORRECTO/DERECHO"}, {en:"BIG", es:"GRANDE"},
+        {en:"HIGH", es:"ALTO"}, {en:"DIFFERENT", es:"DIFERENTE"}, {en:"SMALL", es:"PEQUEÑO"}, {en:"LARGE", es:"GRANDE"},
+        {en:"NEXT", es:"SIGUIENTE"}, {en:"EARLY", es:"TEMPRANO"}, {en:"YOUNG", es:"JOVEN"}, {en:"IMPORTANT", es:"IMPORTANTE"},
+        {en:"FEW", es:"POCOS"}, {en:"PUBLIC", es:"PÚBLICO"}, {en:"BAD", es:"MALO"}, {en:"SAME", es:"MISMO"},
+        {en:"ABLE", es:"CAPAZ"}, {en:"HAPPY", es:"FELIZ"}, {en:"EASY", es:"FÁCIL"}, {en:"BEST", es:"MEJOR"},
+        {en:"BEAUTIFUL", es:"HERMOSO"}, {en:"TRUE", es:"VERDADERO"}, {en:"FREE", es:"LIBRE/GRATIS"}, {en:"HARD", es:"DURO/DIFÍCIL"},
+        {en:"BETTER", es:"MEJOR"}, {en:"SURE", es:"SEGURO"}, {en:"POSSIBLE", es:"POSIBLE"}, {en:"FULL", es:"LLENO"},
+        {en:"STRONG", es:"FUERTE"}, {en:"HOT", es:"CALIENTE"}, {en:"COLD", es:"FRÍO"}, {en:"NICE", es:"AMABLE/LINDO"}
+    ],
+
+    // ==================== BONUS: PALABRAS FUNCIONALES & PREPOSICIONES (30) ====================
+    'FUNCTION WORDS': [
+        {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
+        {en:"TO", es:"A/PARA"}, {en:"IN", es:"EN"}, {en:"IS", es:"ES"}, {en:"YOU", es:"TÚ/USTED"},
+        {en:"THAT", es:"QUE/ESE"}, {en:"IT", es:"ELLO/LO"}, {en:"HE", es:"ÉL"}, {en:"WAS", es:"ERA/FUE"},
+        {en:"FOR", es:"PARA"}, {en:"ON", es:"SOBRE/EN"}, {en:"ARE", es:"SON/ESTÁN"}, {en:"AS", es:"COMO"},
+        {en:"WITH", es:"CON"}, {en:"HIS", es:"SU (DE ÉL)"}, {en:"THEY", es:"ELLOS"}, {en:"I", es:"YO"},
+        {en:"AT", es:"EN/A"}, {en:"BE", es:"SER/ESTAR"}, {en:"THIS", es:"ESTE"}, {en:"HAVE", es:"TENER"},
+        {en:"FROM", es:"DE/DESDE"}, {en:"OR", es:"O"}, {en:"ONE", es:"UNO"}, {en:"HAD", es:"HABÍA/TUVO"},
+        {en:"BY", es:"POR"}, {en:"BUT", es:"PERO"}
+    ],
+
+    // ==================== ANIMALES COMUNES (20) ====================
+    'ANIMALS': [
+        {en:"DOG", es:"PERRO"}, {en:"CAT", es:"GATO"}, {en:"BIRD", es:"PÁJARO"}, {en:"FISH", es:"PEZ"},
+        {en:"HORSE", es:"CABALLO"}, {en:"LION", es:"LEÓN"}, {en:"TIGER", es:"TIGRE"}, {en:"BEAR", es:"OSO"},
+        {en:"ELEPHANT", es:"ELEFANTE"}, {en:"MONKEY", es:"MONO"}, {en:"SNAKE", es:"SERPIENTE"}, {en:"COW", es:"VACA"},
+        {en:"PIG", es:"CERDO"}, {en:"CHICKEN", es:"POLLO"}, {en:"SHEEP", es:"OVEJA"}, {en:"RABBIT", es:"CONEJO"},
+        {en:"FROG", es:"RANA"}, {en:"SPIDER", es:"ARAÑA"}, {en:"WOLF", es:"LOBO"}, {en:"FOX", es:"ZORRO"}
+    ],
+
+    // ==================== COLORES + NÚMEROS BÁSICOS (20) ====================
+    'COLORS & NUMBERS': [
+        {en:"ONE", es:"UNO"}, {en:"TWO", es:"DOS"}, {en:"THREE", es:"TRES"}, {en:"RED", es:"ROJO"},
+        {en:"BLUE", es:"AZUL"}, {en:"GREEN", es:"VERDE"}, {en:"YELLOW", es:"AMARILLO"}, {en:"BLACK", es:"NEGRO"},
+        {en:"WHITE", es:"BLANCO"}, {en:"FOUR", es:"CUATRO"}, {en:"FIVE", es:"CINCO"}, {en:"SIX", es:"SEIS"},
+        {en:"ORANGE", es:"NARANJA"}, {en:"PURPLE", es:"PÚRPURA"}, {en:"PINK", es:"ROSA"}, {en:"BROWN", es:"MARRÓN"},
+        {en:"GRAY", es:"GRIS"}, {en:"SEVEN", es:"SIETE"}, {en:"EIGHT", es:"OCHO"}, {en:"NINE", es:"NUEVE"}
     ]
 };
 
+/* =========================================
+   2. CONFIGURATION & STATE
+   ========================================= */
+const CONFIG_KEY = 'vocab_robot_config_v7';
+const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
+
+let userSettings = {
+    vocabSource: 'LOCAL', 
+    dataPercent: 100, 
+    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5'
+};
+let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
+let disabledWords = new Set(); // SET PARA PALABRAS DESACTIVADAS
+
+// --- MENUS & UI ---
+function renderCategoryBar() {
+    const wrapper = document.getElementById('category-bar-wrapper');
+    wrapper.innerHTML = '';
+    const opts = [{val: 'LOCAL', txt: 'MY DB'}, {val: 'MIXED', txt: 'MIXED'}, {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}];
+    Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: key}));
+
+    opts.forEach(o => {
+        const chip = document.createElement('div');
+        chip.className = 'category-chip' + (userSettings.vocabSource === o.val ? ' active' : '');
+        chip.textContent = o.txt;
+        chip.onclick = () => {
+            document.getElementById('cfg-source').value = o.val;
+            updateConfig('source');
+        };
+        wrapper.appendChild(chip);
+    });
+
+    const help = document.createElement('div');
+    help.className = 'category-chip help-btn';
+    help.textContent = 'CONFIG / HELP';
+    help.onclick = toggleStudyGuide;
+    wrapper.appendChild(help);
+}
+
+function updateDataPercent(val) {
+    userSettings.dataPercent = parseInt(val);
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+    updateConfig('percent_only');
+}
+
+function populateSourceMenu() {
+    const select = document.getElementById('cfg-source');
+    select.innerHTML = '';
+    const opts = [
+        {val: 'LOCAL', txt: 'MY DATABASE (Custom)'},
+        {val: 'ALL_INTERNAL', txt: 'INTERNAL: ALL MIXED'},
+        {val: 'MIXED', txt: 'EVERYTHING (Local + Internal)'}
+    ];
+    Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: `INTERNAL: ${key}`}));
+    opts.forEach(o => {
+        const op = document.createElement('option');
+        op.value = o.val; op.textContent = o.txt;
+        select.appendChild(op);
+    });
+}
+
+function loadConfig() {
+    populateSourceMenu();
+    // 1. Config
+    const saved = localStorage.getItem(CONFIG_KEY);
+    if(saved) {
+        try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
+        catch(e) { console.error("Config error", e); }
+    }
+    // 2. Disabled Words
+    const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
+    if(savedDisabled) {
+        try { disabledWords = new Set(JSON.parse(savedDisabled)); }
+        catch(e) { disabledWords = new Set(); }
+    }
+
+    applyConfigToUI();
+    recalcGameVars();
+}
+
+function applyConfigToUI() {
+    document.getElementById('cfg-source').value = userSettings.vocabSource;
+    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
+    document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
+    document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
+    document.getElementById('cfg-speed').value = userSettings.enemySpeed;
+    document.getElementById('val-speed').textContent = userSettings.enemySpeed + "x";
+    document.getElementById('cfg-bomb').value = userSettings.bombChance;
+    document.getElementById('val-bomb').textContent = userSettings.bombChance + "%";
+    document.getElementById('cfg-bspeed').value = userSettings.bombSpeed;
+    document.getElementById('val-bspeed').textContent = userSettings.bombSpeed;
+    document.getElementById('cfg-color').value = userSettings.playerColor;
+    player.color = userSettings.playerColor;
+}
+
+function recalcGameVars() {
+    gameVars.spawnInterval = 5500 - (userSettings.spawnLevel * 500); 
+    gameVars.bombProb = userSettings.bombChance / 2000; 
+}
+
+function updateConfig(key) {
+    if(key === 'source') {
+        userSettings.vocabSource = document.getElementById('cfg-source').value;
+        loadVocabData(); populateStudyGuide(); renderCategoryBar();
+        if(gameRunning) enemies = []; 
+    }
+    else if(key === 'percent_only') {
+        loadVocabData(); populateStudyGuide();
+        if(gameRunning) enemies = [];
+    }
+    else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
+    else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
+    else if(key === 'bomb') userSettings.bombChance = parseInt(document.getElementById('cfg-bomb').value);
+    else if(key === 'bspeed') userSettings.bombSpeed = parseFloat(document.getElementById('cfg-bspeed').value);
+    else if(key === 'color') {
+        userSettings.playerColor = document.getElementById('cfg-color').value;
+        player.color = userSettings.playerColor;
+    }
+    
+    if(key !== 'percent_only') {
+        applyConfigToUI(); 
+    }
+    recalcGameVars();
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(userSettings));
+}
+
+function resetConfig() {
+    localStorage.removeItem(CONFIG_KEY);
+    localStorage.removeItem(DISABLED_WORDS_KEY); // Resetear también las palabras desactivadas
+    disabledWords.clear();
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5' };
+    loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    if(tabName === 'db') document.querySelector('button[onclick="switchTab(\'db\')"]').classList.add('active');
+    else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
+}
+
+// --- 3. DATA LOADING & FILTERING ---
+let activeVocabList = []; // Lista visual completa
+let gameDeck = [];        // Lista real para el juego (filtrada)
+
+function loadVocabData() {
+    let tempVocabList = [];
+    const countWords = (str) => str.trim().split(/\s+/).length;
+    const processItem = (en, es) => {
+        if(en && es && countWords(en) <= 2) {
+            tempVocabList.push({en: en.toUpperCase(), es: [es.toUpperCase()]});
+        }
+    };
+
+    if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
+        try {
+            const saved = localStorage.getItem('mdc_vocab_list');
+            const items = saved ? JSON.parse(saved) : [];
+            items.forEach(item => {
+                if (item.isFolder && item.items) {
+                    item.items.forEach(sub => processItem(sub.eng, sub.esp));
+                } else if (!item.isFolder) {
+                    processItem(item.eng, item.esp);
+                }
+            });
+        } catch (e) { console.error("Local Load Error", e); }
+    }
+
+    if (userSettings.vocabSource !== 'LOCAL') {
+        let sourcesToLoad = [];
+        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED') {
+            sourcesToLoad = Object.keys(INTERNAL_VOCAB);
+        } else {
+            sourcesToLoad = [userSettings.vocabSource];
+        }
+        sourcesToLoad.forEach(catKey => {
+            if(INTERNAL_VOCAB[catKey]) {
+                INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
+            }
+        });
+    }
+
+    // 1. Aplicar filtro de Porcentaje
+    if (tempVocabList.length > 0) {
+        const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
+        activeVocabList = tempVocabList.slice(0, limit);
+    } else {
+        activeVocabList = [];
+    }
+
+    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+
+    // 2. Generar el Mazo de Juego (Filtrando las desactivadas)
+    refreshGameDeck();
+}
+
+function refreshGameDeck() {
+    gameDeck = activeVocabList.filter(item => !disabledWords.has(item.en));
+    if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
+}
+
+function toggleWordStatus(engWord) {
+    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
+    else disabledWords.add(engWord);
+    
+    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    refreshGameDeck();
+    // No recargamos toda la tabla para que sea rápido, solo la lógica interna
+}
+
+/* =========================================
+   4. GAME ENGINE (OPTIMIZED)
+   ========================================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
@@ -121,199 +492,312 @@ const livesEl = document.getElementById('lives');
 const highScoreEl = document.getElementById('highScore');
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
-const categoryBarWrapper = document.getElementById('category-bar-wrapper');
 const studyGuide = document.getElementById('study-guide');
-const studyCategoryTitle = document.getElementById('study-category-title');
 const studyTableContainer = document.getElementById('study-table-container');
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let musicInterval;
+let gameLoopId;
+
+function speak(text, lang) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    let textToSpeak = text;
+    if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
+    const u = new SpeechSynthesisUtterance(textToSpeak);
+    u.lang = lang; u.rate = 1.1; 
+    window.speechSynthesis.speak(u);
+}
 
 function playSound(type) {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     const n = audioCtx.currentTime;
     if(type==='shoot'){o.type='square';o.frequency.setValueAtTime(400,n);o.frequency.exponentialRampToValueAtTime(100,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.1);}
     else if(type==='hit_eng'){o.type='sawtooth';o.frequency.setValueAtTime(600,n);o.frequency.linearRampToValueAtTime(800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.15);}
     else if(type==='hit_syn'){o.type='sine';o.frequency.setValueAtTime(1200,n);o.frequency.linearRampToValueAtTime(1800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);}
-    else if(type==='hit_review'){o.type='square';o.frequency.setValueAtTime(440,n);g.gain.setValueAtTime(.08,n);g.gain.exponentialRampToValueAtTime(.01,n+.1);}
-    else if(type==='player_hit'){o.type='sawtooth';o.frequency.setValueAtTime(120,n);o.frequency.linearRampToValueAtTime(80,n+.3);g.gain.setValueAtTime(.1,n);g.gain.linearRampToValueAtTime(0,n+.5);}
+    else if(type==='player_hit'){o.type='sawtooth';o.frequency.setValueAtTime(120,n);o.frequency.linearRampToValueAtTime(8,n+.3);g.gain.setValueAtTime(.1,n);g.gain.linearRampToValueAtTime(0,n+.5);}
     o.start(n); o.stop(n + 0.5);
 }
 
-function startMusic(){let s=0;const m=[220,0,261,0,329,0,261,0];clearInterval(musicInterval);musicInterval=setInterval(()=>{if(m[s]>0){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='triangle';o.frequency.value=m[s]*.5;g.gain.value=.02;g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.15);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.25);}s=(s+1)%m.length;},200);}
-
-let gameRunning=false,score=0,combo=0,lives=5,highScore=0,lastTime=0,currentCategory='NOUNS';
-const SPAWN_INTERVAL=3500; let spawnTimer=SPAWN_INTERVAL;
-const player = {x:0,y:0,w:40,h:40,speed:8,color:'#4f46e5',invincible:false,invTimer:0};
-let bullets=[],enemies=[],particles=[],stars=[],keys={};
+let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
+let spawnTimer = 0;
+const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
+let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
 function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');highScore=s?parseInt(s):0;highScoreEl.innerText=highScore;}
-loadHighScore();
-
-function renderCategoryBar(){
-    categoryBarWrapper.innerHTML='';
-    Object.keys(wordsDB).forEach(c=>{
-        const chip=document.createElement('div');
-        chip.className='category-chip'+(c===currentCategory?' active':'');
-        chip.textContent=c;
-        chip.onclick=()=>setCategory(c);
-        categoryBarWrapper.appendChild(chip);
-    });
-    const help=document.createElement('div');
-    help.className='category-chip help-btn';
-    help.textContent='HELP / STUDY';
-    help.onclick=toggleStudyGuide;
-    categoryBarWrapper.appendChild(help);
-}
-
-function setCategory(c){
-    currentCategory=c;
-    renderCategoryBar();
-    if(gameRunning){spawnTimer=500;enemies.forEach(e=>e.fading=true);}
-}
 
 function populateStudyGuide(){
-    studyCategoryTitle.textContent=currentCategory;
-    const w=wordsDB[currentCategory];
-    let html='<table><thead><tr><th>ENGLISH</th><th>PRIMARY</th><th>SYN A</th><th>SYN B</th></tr></thead><tbody>';
-    w.forEach(v=>html+=`<tr><td class="en-word">${v.en}</td><td>${v.es[0]||"-"}</td><td>${v.es[1]||"-"}</td><td>${v.es[2]||"-"}</td></tr>`);
+    document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
+    let html='<table><thead><tr><th class="chk-cell">PLAY?</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    
+    activeVocabList.forEach(v => {
+        const isChecked = !disabledWords.has(v.en);
+        html += `<tr>
+            <td class="chk-cell">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${v.en.replace(/'/g, "\\'")}')">
+            </td>
+            <td class="en-word">${v.en}</td>
+            <td>${v.es[0]||"-"}</td>
+        </tr>`;
+    });
     html+='</tbody></table>';
     studyTableContainer.innerHTML=html;
 }
 
-/* FIX DEFINITIVO DEL FOCO */
 function toggleStudyGuide(){
     const isOpen = studyGuide.style.display==='flex';
     if(isOpen){
         studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
-            gameRunning=true;
-            lastTime=performance.now();
-            startMusic();
-            draw();
+            gameRunning=true; lastTime=performance.now(); 
+            gameLoopId = requestAnimationFrame(loop);
         }
-        requestAnimationFrame(()=>{
-            if(document.activeElement) document.activeElement.blur();
-            const resumeHandler = () => {
-                document.removeEventListener('click', resumeHandler);
-                document.removeEventListener('keydown', resumeHandler);
-                const msg = document.getElementById('resumeHint');
-                if(msg) msg.remove();
-            };
-            document.addEventListener('click', resumeHandler);
-            document.addEventListener('keydown', resumeHandler);
-            const msg=document.createElement('div');
-            msg.id='resumeHint';
-            msg.textContent='CLICK ANYWHERE OR PRESS ANY KEY TO RESUME';
-            msg.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,255,0,0.2);color:#0f0;padding:20px 40px;font-size:20px;z-index:10000;pointer-events:none;animation:blinker-soft 1.5s linear infinite;';
-            document.body.appendChild(msg);
-        });
     }else{
-        gameRunning=false;
-        clearInterval(musicInterval);
-        populateStudyGuide();
-        studyGuide.style.display='flex';
+        gameRunning=false; cancelAnimationFrame(gameLoopId);
+        populateStudyGuide(); studyGuide.style.display='flex';
     }
 }
 
 function resize(){
     canvas.width=innerWidth; canvas.height=innerHeight;
-    player.y=canvas.height-130;
-    player.x=canvas.width/2-player.w/2;
+    player.y=canvas.height-130; player.x=canvas.width/2-player.w/2;
 }
 window.addEventListener('resize',resize);
 
-for(let i=0;i<80;i++)stars.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,size:Math.random()*2,speed:Math.random()*0.2+0.1});
+for(let i=0;i<80;i++) stars.push({
+    x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+    size:Math.random()*2, speed:Math.random()*0.2+0.1,
+    alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
+});
 
-function spawnEnemy(){
-    const words=wordsDB[currentCategory]; if(!words||words.length===0)return;
-    const d=words[Math.floor(Math.random()*words.length)];
-    let indices=[1,2]; indices.sort(()=>Math.random()-.5);
-    const synPath=[0,indices[0]];
-    ctx.font='16px "Press Start 2P"';
-    const w=ctx.measureText(d.en).width;
-    enemies.push({x:Math.random()*(canvas.width-w-50)+w/2+25,y:-40,wordData:d,text:d.en,stage:0,synonymPath:synPath,speed:Math.random()*0.8+0.4,color:'#ffffff',timer:0,fading:false,w});
+function getRandomBombContent() {
+    if (Math.random() > 0.5) {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        return chars.charAt(Math.floor(Math.random() * chars.length));
+    } else {
+        return Math.floor(Math.random() * (9999 - 10) + 10).toString();
+    }
 }
 
-function createExplosion(x,y,c,n=10){for(let i=0;i<n;i++)particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});}
+function spawnEnemy(){
+    // USA EL MAZO DE JUEGO FILTRADO
+    if(gameDeck.length===0) return;
+    const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
+    
+    ctx.font='16px "Press Start 2P"';
+    const textWidth=ctx.measureText(d.en).width;
+    const vx = (Math.random() - 0.5) * 2.0;
+    const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
 
-function checkCollision(e){
-    const p={x:player.x,y:player.y,w:player.w,h:player.h};
-    const en={x:e.x-e.w/2,y:e.y-15,w:e.w,h:30};
-    return p.x<en.x+en.w&&p.x+p.w>en.x&&p.y<en.y+en.h&&p.y+p.h>en.y;
+    enemies.push({
+        x:Math.random()*(canvas.width-textWidth-50)+textWidth/2+25, 
+        y:-40, 
+        wordData:d, text:d.en, 
+        stage:0, hits:0, 
+        speed: baseSpeed, 
+        vx: vx, 
+        color:'#ffffff', 
+        timer:0, fading:false, w:textWidth, droppedBomb: false 
+    });
+}
+
+function createExplosion(x,y,c,n=10){
+    for(let i=0;i<n;i++) {
+        if(particles.length > 150) particles.shift();
+        particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
+    }
+}
+
+function checkCollisionRect(r1, r2) {
+    return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+}
+
+function drawRobot(ctx, x, y, w, h, color) {
+    ctx.fillStyle = color; ctx.fillRect(x + 8, y + 15, w - 16, h - 20);
+    ctx.fillStyle = '#ccc'; ctx.fillRect(x + 4, y, w - 8, 20);
+    ctx.fillStyle = gameRunning ? '#0f0' : '#f00';
+    ctx.fillRect(x + 10, y + 5, 8, 8); ctx.fillRect(x + w - 18, y + 5, 8, 8);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + w/2, y); ctx.lineTo(x + w/2, y - 10); ctx.stroke();
+    const time = Date.now();
+    ctx.fillStyle = (Math.floor(time/200)%2===0) ? 'red' : '#500';
+    ctx.beginPath(); ctx.arc(x + w/2, y - 10, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
+}
+
+function loop(timestamp) {
+    if (!gameRunning) return;
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+    update(dt);
+    draw(timestamp);
+    gameLoopId = requestAnimationFrame(loop);
 }
 
 function update(dt){
-    if(!gameRunning)return;
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
+    
     if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
-    stars.forEach(s=>{s.y+=s.speed;if(s.y>canvas.height)s.y=0;});
-    spawnTimer-=dt; if(spawnTimer<0){spawnEnemy();spawnTimer=SPAWN_INTERVAL;}
+    
+    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
+    
+    spawnTimer-=dt; 
+    if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
+    
+    for(let i=enemyBombs.length-1; i>=0; i--){
+        let b = enemyBombs[i];
+        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
+        
+        if(!player.invincible && checkCollisionRect(player, b)){
+             lives--; livesEl.innerText=lives;
+             createExplosion(player.x+player.w/2, player.y+player.h/2, '#ff4444', 30);
+             playSound('player_hit');
+             player.invincible=true; player.invTimer=2000;
+             enemyBombs.splice(i,1);
+             if(lives<=0){gameOver();return;}
+             continue;
+        }
+
+        for(let j=bullets.length-1; j>=0; j--){
+            let bullet = bullets[j];
+            if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
+                bullets.splice(j,1);
+                createExplosion(b.x, b.y, b.color, 15);
+                playSound('hit_eng');
+                speak(b.text, 'en-US');
+                score += 25; scoreEl.innerText = score;
+                enemyBombs.splice(i,1);
+                break;
+            }
+        }
+        if(b.y > canvas.height) enemyBombs.splice(i,1);
+    }
+
     for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
+    
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
+        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
+            e.droppedBomb = true; 
+            enemyBombs.push({
+                x: e.x, y: e.y + 40,
+                text: getRandomBombContent(),
+                color: `hsl(${Math.random()*360}, 100%, 70%)`,
+                vy: e.speed + userSettings.bombSpeed, 
+                w: 20, h: 30
+            });
+        }
+
         if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
-        e.y+=e.speed;
-        if(!player.invincible&&checkCollision(e)){
+        
+        e.y += e.speed; e.x += e.vx; 
+
+        if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
+            e.vx *= -1; 
+            if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
+            if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+        }
+
+        const eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
+        if(!player.invincible && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
             player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
             if(lives<=0){gameOver();return;}
             continue;
         }
-        if(e.stage>=1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
+        
+        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
+        
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
-            if(b.x>e.x-40&&b.x<e.x+40&&b.y>e.y-20&&b.y<e.y+10){
-                bullets.splice(j,1); e.timer=0; e.stage++;
-                if(e.stage===1){e.text=e.wordData.es[0];e.color='#00ff00';playSound('hit_eng');score+=10;}
-                else if(e.stage===2){const idx=e.synonymPath[1];e.text=e.wordData.es[idx]||e.wordData.es[0];e.color='#ffff00';createExplosion(e.x,e.y,'#ffff00',20);playSound('hit_syn');score+=50;combo++;}
-                else if(e.stage===3){e.text=e.wordData.en;e.color='#4f46e5';createExplosion(e.x,e.y,'#4f46e5',10);playSound('hit_review');score+=100;combo++;}
-                else if(e.stage===4){e.fading=true;createExplosion(e.x,e.y,'#ffffff',40);playSound('hit_syn');score+=150;combo++;}
+            if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
+                bullets.splice(j,1); e.timer=0;
+                
+                if(e.stage===0){
+                    e.hits++; 
+                    if(e.hits === 1) speak(e.text, 'en-US');
+                    playSound('hit_eng');score+=10;
+                    if(e.hits >= 3) {
+                        e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
+                        createExplosion(e.x,e.y,'#00ff00',20);
+                        score+=50; combo++;
+                        ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                    }
+                }
+                else if(e.stage===1){
+                    e.fading=true;
+                    createExplosion(e.x,e.y,'#ffffff',40);
+                    playSound('hit_syn'); score+=150; combo++;
+                    speak(e.text, 'es-ES');
+                }
                 scoreEl.innerText=score;comboEl.innerText=combo;
                 break;
             }
         }
-        if(e.y>canvas.height){if(e.stage<4)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
+        if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
     }
+    
     for(let i=particles.length-1;i>=0;i--){
-        const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; if(p.life<=0)particles.splice(i,1);
+        const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
+        if(p.life<=0)particles.splice(i,1);
     }
 }
 
-function draw(){
-    if(!gameRunning)return;
+function draw(timestamp){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    stars.forEach(s=>{ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.5+0.3})`;ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();});
-    if(!player.invincible||(Math.floor(player.invTimer/100)%2===0)){
-        ctx.fillStyle=player.color;ctx.shadowBlur=10;ctx.shadowColor=player.color;
-        ctx.beginPath();ctx.moveTo(player.x+player.w/2,player.y);ctx.lineTo(player.x+player.w,player.y+player.h);ctx.lineTo(player.x,player.y+player.h);ctx.fill();
-        ctx.shadowBlur=0;
+    
+    stars.forEach(s=>{
+        const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
+        ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
+        ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
+    });
+    
+    if(!player.invincible||(Math.floor(Date.now()/100)%2===0)){
+        drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
     }
-    ctx.fillStyle='#ff0055';ctx.shadowBlur=5;ctx.shadowColor='#ff0055';
-    bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));ctx.shadowBlur=0;
-    ctx.textAlign='center';ctx.textBaseline='middle';
+
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    
+    enemyBombs.forEach(b => {
+        ctx.strokeStyle='#fff'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(b.x+10, b.y-15); ctx.lineTo(b.x+4, b.y); ctx.stroke();
+        ctx.fillStyle=b.color;
+        ctx.beginPath(); ctx.arc(b.x, b.y-15, 12, Math.PI, 0); ctx.fill();
+        ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff';
+        ctx.fillText(b.text, b.x, b.y+10);
+    });
+
+    ctx.shadowBlur=5; ctx.shadowColor='#ff0055'; ctx.fillStyle='#ff0055';
+    bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
+    ctx.shadowBlur=0; 
+    
     enemies.forEach(e=>{
         ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
         ctx.fillStyle=e.color;
-        if(e.stage>=2){ctx.shadowBlur=10;ctx.shadowColor=(e.stage===3)?'#4f46e5':'#ffff00';}
-        ctx.fillText(e.text,e.x,e.y);ctx.shadowBlur=0;
+        if(e.stage>=1){ctx.shadowBlur=10;ctx.shadowColor='#00ff00';}
+        ctx.fillText(e.text,e.x,e.y);
+        ctx.shadowBlur=0; 
+        
         for(let k=0;k<4;k++){
-            ctx.fillStyle=k<e.stage?'#00ff00':'#444';
+            if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
+            else ctx.fillStyle = '#444';
             ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
         }
     });
-    particles.forEach(p=>{ctx.globalAlpha=p.life;ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,3,3);});ctx.globalAlpha=1;
-    requestAnimationFrame(()=>{const now=performance.now();update(now-lastTime);lastTime=now;draw();});
+    
+    particles.forEach(p=>{
+        ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
+    });
+    ctx.globalAlpha=1;
 }
 
 function gameOver(){
-    gameRunning=false;clearInterval(musicInterval);
+    gameRunning=false; cancelAnimationFrame(gameLoopId);
     if(score>highScore){highScore=score;localStorage.setItem('synonymHunterHighScore',highScore);highScoreEl.innerText=highScore;}
     document.getElementById('finalScore').innerText=score;
-    document.getElementById('newHighScore').innerText=score>highScore?'YES!':'NO';
     gameOverScreen.style.display='flex';
 }
 
@@ -321,20 +805,16 @@ function startGame(){
     if(gameRunning)return;
     resize();
     startScreen.style.display='none';gameOverScreen.style.display='none';studyGuide.style.display='none';
-    score=combo=0;lives=5;enemies=[];bullets=[];particles=[];player.invincible=false;
+    score=combo=0;lives=5;enemies=[];bullets=[];particles=[];enemyBombs=[];player.invincible=false;
     scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
-    renderCategoryBar();loadHighScore();
-    gameRunning=true;lastTime=performance.now();
-    if(audioCtx.state==='suspended')audioCtx.resume();
-    startMusic();draw();
+    loadHighScore();
+    gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
+    gameLoopId = requestAnimationFrame(loop);
 }
 
-/* CONTROLES + RECUPERACIÓN DE FOCO ULTRA-SEGURA */
 document.addEventListener('keydown', e=>{
-    if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
-        e.preventDefault();
-        toggleStudyGuide();
-    }
+    if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
     if(e.code==='Space' && gameRunning){
         e.preventDefault();
@@ -344,11 +824,12 @@ document.addEventListener('keydown', e=>{
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
 
-// Recaptura de foco con cualquier interacción (incluso en iframe)
-document.addEventListener('click', ()=>{if(gameRunning && studyGuide.style.display==='none')document.getElementById('resumeHint')?.remove();}, true);
-canvas.addEventListener('click',()=>{if(gameRunning)document.getElementById('resumeHint')?.remove();});
-
-window.onload=()=>{resize();renderCategoryBar();};
+window.onload=()=>{
+    loadConfig(); 
+    loadVocabData();
+    resize();
+    renderCategoryBar();
+};
 </script>
 </body>
 </html>
