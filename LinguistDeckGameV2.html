@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Clean & Smart</title>
+    <title>Vocabulary Hunter: Final Audio Master</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -50,12 +50,13 @@
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
         
-        /* POP QUIZ MODAL MEJORADO */
+        /* POP QUIZ MODAL */
         #quiz-overlay {
             background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
             padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
             box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
             transition: border-color 0.3s;
+            display: flex; flex-direction: column; align-items: center;
         }
         #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
         #quiz-input {
@@ -65,10 +66,9 @@
         }
         #quiz-input:focus { border-color: var(--neon-green); outline: none; }
         
-        /* Feedback inteligente */
         #quiz-feedback { 
-            margin-top: 20px; min-height: 30px; font-size: 12px; 
-            color: var(--neon-yellow); line-height: 1.6;
+            margin-top: 20px; min-height: 30px; font-size: 10px; 
+            color: var(--neon-yellow); line-height: 1.6; text-align: center;
         }
         .correct-ans-highlight {
             color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
@@ -76,17 +76,19 @@
         .shake { animation: shake 0.5s; }
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
-            10% { transform: translate(-1px, -2px) rotate(-1deg); }
-            20% { transform: translate(-3px, 0px) rotate(1deg); }
-            30% { transform: translate(3px, 2px) rotate(0deg); }
-            40% { transform: translate(1px, -1px) rotate(1deg); }
             50% { transform: translate(-1px, 2px) rotate(-1deg); }
-            60% { transform: translate(-3px, 1px) rotate(0deg); }
-            70% { transform: translate(3px, 1px) rotate(-1deg); }
-            80% { transform: translate(-1px, -1px) rotate(1deg); }
-            90% { transform: translate(1px, 2px) rotate(0deg); }
             100% { transform: translate(1px, -2px) rotate(-1deg); }
         }
+
+        .quiz-actions { display: flex; gap: 10px; margin-top: 15px; width: 100%; justify-content: center; }
+        .quiz-btn {
+            padding: 15px; font-family: 'Press Start 2P'; cursor: pointer; font-size: 10px; border: 2px solid;
+            background: transparent; color: #fff; flex: 1;
+        }
+        .btn-verify { border-color: var(--neon-green); color: var(--neon-green); }
+        .btn-verify:hover { background: var(--neon-green); color: #000; }
+        .btn-skip { border-color: #555; color: #777; font-size: 8px; }
+        .btn-skip:hover { border-color: var(--neon-red); color: var(--neon-red); }
 
         /* MODAL */
         #study-content {
@@ -159,12 +161,16 @@
 
     <div id="quiz-screen" class="overlay-screen" style="display:none;">
         <div id="quiz-overlay">
-            <h2 style="color:var(--neon-red);" id="quiz-title">SYSTEM HACK!</h2>
+            <h2 style="color:var(--neon-red);" id="quiz-title">SYSTEM HACK DETECTED!</h2>
             <p style="font-size:10px; color:#aaa;">TRANSLATE TO RESTORE SYSTEMS</p>
             <div id="quiz-question">WORD</div>
             <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
             <div id="quiz-feedback"></div>
-            <button class="reset-btn" style="margin-top:15px; border-color:#fff; color:#fff;" onclick="checkQuizAnswer()">VERIFY / REPAIR</button>
+            
+            <div class="quiz-actions">
+                <button class="quiz-btn btn-skip" onclick="skipQuiz()">FORCE REBOOT (-500 PTS)</button>
+                <button class="quiz-btn btn-verify" onclick="checkQuizAnswer()">VERIFY REPAIR</button>
+            </div>
         </div>
     </div>
 
@@ -200,6 +206,13 @@
 
             <div id="tab-settings" class="tab-content">
                 <h2 class="config-header">SYSTEM CONFIG</h2>
+                
+                <div class="config-group">
+                    <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                    <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
+                    <div class="slider-desc"><span>MUTE</span><span>LOUD</span></div>
+                </div>
+
                 <div class="config-group">
                     <label class="config-label">VOCABULARY SOURCE</label>
                     <select id="cfg-source" onchange="updateConfig('source')"></select>
@@ -271,14 +284,15 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v9';
+const CONFIG_KEY = 'vocab_robot_config_v10';
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
     spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
-    quizEnabled: false, quizInterval: 30
+    quizEnabled: false, quizInterval: 30,
+    masterVolume: 50 // New Volume Setting
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -359,6 +373,9 @@ function applyConfigToUI() {
     document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
     document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
 
+    document.getElementById('cfg-volume').value = userSettings.masterVolume;
+    document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -386,6 +403,12 @@ function updateConfig(key) {
         loadVocabData(); populateStudyGuide();
         if(gameRunning) enemies = [];
     }
+    else if(key === 'volume') {
+        userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
+        document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+        // SAMPLE SOUND
+        playSound('shoot'); 
+    }
     else if(key === 'quiz') {
         userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
         userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
@@ -401,7 +424,7 @@ function updateConfig(key) {
         player.color = userSettings.playerColor;
     }
     
-    if(key !== 'percent_only') {
+    if(key !== 'percent_only' && key !== 'volume') {
         applyConfigToUI(); 
     }
     recalcGameVars();
@@ -412,7 +435,7 @@ function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
     localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30 };
+    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, masterVolume: 50 };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -428,7 +451,6 @@ function switchTab(tabName) {
 let activeVocabList = []; 
 let gameDeck = [];        
 
-// 1) LIMPIEZA DE DATOS (Eliminar comas, puntos, etc)
 const cleanText = (str) => {
     if(!str) return "";
     return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
@@ -438,7 +460,6 @@ function loadVocabData() {
     let tempVocabList = [];
     const countWords = (str) => str.trim().split(/\s+/).length;
     const processItem = (en, es) => {
-        // Limpiamos antes de guardar
         const safeEn = cleanText(en);
         const safeEs = cleanText(es);
         
@@ -530,7 +551,7 @@ function editDistance(s1, s2) {
     return costs[s2.length];
 }
 
-// --- 2) REFUERZO DE APRENDIZAJE (FALLO) ---
+// --- POP QUIZ LOGIC ---
 function triggerPopQuiz() {
     gameRunning = false; 
     const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
@@ -563,8 +584,24 @@ function triggerPopQuiz() {
     document.getElementById('quiz-input').focus();
 }
 
+function skipQuiz() {
+    score = Math.max(0, score - 500); 
+    scoreEl.innerText = score;
+    const feedback = document.getElementById('quiz-feedback');
+    feedback.style.color = '#ffaa00';
+    feedback.innerText = `CORRECT WAS: ${currentQuizWord.mode === 'EN_TO_ES' ? currentQuizWord.es[0] : currentQuizWord.en}`;
+    
+    setTimeout(() => {
+        document.getElementById('quiz-screen').style.display = 'none';
+        quizTimer = 0; 
+        gameRunning = true;
+        lastTime = performance.now();
+        gameLoopId = requestAnimationFrame(loop);
+    }, 2000); 
+}
+
 function checkQuizAnswer() {
-    const userInput = cleanText(document.getElementById('quiz-input').value); // Limpiamos input usuario también
+    const userInput = cleanText(document.getElementById('quiz-input').value);
     const feedback = document.getElementById('quiz-feedback');
     const overlay = document.getElementById('quiz-overlay');
     const titleEl = document.getElementById('quiz-title');
@@ -582,40 +619,47 @@ function checkQuizAnswer() {
     });
 
     if (maxSim >= 1.0) {
-        // SUCCESS
         feedback.style.color = '#0f0';
         feedback.innerText = "SYSTEM RESTORED! BOMB CLEAR ACTIVATED!";
         setTimeout(resolveQuizSuccess, 1000);
     } else {
-        // FALLO -> REFUERZO
-        // No cerramos. Mostramos la palabra correcta y obligamos a copiarla.
         const inputEl = document.getElementById('quiz-input');
-        
-        // Animacion de error
         inputEl.classList.add('shake');
         setTimeout(()=>inputEl.classList.remove('shake'), 500);
-        
         titleEl.innerText = "CRITICAL FAILURE!";
         overlay.style.borderColor = "#ff0000";
-        
         feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
-        
-        // Limpiamos input para que escriba de nuevo
         inputEl.value = "";
         inputEl.placeholder = "TYPE THE WORD ABOVE";
         inputEl.focus();
     }
 }
 
+function launchFireworks() {
+    for(let i=0; i<10; i++) {
+        setTimeout(() => {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const color = `hsl(${Math.random()*360}, 100%, 50%)`;
+            createExplosion(x, y, color, 40); 
+            playSound('firework'); // NEW SOUND TYPE
+        }, i * 200); 
+    }
+}
+
 function resolveQuizSuccess() {
     quizTimer = 0; 
     document.getElementById('quiz-screen').style.display = 'none';
+    
+    launchFireworks();
+
     enemyBombs = []; 
     enemies.forEach(e => {
         e.fading = true;
         createExplosion(e.x, e.y, e.color, 20);
         score += 50;
     });
+    
     gameRunning = true;
     lastTime = performance.now();
     gameLoopId = requestAnimationFrame(loop);
@@ -643,25 +687,75 @@ const studyTableContainer = document.getElementById('study-table-container');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
+/* =========================================
+   AUDIO MANAGER (QUEUE SYSTEM)
+   ========================================= */
+const audioQueue = [];
+let isSpeaking = false;
+
+setInterval(() => {
+    if (!isSpeaking && audioQueue.length > 0) {
+        const next = audioQueue.shift();
+        playText(next.text, next.lang);
+    }
+}, 100);
+
 function speak(text, lang) {
+    audioQueue.push({text, lang});
+}
+
+function playText(text, lang) {
     if (!window.speechSynthesis) return;
+    
+    isSpeaking = true;
     window.speechSynthesis.cancel();
-    let textToSpeak = text;
+    
+    let textToSpeak = text.toLowerCase();
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
+    
     const u = new SpeechSynthesisUtterance(textToSpeak);
-    u.lang = lang; u.rate = 1.1; 
+    u.lang = lang; 
+    u.rate = 1.1; 
+    
+    u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
+    u.onerror = () => { isSpeaking = false; };
+
     window.speechSynthesis.speak(u);
 }
 
 function playSound(type) {
+    // Check if context exists/resume it
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+    
+    // Master Volume Check
+    if(userSettings.masterVolume <= 0) return;
+    const vol = userSettings.masterVolume / 100;
+
     const o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     const n = audioCtx.currentTime;
-    if(type==='shoot'){o.type='square';o.frequency.setValueAtTime(400,n);o.frequency.exponentialRampToValueAtTime(100,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.1);}
-    else if(type==='hit_eng'){o.type='sawtooth';o.frequency.setValueAtTime(600,n);o.frequency.linearRampToValueAtTime(800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.15);}
-    else if(type==='hit_syn'){o.type='sine';o.frequency.setValueAtTime(1200,n);o.frequency.linearRampToValueAtTime(1800,n+.1);g.gain.setValueAtTime(.05,n);g.gain.linearRampToValueAtTime(0,n+.3);}
-    else if(type==='player_hit'){o.type='sawtooth';o.frequency.setValueAtTime(120,n);o.frequency.linearRampToValueAtTime(8,n+.3);g.gain.setValueAtTime(.1,n);g.gain.linearRampToValueAtTime(0,n+.5);}
+    
+    if(type==='shoot'){
+        o.type='square'; o.frequency.setValueAtTime(400,n); o.frequency.exponentialRampToValueAtTime(100,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
+    }
+    else if(type==='hit_eng'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(600,n); o.frequency.linearRampToValueAtTime(800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.15);
+    }
+    else if(type==='hit_syn'){
+        o.type='sine'; o.frequency.setValueAtTime(1200,n); o.frequency.linearRampToValueAtTime(1800,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.3);
+    }
+    else if(type==='player_hit'){
+        o.type='sawtooth'; o.frequency.setValueAtTime(120,n); o.frequency.linearRampToValueAtTime(8,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
+    }
+    else if(type==='firework'){ // NEW FIREWORK SOUND
+        o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
+    }
+    
     o.start(n); o.stop(n + 0.5);
 }
 
@@ -700,6 +794,8 @@ function toggleStudyGuide(){
     }else{
         gameRunning=false; cancelAnimationFrame(gameLoopId);
         populateStudyGuide(); studyGuide.style.display='flex';
+        // Wake audio context on interaction
+        if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     }
 }
 
@@ -746,7 +842,7 @@ function spawnEnemy(){
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 150) particles.shift();
+        if(particles.length > 300) particles.shift(); 
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -961,7 +1057,10 @@ function startGame(){
     loadHighScore();
     gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
     quizTimer = 0;
+    
+    // Attempt resume on start click
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
+    
     gameLoopId = requestAnimationFrame(loop);
 }
 
