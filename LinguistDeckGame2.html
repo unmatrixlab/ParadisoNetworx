@@ -2,108 +2,194 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Scribe's Shelf: Typing Defense</title>
+    <title>Scribe's Shelf: Ultimate Study</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --neon-green: #0f0;
+            --neon-red: #ff4444;
+            --neon-blue: #4f46e5;
+            --neon-yellow: #ffff00;
+            --dark-bg: #050505;
+            --panel-bg: rgba(0, 15, 0, 0.95);
+        }
+
         body { 
-            margin: 0; overflow: hidden; background: #050505; 
+            margin: 0; overflow: hidden; background: var(--dark-bg); 
             font-family: 'Press Start 2P', monospace; color: white; user-select: none;
         }
         canvas { display: block; }
         
+        /* CRT SCANLINE EFFECT */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            z-index: 999; pointer-events: none;
+        }
+
         /* UI Overlays */
         #ui { 
             position: absolute; top: 20px; left: 20px; right: 20px; z-index: 10; 
             pointer-events: none; display: flex; justify-content: space-between;
+            text-shadow: 2px 2px 0 #000;
         }
-        #lives-panel { color: #ff4444; }
+        #lives-panel { color: var(--neon-red); }
+        #score-panel { color: var(--neon-green); }
 
         /* INPUT BAR */
         #input-bar {
-            position: absolute; bottom: 0; left: 0; right: 0; height: 50px;
-            background: rgba(0, 0, 0, 0.85); z-index: 15;
+            position: absolute; bottom: 0; left: 0; right: 0; height: 60px;
+            background: rgba(0, 0, 0, 0.9); z-index: 15;
             display: flex; justify-content: center; align-items: center;
-            border-top: 2px solid #00ff00;
+            border-top: 2px solid var(--neon-green);
+            box-shadow: 0 -5px 20px rgba(0, 255, 0, 0.2);
         }
         #typing-input {
-            width: 80%; max-width: 500px;
-            background: #111; color: #00ff00;
-            border: 2px solid #009900; padding: 10px;
+            width: 70%; max-width: 600px;
+            background: #111; color: var(--neon-green);
+            border: 2px solid #005500; padding: 12px;
             font-family: 'Press Start 2P', monospace;
-            font-size: 14px; text-transform: uppercase;
-            outline: none;
-            text-align: center;
+            font-size: 16px; text-transform: uppercase;
+            outline: none; text-align: center;
+            transition: all 0.2s;
         }
-        #input-bar label { color: #fff; font-size: 10px; margin-right: 10px;}
+        #typing-input:focus {
+            border-color: var(--neon-green);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+        }
 
         /* CATEGORY BAR */
         #category-bar-wrapper {
-            position: absolute; bottom: 50px; left: 0; width: 100%;
-            padding: 5px 0; background: rgba(0, 0, 0, 0.5);
-            z-index: 15;
-            overflow-x: scroll; white-space: nowrap; display: flex;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+            position: absolute; bottom: 60px; left: 0; width: 100%;
+            padding: 10px 0; background: rgba(0, 0, 0, 0.8);
+            z-index: 14;
+            overflow-x: auto; white-space: nowrap; display: flex; justify-content: center;
+            border-top: 1px solid #333;
         }
         .category-chip {
-            padding: 6px 12px; margin: 0 5px; background: #111; color: #444;
+            padding: 8px 16px; margin: 0 8px; background: #111; color: #666;
             font-size: 10px; cursor: pointer; border: 1px solid #444; transition: 0.2s;
             pointer-events: all; display: inline-block;
         }
-        .category-chip.active { color: #00ff00; background: #003300; border-color: #00ff00; text-shadow: 0 0 5px #00ff00; }
-
-
-        /* SCREENS */
-        #start-screen, #game-over-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            background: rgba(0,0,0,0.85); z-index: 20; text-align: center;
+        .category-chip:hover { border-color: #888; color: #888; }
+        .category-chip.active { 
+            color: var(--neon-green); background: #002200; 
+            border-color: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); 
         }
-        h1 { color: #00ff00; text-shadow: 4px 4px #003300; font-size: 35px; margin-bottom: 20px; line-height: 1.5; }
-        h2 { color: #ff0000; font-size: 25px; margin-top: 50px; }
-        p { line-height: 2; color: #aaa; font-size: 10px; max-width: 600px;}
-        .blink { animation: blinker 1s linear infinite; color: #ffff00; margin-top: 30px; font-size: 14px; cursor: pointer;}
+
+        /* SCREENS (Start, Game Over, Study) */
+        .overlay-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95); z-index: 100;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            text-align: center;
+        }
+        .blink { animation: blinker 1s linear infinite; color: var(--neon-green); margin-top: 20px; cursor: pointer;}
         @keyframes blinker { 50% { opacity: 0; } }
+        
+        h1 { color: var(--neon-green); text-shadow: 4px 4px 0 #003300; margin-bottom: 30px; line-height: 1.5; }
+        p { color: #ccc; font-size: 12px; line-height: 1.8; max-width: 600px; padding: 0 20px;}
+
+        /* STUDY GUIDE SPECIFIC */
+        #study-content {
+            background: var(--panel-bg); 
+            padding: 30px; 
+            border: 2px solid var(--neon-green); 
+            width: 80%; max-width: 800px; height: 70%; 
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+        }
+        /* Custom Scrollbar */
+        #study-content::-webkit-scrollbar { width: 10px; }
+        #study-content::-webkit-scrollbar-track { background: #111; }
+        #study-content::-webkit-scrollbar-thumb { background: #333; border: 1px solid var(--neon-green); }
+
+        #study-content table { 
+            width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 20px; 
+            font-size: 12px; 
+        }
+        #study-content th { 
+            color: var(--neon-green); text-align: left; 
+            border-bottom: 2px solid var(--neon-green); padding: 10px;
+            position: sticky; top: 0; background: #001500; z-index: 2;
+        }
+        #study-content td { 
+            padding: 12px 10px; border-bottom: 1px solid #333; color: #aaa;
+        }
+        #study-content tr:hover td { background: #002200; color: #fff; cursor: crosshair; }
+        #study-content .en-word { color: var(--neon-blue); font-weight: bold; }
+        
+        .close-btn { 
+            position: absolute; top: 15px; right: 20px; 
+            font-size: 20px; color: var(--neon-red); cursor: pointer; border: 1px solid var(--neon-red);
+            padding: 5px 10px; z-index: 10;
+        }
+        .close-btn:hover { background: var(--neon-red); color: #000; }
+
+        /* KEY HINTS */
+        .key-hint { 
+            display: inline-block; padding: 2px 6px; 
+            border: 1px solid #666; border-radius: 4px; 
+            color: #fff; background: #222; font-size: 10px;
+            box-shadow: 1px 1px 0 #000;
+        }
     </style>
 </head>
 <body>
 
+    <div class="scanlines"></div>
+
     <div id="ui">
         <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
         <div id="lives-panel">LIVES: <span id="lives">5</span></div>
-        <div id="high-score-panel">HIGH SCORE: <span id="highScore">0</span></div>
+        <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
     <div id="category-bar-wrapper"></div>
 
     <div id="input-bar">
-        <input type="text" id="typing-input" placeholder="TYPE THE ANSWER AND PRESS ENTER">
+        <input type="text" id="typing-input" placeholder="TYPE ANSWER HERE" autocomplete="off">
     </div>
 
-    <div id="start-screen" onclick="startGame()">
-        <h1>SCRIBE'S SHELF</h1>
+    <div id="start-screen" class="overlay-screen" onclick="startGame()">
+        <h1>SCRIBE'S SHELF<br><span style="font-size: 14px; color: #fff;">VOCABULARY DEFENSE</span></h1>
         <p>
-            GOAL: Type the correct word to match the sequence before enemies disappear.<br>
-            <br>
-            SEQUENCE:<br>
-            1. **(White) ENGLISH** → Type SPANISH.<br>
-            2. **(Green) SPANISH** → Type SYNONYM.<br>
-            3. **(Yellow) SYNONYM** → Type ORIGINAL ENGLISH.<br>
-            4. **(Blue) ENGLISH** → Type ENGLISH (Final Match).<br>
+            1. Enemies appear with a Spanish definition or synonym.<br>
+            2. Type the correct English word to destroy them.<br>
+            3. Don't let them reach the left side.<br><br>
+            <span class="key-hint">ENTER</span> Submit Answer <br>
+            <span class="key-hint">TAB</span> Open Study Guide
         </p>
-        <div class="blink">CLICK TO START</div>
+        <div class="blink">CLICK TO INITIALIZE SYSTEM</div>
     </div>
 
-    <div id="game-over-screen" style="display:none;" onclick="startGame()">
-        <h2>GAME OVER</h2>
-        <p>FINAL SCORE: <span id="finalScore">0</span></p>
-        <p>NEW HIGH SCORE: <span id="newHighScore" style="color: #00ff00;">NO</span></p>
-        <div class="blink">CLICK TO RETRY</div>
+    <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
+        <h1 style="color: var(--neon-red);">SYSTEM FAILURE</h1>
+        <p>FINAL SCORE: <span id="finalScore" style="color:white;">0</span></p>
+        <p>NEW HIGH SCORE: <span id="newHighScore" style="color: var(--neon-green);">NO</span></p>
+        <div class="blink">CLICK TO REBOOT</div>
     </div>
 
+    <div id="study-guide" class="overlay-screen" style="display:none;">
+        <div id="study-content">
+            <span class="close-btn" onclick="toggleStudyGuide()">✕</span>
+            <h2 style="color: var(--neon-green); margin-top: 0; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px;">
+                DATABASE: <span id="study-category-title" style="color: white;">NOUNS</span>
+            </h2>
+            <div id="study-table-container"></div>
+            <p style="margin-top: 20px; text-align: center; color: #666; font-size: 10px;">
+                GAME PAUSED. PRESS <span class="key-hint">TAB</span> OR <span class="key-hint">ESC</span> TO RESUME.
+            </p>
+        </div>
+    </div>
+    
     <canvas id="gameCanvas"></canvas>
 
 <script>
-/* --- BASE DE DATOS MODULARIZADA (Rich Vocabulary) --- */
+/* --- BASE DE DATOS (AQUÍ AGREGAS TUS PALABRAS) --- */
 const wordsDB = {
     'NOUNS': [
         {en: "MALAISE", es: ["MALESTAR", "INDISPOSICIÓN", "DECAIMIENTO"]},
@@ -126,6 +212,7 @@ const wordsDB = {
         {en: "STOLID", es: ["IMPÁVIDO", "IMPONENTE", "APLOMADO"]},
         {en: "SANGUINE", es: ["OPTIMISTA", "ENTUSIASTA", "VITAL"]}
     ]
+    // Puedes agregar más categorías aquí y el menú se actualizará solo.
 };
 
 const canvas = document.getElementById('gameCanvas');
@@ -138,6 +225,10 @@ const typingInput = document.getElementById('typing-input');
 const categoryBarWrapper = document.getElementById('category-bar-wrapper');
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
+const studyGuide = document.getElementById('study-guide');
+const studyCategoryTitle = document.getElementById('study-category-title');
+const studyTableContainer = document.getElementById('study-table-container');
+const inputBar = document.getElementById('input-bar');
 
 /* --- AUDIO ENGINE --- */
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -198,9 +289,17 @@ let spawnTimer = SPAWN_INTERVAL;
 let enemies = [];
 let particles = [];
 let stars = [];
-let isInvincible = false;
 
-// Cargar High Score
+// Stars background
+for(let i=0; i<60; i++) {
+    stars.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        size: Math.random() * 2,
+        speed: Math.random() * 0.5 + 0.1
+    });
+}
+
 function loadHighScore() {
     const savedScore = localStorage.getItem('scribeShelfHighScore');
     highScore = savedScore ? parseInt(savedScore) : 0;
@@ -213,29 +312,39 @@ function resize() {
 }
 window.addEventListener('resize', resize);
 
+/* --- CORE LOGIC --- */
+function setCategory(category) {
+    currentCategory = category;
+    renderCategoryBar();
+    // Clear enemies to prevent confusion when switching
+    enemies.forEach(e => e.fading = true); 
+    if(studyGuide.style.display === 'flex') {
+        populateStudyGuide();
+    }
+    // Re-focus input if game is running
+    if(gameRunning) typingInput.focus();
+}
 
 function spawnEnemy() {
     const categoryWords = wordsDB[currentCategory];
     if (!categoryWords || categoryWords.length === 0) return;
 
     const data = categoryWords[Math.floor(Math.random() * categoryWords.length)];
-    
-    // Path: Always S1, then S2 or S3 (random choice of 1 or 2 index)
     const synonymIndex = (Math.random() < 0.5) ? 1 : 2; 
 
     ctx.font = '16px "Press Start 2P"'; 
     const textWidth = ctx.measureText(data.en).width * 1.2;
 
     enemies.push({
-        x: canvas.width + 50, // Start off-screen right
-        y: Math.random() * (canvas.height - 150) + 50, // Y position
+        x: canvas.width + 50, 
+        y: Math.random() * (canvas.height - 250) + 80, 
         wordData: data,
         text: data.en,
-        stage: 0, // 0:EN, 1:SP1, 2:SP2/SP3, 3:EN_Review, 4:Fading
+        stage: 0, 
         synonymIndex: synonymIndex,
-        speed: 0.5 + (score / 1500), // Speed increases with score
+        speed: 0.6 + (score / 2500), 
         color: '#ffffff',
-        timer: 0, // Life timer
+        timer: 0, 
         w: textWidth
     });
 }
@@ -244,45 +353,43 @@ function createExplosion(x, y, color, count=10) {
     for(let i=0; i<count; i++) {
         particles.push({
             x: x, y: y,
-            vx: (Math.random() - 0.5) * 6,
-            vy: (Math.random() - 0.5) * 6,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
             life: 1.0,
             color: color
         });
     }
 }
 
-// Determines the required input based on the word's current state
 function getRequiredAnswer(enemy) {
     switch (enemy.stage) {
-        case 0: return enemy.wordData.es[0].toLowerCase().replace(/_/g, ' '); // EN -> SP1 (Primary Translation)
-        case 1: return enemy.wordData.es[enemy.synonymIndex].toLowerCase().replace(/_/g, ' '); // SP1 -> SP2/SP3 (Synonym)
-        case 2: return enemy.wordData.en.toLowerCase(); // SP2/SP3 -> EN (Review)
-        case 3: return enemy.wordData.en.toLowerCase(); // EN -> EN (Final Match)
+        case 0: return enemy.wordData.es[0].toLowerCase().replace(/_/g, ' '); 
+        case 1: return enemy.wordData.es[enemy.synonymIndex].toLowerCase().replace(/_/g, ' '); 
+        case 2: return enemy.wordData.en.toLowerCase(); 
+        case 3: return enemy.wordData.en.toLowerCase(); 
         default: return "";
     }
 }
 
-// Logic triggered by correct typing
 function advanceEnemyStage(enemy) {
     enemy.stage++;
-    enemy.timer = 0; // Reset life timer
+    enemy.timer = 0;
 
     if (enemy.stage === 1) { 
         enemy.text = enemy.wordData.es[0];
-        enemy.color = '#00ff00'; // Green
+        enemy.color = '#00ff00'; 
         playSound('hit_correct');
         score += 10;
     } else if (enemy.stage === 2) { 
         enemy.text = enemy.wordData.es[enemy.synonymIndex];
-        enemy.color = '#ffff00'; // Yellow
+        enemy.color = '#ffff00'; 
         createExplosion(enemy.x, enemy.y, '#ffff00', 15);
         playSound('hit_correct');
         score += 50;
         combo++;
     } else if (enemy.stage === 3) { 
         enemy.text = enemy.wordData.en;
-        enemy.color = '#4f46e5'; // Blue/Review
+        enemy.color = '#4f46e5'; 
         createExplosion(enemy.x, enemy.y, '#4f46e5', 10);
         playSound('hit_review');
         score += 100;
@@ -294,9 +401,10 @@ function advanceEnemyStage(enemy) {
         score += 150;
         combo++;
     }
+    scoreEl.innerText = score;
+    comboEl.innerText = combo;
 }
 
-// Handles user input submission
 function checkAnswer() {
     const inputVal = typingInput.value.trim().toUpperCase();
     if (!inputVal) return;
@@ -304,9 +412,8 @@ function checkAnswer() {
     let targetIndex = -1;
     let lowestX = Infinity;
 
-    // Find the enemy closest to the 'void' (left side)
     for (let i = 0; i < enemies.length; i++) {
-        // Only target words currently visible/on-screen
+        // Find closest active enemy
         if (!enemies[i].fading && enemies[i].x < lowestX) { 
             lowestX = enemies[i].x;
             targetIndex = i;
@@ -319,35 +426,22 @@ function checkAnswer() {
 
         if (inputVal === required) {
             advanceEnemyStage(target);
-            typingInput.value = ''; // Clear on success
+            typingInput.value = ''; 
+            typingInput.style.borderColor = '#00ff00';
+            setTimeout(() => typingInput.style.borderColor = '#005500', 100);
         } else {
-            // Failure logic (Misspelling)
             lives--;
             livesEl.innerText = lives;
             typingInput.style.borderColor = '#ff4444';
-            setTimeout(() => typingInput.style.borderColor = '#009900', 200);
+            setTimeout(() => typingInput.style.borderColor = '#005500', 200);
             playSound('hit_fail');
             combo = 0;
             comboEl.innerText = combo;
 
-            if (lives <= 0) {
-                gameOver();
-            }
+            if (lives <= 0) gameOver();
         }
     }
 }
-
-document.addEventListener('keydown', e => {
-    // Submit on Enter key press
-    if (e.key === 'Enter' && gameRunning) {
-        checkAnswer();
-    }
-    // Ensure the input field has focus when typing starts
-    if (gameRunning && e.key.length === 1 && e.key.match(/[a-z0-9 ]/i)) {
-        typingInput.focus();
-    }
-});
-
 
 function update(dt) {
     if (!gameRunning) return;
@@ -355,20 +449,17 @@ function update(dt) {
     spawnTimer -= dt;
     if (spawnTimer < 0) { spawnEnemy(); spawnTimer = SPAWN_INTERVAL; }
 
-    // Background Stars
     stars.forEach(s => { s.y += s.speed; if(s.y > canvas.height) s.y = 0; });
 
-    // Enemies (Words) move left)
     for (let i = enemies.length - 1; i >= 0; i--) {
         let e = enemies[i];
 
         if (!e.fading) {
             e.x -= e.speed;
-            
-            // Life timer update
             if (e.stage >= 1) { 
                 e.timer += dt;
-                if (e.timer > 3000) { e.fading = true; } 
+                // Timeout logic
+                if (e.timer > 8000) { e.fading = true; } 
             }
         } else {
             createExplosion(e.x, e.y, e.color, 1);
@@ -376,13 +467,13 @@ function update(dt) {
             continue;
         }
 
-        // Enemy reaches the end (The Void)
         if (e.x < -100) {
             lives--;
             livesEl.innerText = lives;
             enemies.splice(i, 1); 
             combo = 0;
             comboEl.innerText = combo;
+            playSound('hit_fail');
 
             if (lives <= 0) {
                 gameOver();
@@ -391,7 +482,6 @@ function update(dt) {
         }
     }
 
-    // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
         p.x += p.vx; p.y += p.vy;
@@ -401,34 +491,29 @@ function update(dt) {
 }
 
 function draw() {
-    ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if(!gameRunning) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     stars.forEach(s => {
-        ctx.fillStyle = '#fff';
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.3})`;
         ctx.beginPath(); ctx.arc(s.x, s.y, s.size, 0, Math.PI*2); ctx.fill();
     });
 
-    if(!gameRunning) {
-        requestAnimationFrame(draw);
-        return;
-    }
-
-    // Enemies (Words)
+    // Enemies
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     enemies.forEach(e => {
         ctx.font = e.stage >= 1 ? '20px "Press Start 2P"' : '16px "Press Start 2P"';
         ctx.fillStyle = e.color;
         
-        // Shadow/Glow effect for translated words
-        if (e.stage >= 1) { ctx.shadowBlur = 10; ctx.shadowColor = e.color; }
+        if (e.stage >= 1) { ctx.shadowBlur = 15; ctx.shadowColor = e.color; }
         ctx.fillText(e.text, e.x, e.y);
         ctx.shadowBlur = 0;
         
-        // Life/Stage dots
+        // Progress Dots
         for(let k=0; k<4; k++) {
-            ctx.fillStyle = k < e.stage ? '#00ff00' : '#444'; 
+            ctx.fillStyle = k < e.stage ? '#00ff00' : '#333'; 
             ctx.beginPath();
             ctx.arc(e.x - 22 + (k*15), e.y + 25, 3, 0, Math.PI*2);
             ctx.fill();
@@ -452,7 +537,6 @@ function draw() {
     });
 }
 
-
 function gameOver() {
     gameRunning = false;
     clearInterval(musicInterval);
@@ -467,9 +551,10 @@ function gameOver() {
     document.getElementById('finalScore').innerText = score;
     document.getElementById('newHighScore').innerText = isNewHighScore ? 'YES!' : 'NO';
     gameOverScreen.style.display = 'flex';
+    inputBar.style.display = 'none'; 
 }
 
-// --- CATEGORIES LOGIC ---
+// --- CATEGORIES UI ---
 function renderCategoryBar() {
     categoryBarWrapper.innerHTML = '';
     const categories = Object.keys(wordsDB);
@@ -477,7 +562,7 @@ function renderCategoryBar() {
     categories.forEach(category => {
         const chip = document.createElement('div');
         chip.className = 'category-chip';
-        chip.textContent = category.toUpperCase();
+        chip.textContent = category;
         chip.onclick = () => setCategory(category);
         
         if (category === currentCategory) {
@@ -487,45 +572,96 @@ function renderCategoryBar() {
     });
 }
 
-function setCategory(category) {
-    currentCategory = category;
-    renderCategoryBar(); 
+// --- STUDY GUIDE UI ---
+function populateStudyGuide() {
+    studyCategoryTitle.textContent = currentCategory;
+    const words = wordsDB[currentCategory];
+
+    let tableHTML = '<table><thead><tr><th>ENGLISH</th><th>PRIMARY ES</th><th>SYNONYM A</th><th>SYNONYM B</th></tr></thead><tbody>';
+
+    words.forEach(word => {
+        const es1 = word.es[0] || "-";
+        const es2 = word.es[1] || "-";
+        const es3 = word.es[2] || "-";
+        tableHTML += `<tr><td class="en-word">${word.en}</td><td>${es1}</td><td>${es2}</td><td>${es3}</td></tr>`;
+    });
+
+    tableHTML += '</tbody></table>';
+    studyTableContainer.innerHTML = tableHTML;
+}
+
+function toggleStudyGuide() {
+    const isVisible = studyGuide.style.display === 'flex';
     
-    if (gameRunning) {
-        spawnTimer = 500; 
-        enemies = []; 
-        typingInput.value = '';
+    if (isVisible) {
+        // Resume
+        studyGuide.style.display = 'none';
+        typingInput.focus();
+        
+        if (!gameOverScreen.style.display && startScreen.style.display === 'none') {
+            gameRunning = true;
+            lastTime = performance.now(); // Reset Delta
+            startMusic();
+            draw();
+        }
+    } else {
+        // Pause
+        gameRunning = false;
+        clearInterval(musicInterval);
+        populateStudyGuide();
+        studyGuide.style.display = 'flex';
     }
 }
 
+// --- CONTROLS ---
+document.addEventListener('keydown', e => {
+    // TAB or ESC to toggle study guide
+    if ((e.code === 'Tab' || e.code === 'Escape') && startScreen.style.display === 'none' && gameOverScreen.style.display === 'none') {
+        e.preventDefault(); 
+        toggleStudyGuide();
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && gameRunning) {
+        checkAnswer();
+    }
+    // Auto-focus input on typing
+    if (gameRunning && e.key.length === 1 && e.key.match(/[a-z0-9 ]/i)) {
+        typingInput.focus();
+    }
+});
 
 function startGame() {
-    if (!gameRunning) {
-        resize();
-        loadHighScore();
+    if (gameRunning) return;
 
-        startScreen.style.display = 'none';
-        gameOverScreen.style.display = 'none';
-        gameRunning = true;
-        
-        score = 0; 
-        combo = 0;
-        lives = 5;
-        enemies.length = 0; 
-        particles.length = 0;
-        
-        scoreEl.innerText = '0';
-        comboEl.innerText = '0';
-        livesEl.innerText = '5';
-        
-        renderCategoryBar();
-        
-        lastTime = performance.now();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        startMusic();
-        draw();
-        typingInput.focus(); // Focus input on game start
-    }
+    resize();
+    loadHighScore();
+
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    studyGuide.style.display = 'none';
+    inputBar.style.display = 'flex';
+    
+    gameRunning = true;
+    
+    score = 0; 
+    combo = 0;
+    lives = 5;
+    enemies.length = 0; 
+    particles.length = 0;
+    
+    scoreEl.innerText = '0';
+    comboEl.innerText = '0';
+    livesEl.innerText = '5';
+    
+    renderCategoryBar();
+    
+    lastTime = performance.now();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    startMusic();
+    draw();
+    typingInput.focus();
 }
 
 // Initial setup
