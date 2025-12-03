@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Final Fix</title>
+    <title>Vocabulary Hunter: Final Polish</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
             --neon-green: #0f0;
             --neon-red: #ff4444;
             --neon-blue: #4f46e5;
+            --neon-cyan: #00ffff;
+            --neon-magenta: #ff00ff;
             --neon-yellow: #ffff00;
             --dark-bg: #050505;
             --panel-bg: rgba(0, 15, 0, 0.95);
@@ -123,6 +125,7 @@
         }
         .correct-ans-highlight {
             color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
+            font-weight: bold; font-size: 12px; border: 1px solid #fff;
         }
         .shake { animation: shake 0.5s; }
         @keyframes shake {
@@ -176,7 +179,15 @@
         select:focus { outline: none; background: #222; }
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
         .reset-btn:hover { background: var(--neon-red); color: #000; }
-        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
+        
+        /* FIX 4: Close Button Superpuesta */
+        .close-btn {
+            position:absolute; top:5px; right:5px;
+            font-size:20px; color:var(--neon-red); cursor:pointer;
+            border:1px solid var(--neon-red); padding:5px 10px;
+            z-index:20; background: #000; /* Fondo negro para tapar lo de abajo */
+            border-radius: 0; width: auto; height: auto;
+        }
         .close-btn:hover {background:var(--neon-red);color:#000;}
         
         ::-webkit-scrollbar {width:10px;}
@@ -209,7 +220,7 @@
         <p>
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
-            3. Shoot Parachutes to hear them.<br><br>
+            3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
             <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
         </p>
         <div class="blink">CLICK / TAP TO START</div>
@@ -270,8 +281,8 @@
                 <h2 class="config-header">SYSTEM CONFIG</h2>
                 
                 <div class="config-group">
-                     <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
-                     <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
+                      <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                      <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
                 </div>
 
                 <div class="config-group">
@@ -291,6 +302,11 @@
                 <div class="config-group">
                     <label class="config-label">VOCABULARY SOURCE</label>
                     <select id="cfg-source" onchange="updateConfig('source')"></select>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">SUPER BOSS FREQUENCY<span id="val-boss-freq" class="config-val">15</span></label>
+                    <input type="range" id="cfg-boss-freq" min="5" max="50" step="5" value="15" oninput="updateConfig('bossFreq')">
+                    <div class="slider-desc"><span>OFTEN (5)</span><span>RARE (50)</span></div>
                 </div>
                 <div class="config-group">
                     <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">1</span></label>
@@ -328,286 +344,29 @@
 
 <script>
 /* =========================================
-   1. INTERNAL DATA
+   1. INTERNAL DATA (EXPANDED)
    ========================================= */
-const INTERNAL_VOCAB = {
- 'VERBS': [
-    {en:"BE", es:"SER/ESTAR"}, {en:"HAVE", es:"TENER"}, {en:"DO", es:"HACER"}, {en:"SAY", es:"DECIR"},
-    {en:"GO", es:"IR"}, {en:"GET", es:"OBTENER"}, {en:"MAKE", es:"HACER"}, {en:"KNOW", es:"SABER"},
-    {en:"THINK", es:"PENSAR"}, {en:"TAKE", es:"TOMAR"}, {en:"SEE", es:"VER"}, {en:"COME", es:"VENIR"},
-    {en:"WANT", es:"QUERER"}, {en:"LOOK", es:"MIRAR"}, {en:"USE", es:"USAR"}, {en:"FIND", es:"ENCONTRAR"},
-    {en:"GIVE", es:"DAR"}, {en:"TELL", es:"DECIR/CONTAR"}, {en:"WORK", es:"TRABAJAR"}, {en:"CALL", es:"LLAMAR"},
-    {en:"TRY", es:"INTENTAR"}, {en:"ASK", es:"PREGUNTAR"}, {en:"NEED", es:"NECESITAR"}, {en:"FEEL", es:"SENTIR"},
-    {en:"BECOME", es:"LLEGAR A SER"}, {en:"LEAVE", es:"SALIR/DEJAR"}, {en:"PUT", es:"PONER"}, {en:"MEAN", es:"SIGNIFICAR"},
-    {en:"KEEP", es:"MANTENER"}, {en:"LET", es:"DEJAR"}, {en:"BEGIN", es:"EMPEZAR"}, {en:"SEEM", es:"PARECER"},
-    {en:"HELP", es:"AYUDAR"}, {en:"TALK", es:"HABLAR"}, {en:"TURN", es:"GIRAR"}, {en:"START", es:"EMPEZAR"},
-    {en:"SHOW", es:"MOSTRAR"}, {en:"HEAR", es:"OÍR"}, {en:"PLAY", es:"JUGAR"}, {en:"RUN", es:"CORRER"},
-    {en:"MOVE", es:"MOVER"}, {en:"LIKE", es:"GUSTAR"}, {en:"LIVE", es:"VIVIR"}, {en:"BELIEVE", es:"CREER"},
-    {en:"HOLD", es:"SOSTENER"}, {en:"BRING", es:"TRAER"}, {en:"HAPPEN", es:"OCURRIR"}, {en:"WRITE", es:"ESCRIBIR"},
-    {en:"SIT", es:"SENTARSE"}, {en:"STAND", es:"ESTAR DE PIE"}, {en:"LOSE", es:"PERDER"},
-
-    // New verbs start here
-    {en:"PAY", es:"PAGAR"}, {en:"MEET", es:"ENCONTRAR/REUNIRSE"}, {en:"INCLUDE", es:"INCLUIR"}, {en:"CONTINUE", es:"CONTINUAR"},
-    {en:"SET", es:"ESTABLECER"}, {en:"LEARN", es:"APRENDER"}, {en:"CHANGE", es:"CAMBIAR"}, {en:"LEAD", es:"LIDERAR"},
-    {en:"UNDERSTAND", es:"ENTENDER"}, {en:"WATCH", es:"VER/OBSERVAR"}, {en:"FOLLOW", es:"SEGUIR"}, {en:"STOP", es:"DETENER"},
-    {en:"CREATE", es:"CREAR"}, {en:"SPEAK", es:"HABLAR"}, {en:"READ", es:"LEER"}, {en:"ALLOW", es:"PERMITIR"},
-    {en:"ADD", es:"AGREGAR"}, {en:"SPEND", es:"GASTAR/PASAR"}, {en:"GROW", es:"CRECER"}, {en:"OPEN", es:"ABRIR"},
-    {en:"WALK", es:"CAMINAR"}, {en:"WIN", es:"GANAR"}, {en:"OFFER", es:"OFRECER"}, {en:"REMEMBER", es:"RECORDAR"},
-    {en:"LOVE", es:"AMAR"}, {en:"CONSIDER", es:"CONSIDERAR"}, {en:"APPEAR", es:"APARECER"}, {en:"BUY", es:"COMPRAR"},
-    {en:"WAIT", es:"ESPERAR"}, {en:"SERVE", es:"SERVIR"}, {en:"DIE", es:"MORIR"}, {en:"SEND", es:"ENVIAR"},
-    {en:"EXPECT", es:"ESPERAR (EXPECTATIVA)"}, {en:"BUILD", es:"CONSTRUIR"}, {en:"STAY", es:"QUEDARSE"}, {en:"FALL", es:"CAER"},
-    {en:"CUT", es:"CORTAR"}, {en:"REACH", es:"ALCANZAR"}, {en:"KILL", es:"MATAR"}, {en:"REMAIN", es:"PERMANECER"},
-    {en:"SUGGEST", es:"SUGERIR"}, {en:"RAISE", es:"LEVANTAR/AUMENTAR"}, {en:"PASS", es:"PASAR"}, {en:"SELL", es:"VENDER"},
-    {en:"REQUIRE", es:"REQUIRIR"}, {en:"REPORT", es:"REPORTAR"}, {en:"DECIDE", es:"DECIDIR"}, {en:"PULL", es:"TIRAR"},
-    {en:"RETURN", es:"REGRESAR"}, {en:"EXPLAIN", es:"EXPLICAR"}, {en:"HOPE", es:"ESPERAR (DESEO)"}, {en:"DEVELOP", es:"DESARROLLAR"},
-    {en:"CARRY", es:"CARGAR"}, {en:"BREAK", es:"ROMPER"}, {en:"RECEIVE", es:"RECIBIR"}, {en:"AGREE", es:"ESTAR DE ACUERDO"},
-    {en:"SUPPORT", es:"APOYAR"}, {en:"HIT", es:"GOLPEAR"}, {en:"PRODUCE", es:"PRODUCIR"}, {en:"EAT", es:"COMER"},
-    {en:"COVER", es:"CUBRIR"}, {en:"CATCH", es:"ATRAPAR"}, {en:"DRAW", es:"DIBUJAR"}, {en:"CHOOSE", es:"ELEGIR"},
-    {en:"CAUSE", es:"CAUSAR"}, {en:"POINT", es:"SEÑALAR"}, {en:"LISTEN", es:"ESCUCHAR"}, {en:"RECOGNIZE", es:"RECONOCER"},
-    {en:"MARRY", es:"CASARSE"}, {en:"TREAT", es:"TRATAR"}, {en:"AFFECT", es:"AFECTAR"}, {en:"IMPROVE", es:"MEJORAR"},
-    {en:"HANDLE", es:"MANEJAR"}, {en:"SHARE", es:"COMPARTIR"}, {en:"PULL", es:"TIRAR"}, {en:"PUSH", es:"EMPURJAR"},
-    {en:"ACHIEVE", es:"LOGRAR"}, {en:"AVOID", es:"EVITAR"}, {en:"DESCRIBE", es:"DESCRIBIR"}, {en:"APPLY", es:"APLICAR"},
-    {en:"FILL", es:"LLENAR"}, {en:"ATTEND", es:"ASISTIR"}, {en:"REDUCE", es:"REDUCIR"}, {en:"FIX", es:"ARREGLAR"},
-    {en:"CLOSE", es:"CERRAR"}, {en:"SEND", es:"ENVIAR"}, {en:"CLIMB", es:"ESCALAR"}, {en:"CLEAN", es:"LIMPIAR"},
-    {en:"SMILE", es:"SONREÍR"}, {en:"LAUGH", es:"REÍR"}, {en:"CRY", es:"LLORAR"}, {en:"SLEEP", es:"DORMIR"},
-    {en:"WAKE", es:"DESPERTAR"}, {en:"DRIVE", es:"MANEJAR"}, {en:"RIDE", es:"MONTAR"}, {en:"FLY", es:"VOLAR"},
-    {en:"SWIM", es:"NADAR"}, {en:"TEACH", es:"ENSEÑAR"}, {en:"TRAVEL", es:"VIAJAR"}, {en:"BORROW", es:"PEDIR PRESTADO"},
-    {en:"LEND", es:"PRESTAR"}, {en:"PROMISE", es:"PROMETER"}, {en:"WARN", es:"ADVERTIR"}, {en:"GUESS", es:"ADIVINAR"},
-    {en:"MISS", es:"EXTRAÑAR/PERDER"}, {en:"SHOUT", es:"GRITAR"}, {en:"WHISPER", es:"SUSURRAR"}, {en:"SMELL", es:"OLER"},
-    {en:"TOUCH", es:"TOCAR"}, {en:"BORROW", es:"PEDIR PRESTADO"}, {en:"SPREAD", es:"EXTENDER"}, {en:"THROW", es:"LANZAR"},
-    {en:"SHAKE", es:"SACUDIR"}, {en:"FIT", es:"ENCajar"}, {en:"FORGET", es:"OLVIDAR"}, {en:"REMIND", es:"RECORDAR"},
-    {en:"MANAGE", es:"MANEJAR/ADMINISTRAR"}, {en:"ENTER", es:"ENTRAR"}, {en:"ARRIVE", es:"LLEGAR"}, {en:"ORGANIZE", es:"ORGANIZAR"},
-    {en:"ATTACK", es:"ATACAR"}, {en:"DEFEND", es:"DEFENDER"}, {en:"DEMAND", es:"EXIGIR"}, {en:"PREFER", es:"PREFERIR"},
-    {en:"DESERVE", es:"MERECER"}, {en:"INSIST", es:"INSISTIR"}, {en:"COMPARE", es:"COMPARAR"}, {en:"ARGUE", es:"DISCUTIR"},
-    {en:"SING", es:"CANTAR"}, {en:"DANCE", es:"BAILAR"}, {en:"PRAY", es:"REZAR"}, {en:"COOK", es:"COCINAR"},
-    {en:"BAKE", es:"HORNEAR"}, {en:"BOIL", es:"HERVIR"}, {en:"FRY", es:"FREÍR"}, {en:"CUT", es:"CORTAR"},
-    {en:"MEASURE", es:"MEDIR"}, {en:"GUESS", es:"ADIVINAR"}, {en:"TEST", es:"PROBAR"}, {en:"PLAN", es:"PLANEAR"},
-    {en:"PREPARE", es:"PREPARAR"}, {en:"IMAGINE", es:"IMAGINAR"}, {en:"PREVENT", es:"PREVENIR"}, {en:"REALIZE", es:"DAR CUENTA"},
-    {en:"JUMP", es:"SALTAR"}, {en:"HANG", es:"COLGAR"}, {en:"KICK", es:"PATEAR"}, {en:"BURN", es:"QUEMAR"},
-    {en:"BEND", es:"DOBLAR"}, {en:"FREEZE", es:"CONGELAR"}, {en:"STEAL", es:"ROBAR"}, {en:"ARREST", es:"ARRESTAR"},
-    {en:"SELECT", es:"SELECCIONAR"}, {en:"TYPE", es:"TIPEAR"}, {en:"PRINT", es:"IMPRIMIR"}, {en:"UPLOAD", es:"SUBIR"},
-    {en:"DOWNLOAD", es:"DESCARGAR"}, {en:"SAVE", es:"GUARDAR"}, {en:"DELETE", es:"BORRAR"}, {en:"RENAME", es:"RENOMBRAR"},
-    {en:"SEARCH", es:"BUSCAR"}, {en:"BITE", es:"MORDER"}, {en:"CHEW", es:"MASTICAR"}, {en:"JOIN", es:"UNIRSE"},
-    {en:"ESCAPE", es:"ESCAPAR"}, {en:"SWITCH", es:"CAMBIAR"}, {en:"CONNECT", es:"CONECTAR"}, {en:"BLOCK", es:"BLOQUEAR"},
-    {en:"UNLOCK", es:"DESBLOQUEAR"}, {en:"SIGN", es:"FIRMAR"}, {en:"CANCEL", es:"CANCELAR"}, {en:"CONFIRM", es:"CONFIRMAR"}
-],
-  'NOUNS': [
-    {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
-    {en:"DAY", es:"DÍA"}, {en:"THING", es:"COSA"}, {en:"MAN", es:"HOMBRE"}, {en:"WORLD", es:"MUNDO"},
-    {en:"LIFE", es:"VIDA"}, {en:"HAND", es:"MANO"}, {en:"PART", es:"PARTE"}, {en:"CHILD", es:"NIÑO/A"},
-    {en:"EYE", es:"OJO"}, {en:"WOMAN", es:"MUJER"}, {en:"PLACE", es:"LUGAR"}, {en:"WORK", es:"TRABAJO"},
-    {en:"WEEK", es:"SEMANA"}, {en:"CASE", es:"CASO"}, {en:"POINT", es:"PUNTO"}, {en:"GOVERNMENT", es:"GOBIERNO"},
-    {en:"COMPANY", es:"EMPRESA"}, {en:"NUMBER", es:"NÚMERO"}, {en:"GROUP", es:"GRUPO"}, {en:"PROBLEM", es:"PROBLEMA"},
-    {en:"FACT", es:"HECHO"}, {en:"HOUSE", es:"CASA"}, {en:"SERVICE", es:"SERVICIO"}, {en:"FRIEND", es:"AMIGO"},
-    {en:"FATHER", es:"PADRE"}, {en:"POWER", es:"PODER"}, {en:"HOUR", es:"HORA"}, {en:"GAME", es:"JUEGO"},
-    {en:"LINE", es:"LÍNEA"}, {en:"END", es:"FIN"}, {en:"MEMBER", es:"MIEMBRO"}, {en:"LAW", es:"LEY"},
-    {en:"CAR", es:"COCHE"}, {en:"CITY", es:"CIUDAD"}, {en:"COMMUNITY", es:"COMUNIDAD"}, {en:"NAME", es:"NOMBRE"},
-    {en:"PRESIDENT", es:"PRESIDENTE"}, {en:"TEAM", es:"EQUIPO"}, {en:"MINUTE", es:"MINUTO"}, {en:"IDEA", es:"IDEA"},
-    {en:"KID", es:"NIÑO"}, {en:"BODY", es:"CUERPO"}, {en:"INFORMATION", es:"INFORMACIÓN"}, {en:"BACK", es:"ESPALDA"},
-    {en:"PARENT", es:"PADRE/MADRE"}, {en:"FACE", es:"CARA"}, {en:"OTHERS", es:"OTROS"}, {en:"HOME", es:"HOGAR"},
-    {en:"SCHOOL", es:"ESCUELA"}, {en:"WATER", es:"AGUA"}, {en:"WORD", es:"PALABRA"}, {en:"AREA", es:"ÁREA"},
-    {en:"MONEY", es:"DINERO"}, {en:"STORY", es:"HISTORIA"}, {en:"MORNING", es:"MAÑANA"}, {en:"MOM", es:"MAMÁ"},
-
-    // New nouns start here
-    {en:"AIR", es:"AIRE"}, {en:"FOOD", es:"COMIDA"}, {en:"ROOM", es:"HABITACIÓN"}, {en:"BOOK", es:"LIBRO"},
-    {en:"JOB", es:"TRABAJO"}, {en:"NIGHT", es:"NOCHE"}, {en:"BEACH", es:"PLAYA"}, {en:"SHOP", es:"TIENDA"},
-    {en:"STORE", es:"ALMACÉN/TIENDA"}, {en:"CHANCE", es:"OPORTUNIDAD"}, {en:"LEVEL", es:"NIVEL"}, {en:"FORM", es:"FORMA"},
-    {en:"AIRPORT", es:"AEROPUERTO"}, {en:"MOVIE", es:"PELÍCULA"}, {en:"MUSIC", es:"MÚSICA"}, {en:"HEALTH", es:"SALUD"},
-    {en:"ART", es:"ARTE"}, {en:"NATURE", es:"NATURALEZA"}, {en:"HISTORY", es:"HISTORIA"}, {en:"MOTHER", es:"MADRE"},
-    {en:"SON", es:"HIJO"}, {en:"DAUGHTER", es:"HIJA"}, {en:"BROTHER", es:"HERMANO"}, {en:"SISTER", es:"HERMANA"},
-    {en:"CAT", es:"GATO"}, {en:"DOG", es:"PERRO"}, {en:"PET", es:"MASCOTA"}, {en:"ANIMAL", es:"ANIMAL"},
-    {en:"ROAD", es:"CARRETERA"}, {en:"STREET", es:"CALLE"}, {en:"MAP", es:"MAPA"}, {en:"COUNTRY", es:"PAÍS"},
-    {en:"NATION", es:"NACIÓN"}, {en:"FLAG", es:"BANDERA"}, {en:"POLICE", es:"POLICÍA"}, {en:"FIRE", es:"FUEGO"},
-    {en:"NEWS", es:"NOTICIAS"}, {en:"MEDIA", es:"MEDIOS"}, {en:"WEATHER", es:"CLIMA"}, {en:"TRAFFIC", es:"TRÁFICO"},
-    {en:"PAPER", es:"PAPEL"}, {en:"LETTER", es:"CARTA"}, {en:"MAIL", es:"CORREO"}, {en:"MESSAGE", es:"MENSAJE"},
-    {en:"PHONE", es:"TELÉFONO"}, {en:"COMPUTER", es:"COMPUTADORA"}, {en:"SCREEN", es:"PANTALLA"}, {en:"KEYBOARD", es:"TECLADO"},
-    {en:"TABLE", es:"MESA"}, {en:"CHAIR", es:"SILLA"}, {en:"BED", es:"CAMA"}, {en:"WINDOW", es:"VENTANA"},
-    {en:"DOOR", es:"PUERTA"}, {en:"WALL", es:"PARED"}, {en:"FLOOR", es:"PISO"}, {en:"CEILING", es:"TECHO"},
-    {en:"CLOTHES", es:"ROPA"}, {en:"SHOES", es:"ZAPATOS"}, {en:"DRESS", es:"VESTIDO"}, {en:"COAT", es:"ABRIGO"},
-    {en:"BAG", es:"BOLSO"}, {en:"WALLET", es:"BILLETERA"}, {en:"CARD", es:"TARJETA"}, {en:"TICKET", es:"BOLETO"},
-    {en:"PASSPORT", es:"PASAPORTE"}, {en:"KEY", es:"LLAVE"}, {en:"LIGHT", es:"LUZ"}, {en:"FAN", es:"VENTILADOR"},
-    {en:"BOTTLE", es:"BOTELLA"}, {en:"GLASS", es:"VASO"}, {en:"CUP", es:"TAZA"}, {en:"PLATE", es:"PLATO"},
-    {en:"KNIFE", es:"CUCHILLO"}, {en:"FORK", es:"TENEDOR"}, {en:"SPOON", es:"CUCHARA"}, {en:"FOOD", es:"COMIDA"},
-    {en:"BREAKFAST", es:"DESAYUNO"}, {en:"LUNCH", es:"ALMUERZO"}, {en:"DINNER", es:"CENA"}, {en:"SNACK", es:"MERIENDA"},
-    {en:"RESTAURANT", es:"RESTAURANTE"}, {en:"MENU", es:"MENÚ"}, {en:"WAITER", es:"CAMARERO"}, {en:"BILL", es:"CUENTA"},
-    {en:"CASH", es:"EFECTIVO"}, {en:"PRICE", es:"PRECIO"}, {en:"MARKET", es:"MERCADO"}, {en:"SHOPPING", es:"COMPRAS"},
-    {en:"TOOL", es:"HERRAMIENTA"}, {en:"MACHINE", es:"MÁQUINA"}, {en:"ENGINE", es:"MOTOR"}, {en:"DEVICE", es:"DISPOSITIVO"},
-    {en:"PROJECT", es:"PROYECTO"}, {en:"PLAN", es:"PLAN"}, {en:"TASK", es:"TAREA"}, {en:"GOAL", es:"META"},
-    {en:"PROFESSION", es:"PROFESIÓN"}, {en:"WORKER", es:"TRABAJADOR"}, {en:"DOCTOR", es:"DOCTOR"}, {en:"NURSE", es:"ENFERMERA"},
-    {en:"ENGINEER", es:"INGENIERO"}, {en:"TEACHER", es:"MAESTRO"}, {en:"STUDENT", es:"ESTUDIANTE"}, {en:"DRIVER", es:"CONDUCTOR"},
-    {en:"ACTOR", es:"ACTOR"}, {en:"AUTHOR", es:"AUTOR"}, {en:"WRITER", es:"ESCRITOR"}, {en:"SINGER", es:"CANTANTE"},
-    {en:"MUSICIAN", es:"MÚSICO"}, {en:"PAINTER", es:"PINTOR"}, {en:"CHEF", es:"CHEF"}, {en:"POLITICIAN", es:"POLÍTICO"},
-    {en:"LEADER", es:"LÍDER"}, {en:"ATHLETE", es:"ATLETA"}, {en:"PLAYER", es:"JUGADOR"}, {en:"CUSTOMER", es:"CLIENTE"},
-    {en:"CLIENT", es:"CLIENTE"}, {en:"VISITOR", es:"VISITANTE"}, {en:"TOURIST", es:"TURISTA"}, {en:"GUEST", es:"INVITADO"},
-    {en:"HUMAN", es:"HUMANO"}, {en:"ADULT", es:"ADULTO"}, {en:"TEENAGER", es:"ADOLESCENTE"}, {en:"BABY", es:"BEBÉ"},
-    {en:"CROWD", es:"MULTITUD"}, {en:"PEOPLE", es:"GENTE"}, {en:"FAMILY", es:"FAMILIA"}, {en:"RELATIONSHIP", es:"RELACIÓN"},
-    {en:"FEELING", es:"SENTIMIENTO"}, {en:"EMOTION", es:"EMOCIÓN"}, {en:"THOUGHT", es:"PENSAMIENTO"}, {en:"DREAM", es:"SUEÑO"},
-    {en:"HOPE", es:"ESPERANZA"}, {en:"FEAR", es:"MIEDO"}, {en:"LOVE", es:"AMOR"}, {en:"PAIN", es:"DOLOR"},
-    {en:"JOY", es:"ALEGRÍA"}, {en:"ENERGY", es:"ENERGÍA"}, {en:"STRENGTH", es:"FUERZA"}, {en:"SPEED", es:"VELOCIDAD"},
-    {en:"SIZE", es:"TAMAÑO"}, {en:"COLOR", es:"COLOR"}, {en:"SHAPE", es:"FORMA"}, {en:"QUALITY", es:"CALIDAD"},
-    {en:"QUANTITY", es:"CANTIDAD"}, {en:"LIST", es:"LISTA"}, {en:"NOTE", es:"NOTA"}, {en:"FILE", es:"ARCHIVO"},
-    {en:"IMAGE", es:"IMAGEN"}, {en:"VIDEO", es:"VIDEO"}, {en:"AUDIO", es:"AUDIO"}, {en:"PHOTO", es:"FOTO"},
-    {en:"CHANNEL", es:"CANAL"}, {en:"ACCOUNT", es:"CUENTA"}, {en:"PASSWORD", es:"CONTRASEÑA"}, {en:"PROFILE", es:"PERFIL"},
-    {en:"SYSTEM", es:"SISTEMA"}, {en:"NETWORK", es:"RED"}, {en:"WEBSITE", es:"SITIO WEB"}, {en:"APP", es:"APLICACIÓN"}
-],
- // ==================== ADJETIVOS MÁS FRECUENTES (200) ====================
-'ADJECTIVES': [
-    {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
-    {en:"LONG", es:"LARGO"}, {en:"GREAT", es:"GENIAL/GRANDE"}, {en:"LITTLE", es:"PEQUEÑO"}, {en:"OWN", es:"PROPIO"},
-    {en:"OTHER", es:"OTRO"}, {en:"OLD", es:"VIEJO"}, {en:"RIGHT", es:"CORRECTO/DERECHO"}, {en:"BIG", es:"GRANDE"},
-    {en:"HIGH", es:"ALTO"}, {en:"DIFFERENT", es:"DIFERENTE"}, {en:"SMALL", es:"PEQUEÑO"}, {en:"LARGE", es:"GRANDE"},
-    {en:"NEXT", es:"SIGUIENTE"}, {en:"EARLY", es:"TEMPRANO"}, {en:"YOUNG", es:"JOVEN"}, {en:"IMPORTANT", es:"IMPORTANTE"},
-    {en:"FEW", es:"POCOS"}, {en:"PUBLIC", es:"PÚBLICO"}, {en:"BAD", es:"MALO"}, {en:"SAME", es:"MISMO"},
-    {en:"ABLE", es:"CAPAZ"}, {en:"HAPPY", es:"FELIZ"}, {en:"EASY", es:"FÁCIL"}, {en:"BEST", es:"MEJOR"},
-    {en:"BEAUTIFUL", es:"HERMOSO"}, {en:"TRUE", es:"VERDADERO"}, {en:"FREE", es:"LIBRE/GRATIS"}, {en:"HARD", es:"DURO/DIFÍCIL"},
-    {en:"BETTER", es:"MEJOR"}, {en:"SURE", es:"SEGURO"}, {en:"POSSIBLE", es:"POSIBLE"}, {en:"FULL", es:"LLENO"},
-    {en:"STRONG", es:"FUERTE"}, {en:"HOT", es:"CALIENTE"}, {en:"COLD", es:"FRÍO"}, {en:"NICE", es:"AMABLE/LINDO"},
-
-    // === Added to reach 200 ===
-    {en:"CLEAR", es:"CLARO"}, {en:"SPECIAL", es:"ESPECIAL"}, {en:"DIFFICULT", es:"DIFÍCIL"},
-    {en:"REAL", es:"REAL"}, {en:"MAIN", es:"PRINCIPAL"}, {en:"READY", es:"LISTO"},
-    {en:"COMMON", es:"COMÚN"}, {en:"SIMPLE", es:"SIMPLE"}, {en:"SERIOUS", es:"SERIO"},
-    {en:"STRANGE", es:"EXTRAÑO"}, {en:"ENTIRE", es:"ENTERO"}, {en:"PERSONAL", es:"PERSONAL"},
-    {en:"PRIVATE", es:"PRIVADO"}, {en:"POOR", es:"POBRE"}, {en:"RICH", es:"RICO"},
-    {en:"POPULAR", es:"POPULAR"}, {en:"MODERN", es:"MODERNO"}, {en:"TRADITIONAL", es:"TRADICIONAL"},
-    {en:"FINE", es:"BIEN/FINO"}, {en:"OPEN", es:"ABIERTO"}, {en:"CLOSED", es:"CERRADO"},
-    {en:"SHORT", es:"CORTO"}, {en:"TALL", es:"ALTO"}, {en:"WIDE", es:"ANCHO"},
-    {en:"NARROW", es:"ANGOSTO"}, {en:"DEEP", es:"PROFUNDO"}, {en:"SHALLOW", es:"SUPERFICIAL"},
-    {en:"BRIGHT", es:"BRILLANTE"}, {en:"DARK", es:"OSCURO"}, {en:"LOUD", es:"RUIDOSO"},
-    {en:"QUIET", es:"SILENCIOSO"}, {en:"BUSY", es:"OCUPADO"}, {en:"LAZY", es:"PEREZOSO"},
-    {en:"TIRED", es:"CANSADO"}, {en:"AFRAID", es:"ASUSTADO"}, {en:"BRAVE", es:"VALIENTE"},
-    {en:"POLITE", es:"EDUCADO"}, {en:"RUDE", es:"GROsero"}, {en:"FUNNY", es:"GRACIOSO"},
-    {en:"SERIOUS", es:"SERIO"}, {en:"WONDERFUL", es:"MARAVILLOSO"}, {en:"AWFUL", es:"HORRIBLE"},
-    {en:"AMAZING", es:"ASOMBROSO"}, {en:"BORING", es:"ABURRIDO"}, {en:"INTERESTING", es:"INTERESANTE"},
-    {en:"USEFUL", es:"ÚTIL"}, {en:"USELESS", es:"INÚTIL"}, {en:"AVAILABLE", es:"DISPONIBLE"},
-    {en:"UNAVAILABLE", es:"NO DISPONIBLE"}, {en:"SAFE", es:"SEGURO"}, {en:"DANGEROUS", es:"PELIGROSO"},
-    {en:"HEAVY", es:"PESADO"}, {en:"LIGHT", es:"LIVIANO"}, {en:"EXPENSIVE", es:"CARO"},
-    {en:"CHEAP", es:"BARATO"}, {en:"FAIR", es:"JUSTO"}, {en:"UNFAIR", es:"INJUSTO"},
-    {en:"FAST", es:"RÁPIDO"}, {en:"SLOW", es:"LENTO"}, {en:"DELICIOUS", es:"DELICIOSO"},
-    {en:"TASTY", es:"SABROSO"}, {en:"BITTER", es:"AMARGO"}, {en:"SWEET", es:"DULCE"},
-    {en:"SALTY", es:"SALADO"}, {en:"TIRED", es:"CANSADO"}, {en:"EXCITED", es:"EMOCIONADO"},
-    {en:"CALM", es:"CALMADO"}, {en:"ANGRY", es:"ENojado"}, {en:"UPSET", es:"MOLESTO"},
-    {en:"RELAXED", es:"RELajado"}, {en:"ANXIOUS", es:"ANSIOSO"}, {en:"CONFIDENT", es:"SEGURO"},
-    {en:"CONFUSING", es:"CONFUSO"}, {en:"CORRECT", es:"CORRECTO"}, {en:"WRONG", es:"INCORRECTO"},
-    {en:"HEALTHY", es:"SALUDABLE"}, {en:"SICK", es:"ENFERMO"}, {en:"FRESH", es:"FRESCO"},
-    {en:"DIRTY", es:"SUCIO"}, {en:"CLEAN", es:"LIMPIO"}, {en:"WEAK", es:"DÉBIL"},
-    {en:"POWERFUL", es:"PODEROSO"}, {en:"SMOOTH", es:"SUAVE"}, {en:"ROUGH", es:"ÁSPERO"},
-    {en:"LEGAL", es:"LEGAL"}, {en:"ILLEGAL", es:"ILEGAL"}, {en:"LOCAL", es:"LOCAL"},
-    {en:"INTERNATIONAL", es:"INTERNACIONAL"}, {en:"FAMOUS", es:"FAMOSO"}, {en:"UNKNOWN", es:"DESCONOCIDO"},
-    {en:"BUSY", es:"OCUPADO"}, {en:"EMPTY", es:"VACÍO"}, {en:"ALIVE", es:"VIVO"}, {en:"DEAD", es:"MUERTO"},
-    {en:"BRILLIANT", es:"BRILLANTE"}, {en:"TERRIBLE", es:"TERRIBLE"}, {en:"PERFECT", es:"PERFECTO"},
-    {en:"IMPOSSIBLE", es:"IMPOSIBLE"}, {en:"WORSE", es:"PEOR"}, {en:"WONDERFUL", es:"MARAVILLOSO"},
-    {en:"QUIET", es:"SILENCIOSO"}, {en:"NOISY", es:"RUIDOSO"}, {en:"FRIENDLY", es:"AMIGABLE"},
-    {en:"UNFRIENDLY", es:"ANTIPÁTICO"}, {en:"HUNGRY", es:"HAMBRIENTO"}, {en:"THIRSTY", es:"SEDIENTO"},
-    {en:"BUSY", es:"OCUPADO"}, {en:"RELAXING", es:"RELajANTE"}, {en:"BRIEF", es:"BREVE"},
-    {en:"ROUND", es:"REDONDO"}, {en:"SQUARE", es:"CUADRADO"}, {en:"FLAT", es:"PLANO"},
-    {en:"CURVED", es:"CURVADO"}, {en:"SOFT", es:"SUAVE"}, {en:"FIRM", es:"FIRME"},
-    {en:"INTELLIGENT", es:"INTELIGENTE"}, {en:"STUPID", es:"ESTÚPIDO"}, {en:"WISE", es:"SABIO"},
-    {en:"CREATIVE", es:"CREATIVO"}, {en:"ORIGINAL", es:"ORIGINAL"}, {en:"HONEST", es:"HONESTO"},
-    {en:"DISHONEST", es:"DESHONESTO"}, {en:"GENTLE", es:"SUAVE"}, {en:"CRUEL", es:"CRUEL"},
-    {en:"ACTIVE", es:"ACTIVO"}, {en:"PASSIVE", es:"PASIVO"}, {en:"BUSY", es:"OCUPADO"},
-    {en:"EMPTY", es:"VACÍO"}, {en:"LONELY", es:"SOLO"}, {en:"CROWDED", es:"LLENO DE GENTE"},
-    {en:"TOUGH", es:"DURO"}, {en:"TENDER", es:"TIERNO"}, {en:"RAPID", es:"RÁPIDO"},
-    {en:"STEADY", es:"ESTABLE"}, {en:"WILD", es:"SALVAJE"}, {en:"DOMESTIC", es:"DOMÉSTICO"},
-    {en:"HUMBLE", es:"HUMILDE"}, {en:"PROUD", es:"ORGULLOSO"}, {en:"LOVELY", es:"ENCANTADOR"},
-    {en:"HELPFUL", es:"SERVICIAL"}, {en:"HOPEFUL", es:"ESPERANZADO"}, {en:"HOPELESS", es:"SIN ESPERANZA"},
-    {en:"MAGICAL", es:"MÁGICO"}, {en:"MYSTERIOUS", es:"MISTERIOSO"}, {en:"NATURAL", es:"NATURAL"},
-    {en:"ARTIFICIAL", es:"ARTIFICIAL"}, {en:"GLOBAL", es:"GLOBAL"}, {en:"RURAL", es:"RURAL"},
-    {en:"URBAN", es:"URBANO"}, {en:"CENTRAL", es:"CENTRAL"}, {en:"REMOTE", es:"REMOTO"},
-    {en:"CURRENT", es:"ACTUAL"}, {en:"FORMER", es:"ANTERIOR"}, {en:"FUTURE", es:"FUTURO"},
-    {en:"INSTANT", es:"INSTANTÁNEO"}, {en:"TEMPORARY", es:"TEMPORAL"}, {en:"PERMANENT", es:"PERMANENTE"},
-    {en:"SUPERIOR", es:"SUPERIOR"}, {en:"INFERIOR", es:"INFERIOR"}, {en:"VISIBLE", es:"VISIBLE"},
-    {en:"INVISIBLE", es:"INVISIBLE"}, {en:"ACTIVE", es:"ACTIVO"}, {en:"PASSIVE", es:"PASIVO"},
-    {en:"CHALLENGING", es:"DESAFIANTE"}, {en:"ENJOYABLE", es:"AGRADABLE"}, {en:"MEMORABLE", es:"MEMORABLE"}
-],
- 'FUNCTION WORDS': [
-    // ---- CORE 80 (ya vistos) ----
-    {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
-    {en:"TO", es:"A/PARA"}, {en:"IN", es:"EN"}, {en:"IS", es:"ES/ESTÁ"}, {en:"YOU", es:"TÚ/USTED"},
-    {en:"THAT", es:"QUE/ESO"}, {en:"IT", es:"ESO/ELLA/ÉL (OBJETO)"}, {en:"HE", es:"ÉL"}, {en:"WAS", es:"ERA/ESTABA/FUE"},
-    {en:"FOR", es:"PARA/POR"}, {en:"ON", es:"EN/SOBRE"}, {en:"ARE", es:"SON/ESTÁN"}, {en:"AS", es:"COMO"},
-    {en:"WITH", es:"CON"}, {en:"HIS", es:"SU (DE ÉL)"}, {en:"THEY", es:"ELLOS/ELLAS"}, {en:"I", es:"YO"},
-    {en:"AT", es:"EN/A"}, {en:"BE", es:"SER/ESTAR"}, {en:"THIS", es:"ESTE/ESTA"}, {en:"HAVE", es:"TENER/HABER"},
-    {en:"FROM", es:"DE/DESDE"}, {en:"OR", es:"O"}, {en:"ONE", es:"UNO/UNA"}, {en:"HAD", es:"HABÍA/TUVO"},
-    {en:"BY", es:"POR"}, {en:"BUT", es:"PERO"}, {en:"NOT", es:"NO"}, {en:"WHAT", es:"QUÉ"},
-    {en:"ALL", es:"TODO"}, {en:"WILL", es:"(AUX) FUTURO"}, {en:"UP", es:"ARRIBA"}, {en:"OUT", es:"FUERA"},
-    {en:"IF", es:"SI (CONDICIONAL)"}, {en:"ABOUT", es:"SOBRE/ACERCA DE"}, {en:"WHO", es:"QUIÉN"}, {en:"WHICH", es:"CUÁL"},
-    {en:"WHEN", es:"CUANDO"}, {en:"THEIR", es:"SU (DE ELLOS)"}, {en:"CAN", es:"PODER (AUX)"}, {en:"THERE", es:"ALLÍ/HAY"},
-    {en:"AN", es:"UN/UNA"}, {en:"YOUR", es:"TU/SU"}, {en:"MORE", es:"MÁS"}, {en:"NO", es:"NO/NINGUNO"},
-    {en:"OTHER", es:"OTRO"}, {en:"DOES", es:"HACE (AUX)"}, {en:"DID", es:"HIZO (AUX)"}, {en:"SO", es:"ASÍ/ENTONCES"},
-    {en:"THESE", es:"ESTOS/ESTAS"}, {en:"ANY", es:"ALGUNO/CUALQUIER"}, {en:"MAY", es:"PODER (PERMISO)"}, {en:"THOSE", es:"ESOS/ESAS"},
-    {en:"HER", es:"SU/DE ELLA"}, {en:"OVER", es:"ENCIMA DE"}, {en:"MY", es:"MI"}, {en:"JUST", es:"SÓLO/APENAS"},
-    {en:"INTO", es:"DENTRO DE"}, {en:"LIKE", es:"COMO"}, {en:"THEN", es:"LUEGO/ENTONCES"}, {en:"NOW", es:"AHORA"},
-    {en:"ONLY", es:"SÓLO/SOLAMENTE"}, {en:"VERY", es:"MUY"}, {en:"HOW", es:"CÓMO"}, {en:"DOWN", es:"ABAJO"},
-    {en:"MUST", es:"DEBER"}, {en:"SHOULD", es:"DEBERÍA"}, {en:"AGAIN", es:"DE NUEVO"}, {en:"BEFORE", es:"ANTES"},
-    {en:"AFTER", es:"DESPUÉS"}, {en:"BETWEEN", es:"ENTRE"}, {en:"UNDER", es:"DEBAJO DE"}, {en:"AGAINST", es:"CONTRA"},
-    {en:"DURING", es:"DURANTE"}, {en:"WITHOUT", es:"SIN"}, {en:"THROUGH", es:"A TRAVÉS DE"},
-
-    // ---- EXTENDED LIST (120 MÁS) ----
-    {en:"BECAUSE", es:"PORQUE"}, {en:"WHILE", es:"MIENTRAS"}, {en:"WHERE", es:"DÓNDE"},
-    {en:"WHY", es:"POR QUÉ"}, {en:"WHEREAS", es:"MIENTRAS QUE"}, {en:"ALTHOUGH", es:"AUNQUE"},
-    {en:"NOR", es:"NI"}, {en:"NOR", es:"NI"}, {en:"EACH", es:"CADA"}, {en:"EVERY", es:"CADA/TODOS"},
-    {en:"EITHER", es:"CUALQUIERA/ALGUNO"}, {en:"NEITHER", es:"NINGUNO"}, {en:"BOTH", es:"AMBOS"},
-    {en:"FEWER", es:"MENOS"}, {en:"LESS", es:"MENOS"}, {en:"MOST", es:"LA MAYORÍA"},
-    {en:"SEVERAL", es:"VARIOS"}, {en:"MUCH", es:"MUCHO"}, {en:"EVER", es:"ALGUNA VEZ"},
-    {en:"ALWAYS", es:"SIEMPRE"}, {en:"NEVER", es:"NUNCA"}, {en:"ALREADY", es:"YA"},
-    {en:"YET", es:"TODAVÍA/AÚN"}, {en:"STILL", es:"AÚN/TODAVÍA"}, {en:"PERHAPS", es:"QUIZÁS"},
-    {en:"MAYBE", es:"QUIZÁS"}, {en:"THUS", es:"ASÍ/POR LO TANTO"}, {en:"HENCE", es:"DE AHÍ"},
-    {en:"THEREFORE", es:"POR LO TANTO"}, {en:"WHEREVER", es:"DONDE SEA"}, {en:"WHEREVER", es:"DONDEQUIERA"},
-    {en:"WHOEVER", es:"QUIEN SEA"}, {en:"WHATEVER", es:"LO QUE SEA"}, {en:"WHICHEVER", es:"EL QUE SEA"},
-    {en:"SOME", es:"ALGUNOS"}, {en:"SOMETHING", es:"ALGO"}, {en:"SOMEONE", es:"ALGUIEN"},
-    {en:"ANYONE", es:"CUALQUIERA"}, {en:"ANYTHING", es:"ALGO/CUALQUIER COSA"},
-    {en:"EVERYONE", es:"TODOS"}, {en:"EVERYTHING", es:"TODO"}, {en:"NOBODY", es:"NADIE"},
-    {en:"NOTHING", es:"NADA"}, {en:"ANYWHERE", es:"EN CUALQUIER PARTE"}, {en:"SOMEWHERE", es:"EN ALGÚN LUGAR"},
-    {en:"EVERYWHERE", es:"EN TODAS PARTES"}, {en:"NOWHERE", es:"EN NINGÚN LUGAR"},
-    {en:"BEYOND", es:"MÁS ALLÁ DE"}, {en:"UPON", es:"SOBRE"}, {en:"ALONG", es:"A LO LARGO DE"},
-    {en:"ACROSS", es:"A TRAVÉS DE"}, {en:"TOWARD", es:"HACIA"}, {en:"TOWARDS", es:"HACIA"},
-    {en:"WITHIN", es:"DENTRO DE"}, {en:"WITHOUT", es:"SIN"}, {en:"UNLESS", es:"A MENOS QUE"},
-    {en:"SINCE", es:"DESDE/YA QUE"}, {en:"ONTO", es:"SOBRE"}, {en:"OFF", es:"FUERA/APAGADO"},
-    {en:"PLUS", es:"MÁS"}, {en:"MINUS", es:"MENOS"}, {en:"AMONG", es:"ENTRE"},
-    {en:"AMID", es:"EN MEDIO DE"}, {en:"VIA", es:"VÍA/MEDIANTE"}, {en:"DESPITE", es:"A PESAR DE"},
-    {en:"REGARDING", es:"CON RESPECTO A"}, {en:"CONCERNING", es:"ACERCA DE"}, {en:"BEYOND", es:"MÁS ALLÁ DE"},
-    {en:"BEHIND", es:"DETRÁS DE"}, {en:"BENEATH", es:"DEBAJO DE"}, {en:"BESIDES", es:"ADEMÁS DE"},
-    {en:"UNTO", es:"A/HACIA"}, {en:"WHEREIN", es:"EN EL CUAL"}, {en:"WHEREBY", es:"POR EL CUAL"},
-    {en:"WHEREAS", es:"MIENTRAS QUE"}, {en:"UPWARDS", es:"HACIA ARRIBA"}, {en:"DOWNWARDS", es:"HACIA ABAJO"},
-    {en:"APART", es:"SEPARADO"}, {en:"ABOVE", es:"ENCIMA DE"}, {en:"BELOW", es:"DEBAJO DE"},
-    {en:"AMIDST", es:"EN MEDIO DE"}, {en:"MID", es:"A MITAD DE"}, {en:"ONTO", es:"HACIA ARRIBA DE"},
-    {en:"NEAR", es:"CERCA"}, {en:"NEARBY", es:"CERCA"}, {en:"THROUGHOUT", es:"A LO LARGO DE/TODO A TRAVÉS DE"},
-    {en:"UNLIKE", es:"A DIFERENCIA DE"}, {en:"ALBEIT", es:"AUNQUE"}, {en:"THOUGH", es:"AUNQUE"},
-    {en:"UNLIKE", es:"A DIFERENCIA DE"}, {en:"VIA", es:"POR MEDIO DE"}, {en:"EXCEPT", es:"EXCEPTO"},
-    {en:"EXCEPT FOR", es:"EXCEPTO POR"}, {en:"INCLUDING", es:"INCLUYENDO"}, {en:"EXCLUDING", es:"EXCLUYENDO"},
-    {en:"BESIDE", es:"AL LADO DE"}, {en:"AMONGST", es:"ENTRE"}, {en:"WHEREABOUTS", es:"PARADERO"},
-    {en:"MEANWHILE", es:"MIENTRAS TANTO"}, {en:"FURTHER", es:"MÁS ADELANTE"}, {en:"FURTHERMORE", es:"ADEMÁS"},
-    {en:"ELSE", es:"OTRO/DEMÁS"}, {en:"ELSEWHERE", es:"EN OTRO LUGAR"}, {en:"ALSO", es:"TAMBIÉN"},
-    {en:"TOO", es:"TAMBIÉN"}, {en:"EITHER", es:"TAMPOCO"}, {en:"NOR", es:"NI"}, {en:"LATER", es:"LUEGO"},
-    {en:"EARLIER", es:"ANTES"}, {en:"SOMETIMES", es:"A VECES"}, {en:"OFTEN", es:"A MENUDO"},
-    {en:"SELDOM", es:"RARA VEZ"}, {en:"RARELY", es:"RARAMENTE"}, {en:"FREQUENTLY", es:"FRECUENTEMENTE"},
-    {en:"ALMOST", es:"CASI"}, {en:"NEARLY", es:"CASI"}, {en:"BARELY", es:"APENAS"},
-    {en:"QUITE", es:"BASTANTE"}, {en:"RATHER", es:"MÁS BIEN"}, {en:"EVEN", es:"INCLUSO"},
-    {en:"ALTHOUGH", es:"AUNQUE"}, {en:"WHEREUPON", es:"DESPUÉS DE LO CUAL"}
-]
-};
 
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v12'; // Updated Key
+const CONFIG_KEY = 'vocab_robot_config_v14'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
-// UPDATED DEFAULTS: 0 Difficulty except Bombs (30)
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
-    spawnLevel: 1,      // MIN
-    enemySpeed: 0.5,    // MIN
-    bombChance: 30,     // 30%
-    bombSpeed: 1.0,     // MIN
+    spawnLevel: 1,      
+    enemySpeed: 0.5,    
+    bombChance: 30,     
+    bombSpeed: 1.0,     
     playerColor: '#4f46e5',
     quizEnabled: false, quizInterval: 30,
     masterVolume: 50,
     audioFX: true,
     audioWords: true,
-    audioBombs: true
+    audioBombs: true,
+    bossFrequency: 15 // NEW: Custom frequency
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -696,6 +455,10 @@ function applyConfigToUI() {
     document.getElementById('chk-voice-words').checked = userSettings.audioWords !== false;
     document.getElementById('chk-voice-bombs').checked = userSettings.audioBombs !== false;
 
+    // Boss Freq
+    document.getElementById('cfg-boss-freq').value = userSettings.bossFrequency || 15;
+    document.getElementById('val-boss-freq').textContent = userSettings.bossFrequency || 15;
+
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -739,6 +502,10 @@ function updateConfig(key) {
         document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
         quizTimer = 0; 
     }
+    else if(key === 'bossFreq') {
+        userSettings.bossFrequency = parseInt(document.getElementById('cfg-boss-freq').value);
+        document.getElementById('val-boss-freq').textContent = userSettings.bossFrequency;
+    }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
     else if(key === 'bomb') userSettings.bombChance = parseInt(document.getElementById('cfg-bomb').value);
@@ -759,12 +526,11 @@ function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
     localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    // Default Reset with Low Difficulty
     userSettings = { 
         vocabSource: 'LOCAL', dataPercent: 100, 
         spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
         playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
-        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true 
+        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
     };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
@@ -783,7 +549,6 @@ let gameDeck = [];
 
 const cleanText = (str) => {
     if(!str) return "";
-    // NFD + Remove diacritics = Ignore accents (CAMIÓN -> CAMION)
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
               .replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
 };
@@ -794,7 +559,6 @@ function loadVocabData() {
     const processItem = (en, es) => {
         const safeEn = cleanText(en);
         const safeEs = cleanText(es);
-        
         if(safeEn && safeEs && countWords(safeEn) <= 2) {
             tempVocabList.push({en: safeEn, es: [safeEs]});
         }
@@ -823,6 +587,7 @@ function loadVocabData() {
         }
         sourcesToLoad.forEach(catKey => {
             if(INTERNAL_VOCAB[catKey]) {
+                // Filtramos si son verbos complejos o items normales
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
             }
         });
@@ -960,7 +725,9 @@ function checkQuizAnswer() {
         setTimeout(()=>inputEl.classList.remove('shake'), 500);
         titleEl.innerText = "CRITICAL FAILURE!";
         overlay.style.borderColor = "#ff0000";
-        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
+        // FIX 1: FALLBACK FOR EMPTY STRING IN UI
+        const displayCorrect = bestMatch || correctAnswers[0] || "ERROR";
+        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${displayCorrect}</span>`;
         inputEl.value = "";
         inputEl.placeholder = "TYPE THE WORD ABOVE";
         inputEl.focus();
@@ -1020,13 +787,12 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (MEJORADO - HIGH QUALITY)
+   AUDIO MANAGER (FIX: QUEUE LIMIT)
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
 let availableVoices = [];
 
-// Cargar las voces disponibles
 function loadVoices() {
     availableVoices = window.speechSynthesis.getVoices();
 }
@@ -1048,35 +814,31 @@ function speak(text, lang, isBomb = false) {
     } else {
         if (!userSettings.audioWords) return;
     }
+    
+    if (audioQueue.length > 2) return; 
+
     audioQueue.push({text, lang});
 }
 
 function getBestVoice(lang) {
     if (availableVoices.length === 0) loadVoices();
-    
-    // 1. Filtrar por idioma base (ej: 'es' para 'es-MX')
     const baseLang = lang.split('-')[0];
     const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
-    
     if (candidates.length === 0) return null;
 
-    // 2. Sistema de Puntuación para encontrar la mejor voz
-    // Preferimos: Coincidencia Exacta > Google/Premium > Default
     const scoreVoice = (v) => {
         let score = 0;
-        if (v.lang === lang) score += 10; // Coincidencia exacta de región
-        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; // Alta calidad
+        if (v.lang === lang) score += 10; 
+        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; 
         if (v.default) score += 1;
         return score;
     };
-
     candidates.sort((a, b) => scoreVoice(b) - scoreVoice(a));
     return candidates[0];
 }
 
 function playText(text, lang) {
     if (!window.speechSynthesis) return;
-    
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
@@ -1085,9 +847,7 @@ function playText(text, lang) {
     
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; 
-    u.rate = 1.1; 
-
-    // Usar la lógica de mejor voz
+    u.rate = 0.9; 
     const bestVoice = getBestVoice(lang);
     if (bestVoice) u.voice = bestVoice;
     
@@ -1098,13 +858,8 @@ function playText(text, lang) {
 }
 
 function playSound(type) {
-    // Check SFX Toggle
     if (!userSettings.audioFX) return;
-    
-    // Check if context exists/resume it
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
-    
-    // Master Volume Check
     if(userSettings.masterVolume <= 0) return;
     const vol = userSettings.masterVolume / 100;
 
@@ -1128,16 +883,16 @@ function playSound(type) {
         o.type='sawtooth'; o.frequency.setValueAtTime(120,n); o.frequency.linearRampToValueAtTime(8,n+.3);
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
     }
-    else if(type==='firework'){ // NEW FIREWORK SOUND
+    else if(type==='firework'){ 
         o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
     }
-    
     o.start(n); o.stop(n + 0.5);
 }
 
 let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
 let spawnTimer = 0;
+let enemiesSpawnedCount = 0; 
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
 let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
@@ -1171,7 +926,6 @@ function toggleStudyGuide(){
     }else{
         gameRunning=false; cancelAnimationFrame(gameLoopId);
         populateStudyGuide(); studyGuide.style.display='flex';
-        // Wake audio context on interaction
         if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     }
 }
@@ -1197,29 +951,121 @@ function getRandomBombContent() {
     }
 }
 
+function getSafeSpawnX(enemyWidth) {
+    const attempts = 15;
+    const padding = 20;
+    
+    for (let i = 0; i < attempts; i++) {
+        let safe = true;
+        let candX = Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
+        for (let e of enemies) {
+            if (e.y < 250) { 
+                if (candX < e.x + e.w/2 + padding && candX > e.x - e.w/2 - padding) {
+                    safe = false;
+                    break;
+                }
+            }
+        }
+        if (safe) return candX;
+    }
+    return Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
+}
+
 function spawnEnemy(){
+    // FIX 2: BOSS SPAWN LOGIC (Uses userSettings.bossFrequency)
+    const bossFreq = userSettings.bossFrequency || 15;
+    if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % bossFreq === 0) {
+        const src = userSettings.vocabSource;
+        let allowed = false;
+        let specificType = null; 
+
+        if (src === 'ALL_INTERNAL' || src === 'MIXED') { 
+            allowed = true; // Random allowed
+        }
+        else if (src === 'REGULAR_VERBS') {
+            allowed = true; specificType = 'REGULAR_VERBS';
+        }
+        else if (src === 'IRREGULAR_VERBS') {
+            allowed = true; specificType = 'IRREGULAR_VERBS';
+        }
+
+        if (allowed) {
+            spawnBoss(specificType);
+            enemiesSpawnedCount++;
+            return;
+        }
+    }
+
     if(gameDeck.length===0) return;
     const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
+    
+    const startX = getSafeSpawnX(textWidth);
     const vx = (Math.random() - 0.5) * 2.0;
     const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
 
     enemies.push({
-        x:Math.random()*(canvas.width-textWidth-50)+textWidth/2+25, 
-        y:-40, 
+        x: startX, 
+        y: -40, 
         wordData:d, text:d.en, 
         stage:0, hits:0, 
         speed: baseSpeed, 
         vx: vx, 
         color:'#ffffff', 
-        timer:0, fading:false, w:textWidth, droppedBomb: false 
+        timer:0, fading:false, w:textWidth, droppedBomb: false,
+        isBoss: false 
+    });
+    enemiesSpawnedCount++;
+}
+
+function spawnBoss(forcedListType) {
+    let listType;
+    if (forcedListType) {
+        listType = forcedListType;
+    } else {
+        listType = Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
+    }
+
+    const sourceList = INTERNAL_VOCAB[listType] || INTERNAL_VOCAB['REGULAR_VERBS'];
+    const verbData = sourceList[Math.floor(Math.random() * sourceList.length)];
+
+    ctx.font = '16px "Press Start 2P"';
+    const wBase = ctx.measureText(verbData.en).width;
+    const wPast = ctx.measureText(verbData.past).width;
+    const wPart = ctx.measureText(verbData.part).width;
+    const maxW = Math.max(wBase, wPast, wPart);
+
+    const startX = getSafeSpawnX(maxW);
+    
+    let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; 
+    let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
+
+    enemies.push({
+        x: startX,
+        y: -100, 
+        wordData: verbData,
+        isBoss: true,
+        bossType: verbData.type,
+        phases: [
+            { text: verbData.en, hits: 0, completed: false },   
+            { text: verbData.past, hits: 0, completed: false }, 
+            { text: verbData.part, hits: 0, completed: false }  
+        ],
+        activePhase: 0, 
+        speed: (0.5 * userSettings.enemySpeed) * speedMod,
+        vx: 0, 
+        color: bossColor,
+        w: maxW,
+        droppedBomb: false,
+        fading: false,
+        bossFinished: false // NEW FLAG FOR FINISH STATE
     });
 }
 
 function createExplosion(x,y,c,n=10){
     for(let i=0;i<n;i++) {
-        if(particles.length > 300) particles.shift(); 
+        if(particles.length > 400) particles.shift(); 
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -1243,24 +1089,15 @@ function drawRobot(ctx, x, y, w, h, color) {
 
 // === OPTIMIZATION: 30 FPS LOCK ===
 let lastFrameTime = 0;
-const targetFPS = 30; // 30 FPS Retro Cap
+const targetFPS = 30; 
 const frameInterval = 1000 / targetFPS;
 
 function loop(timestamp) {
     if (!gameRunning) return;
-
-    // Request next frame immediately
     gameLoopId = requestAnimationFrame(loop);
-
-    // === THROTTLE TO 30 FPS ===
     const elapsed = timestamp - lastFrameTime;
     if (elapsed < frameInterval) return;
-
     lastFrameTime = timestamp - (elapsed % frameInterval);
-
-    // Calculate timeScale to maintain game speed at 30fps
-    // Normalizing against standard 60fps (16.66ms)
-    // At 30fps, elapsed is ~33ms, so timeScale is ~2.0
     const timeScale = elapsed / (1000/60); 
 
     update(elapsed, timeScale);
@@ -1268,12 +1105,10 @@ function loop(timestamp) {
 }
 
 function update(dt, timeScale){
-    // Clamp timeScale to prevent glitches if tab was inactive
     if(timeScale > 4) timeScale = 1;
 
-    // QUIZ TIMER FIX: Independent from variable dt (uses fixed frame time)
     if (userSettings.quizEnabled) {
-        quizTimer += 33; // ~33ms per frame locked at 30fps
+        quizTimer += 33; 
         if (quizTimer >= userSettings.quizInterval * 1000) {
             triggerPopQuiz();
             return; 
@@ -1282,7 +1117,6 @@ function update(dt, timeScale){
 
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    // MOVEMENT MULTIPLIED BY TIME SCALE
     if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
@@ -1315,7 +1149,7 @@ function update(dt, timeScale){
                 bullets.splice(j,1);
                 createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng');
-                speak(b.text, 'en-US', true); // True = Is Bomb
+                speak(b.text, 'en-US', true); 
                 score += 25; scoreEl.innerText = score;
                 enemyBombs.splice(i,1);
                 break;
@@ -1325,13 +1159,30 @@ function update(dt, timeScale){
     }
 
     for(let i=bullets.length-1;i>=0;i--){
-        bullets[i].y -= 12 * timeScale; // Scaled Bullet Speed
+        bullets[i].y -= 12 * timeScale; 
         if(bullets[i].y<0)bullets.splice(i,1);
     }
     
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < (gameVars.bombProb * timeScale)) {
+        
+        // --- BOSS DEAD DELAY LOGIC ---
+        if(e.bossFinished) {
+            e.timer += dt;
+            if(e.timer > 4000) e.fading = true; // Wait 6 seconds before dying
+        } else {
+             // Only move if not dead/finished
+             e.y += e.speed * timeScale; 
+             e.x += e.vx * timeScale; 
+
+            if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
+                e.vx *= -1; 
+                if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
+                if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+            }
+        }
+        
+        if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
                 x: e.x, y: e.y + 40,
@@ -1344,49 +1195,89 @@ function update(dt, timeScale){
 
         if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
         
-        e.y += e.speed * timeScale; 
-        e.x += e.vx * timeScale; 
-
-        if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
-            e.vx *= -1; 
-            if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
-            if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+        let eRect;
+        if (e.isBoss) {
+            eRect = {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90};
+        } else {
+            eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
         }
-
-        const eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
-        if(!player.invincible && checkCollisionRect(player, eRect)){
+        
+        if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
             player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
             if(lives<=0){gameOver();return;}
             continue;
         }
         
-        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
+        // --- NORMAL ENEMY TRANSLATION TIMER ---
+        if(e.stage===1){e.timer+=dt;if(e.timer>6000)e.fading=true;} // UPDATED TO 6000ms
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
-            if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
-                bullets.splice(j,1); e.timer=0;
+            
+            if (e.isBoss && !e.bossFinished) {
+                const yOffset = e.activePhase * 30;
+                const targetY = e.y - yOffset;
                 
-                if(e.stage===0){
-                    e.hits++; 
-                    if(e.hits === 1) speak(e.text, 'en-US', false); // False = Word
-                    playSound('hit_eng');score+=10;
-                    if(e.hits >= 3) {
-                        e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
-                        createExplosion(e.x,e.y,'#00ff00',20);
-                        score+=50; combo++;
-                        ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                if(b.x > e.x-e.w/2-10 && b.x < e.x+e.w/2+10 && b.y > targetY-20 && b.y < targetY+10) {
+                    bullets.splice(j,1);
+                    
+                    const phase = e.phases[e.activePhase];
+                    phase.hits++;
+                    playSound('hit_eng');
+                    createExplosion(e.x, targetY, e.color, 10);
+
+                    if (phase.hits >= 3) {
+                        phase.completed = true;
+                        speak(phase.text, 'en-US', false);
+                        e.activePhase++;
+                        score += 100;
+                        
+                        if (e.activePhase >= 3) {
+                            // BOSS DEFEATED LOGIC - MODIFIED
+                            e.bossFinished = true;
+                            e.color = '#00ff00';  // <--- AGREGA ESTA LÍNEA AQUÍ
+                            e.timer = 0;
+                            // Show translation on the last line
+                            e.phases[2].text = e.wordData.es; 
+                            e.phases[2].completed = false; // Trick renderer to show it bright
+                            e.activePhase = 2; // Focus on last line
+                            
+                            // BOSS EXPLOSION HUGE
+                            createExplosion(e.x, e.y, '#ffffff', 150);
+                            playSound('hit_syn');
+                            score += 500; combo++;
+                            speak(e.wordData.es, 'es-ES', false); 
+                        }
                     }
+                    scoreEl.innerText=score;
+                    break;
                 }
-                else if(e.stage===1){
-                    e.fading=true;
-                    createExplosion(e.x,e.y,'#ffffff',40);
-                    playSound('hit_syn'); score+=150; combo++;
-                    speak(e.text, 'es-ES', false); // False = Word
+            } 
+            else if (!e.isBoss) {
+                if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
+                    bullets.splice(j,1); e.timer=0;
+                    
+                    if(e.stage===0){
+                        e.hits++; 
+                        if(e.hits === 1) speak(e.text, 'en-US', false); 
+                        playSound('hit_eng');score+=10;
+                        if(e.hits >= 3) {
+                            e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
+                            createExplosion(e.x,e.y,'#00ff00',20);
+                            score+=50; combo++;
+                            ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                        }
+                    }
+                    else if(e.stage===1){
+                        e.fading=true;
+                        createExplosion(e.x,e.y,'#ffffff',40);
+                        playSound('hit_syn'); score+=150; combo++;
+                        speak(e.text, 'es-ES', false); 
+                    }
+                    scoreEl.innerText=score;comboEl.innerText=combo;
+                    break;
                 }
-                scoreEl.innerText=score;comboEl.innerText=combo;
-                break;
             }
         }
         if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
@@ -1424,34 +1315,73 @@ function draw(timestamp){
         ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(b.x+10, b.y-15); ctx.lineTo(b.x+4, b.y); ctx.stroke();
         ctx.fillStyle=b.color;
-        // Simple shape instead of shadow
         ctx.beginPath(); ctx.arc(b.x, b.y-15, 12, Math.PI, 0); ctx.fill();
         ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff';
         ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets (High contrast instead of shadow)
+    // Bullets
     ctx.fillStyle='#ff0055';
     bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
     
     // Enemies
     enemies.forEach(e=>{
-        ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
-        ctx.fillStyle=e.color;
-        
-        // Use text stroke for "glow" effect (cheaper than shadowBlur)
-        if(e.stage>=1){
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#003300';
-            ctx.strokeText(e.text, e.x, e.y);
-        }
-        
-        ctx.fillText(e.text,e.x,e.y);
-        
-        for(let k=0;k<4;k++){
-            if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
-            else ctx.fillStyle = '#444';
-            ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
+        if (e.isBoss) {
+            e.phases.forEach((p, index) => {
+                const yPos = e.y - (index * 30);
+                
+                if (p.completed) {
+                    ctx.fillStyle = '#444'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                else if (index === e.activePhase) {
+                    // FIX 2: COLORED FILL, WHITE STROKE (Better visibility)
+                    ctx.fillStyle = e.color;  
+                    ctx.shadowColor = e.color; 
+                    ctx.shadowBlur = 15;       
+                    ctx.font = 'bold 16px "Press Start 2P"';
+                    ctx.fillText(p.text, e.x, yPos);
+                    
+                    // Optional: White outline for extra pop
+                    ctx.lineWidth = 1; 
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeText(p.text, e.x, yPos);
+                }
+                else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                
+                ctx.shadowBlur = 0; // Reset
+
+                // Hit dots
+                if (index === e.activePhase) {
+                    for(let k=0;k<3;k++){
+                        ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
+                        ctx.beginPath();ctx.arc(e.x-20+(k*20), yPos+12, 3, 0, Math.PI*2);ctx.fill();
+                    }
+                }
+            });
+
+        } else {
+            ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
+            ctx.fillStyle=e.color;
+            
+            if(e.stage>=1){
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.strokeText(e.text, e.x, e.y);
+            }
+            
+            ctx.fillText(e.text,e.x,e.y);
+            
+            for(let k=0;k<4;k++){
+                if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
+                else ctx.fillStyle = '#444';
+                ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
+            }
         }
     });
     
@@ -1471,20 +1401,17 @@ function gameOver(){
 function startGame(){
     if(gameRunning) return;
     
-    // --- TRUCO PARA DESBLOQUEAR VOZ EN CELULAR ---
-    // Al iniciar, forzamos al navegador a "hablar" silencio.
-    // Esto le da permiso al juego para seguir hablando después.
     if(window.speechSynthesis) {
-        window.speechSynthesis.cancel(); // Limpiar cola anterior
-        let unlockVoice = new SpeechSynthesisUtterance(""); // Frase vacía
-        unlockVoice.volume = 0; // Volumen 0 por si acaso
+        window.speechSynthesis.cancel(); 
+        let unlockVoice = new SpeechSynthesisUtterance(""); 
+        unlockVoice.volume = 0; 
         window.speechSynthesis.speak(unlockVoice);
     }
-    // ---------------------------------------------
 
     resize();
     startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
     score=combo=0; lives=5; enemies=[]; bullets=[]; particles=[]; enemyBombs=[]; player.invincible=false;
+    enemiesSpawnedCount = 0; // Reset Boss Counter
     scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5';
     loadHighScore();
     
@@ -1493,7 +1420,6 @@ function startGame(){
     spawnTimer = gameVars.spawnInterval;
     quizTimer = 0;
     
-    // Intentar reanudar el contexto de audio (Efectos de sonido)
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     
     gameLoopId = requestAnimationFrame(loop);
@@ -1515,7 +1441,6 @@ const handleTouchEnd = (key) => {
     keys[key] = false;
 };
 
-// Add listeners preventing default to stop selection/zoom
 ['touchstart', 'mousedown'].forEach(evt => {
     btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
     btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
@@ -1548,4 +1473,3 @@ window.onload=()=>{
 </script>
 </body>
 </html>
-
