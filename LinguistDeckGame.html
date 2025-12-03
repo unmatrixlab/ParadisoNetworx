@@ -45,14 +45,17 @@
 
         .touch-group { display: flex; gap: 20px; pointer-events: auto; }
 
-        /* GRUPO IZQUIERDO (Flechas Verdes): 150px arriba */
+        /* GRUPO IZQUIERDO (Flechas Verdes) */
         .touch-group:first-child {
-            margin-bottom: 150px; 
+            margin-bottom: 90px; 
         }
 
-        /* GRUPO DERECHO (Botón Rojo): 90px arriba */
+        /* GRUPO DERECHO (Botones de disparo) */
         .touch-group:last-child {
-            margin-bottom: 90px;
+            flex-direction: column; /* Apilar botones verticalmente */
+            gap: 15px;
+            margin-bottom: 40px;
+            align-items: center;
         }
 
         .touch-btn {
@@ -64,8 +67,13 @@
             text-shadow: 2px 2px 0 #000;
         }
         .touch-btn:active { background: var(--neon-green); color: #000; }
+        
         .btn-fire { border-color: var(--neon-red); color: var(--neon-red); }
         .btn-fire:active { background: var(--neon-red); color: #000; }
+
+        /* NUEVO BOTON BAN (Celeste) */
+        .btn-ban { border-color: var(--neon-cyan); color: var(--neon-cyan); font-size: 12px; font-weight: bold;}
+        .btn-ban:active { background: var(--neon-cyan); color: #000; }
 
         @media (max-width: 768px) or (pointer: coarse) {
             #mobile-controls { display: flex; }
@@ -180,12 +188,11 @@
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
         .reset-btn:hover { background: var(--neon-red); color: #000; }
         
-        /* FIX 4: Close Button Superpuesta */
         .close-btn {
             position:absolute; top:5px; right:5px;
             font-size:20px; color:var(--neon-red); cursor:pointer;
             border:1px solid var(--neon-red); padding:5px 10px;
-            z-index:20; background: #000; /* Fondo negro para tapar lo de abajo */
+            z-index:20; background: #000;
             border-radius: 0; width: auto; height: auto;
         }
         .close-btn:hover {background:var(--neon-red);color:#000;}
@@ -209,6 +216,7 @@
             <div class="touch-btn" id="btn-right">→</div>
         </div>
         <div class="touch-group">
+            <div class="touch-btn btn-ban" id="btn-ban">XXX</div>
             <div class="touch-btn btn-fire" id="btn-fire">●</div>
         </div>
     </div>
@@ -221,6 +229,7 @@
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
             3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
+            <span style="color: var(--neon-cyan);">NEW: USE BLUE BUTTON (X) TO BAN WORDS (3 HITS)</span><br><br>
             <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
         </p>
         <div class="blink">CLICK / TAP TO START</div>
@@ -1465,7 +1474,7 @@ let userSettings = {
     audioFX: true,
     audioWords: true,
     audioBombs: true,
-    bossFrequency: 15 // NEW: Custom frequency
+    bossFrequency: 15
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -1473,6 +1482,9 @@ let disabledWords = new Set();
 // Variables para el Quiz
 let quizTimer = 0;
 let currentQuizWord = null;
+
+// NEW: LOCK-ON SYSTEM
+let lockedEnemyId = null;
 
 // --- MENUS & UI ---
 function renderCategoryBar() {
@@ -1686,7 +1698,6 @@ function loadVocabData() {
         }
         sourcesToLoad.forEach(catKey => {
             if(INTERNAL_VOCAB[catKey]) {
-                // Filtramos si son verbos complejos o items normales
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
             }
         });
@@ -1824,7 +1835,6 @@ function checkQuizAnswer() {
         setTimeout(()=>inputEl.classList.remove('shake'), 500);
         titleEl.innerText = "CRITICAL FAILURE!";
         overlay.style.borderColor = "#ff0000";
-        // FIX 1: FALLBACK FOR EMPTY STRING IN UI
         const displayCorrect = bestMatch || correctAnswers[0] || "ERROR";
         feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${displayCorrect}</span>`;
         inputEl.value = "";
@@ -1857,6 +1867,7 @@ function resolveQuizSuccess() {
         createExplosion(e.x, e.y, e.color, 20);
         score += 50;
     });
+    lockedEnemyId = null; // Clear lock
     
     gameRunning = true;
     lastTime = performance.now();
@@ -1886,7 +1897,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (FIX: QUEUE LIMIT)
+   AUDIO MANAGER
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
@@ -1970,6 +1981,10 @@ function playSound(type) {
         o.type='square'; o.frequency.setValueAtTime(400,n); o.frequency.exponentialRampToValueAtTime(100,n+.1);
         g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
     }
+    else if(type==='ban_shoot'){
+        o.type='sine'; o.frequency.setValueAtTime(800,n); o.frequency.exponentialRampToValueAtTime(200,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
+    }
     else if(type==='hit_eng'){
         o.type='sawtooth'; o.frequency.setValueAtTime(600,n); o.frequency.linearRampToValueAtTime(800,n+.1);
         g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.15);
@@ -1985,6 +2000,10 @@ function playSound(type) {
     else if(type==='firework'){ 
         o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
+    }
+    else if(type==='ban_success'){
+        o.type='sine'; o.frequency.setValueAtTime(200,n); o.frequency.linearRampToValueAtTime(100,n+.5);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
     }
     o.start(n); o.stop(n + 0.5);
 }
@@ -2105,10 +2124,12 @@ function spawnEnemy(){
     const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
 
     enemies.push({
+        id: Date.now() + Math.random(), // Unique ID for Lock-on
         x: startX, 
         y: -40, 
         wordData:d, text:d.en, 
         stage:0, hits:0, 
+        banHits: 0, // NEW: Counter for Ban mechanism
         speed: baseSpeed, 
         vx: vx, 
         color:'#ffffff', 
@@ -2141,6 +2162,7 @@ function spawnBoss(forcedListType) {
     let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
 
     enemies.push({
+        id: Date.now() + Math.random(),
         x: startX,
         y: -100, 
         wordData: verbData,
@@ -2158,7 +2180,8 @@ function spawnBoss(forcedListType) {
         w: maxW,
         droppedBomb: false,
         fading: false,
-        bossFinished: false // NEW FLAG FOR FINISH STATE
+        bossFinished: false,
+        banHits: 0
     });
 }
 
@@ -2244,7 +2267,8 @@ function update(dt, timeScale){
 
         for(let j=bullets.length-1; j>=0; j--){
             let bullet = bullets[j];
-            if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
+            // Only normal bullets destroy bombs, ban bullets ignore bombs
+            if(bullet.type === 'normal' && bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
                 bullets.splice(j,1);
                 createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng');
@@ -2268,9 +2292,8 @@ function update(dt, timeScale){
         // --- BOSS DEAD DELAY LOGIC ---
         if(e.bossFinished) {
             e.timer += dt;
-            if(e.timer > 4000) e.fading = true; // Wait 6 seconds before dying
+            if(e.timer > 4000) e.fading = true; 
         } else {
-             // Only move if not dead/finished
              e.y += e.speed * timeScale; 
              e.x += e.vx * timeScale; 
 
@@ -2292,7 +2315,15 @@ function update(dt, timeScale){
             });
         }
 
-        if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
+        // Handle Enemy Fading / Removal
+        if(e.fading){
+            // IF LOCKED TARGET DIES, UNLOCK
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+            
+            createExplosion(e.x,e.y,e.color,1);
+            enemies.splice(i,1);
+            continue;
+        }
         
         let eRect;
         if (e.isBoss) {
@@ -2304,82 +2335,118 @@ function update(dt, timeScale){
         if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
             player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
+            
+            // Unset lock if we crashed into the locked target
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+
             if(lives<=0){gameOver();return;}
             continue;
         }
         
         // --- NORMAL ENEMY TRANSLATION TIMER ---
-        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} // UPDATED TO 6000ms
+        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} 
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
             
+            // --- LOGICA DE FIJAR OBJETIVO (LOCK-ON) ---
+            // Si hay un objetivo fijado y NO es este enemigo, la bala ignora a este enemigo
+            if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
+                continue; 
+            }
+
+            // Hitbox Logic
+            let hit = false;
+            let targetY = e.y;
             if (e.isBoss && !e.bossFinished) {
                 const yOffset = e.activePhase * 30;
-                const targetY = e.y - yOffset;
-                
-                if(b.x > e.x-e.w/2-10 && b.x < e.x+e.w/2+10 && b.y > targetY-20 && b.y < targetY+10) {
-                    bullets.splice(j,1);
-                    
-                    const phase = e.phases[e.activePhase];
-                    phase.hits++;
-                    playSound('hit_eng');
-                    createExplosion(e.x, targetY, e.color, 10);
+                targetY = e.y - yOffset;
+                if(b.x > e.x-e.w/2-10 && b.x < e.x+e.w/2+10 && b.y > targetY-20 && b.y < targetY+10) hit = true;
+            } else if (!e.isBoss) {
+                if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10) hit = true;
+            }
 
-                    if (phase.hits >= 3) {
-                        phase.completed = true;
-                        speak(phase.text, 'en-US', false);
-                        e.activePhase++;
-                        score += 100;
-                        
-                        if (e.activePhase >= 3) {
-                            // BOSS DEFEATED LOGIC - MODIFIED
-                            e.bossFinished = true;
-                            e.color = '#00ff00';  // <--- AGREGA ESTA LÍNEA AQUÍ
-                            e.timer = 0;
-                            // Show translation on the last line
-                            e.phases[2].text = e.wordData.es; 
-                            e.phases[2].completed = false; // Trick renderer to show it bright
-                            e.activePhase = 2; // Focus on last line
-                            
-                            // BOSS EXPLOSION HUGE
-                            createExplosion(e.x, e.y, '#ffffff', 150);
-                            playSound('hit_syn');
-                            score += 500; combo++;
-                            speak(e.wordData.es, 'es-ES', false); 
-                        }
-                    }
-                    scoreEl.innerText=score;
-                    break;
-                }
-            } 
-            else if (!e.isBoss) {
-                if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
-                    bullets.splice(j,1); e.timer=0;
+            if (hit) {
+                bullets.splice(j,1);
+                
+                // Si no había objetivo, fijamos este como objetivo
+                if (lockedEnemyId === null) lockedEnemyId = e.id;
+
+                // --- LOGICA DE BANEO (Bala Azul) ---
+                if (b.type === 'ban') {
+                    e.banHits++;
+                    createExplosion(e.isBoss ? e.x : e.x, e.isBoss ? targetY : e.y, '#00ffff', 15);
+                    playSound('hit_eng');
                     
-                    if(e.stage===0){
-                        e.hits++; 
-                        if(e.hits === 1) speak(e.text, 'en-US', false); 
-                        playSound('hit_eng');score+=10;
-                        if(e.hits >= 3) {
-                            e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
-                            createExplosion(e.x,e.y,'#00ff00',20);
-                            score+=50; combo++;
-                            ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                    if (e.banHits >= 3) {
+                        toggleWordStatus(e.wordData.en);
+                        e.fading = true; // Remove immediately
+                        createExplosion(e.x, e.y, '#000000', 50); // Black hole effect
+                        playSound('ban_success');
+                        score += 0; // No score for banning
+                    }
+                } 
+                // --- LOGICA NORMAL (Bala Roja) ---
+                else {
+                    if (e.isBoss && !e.bossFinished) {
+                        const phase = e.phases[e.activePhase];
+                        phase.hits++;
+                        playSound('hit_eng');
+                        createExplosion(e.x, targetY, e.color, 10);
+
+                        if (phase.hits >= 3) {
+                            phase.completed = true;
+                            speak(phase.text, 'en-US', false);
+                            e.activePhase++;
+                            score += 100;
+                            
+                            if (e.activePhase >= 3) {
+                                e.bossFinished = true;
+                                e.color = '#00ff00';
+                                e.timer = 0;
+                                e.phases[2].text = e.wordData.es; 
+                                e.phases[2].completed = false; 
+                                e.activePhase = 2; 
+                                
+                                createExplosion(e.x, e.y, '#ffffff', 150);
+                                playSound('hit_syn');
+                                score += 500; combo++;
+                                speak(e.wordData.es, 'es-ES', false); 
+                            }
+                        }
+                    } 
+                    else if (!e.isBoss) {
+                        e.timer=0;
+                        if(e.stage===0){
+                            e.hits++; 
+                            if(e.hits === 1) speak(e.text, 'en-US', false); 
+                            playSound('hit_eng');score+=10;
+                            if(e.hits >= 3) {
+                                e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
+                                createExplosion(e.x,e.y,'#00ff00',20);
+                                score+=50; combo++;
+                                ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                            }
+                        }
+                        else if(e.stage===1){
+                            e.fading=true;
+                            createExplosion(e.x,e.y,'#ffffff',40);
+                            playSound('hit_syn'); score+=150; combo++;
+                            speak(e.text, 'es-ES', false); 
                         }
                     }
-                    else if(e.stage===1){
-                        e.fading=true;
-                        createExplosion(e.x,e.y,'#ffffff',40);
-                        playSound('hit_syn'); score+=150; combo++;
-                        speak(e.text, 'es-ES', false); 
-                    }
-                    scoreEl.innerText=score;comboEl.innerText=combo;
-                    break;
+                    scoreEl.innerText=score; comboEl.innerText=combo;
                 }
+                break; // Break bullet loop
             }
         }
-        if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
+        
+        if(e.y>canvas.height){
+            if(e.stage<1)combo=0; comboEl.innerText=combo;
+            // Clean up lock if enemy passes screen
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+            enemies.splice(i,1);
+        }
     }
     
     for(let i=particles.length-1;i>=0;i--){
@@ -2419,12 +2486,25 @@ function draw(timestamp){
         ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets
-    ctx.fillStyle='#ff0055';
-    bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
+    // Bullets (Now handling Types)
+    bullets.forEach(b => {
+        if(b.type === 'ban') {
+            ctx.fillStyle = '#00ffff'; // Cyan for Ban bullets
+        } else {
+            ctx.fillStyle = '#ff0055'; // Red for Normal bullets
+        }
+        ctx.fillRect(b.x-2,b.y,4,15);
+    });
     
     // Enemies
     enemies.forEach(e=>{
+        // VISUAL INDICATION OF LOCK ON (Optional but helpful)
+        if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
+            ctx.globalAlpha = 0.3; // Dim others
+        } else {
+            ctx.globalAlpha = 1.0;
+        }
+
         if (e.isBoss) {
             e.phases.forEach((p, index) => {
                 const yPos = e.y - (index * 30);
@@ -2435,14 +2515,12 @@ function draw(timestamp){
                     ctx.fillText(p.text, e.x, yPos);
                 }
                 else if (index === e.activePhase) {
-                    // FIX 2: COLORED FILL, WHITE STROKE (Better visibility)
                     ctx.fillStyle = e.color;  
                     ctx.shadowColor = e.color; 
                     ctx.shadowBlur = 15;       
                     ctx.font = 'bold 16px "Press Start 2P"';
                     ctx.fillText(p.text, e.x, yPos);
                     
-                    // Optional: White outline for extra pop
                     ctx.lineWidth = 1; 
                     ctx.strokeStyle = '#fff';
                     ctx.strokeText(p.text, e.x, yPos);
@@ -2476,12 +2554,23 @@ function draw(timestamp){
             
             ctx.fillText(e.text,e.x,e.y);
             
+            // Render Ban Progress if hits > 0
+            if (e.banHits > 0) {
+                 ctx.fillStyle = '#00ffff';
+                 for(let k=0;k<3;k++){
+                     if (k < e.banHits) {
+                         ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill();
+                     }
+                 }
+            }
+
             for(let k=0;k<4;k++){
                 if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
                 else ctx.fillStyle = '#444';
                 ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
             }
         }
+        ctx.globalAlpha = 1.0; // Reset
     });
     
     // Particles
@@ -2510,7 +2599,8 @@ function startGame(){
     resize();
     startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
     score=combo=0; lives=5; enemies=[]; bullets=[]; particles=[]; enemyBombs=[]; player.invincible=false;
-    enemiesSpawnedCount = 0; // Reset Boss Counter
+    enemiesSpawnedCount = 0; 
+    lockedEnemyId = null; // Reset Lock
     scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5';
     loadHighScore();
     
@@ -2528,11 +2618,17 @@ function startGame(){
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 const btnFire = document.getElementById('btn-fire');
+const btnBan = document.getElementById('btn-ban'); // Nuevo Handler
 
-const handleTouchStart = (key) => {
-    keys[key] = true;
-    if(key === 'Space' && gameRunning) {
-         bullets.push({x:player.x+player.w/2,y:player.y});
+const handleTouchStart = (key, customAction = null) => {
+    if (customAction) {
+        customAction();
+    } else {
+        keys[key] = true;
+    }
+    
+    if(key === 'Space' && gameRunning && !customAction) {
+         bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); // Normal Bullet
          playSound('shoot');
     }
 };
@@ -2540,16 +2636,29 @@ const handleTouchEnd = (key) => {
     keys[key] = false;
 };
 
+// Fire Blue Bullet Function
+const fireBanBullet = () => {
+    if(gameRunning) {
+        bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); // Ban Bullet
+        playSound('ban_shoot');
+    }
+};
+
 ['touchstart', 'mousedown'].forEach(evt => {
     btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
     btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
+    
+    // Listener Boton Ban
+    btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
 });
 
 ['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
     btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowLeft'); });
     btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
+    
+    // No action needed for Ban release
 });
 
 document.addEventListener('keydown', e=>{
@@ -2557,8 +2666,13 @@ document.addEventListener('keydown', e=>{
     keys[e.code]=true;
     if(e.code==='Space' && gameRunning){
         e.preventDefault();
-        bullets.push({x:player.x+player.w/2,y:player.y});
+        bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'});
         playSound('shoot');
+    }
+    // Tecla 'B' para banear en PC (Opcional)
+    if(e.code==='KeyB' && gameRunning){
+        e.preventDefault();
+        fireBanBullet();
     }
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
