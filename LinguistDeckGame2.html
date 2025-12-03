@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Final Learning Fix</title>
+    <title>Vocabulary Hunter: Final Polish</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -44,8 +44,16 @@
         }
 
         .touch-group { display: flex; gap: 20px; pointer-events: auto; }
-        .touch-group:first-child { margin-bottom: 150px; }
-        .touch-group:last-child { margin-bottom: 90px; }
+
+        /* GRUPO IZQUIERDO (Flechas Verdes): 150px arriba */
+        .touch-group:first-child {
+            margin-bottom: 150px; 
+        }
+
+        /* GRUPO DERECHO (Botón Rojo): 90px arriba */
+        .touch-group:last-child {
+            margin-bottom: 90px;
+        }
 
         .touch-btn {
             width: 70px; height: 70px;
@@ -172,11 +180,12 @@
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
         .reset-btn:hover { background: var(--neon-red); color: #000; }
         
+        /* FIX 4: Close Button Superpuesta */
         .close-btn {
             position:absolute; top:5px; right:5px;
             font-size:20px; color:var(--neon-red); cursor:pointer;
             border:1px solid var(--neon-red); padding:5px 10px;
-            z-index:20; background: #000;
+            z-index:20; background: #000; /* Fondo negro para tapar lo de abajo */
             border-radius: 0; width: auto; height: auto;
         }
         .close-btn:hover {background:var(--neon-red);color:#000;}
@@ -438,7 +447,7 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v15'; // Updated Key
+const CONFIG_KEY = 'vocab_robot_config_v14'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
 let userSettings = {
@@ -454,7 +463,7 @@ let userSettings = {
     audioFX: true,
     audioWords: true,
     audioBombs: true,
-    bossFrequency: 15
+    bossFrequency: 15 // NEW: Custom frequency
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -1102,8 +1111,7 @@ function spawnEnemy(){
         vx: vx, 
         color:'#ffffff', 
         timer:0, fading:false, w:textWidth, droppedBomb: false,
-        isBoss: false,
-        lingering: false, lingerTimer: 0 // New Linger
+        isBoss: false 
     });
     enemiesSpawnedCount++;
 }
@@ -1148,8 +1156,7 @@ function spawnBoss(forcedListType) {
         w: maxW,
         droppedBomb: false,
         fading: false,
-        showTranslation: false, // New State for translation
-        lingering: false, lingerTimer: 0
+        bossFinished: false // NEW FLAG FOR FINISH STATE
     });
 }
 
@@ -1256,8 +1263,23 @@ function update(dt, timeScale){
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
         
-        // Bomb Logic
-        if(!e.fading && !e.lingering && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
+        // --- BOSS DEAD DELAY LOGIC ---
+        if(e.bossFinished) {
+            e.timer += dt;
+            if(e.timer > 6000) e.fading = true; // Wait 6 seconds before dying
+        } else {
+             // Only move if not dead/finished
+             e.y += e.speed * timeScale; 
+             e.x += e.vx * timeScale; 
+
+            if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
+                e.vx *= -1; 
+                if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
+                if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+            }
+        }
+        
+        if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
                 x: e.x, y: e.y + 40,
@@ -1268,29 +1290,8 @@ function update(dt, timeScale){
             });
         }
 
-        // Linger & Fade Logic
-        if (e.lingering) {
-            e.lingerTimer -= dt;
-            if (e.lingerTimer <= 0) {
-                e.lingering = false;
-                e.fading = true;
-            }
-        } else if(e.fading){
-            createExplosion(e.x,e.y,e.color,1);
-            enemies.splice(i,1);
-            continue;
-        } else {
-            // Only move if not lingering/fading
-            e.y += e.speed * timeScale; 
-            e.x += e.vx * timeScale; 
-        }
-
-        if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
-            e.vx *= -1; 
-            if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
-            if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
-        }
-
+        if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
+        
         let eRect;
         if (e.isBoss) {
             eRect = {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90};
@@ -1298,24 +1299,20 @@ function update(dt, timeScale){
             eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
         }
         
-        if(!player.invincible && !e.lingering && checkCollisionRect(player, eRect)){
+        if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
             player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
             if(lives<=0){gameOver();return;}
             continue;
         }
         
-        // Normal timer kill fallback (if user ignores green word)
-        if(e.stage===1 && !e.lingering){
-            e.timer+=dt;
-            if(e.timer>4000) e.fading=true;
-        }
+        // --- NORMAL ENEMY TRANSLATION TIMER ---
+        if(e.stage===1){e.timer+=dt;if(e.timer>6000)e.fading=true;} // UPDATED TO 6000ms
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
             
-            // BOSS HIT LOGIC
-            if (e.isBoss && !e.showTranslation) {
+            if (e.isBoss && !e.bossFinished) {
                 const yOffset = e.activePhase * 30;
                 const targetY = e.y - yOffset;
                 
@@ -1334,11 +1331,15 @@ function update(dt, timeScale){
                         score += 100;
                         
                         if (e.activePhase >= 3) {
-                            // BOSS DEFEATED -> SHOW TRANSLATION
-                            e.showTranslation = true;
-                            e.lingering = true;
-                            e.lingerTimer = 1500; // 1.5s delay
+                            // BOSS DEFEATED LOGIC - MODIFIED
+                            e.bossFinished = true;
+                            e.timer = 0;
+                            // Show translation on the last line
+                            e.phases[2].text = e.wordData.es; 
+                            e.phases[2].completed = false; // Trick renderer to show it bright
+                            e.activePhase = 2; // Focus on last line
                             
+                            // BOSS EXPLOSION HUGE
                             createExplosion(e.x, e.y, '#ffffff', 150);
                             playSound('hit_syn');
                             score += 500; combo++;
@@ -1349,7 +1350,6 @@ function update(dt, timeScale){
                     break;
                 }
             } 
-            // NORMAL HIT LOGIC
             else if (!e.isBoss) {
                 if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
                     bullets.splice(j,1); e.timer=0;
@@ -1366,9 +1366,7 @@ function update(dt, timeScale){
                         }
                     }
                     else if(e.stage===1){
-                        // HIT GREEN WORD -> LINGER INSTEAD OF FADE
-                        e.lingering = true;
-                        e.lingerTimer = 1500; // 1.5s delay
+                        e.fading=true;
                         createExplosion(e.x,e.y,'#ffffff',40);
                         playSound('hit_syn'); score+=150; combo++;
                         speak(e.text, 'es-ES', false); 
@@ -1425,61 +1423,43 @@ function draw(timestamp){
     // Enemies
     enemies.forEach(e=>{
         if (e.isBoss) {
-            // If dead, show Translation big and green
-            if (e.showTranslation) {
-                ctx.font = '24px "Press Start 2P"';
-                ctx.fillStyle = '#00ff00';
-                ctx.shadowColor = '#00ff00'; ctx.shadowBlur = 20;
-                ctx.fillText(e.wordData.es, e.x, e.y - 30);
-                ctx.shadowBlur = 0;
-            } 
-            else {
-                // Draw Tower Labels
-                const labels = ["BASE", "PAST", "PART."];
-                ctx.font = '8px "Press Start 2P"';
-                ctx.fillStyle = '#888';
+            e.phases.forEach((p, index) => {
+                const yPos = e.y - (index * 30);
                 
-                // Draw Phases
-                e.phases.forEach((p, index) => {
-                    const yPos = e.y - (index * 30);
+                if (p.completed) {
+                    ctx.fillStyle = '#444'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                else if (index === e.activePhase) {
+                    // FIX 2: COLORED FILL, WHITE STROKE (Better visibility)
+                    ctx.fillStyle = e.color;  
+                    ctx.shadowColor = e.color; 
+                    ctx.shadowBlur = 15;       
+                    ctx.font = 'bold 16px "Press Start 2P"';
+                    ctx.fillText(p.text, e.x, yPos);
                     
-                    // Draw Label on left
-                    ctx.fillText(labels[index], e.x - e.w/2 - 35, yPos);
+                    // Optional: White outline for extra pop
+                    ctx.lineWidth = 1; 
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeText(p.text, e.x, yPos);
+                }
+                else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                
+                ctx.shadowBlur = 0; // Reset
 
-                    if (p.completed) {
-                        ctx.fillStyle = '#444'; 
-                        ctx.shadowBlur = 0;
-                        ctx.font = '16px "Press Start 2P"';
-                        ctx.fillText(p.text, e.x, yPos);
+                // Hit dots
+                if (index === e.activePhase) {
+                    for(let k=0;k<3;k++){
+                        ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
+                        ctx.beginPath();ctx.arc(e.x-20+(k*20), yPos+12, 3, 0, Math.PI*2);ctx.fill();
                     }
-                    else if (index === e.activePhase) {
-                        ctx.fillStyle = e.color;  
-                        ctx.shadowColor = e.color; 
-                        ctx.shadowBlur = 15;       
-                        ctx.font = 'bold 16px "Press Start 2P"';
-                        ctx.fillText(p.text, e.x, yPos);
-                        
-                        ctx.lineWidth = 1; ctx.strokeStyle = '#fff';
-                        ctx.strokeText(p.text, e.x, yPos);
-                    }
-                    else {
-                        ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
-                        ctx.shadowBlur = 0;
-                        ctx.font = '16px "Press Start 2P"';
-                        ctx.fillText(p.text, e.x, yPos);
-                    }
-                    
-                    ctx.shadowBlur = 0; 
-
-                    // Hit dots
-                    if (index === e.activePhase) {
-                        for(let k=0;k<3;k++){
-                            ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
-                            ctx.beginPath();ctx.arc(e.x-20+(k*20), yPos+12, 3, 0, Math.PI*2);ctx.fill();
-                        }
-                    }
-                });
-            }
+                }
+            });
 
         } else {
             ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
