@@ -2,25 +2,86 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Final Audio Master</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vocabulary Hunter: Final Polish</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
             --neon-green: #0f0;
             --neon-red: #ff4444;
             --neon-blue: #4f46e5;
+            --neon-cyan: #00ffff;
+            --neon-magenta: #ff00ff;
             --neon-yellow: #ffff00;
             --dark-bg: #050505;
             --panel-bg: rgba(0, 15, 0, 0.95);
         }
-        body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
+        body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;touch-action:none;}
         canvas {display:block;}
-        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));background-size:100% 4px;z-index:999;pointer-events:none;}
+        /* SCANLINES */
+        .scanlines {
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));
+            background-size:100% 4px;z-index:999;pointer-events:none;
+        }
         
-        #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
+        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
+        /* CONTROLES MÓVILES */
+        #mobile-controls {
+            display: none; 
+            position: absolute; 
+            bottom: 20px; 
+            width: 100%;
+            justify-content: space-between; 
+            padding: 0 20px; 
+            box-sizing: border-box;
+            z-index: 20; 
+            pointer-events: none;
+            align-items: flex-end; 
+        }
+
+        .touch-group { display: flex; gap: 20px; pointer-events: auto; }
+
+        /* GRUPO IZQUIERDO (Flechas Verdes) */
+        .touch-group:first-child {
+            margin-bottom: 90px; 
+        }
+
+        /* GRUPO DERECHO (Botones de disparo) */
+        .touch-group:last-child {
+            flex-direction: column; /* Apilar botones verticalmente */
+            gap: 15px;
+            margin-bottom: 40px;
+            align-items: center;
+        }
+
+        .touch-btn {
+            width: 70px; height: 70px;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid var(--neon-green);
+            border-radius: 50%; color: var(--neon-green); font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            user-select: none; -webkit-user-select: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+        .touch-btn:active { background: var(--neon-green); color: #000; }
+        
+        .btn-fire { border-color: var(--neon-red); color: var(--neon-red); }
+        .btn-fire:active { background: var(--neon-red); color: #000; }
+
+        /* NUEVO BOTON BAN (Celeste) */
+        .btn-ban { border-color: var(--neon-cyan); color: var(--neon-cyan); font-size: 12px; font-weight: bold;}
+        .btn-ban:active { background: var(--neon-cyan); color: #000; }
+
+        @media (max-width: 768px) or (pointer: coarse) {
+            #mobile-controls { display: flex; }
+            #category-bar-wrapper { bottom: 100px; } 
+            h1 { font-size: 20px; }
+            p { font-size: 10px; line-height: 1.5; }
+        }
+
         /* BARRA INFERIOR */
         #category-bar-wrapper {
             position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
@@ -53,15 +114,15 @@
         /* POP QUIZ MODAL */
         #quiz-overlay {
             background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
-            padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
+            padding: 20px; border-radius: 10px; max-width: 600px; width: 90%;
             box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
             transition: border-color 0.3s;
             display: flex; flex-direction: column; align-items: center;
         }
-        #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
+        #quiz-question { font-size: 16px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; word-break: break-word;}
         #quiz-input {
             background: #000; border: 2px solid #333; color: #fff;
-            padding: 15px; font-family: 'Press Start 2P'; font-size: 16px;
+            padding: 15px; font-family: 'Press Start 2P'; font-size: 14px;
             text-align: center; width: 90%; text-transform: uppercase;
         }
         #quiz-input:focus { border-color: var(--neon-green); outline: none; }
@@ -72,6 +133,7 @@
         }
         .correct-ans-highlight {
             color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
+            font-weight: bold; font-size: 12px; border: 1px solid #fff;
         }
         .shake { animation: shake 0.5s; }
         @keyframes shake {
@@ -92,13 +154,13 @@
 
         /* MODAL */
         #study-content {
-            background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
-            width:80%; max-width:800px; height:70%; display: flex; flex-direction: column;
+            background:var(--panel-bg); padding:20px; border:2px solid var(--neon-green);
+            width:90%; max-width:800px; height:80%; display: flex; flex-direction: column;
             position:relative; box-shadow:0 0 30px rgba(0,255,0,0.2); text-align:left;
         }
         .tabs-header { display: flex; border-bottom: 2px solid var(--neon-green); margin-bottom: 20px; }
         .tab-btn {
-            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 12px;
+            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 10px;
             background: transparent; border: none; color: #666; font-family: 'Press Start 2P'; transition: 0.2s;
         }
         .tab-btn:hover { background: #002200; color: #fff; }
@@ -106,7 +168,7 @@
         .tab-content { flex: 1; overflow-y: auto; display: none; }
         .tab-content.active { display: block; }
         
-        table {width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+        table {width:100%;border-collapse:separate;border-spacing:0;font-size:10px;}
         th {color:var(--neon-green);text-align:left;border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;z-index:2;}
         td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
@@ -114,9 +176,9 @@
         .chk-cell { width: 40px; text-align: center; }
         input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
 
-        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
+        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:14px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
+        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 10px; color: #ddd; align-items: center;}
         .config-val { color: var(--neon-yellow); }
         .slider-desc { font-size: 8px; color: #666; margin-top: 5px; display: flex; justify-content: space-between; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon-green); }
@@ -125,7 +187,14 @@
         select:focus { outline: none; background: #222; }
         .reset-btn { width: 100%; padding: 15px; background: #330000; color: var(--neon-red); border: 1px solid var(--neon-red); font-family: 'Press Start 2P'; cursor: pointer; margin-top: 20px; font-size: 10px; }
         .reset-btn:hover { background: var(--neon-red); color: #000; }
-        .close-btn {position:absolute;top:15px;right:20px;font-size:20px;color:var(--neon-red);cursor:pointer;border:1px solid var(--neon-red);padding:5px 10px;z-index:10;background: transparent; border-radius: 0; width: auto; height: auto;}
+        
+        .close-btn {
+            position:absolute; top:5px; right:5px;
+            font-size:20px; color:var(--neon-red); cursor:pointer;
+            border:1px solid var(--neon-red); padding:5px 10px;
+            z-index:20; background: #000;
+            border-radius: 0; width: auto; height: auto;
+        }
         .close-btn:hover {background:var(--neon-red);color:#000;}
         
         ::-webkit-scrollbar {width:10px;}
@@ -134,12 +203,24 @@
     </style>
 </head>
 <body>
+    <div class="scanlines"></div>
     <div id="ui">
         <div id="score-panel">SCORE: <span id="score">0</span> | COMBO: <span id="combo">0</span></div>
         <div id="lives-panel">LIVES: <span id="lives">5</span></div>
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
+    <div id="mobile-controls">
+        <div class="touch-group">
+            <div class="touch-btn" id="btn-left">←</div>
+            <div class="touch-btn" id="btn-right">→</div>
+        </div>
+        <div class="touch-group">
+            <div class="touch-btn btn-ban" id="btn-ban">XXX</div>
+            <div class="touch-btn btn-fire" id="btn-fire">●</div>
+        </div>
+    </div>
+
     <div id="category-bar-wrapper"></div>
 
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
@@ -147,10 +228,11 @@
         <p>
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
-            3. Shoot Parachutes to hear them.<br><br>
-            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Menu
+            3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
+            <span style="color: var(--neon-cyan);">NEW: USE BLUE BUTTON (X) TO BAN WORDS (3 HITS)</span><br><br>
+            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
         </p>
-        <div class="blink">CLICK TO START</div>
+        <div class="blink">CLICK / TAP TO START</div>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
@@ -208,23 +290,41 @@
                 <h2 class="config-header">SYSTEM CONFIG</h2>
                 
                 <div class="config-group">
-                    <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
-                    <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
-                    <div class="slider-desc"><span>MUTE</span><span>LOUD</span></div>
+                      <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                      <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
                 </div>
 
+                <div class="config-group">
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-sfx" onchange="updateConfig('audio_toggles')" checked>
+                        SFX (SHOOT/EXPLOSION)
+                    </label>
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-voice-words" onchange="updateConfig('audio_toggles')" checked>
+                        VOICE: WORDS
+                    </label>
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-voice-bombs" onchange="updateConfig('audio_toggles')" checked>
+                        VOICE: BOMBS (NUM/LET)
+                    </label>
+                </div>
                 <div class="config-group">
                     <label class="config-label">VOCABULARY SOURCE</label>
                     <select id="cfg-source" onchange="updateConfig('source')"></select>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">5</span></label>
-                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="5" oninput="updateConfig('spawn')">
+                    <label class="config-label">SUPER BOSS FREQUENCY<span id="val-boss-freq" class="config-val">15</span></label>
+                    <input type="range" id="cfg-boss-freq" min="5" max="50" step="5" value="15" oninput="updateConfig('bossFreq')">
+                    <div class="slider-desc"><span>OFTEN (5)</span><span>RARE (50)</span></div>
+                </div>
+                <div class="config-group">
+                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">1</span></label>
+                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="1" oninput="updateConfig('spawn')">
                     <div class="slider-desc"><span>FEW</span><span>MANY</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">1.0x</span></label>
-                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="1.0" oninput="updateConfig('speed')">
+                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">0.5x</span></label>
+                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="0.5" oninput="updateConfig('speed')">
                     <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
                 </div>
                 <div class="config-group">
@@ -233,8 +333,8 @@
                     <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">2.0</span></label>
-                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="2.0" oninput="updateConfig('bspeed')">
+                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">1.0</span></label>
+                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="1.0" oninput="updateConfig('bspeed')">
                     <div class="slider-desc"><span>FLOAT</span><span>DROP</span></div>
                 </div>
                 <div class="config-group">
@@ -253,30 +353,51 @@
 
 <script>
 /* =========================================
-   1. INTERNAL DATA
+   1. INTERNAL DATA (EXPANDED)
    ========================================= */
 const INTERNAL_VOCAB = {
- 'VERBS': [
-    {en:"BE", es:"SER/ESTAR"}, {en:"HAVE", es:"TENER"}, {en:"DO", es:"HACER"}, {en:"SAY", es:"DECIR"},
-    {en:"GO", es:"IR"}, {en:"GET", es:"OBTENER"}, {en:"MAKE", es:"HACER"}, {en:"KNOW", es:"SABER"},
-    {en:"THINK", es:"PENSAR"}, {en:"TAKE", es:"TOMAR"}, {en:"SEE", es:"VER"}, {en:"COME", es:"VENIR"},
-    {en:"WANT", es:"QUERER"}, {en:"LOOK", es:"MIRAR"}, {en:"USE", es:"USAR"}, {en:"FIND", es:"ENCONTRAR"},
-    {en:"GIVE", es:"DAR"}, {en:"TELL", es:"DECIR/CONTAR"}, {en:"WORK", es:"TRABAJAR"}, {en:"CALL", es:"LLAMAR"}
-]
+    'IRREGULAR_VERBS': [
+        {en: "ABIDE", past: "ABODE", part: "ABIDDEN", es: "ACATAR/SOPORTAR", type: "IRREGULAR"},
+        {en: "WRITE", past: "WROTE", part: "WRITTEN", es: "ESCRIBIR", type: "IRREGULAR"}
+    ],
+    'REGULAR_VERBS': [
+        {en: "ACCEPT", past: "ACCEPTED", part: "ACCEPTED", es: "ACEPTAR", type: "REGULAR"},
+        {en: "YELL", past: "YELLED", part: "YELLED", es: "GRITAR", type: "REGULAR"}
+    ],
+ 'NOUNS': [
+        {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
+        {en:"WRITING", es:"ESCRITURA"}, {en:"YARD", es:"PATIO/YARDA"}, {en:"YOUTH", es:"JUVENTUD"}, {en:"ZONE", es:"ZONA"}
+    ],
+  'ADJECTIVES': [
+        {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
+        {en:"CHALLENGING", es:"DESAFIANTE"}, {en:"ENJOYABLE", es:"AGRADABLE"}, {en:"MEMORABLE", es:"MEMORABLE"},
+        {en:"WRONG", es:"EQUIVOCADO/INCORRECTO"}, {en:"YELLOW", es:"AMARILLO"}, {en:"YOUNG", es:"JOVEN"}
+    ],
+  'FUNCTION WORDS': [
+        {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
+        {en:"YOURS", es:"TUYO/SUYO"}, {en:"YOURSELF", es:"TÚ MISMO"}, {en:"YOURSELVES", es:"VOSOTROS MISMOS"}
+    ]
 };
-
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v11_opt'; // Bump version
+const CONFIG_KEY = 'vocab_robot_config_v14'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
-    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
+    spawnLevel: 1,      
+    enemySpeed: 0.5,    
+    bombChance: 30,     
+    bombSpeed: 1.0,     
+    playerColor: '#4f46e5',
     quizEnabled: false, quizInterval: 30,
-    masterVolume: 50
+    masterVolume: 50,
+    audioFX: true,
+    audioWords: true,
+    audioBombs: true,
+    bossFrequency: 15
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -284,6 +405,9 @@ let disabledWords = new Set();
 // Variables para el Quiz
 let quizTimer = 0;
 let currentQuizWord = null;
+
+// NEW: LOCK-ON SYSTEM
+let lockedEnemyId = null;
 
 // --- MENUS & UI ---
 function renderCategoryBar() {
@@ -359,6 +483,15 @@ function applyConfigToUI() {
 
     document.getElementById('cfg-volume').value = userSettings.masterVolume;
     document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+    
+    // Audio Toggles
+    document.getElementById('chk-sfx').checked = userSettings.audioFX !== false;
+    document.getElementById('chk-voice-words').checked = userSettings.audioWords !== false;
+    document.getElementById('chk-voice-bombs').checked = userSettings.audioBombs !== false;
+
+    // Boss Freq
+    document.getElementById('cfg-boss-freq').value = userSettings.bossFrequency || 15;
+    document.getElementById('val-boss-freq').textContent = userSettings.bossFrequency || 15;
 
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
@@ -390,15 +523,22 @@ function updateConfig(key) {
     else if(key === 'volume') {
         userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
         document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
-        // SAMPLE SOUND - Resume context explicitly here
-        if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
         playSound('shoot'); 
+    }
+    else if(key === 'audio_toggles') {
+        userSettings.audioFX = document.getElementById('chk-sfx').checked;
+        userSettings.audioWords = document.getElementById('chk-voice-words').checked;
+        userSettings.audioBombs = document.getElementById('chk-voice-bombs').checked;
     }
     else if(key === 'quiz') {
         userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
         userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
         document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
         quizTimer = 0; 
+    }
+    else if(key === 'bossFreq') {
+        userSettings.bossFrequency = parseInt(document.getElementById('cfg-boss-freq').value);
+        document.getElementById('val-boss-freq').textContent = userSettings.bossFrequency;
     }
     else if(key === 'spawn') userSettings.spawnLevel = parseInt(document.getElementById('cfg-spawn').value);
     else if(key === 'speed') userSettings.enemySpeed = parseFloat(document.getElementById('cfg-speed').value);
@@ -420,7 +560,12 @@ function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
     localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, masterVolume: 50 };
+    userSettings = { 
+        vocabSource: 'LOCAL', dataPercent: 100, 
+        spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
+        playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
+        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
+    };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -432,13 +577,14 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA & CLEANING ---
+// --- 3. DATA & CLEANING (ACENTOS FIX) ---
 let activeVocabList = []; 
 let gameDeck = [];        
 
 const cleanText = (str) => {
     if(!str) return "";
-    return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              .replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
 };
 
 function loadVocabData() {
@@ -447,7 +593,6 @@ function loadVocabData() {
     const processItem = (en, es) => {
         const safeEn = cleanText(en);
         const safeEs = cleanText(es);
-        
         if(safeEn && safeEs && countWords(safeEn) <= 2) {
             tempVocabList.push({en: safeEn, es: [safeEs]});
         }
@@ -613,7 +758,8 @@ function checkQuizAnswer() {
         setTimeout(()=>inputEl.classList.remove('shake'), 500);
         titleEl.innerText = "CRITICAL FAILURE!";
         overlay.style.borderColor = "#ff0000";
-        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${bestMatch}</span>`;
+        const displayCorrect = bestMatch || correctAnswers[0] || "ERROR";
+        feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${displayCorrect}</span>`;
         inputEl.value = "";
         inputEl.placeholder = "TYPE THE WORD ABOVE";
         inputEl.focus();
@@ -627,7 +773,7 @@ function launchFireworks() {
             const y = Math.random() * canvas.height;
             const color = `hsl(${Math.random()*360}, 100%, 50%)`;
             createExplosion(x, y, color, 40); 
-            playSound('firework');
+            playSound('firework'); 
         }, i * 200); 
     }
 }
@@ -644,6 +790,7 @@ function resolveQuizSuccess() {
         createExplosion(e.x, e.y, e.color, 20);
         score += 50;
     });
+    lockedEnemyId = null; // Clear lock
     
     gameRunning = true;
     lastTime = performance.now();
@@ -659,7 +806,7 @@ document.getElementById('quiz-input').addEventListener('keypress', function (e) 
    4. GAME ENGINE
    ========================================= */
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d', { alpha: false }); // OPTIMIZATION: Disables transparency on canvas bg
+const ctx = canvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const comboEl = document.getElementById('combo');
 const livesEl = document.getElementById('lives');
@@ -673,10 +820,19 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (QUEUE SYSTEM)
+   AUDIO MANAGER
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
+let availableVoices = [];
+
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+}
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+}
 
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
@@ -685,13 +841,37 @@ setInterval(() => {
     }
 }, 100);
 
-function speak(text, lang) {
+function speak(text, lang, isBomb = false) {
+    if (isBomb) {
+        if (!userSettings.audioBombs) return;
+    } else {
+        if (!userSettings.audioWords) return;
+    }
+    
+    if (audioQueue.length > 2) return; 
+
     audioQueue.push({text, lang});
+}
+
+function getBestVoice(lang) {
+    if (availableVoices.length === 0) loadVoices();
+    const baseLang = lang.split('-')[0];
+    const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
+    if (candidates.length === 0) return null;
+
+    const scoreVoice = (v) => {
+        let score = 0;
+        if (v.lang === lang) score += 10; 
+        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; 
+        if (v.default) score += 1;
+        return score;
+    };
+    candidates.sort((a, b) => scoreVoice(b) - scoreVoice(a));
+    return candidates[0];
 }
 
 function playText(text, lang) {
     if (!window.speechSynthesis) return;
-    
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
@@ -700,7 +880,9 @@ function playText(text, lang) {
     
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; 
-    u.rate = 1.1; 
+    u.rate = 0.9; 
+    const bestVoice = getBestVoice(lang);
+    if (bestVoice) u.voice = bestVoice;
     
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
@@ -708,12 +890,9 @@ function playText(text, lang) {
     window.speechSynthesis.speak(u);
 }
 
-// OPTIMIZATION: Moved resume() out of playSound to event listeners
-function resumeAudio() {
-    if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
-}
-
 function playSound(type) {
+    if (!userSettings.audioFX) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     if(userSettings.masterVolume <= 0) return;
     const vol = userSettings.masterVolume / 100;
 
@@ -723,6 +902,10 @@ function playSound(type) {
     
     if(type==='shoot'){
         o.type='square'; o.frequency.setValueAtTime(400,n); o.frequency.exponentialRampToValueAtTime(100,n+.1);
+        g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
+    }
+    else if(type==='ban_shoot'){
+        o.type='sine'; o.frequency.setValueAtTime(800,n); o.frequency.exponentialRampToValueAtTime(200,n+.1);
         g.gain.setValueAtTime(0.1 * vol, n); g.gain.linearRampToValueAtTime(0,n+.1);
     }
     else if(type==='hit_eng'){
@@ -741,12 +924,16 @@ function playSound(type) {
         o.type='triangle'; o.frequency.setValueAtTime(300,n); o.frequency.exponentialRampToValueAtTime(50,n+.3);
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.exponentialRampToValueAtTime(0.01,n+.3);
     }
-    
+    else if(type==='ban_success'){
+        o.type='sine'; o.frequency.setValueAtTime(200,n); o.frequency.linearRampToValueAtTime(100,n+.5);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
+    }
     o.start(n); o.stop(n + 0.5);
 }
 
 let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
 let spawnTimer = 0;
+let enemiesSpawnedCount = 0; 
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
 let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
@@ -770,7 +957,6 @@ function populateStudyGuide(){
 }
 
 function toggleStudyGuide(){
-    resumeAudio();
     const isOpen = studyGuide.style.display==='flex';
     if(isOpen){
         studyGuide.style.display='none';
@@ -781,6 +967,7 @@ function toggleStudyGuide(){
     }else{
         gameRunning=false; cancelAnimationFrame(gameLoopId);
         populateStudyGuide(); studyGuide.style.display='flex';
+        if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     }
 }
 
@@ -790,11 +977,10 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 
-// OPTIMIZATION: Point 4 - Precalculated opacity for stars, removed Math.random from draw
-for(let i=0;i<60;i++) stars.push({ // Reduced count slightly
+for(let i=0;i<80;i++) stars.push({
     x:Math.random()*innerWidth, y:Math.random()*innerHeight,
     size:Math.random()*2, speed:Math.random()*0.2+0.1,
-    opacity: Math.random()*0.5+0.3 
+    alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
 });
 
 function getRandomBombContent() {
@@ -806,33 +992,125 @@ function getRandomBombContent() {
     }
 }
 
+function getSafeSpawnX(enemyWidth) {
+    const attempts = 15;
+    const padding = 20;
+    
+    for (let i = 0; i < attempts; i++) {
+        let safe = true;
+        let candX = Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
+        for (let e of enemies) {
+            if (e.y < 250) { 
+                if (candX < e.x + e.w/2 + padding && candX > e.x - e.w/2 - padding) {
+                    safe = false;
+                    break;
+                }
+            }
+        }
+        if (safe) return candX;
+    }
+    return Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
+}
+
 function spawnEnemy(){
+    // FIX 2: BOSS SPAWN LOGIC (Uses userSettings.bossFrequency)
+    const bossFreq = userSettings.bossFrequency || 15;
+    if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % bossFreq === 0) {
+        const src = userSettings.vocabSource;
+        let allowed = false;
+        let specificType = null; 
+
+        if (src === 'ALL_INTERNAL' || src === 'MIXED') { 
+            allowed = true; // Random allowed
+        }
+        else if (src === 'REGULAR_VERBS') {
+            allowed = true; specificType = 'REGULAR_VERBS';
+        }
+        else if (src === 'IRREGULAR_VERBS') {
+            allowed = true; specificType = 'IRREGULAR_VERBS';
+        }
+
+        if (allowed) {
+            spawnBoss(specificType);
+            enemiesSpawnedCount++;
+            return;
+        }
+    }
+
     if(gameDeck.length===0) return;
     const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
-    // OPTIMIZATION Point 2: Measure text once here
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
+    
+    const startX = getSafeSpawnX(textWidth);
     const vx = (Math.random() - 0.5) * 2.0;
     const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
 
     enemies.push({
-        x:Math.random()*(canvas.width-textWidth-50)+textWidth/2+25, 
-        y:-40, 
+        id: Date.now() + Math.random(), // Unique ID for Lock-on
+        x: startX, 
+        y: -40, 
         wordData:d, text:d.en, 
         stage:0, hits:0, 
+        banHits: 0, // NEW: Counter for Ban mechanism
         speed: baseSpeed, 
         vx: vx, 
         color:'#ffffff', 
-        timer:0, fading:false, w:textWidth, droppedBomb: false 
+        timer:0, fading:false, w:textWidth, droppedBomb: false,
+        isBoss: false 
+    });
+    enemiesSpawnedCount++;
+}
+
+function spawnBoss(forcedListType) {
+    let listType;
+    if (forcedListType) {
+        listType = forcedListType;
+    } else {
+        listType = Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
+    }
+
+    const sourceList = INTERNAL_VOCAB[listType] || INTERNAL_VOCAB['REGULAR_VERBS'];
+    const verbData = sourceList[Math.floor(Math.random() * sourceList.length)];
+
+    ctx.font = '16px "Press Start 2P"';
+    const wBase = ctx.measureText(verbData.en).width;
+    const wPast = ctx.measureText(verbData.past).width;
+    const wPart = ctx.measureText(verbData.part).width;
+    const maxW = Math.max(wBase, wPast, wPart);
+
+    const startX = getSafeSpawnX(maxW);
+    
+    let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; 
+    let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
+
+    enemies.push({
+        id: Date.now() + Math.random(),
+        x: startX,
+        y: -100, 
+        wordData: verbData,
+        isBoss: true,
+        bossType: verbData.type,
+        phases: [
+            { text: verbData.en, hits: 0, completed: false },   
+            { text: verbData.past, hits: 0, completed: false }, 
+            { text: verbData.part, hits: 0, completed: false }  
+        ],
+        activePhase: 0, 
+        speed: (0.5 * userSettings.enemySpeed) * speedMod,
+        vx: 0, 
+        color: bossColor,
+        w: maxW,
+        droppedBomb: false,
+        fading: false,
+        bossFinished: false,
+        banHits: 0
     });
 }
 
 function createExplosion(x,y,c,n=10){
-    // OPTIMIZATION Point 9: Strict particle limit
-    const limit = 200; 
-    if (particles.length > limit) particles.splice(0, particles.length - limit);
-    
     for(let i=0;i<n;i++) {
+        if(particles.length > 400) particles.shift(); 
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
@@ -846,28 +1124,36 @@ function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = '#ccc'; ctx.fillRect(x + 4, y, w - 8, 20);
     ctx.fillStyle = gameRunning ? '#0f0' : '#f00';
     ctx.fillRect(x + 10, y + 5, 8, 8); ctx.fillRect(x + w - 18, y + 5, 8, 8);
-    // Removed complex strokes for simple fills where possible for perf
-    ctx.fillStyle = '#fff'; ctx.fillRect(x + w/2 -1, y - 10, 2, 10);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + w/2, y); ctx.lineTo(x + w/2, y - 10); ctx.stroke();
     const time = Date.now();
     ctx.fillStyle = (Math.floor(time/200)%2===0) ? 'red' : '#500';
     ctx.beginPath(); ctx.arc(x + w/2, y - 10, 3, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
 }
 
+// === OPTIMIZATION: 30 FPS LOCK ===
+let lastFrameTime = 0;
+const targetFPS = 30; 
+const frameInterval = 1000 / targetFPS;
+
 function loop(timestamp) {
     if (!gameRunning) return;
-    const dt = timestamp - lastTime;
-    lastTime = timestamp;
-    update(dt);
-    draw(timestamp);
-    // OPTIMIZATION Point 1: Single RAF call here
     gameLoopId = requestAnimationFrame(loop);
+    const elapsed = timestamp - lastFrameTime;
+    if (elapsed < frameInterval) return;
+    lastFrameTime = timestamp - (elapsed % frameInterval);
+    const timeScale = elapsed / (1000/60); 
+
+    update(elapsed, timeScale);
+    draw(timestamp);
 }
 
-function update(dt){
-    // QUIZ TIMER CHECK
+function update(dt, timeScale){
+    if(timeScale > 4) timeScale = 1;
+
     if (userSettings.quizEnabled) {
-        quizTimer += dt;
+        quizTimer += 33; 
         if (quizTimer >= userSettings.quizInterval * 1000) {
             triggerPopQuiz();
             return; 
@@ -876,18 +1162,21 @@ function update(dt){
 
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
-    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
+    if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
+    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
-    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
+    stars.forEach(s=>{
+        s.y += s.speed * timeScale; 
+        if(s.y>canvas.height)s.y=0;
+    });
     
     spawnTimer-=dt; 
     if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
-    // Reverse loops for safe splicing
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
-        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
+        b.y += b.vy * timeScale; 
+        b.x += (Math.sin(b.y * 0.05) * 1.5) * timeScale; 
         
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
@@ -901,11 +1190,12 @@ function update(dt){
 
         for(let j=bullets.length-1; j>=0; j--){
             let bullet = bullets[j];
-            if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
+            // Only normal bullets destroy bombs, ban bullets ignore bombs
+            if(bullet.type === 'normal' && bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
                 bullets.splice(j,1);
                 createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng');
-                speak(b.text, 'en-US');
+                speak(b.text, 'en-US', true); 
                 score += 25; scoreEl.innerText = score;
                 enemyBombs.splice(i,1);
                 break;
@@ -914,11 +1204,30 @@ function update(dt){
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
-    for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
+    for(let i=bullets.length-1;i>=0;i--){
+        bullets[i].y -= 12 * timeScale; 
+        if(bullets[i].y<0)bullets.splice(i,1);
+    }
     
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
+        
+        // --- BOSS DEAD DELAY LOGIC ---
+        if(e.bossFinished) {
+            e.timer += dt;
+            if(e.timer > 4000) e.fading = true; 
+        } else {
+             e.y += e.speed * timeScale; 
+             e.x += e.vx * timeScale; 
+
+            if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
+                e.vx *= -1; 
+                if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
+                if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+            }
+        }
+        
+        if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
                 x: e.x, y: e.y + 40,
@@ -929,58 +1238,145 @@ function update(dt){
             });
         }
 
-        if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
-        
-        e.y += e.speed; e.x += e.vx; 
-
-        if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
-            e.vx *= -1; 
-            if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
-            if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
+        // Handle Enemy Fading / Removal
+        if(e.fading){
+            // IF LOCKED TARGET DIES, UNLOCK
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+            
+            createExplosion(e.x,e.y,e.color,1);
+            enemies.splice(i,1);
+            continue;
         }
-
-        const eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
-        if(!player.invincible && checkCollisionRect(player, eRect)){
+        
+        let eRect;
+        if (e.isBoss) {
+            eRect = {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90};
+        } else {
+            eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
+        }
+        
+        if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
             player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
+            
+            // Unset lock if we crashed into the locked target
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+
             if(lives<=0){gameOver();return;}
             continue;
         }
         
-        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
+        // --- NORMAL ENEMY TRANSLATION TIMER ---
+        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} 
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
-            if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
-                bullets.splice(j,1); e.timer=0;
+            
+            // --- LOGICA DE FIJAR OBJETIVO (LOCK-ON) ---
+            // Si hay un objetivo fijado y NO es este enemigo, la bala ignora a este enemigo
+            if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
+                continue; 
+            }
+
+            // Hitbox Logic
+            let hit = false;
+            let targetY = e.y;
+            if (e.isBoss && !e.bossFinished) {
+                const yOffset = e.activePhase * 30;
+                targetY = e.y - yOffset;
+                if(b.x > e.x-e.w/2-10 && b.x < e.x+e.w/2+10 && b.y > targetY-20 && b.y < targetY+10) hit = true;
+            } else if (!e.isBoss) {
+                if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10) hit = true;
+            }
+
+            if (hit) {
+                bullets.splice(j,1);
                 
-                if(e.stage===0){
-                    e.hits++; 
-                    if(e.hits === 1) speak(e.text, 'en-US');
-                    playSound('hit_eng');score+=10;
-                    if(e.hits >= 3) {
-                        e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
-                        createExplosion(e.x,e.y,'#00ff00',20);
-                        score+=50; combo++;
-                        // Recalculate width ONCE upon transition
-                        ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                // Si no había objetivo, fijamos este como objetivo
+                if (lockedEnemyId === null) lockedEnemyId = e.id;
+
+                // --- LOGICA DE BANEO (Bala Azul) ---
+                if (b.type === 'ban') {
+                    e.banHits++;
+                    createExplosion(e.isBoss ? e.x : e.x, e.isBoss ? targetY : e.y, '#00ffff', 15);
+                    playSound('hit_eng');
+                    
+                    if (e.banHits >= 3) {
+                        toggleWordStatus(e.wordData.en);
+                        e.fading = true; // Remove immediately
+                        createExplosion(e.x, e.y, '#000000', 50); // Black hole effect
+                        playSound('ban_success');
+                        score += 0; // No score for banning
                     }
+                } 
+                // --- LOGICA NORMAL (Bala Roja) ---
+                else {
+                    if (e.isBoss && !e.bossFinished) {
+                        const phase = e.phases[e.activePhase];
+                        phase.hits++;
+                        playSound('hit_eng');
+                        createExplosion(e.x, targetY, e.color, 10);
+
+                        if (phase.hits >= 3) {
+                            phase.completed = true;
+                            speak(phase.text, 'en-US', false);
+                            e.activePhase++;
+                            score += 100;
+                            
+                            if (e.activePhase >= 3) {
+                                e.bossFinished = true;
+                                e.color = '#00ff00';
+                                e.timer = 0;
+                                e.phases[2].text = e.wordData.es; 
+                                e.phases[2].completed = false; 
+                                e.activePhase = 2; 
+                                
+                                createExplosion(e.x, e.y, '#ffffff', 150);
+                                playSound('hit_syn');
+                                score += 500; combo++;
+                                speak(e.wordData.es, 'es-ES', false); 
+                            }
+                        }
+                    } 
+                    else if (!e.isBoss) {
+                        e.timer=0;
+                        if(e.stage===0){
+                            e.hits++; 
+                            if(e.hits === 1) speak(e.text, 'en-US', false); 
+                            playSound('hit_eng');score+=10;
+                            if(e.hits >= 3) {
+                                e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
+                                createExplosion(e.x,e.y,'#00ff00',20);
+                                score+=50; combo++;
+                                ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                            }
+                        }
+                        else if(e.stage===1){
+                            e.fading=true;
+                            createExplosion(e.x,e.y,'#ffffff',40);
+                            playSound('hit_syn'); score+=150; combo++;
+                            speak(e.text, 'es-ES', false); 
+                        }
+                    }
+                    scoreEl.innerText=score; comboEl.innerText=combo;
                 }
-                else if(e.stage===1){
-                    e.fading=true;
-                    createExplosion(e.x,e.y,'#ffffff',40);
-                    playSound('hit_syn'); score+=150; combo++;
-                    speak(e.text, 'es-ES');
-                }
-                scoreEl.innerText=score;comboEl.innerText=combo;
-                break;
+                break; // Break bullet loop
             }
         }
-        if(e.y>canvas.height){if(e.stage<1)combo=0;comboEl.innerText=combo;enemies.splice(i,1);}
+        
+        if(e.y>canvas.height){
+            if(e.stage<1)combo=0; comboEl.innerText=combo;
+            // Clean up lock if enemy passes screen
+            if (lockedEnemyId === e.id) lockedEnemyId = null;
+            enemies.splice(i,1);
+        }
     }
     
     for(let i=particles.length-1;i>=0;i--){
-        const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
+        const p=particles[i]; 
+        p.x += p.vx * timeScale; 
+        p.y += p.vy * timeScale; 
+        p.life -= 0.04 * timeScale; 
         if(p.life<=0)particles.splice(i,1);
     }
 }
@@ -988,22 +1384,21 @@ function update(dt){
 function draw(timestamp){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     
-    // OPTIMIZATION Point 4: No Math.sin/random in draw loop for stars
-    ctx.fillStyle = '#ffffff';
+    // Stars
     stars.forEach(s=>{
-        ctx.globalAlpha = s.opacity; 
+        const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
+        ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
         ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
     });
-    ctx.globalAlpha = 1.0; // Restore immediately
     
+    // Player
     if(!player.invincible||(Math.floor(Date.now()/100)%2===0)){
         drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
     }
 
-    // OPTIMIZATION Point 7: Set alignment ONCE
     ctx.textAlign='center'; ctx.textBaseline='middle';
     
-    // Draw Bombs
+    // Bombs
     enemyBombs.forEach(b => {
         ctx.strokeStyle='#fff'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
@@ -1014,44 +1409,93 @@ function draw(timestamp){
         ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets (Batch draw)
-    ctx.shadowBlur=5; ctx.shadowColor='#ff0055'; ctx.fillStyle='#ff0055';
-    bullets.forEach(b=>ctx.fillRect(b.x-2,b.y,4,15));
-    ctx.shadowBlur=0; 
+    // Bullets (Now handling Types)
+    bullets.forEach(b => {
+        if(b.type === 'ban') {
+            ctx.fillStyle = '#00ffff'; // Cyan for Ban bullets
+        } else {
+            ctx.fillStyle = '#ff0055'; // Red for Normal bullets
+        }
+        ctx.fillRect(b.x-2,b.y,4,15);
+    });
     
-    // OPTIMIZATION Point 3: BATCH RENDERING
-    // Draw all STAGE 0 enemies first (Small font, no shadow)
-    ctx.font='16px "Press Start 2P"';
+    // Enemies
     enemies.forEach(e=>{
-        if(e.stage === 0) {
+        // VISUAL INDICATION OF LOCK ON (Optional but helpful)
+        if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
+            ctx.globalAlpha = 0.3; // Dim others
+        } else {
+            ctx.globalAlpha = 1.0;
+        }
+
+        if (e.isBoss) {
+            e.phases.forEach((p, index) => {
+                const yPos = e.y - (index * 30);
+                
+                if (p.completed) {
+                    ctx.fillStyle = '#444'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                else if (index === e.activePhase) {
+                    ctx.fillStyle = e.color;  
+                    ctx.shadowColor = e.color; 
+                    ctx.shadowBlur = 15;       
+                    ctx.font = 'bold 16px "Press Start 2P"';
+                    ctx.fillText(p.text, e.x, yPos);
+                    
+                    ctx.lineWidth = 1; 
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeText(p.text, e.x, yPos);
+                }
+                else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(p.text, e.x, yPos);
+                }
+                
+                ctx.shadowBlur = 0; // Reset
+
+                // Hit dots
+                if (index === e.activePhase) {
+                    for(let k=0;k<3;k++){
+                        ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
+                        ctx.beginPath();ctx.arc(e.x-20+(k*20), yPos+12, 3, 0, Math.PI*2);ctx.fill();
+                    }
+                }
+            });
+
+        } else {
+            ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
             ctx.fillStyle=e.color;
+            
+            if(e.stage>=1){
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#003300';
+                ctx.strokeText(e.text, e.x, e.y);
+            }
+            
             ctx.fillText(e.text,e.x,e.y);
-            // Dots
-            for(let k=0;k<3;k++){
-                ctx.fillStyle = k<e.hits ? '#00ff00' : '#444';
+            
+            // Render Ban Progress if hits > 0
+            if (e.banHits > 0) {
+                 ctx.fillStyle = '#00ffff';
+                 for(let k=0;k<3;k++){
+                     if (k < e.banHits) {
+                         ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill();
+                     }
+                 }
+            }
+
+            for(let k=0;k<4;k++){
+                if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
+                else ctx.fillStyle = '#444';
                 ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
             }
         }
+        ctx.globalAlpha = 1.0; // Reset
     });
-
-    // Draw all STAGE 1 enemies second (Big font, shadow ON)
-    ctx.font='20px "Press Start 2P"';
-    ctx.shadowBlur=10; ctx.shadowColor='#00ff00';
-    enemies.forEach(e=>{
-        if(e.stage >= 1) {
-            ctx.fillStyle=e.color;
-            ctx.fillText(e.text,e.x,e.y);
-            // Dots (all green for stage 1)
-            ctx.shadowBlur=0; // Temp disable for dots
-            ctx.fillStyle = '#444'; 
-            for(let k=0;k<4;k++){
-                 ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
-            }
-            ctx.shadowBlur=10; // Restore for next text
-        }
-    });
-    ctx.shadowBlur=0; // Final Reset
-
+    
     // Particles
     particles.forEach(p=>{
         ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
@@ -1065,34 +1509,96 @@ function gameOver(){
     document.getElementById('finalScore').innerText=score;
     gameOverScreen.style.display='flex';
 }
-
 function startGame(){
-    if(gameRunning)return;
-    resumeAudio(); // Ensure audio is ready
+    if(gameRunning) return;
+    
+    if(window.speechSynthesis) {
+        window.speechSynthesis.cancel(); 
+        let unlockVoice = new SpeechSynthesisUtterance(""); 
+        unlockVoice.volume = 0; 
+        window.speechSynthesis.speak(unlockVoice);
+    }
+
     resize();
-    startScreen.style.display='none';gameOverScreen.style.display='none';studyGuide.style.display='none';
-    score=combo=0;lives=5;enemies=[];bullets=[];particles=[];enemyBombs=[];player.invincible=false;
-    scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
+    startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
+    score=combo=0; lives=5; enemies=[]; bullets=[]; particles=[]; enemyBombs=[]; player.invincible=false;
+    enemiesSpawnedCount = 0; 
+    lockedEnemyId = null; // Reset Lock
+    scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5';
     loadHighScore();
-    gameRunning=true; lastTime=performance.now(); spawnTimer = gameVars.spawnInterval;
+    
+    gameRunning=true; 
+    lastFrameTime = performance.now(); 
+    spawnTimer = gameVars.spawnInterval;
     quizTimer = 0;
+    
+    if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     
     gameLoopId = requestAnimationFrame(loop);
 }
+
+// === MOBILE INPUT HANDLERS ===
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+const btnFire = document.getElementById('btn-fire');
+const btnBan = document.getElementById('btn-ban'); // Nuevo Handler
+
+const handleTouchStart = (key, customAction = null) => {
+    if (customAction) {
+        customAction();
+    } else {
+        keys[key] = true;
+    }
+    
+    if(key === 'Space' && gameRunning && !customAction) {
+         bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); // Normal Bullet
+         playSound('shoot');
+    }
+};
+const handleTouchEnd = (key) => {
+    keys[key] = false;
+};
+
+// Fire Blue Bullet Function
+const fireBanBullet = () => {
+    if(gameRunning) {
+        bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); // Ban Bullet
+        playSound('ban_shoot');
+    }
+};
+
+['touchstart', 'mousedown'].forEach(evt => {
+    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
+    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
+    
+    // Listener Boton Ban
+    btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
+});
+
+['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
+    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowLeft'); });
+    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowRight'); });
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
+    
+    // No action needed for Ban release
+});
 
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
     if(e.code==='Space' && gameRunning){
         e.preventDefault();
-        bullets.push({x:player.x+player.w/2,y:player.y});
+        bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'});
         playSound('shoot');
+    }
+    // Tecla 'B' para banear en PC (Opcional)
+    if(e.code==='KeyB' && gameRunning){
+        e.preventDefault();
+        fireBanBullet();
     }
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
-// OPTIMIZATION Point 10: Resume audio on first user interaction globally
-document.body.addEventListener('click', resumeAudio, {once:true});
-document.body.addEventListener('keydown', resumeAudio, {once:true});
 
 window.onload=()=>{
     loadConfig(); 
