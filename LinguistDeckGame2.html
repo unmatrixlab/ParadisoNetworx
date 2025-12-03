@@ -27,26 +27,30 @@
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
-        /* CONTROLES MÓVILES (MODIFICADO) */
+        /* CONTROLES MÓVILES */
         #mobile-controls {
             display: none; /* Por defecto OCULTO en PC */
             position: absolute; 
-            bottom: 20px; /* Bajamos el contenedor base */
+            bottom: 20px; 
             width: 100%;
             justify-content: space-between; 
             padding: 0 20px; 
             box-sizing: border-box;
             z-index: 20; 
             pointer-events: none;
-            align-items: flex-end; /* Alineamos los elementos abajo */
+            align-items: flex-end; 
         }
 
         .touch-group { display: flex; gap: 20px; pointer-events: auto; }
 
-        /* NUEVO: REGLA PARA SUBIR SOLO LOS BOTONES VERDES */
-        /* El robot está a unos 130px del fondo, así que subimos esto 150px */
+        /* GRUPO IZQUIERDO (Flechas Verdes): Subido para estar sobre el robot */
         .touch-group:first-child {
             margin-bottom: 150px; 
+        }
+
+        /* GRUPO DERECHO (Botón Rojo): Subido 90px para estar sobre el menú */
+        .touch-group:last-child {
+            margin-bottom: 90px;
         }
 
         .touch-btn {
@@ -61,7 +65,7 @@
         .btn-fire { border-color: var(--neon-red); color: var(--neon-red); }
         .btn-fire:active { background: var(--neon-red); color: #000; }
 
-        /* Media Query ajustada para Móviles y Tablets */
+        /* Media Query para Móviles */
         @media (max-width: 768px) or (pointer: coarse) {
             #mobile-controls { display: flex; }
             #category-bar-wrapper { bottom: 100px; } 
@@ -767,20 +771,19 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (QUEUE SYSTEM - MEJORADO)
+   AUDIO MANAGER (MEJORADO - HIGH QUALITY)
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
 let availableVoices = [];
 
-// Cargar las voces disponibles en el dispositivo
+// Cargar las voces disponibles
 function loadVoices() {
     availableVoices = window.speechSynthesis.getVoices();
 }
-// Chrome/Android cargan las voces de forma asíncrona, esto asegura que las detectemos
 if (window.speechSynthesis) {
     window.speechSynthesis.onvoiceschanged = loadVoices;
-    loadVoices(); // Intento inicial
+    loadVoices();
 }
 
 setInterval(() => {
@@ -799,12 +802,32 @@ function speak(text, lang, isBomb = false) {
     audioQueue.push({text, lang});
 }
 
+function getBestVoice(lang) {
+    if (availableVoices.length === 0) loadVoices();
+    
+    // 1. Filtrar por idioma base (ej: 'es' para 'es-MX')
+    const baseLang = lang.split('-')[0];
+    const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
+    
+    if (candidates.length === 0) return null;
+
+    // 2. Sistema de Puntuación para encontrar la mejor voz
+    // Preferimos: Coincidencia Exacta > Google/Premium > Default
+    const scoreVoice = (v) => {
+        let score = 0;
+        if (v.lang === lang) score += 10; // Coincidencia exacta de región
+        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; // Alta calidad
+        if (v.default) score += 1;
+        return score;
+    };
+
+    candidates.sort((a, b) => scoreVoice(b) - scoreVoice(a));
+    return candidates[0];
+}
+
 function playText(text, lang) {
     if (!window.speechSynthesis) return;
     
-    // Asegurarnos de tener voces cargadas si el navegador tardó
-    if (availableVoices.length === 0) loadVoices();
-
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
@@ -815,25 +838,9 @@ function playText(text, lang) {
     u.lang = lang; 
     u.rate = 1.1; 
 
-    // --- ALGORITMO DE SELECCIÓN DE VOZ ---
-    // Busca una voz que coincida con el idioma (ej: busca una voz que empiece por "es" para español)
-    // Esto obliga al celular a cambiar de acento.
-    if (availableVoices.length > 0) {
-        // Intentar coincidencia exacta (ej: es-ES o en-US)
-        let selectedVoice = availableVoices.find(v => v.lang === lang);
-        
-        // Si no hay exacta, buscar coincidencia general (ej: cualquier "es" o "en")
-        if (!selectedVoice) {
-            const shortLang = lang.split('-')[0]; // "es" o "en"
-            selectedVoice = availableVoices.find(v => v.lang.startsWith(shortLang));
-        }
-
-        // Si encontramos una voz adecuada, la asignamos forzosamente
-        if (selectedVoice) {
-            u.voice = selectedVoice;
-        }
-    }
-    // -------------------------------------
+    // Usar la lógica de mejor voz
+    const bestVoice = getBestVoice(lang);
+    if (bestVoice) u.voice = bestVoice;
     
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
