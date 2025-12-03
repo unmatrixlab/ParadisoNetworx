@@ -1465,10 +1465,11 @@ const INTERNAL_VOCAB = {
         {en:"YOURS", es:"TUYO/SUYO"}, {en:"YOURSELF", es:"TÚ MISMO"}, {en:"YOURSELVES", es:"VOSOTROS MISMOS"}
     ]
 };
+
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v14'; 
+const CONFIG_KEY = 'vocab_robot_config_v15'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
@@ -1489,13 +1490,10 @@ let userSettings = {
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
-let reinforcedWords = new Set(); // Stores words that are "Boosted"
+let reinforcedWords = new Set(); 
 
-// Variables para el Quiz
 let quizTimer = 0;
 let currentQuizWord = null;
-
-// LOCK-ON SYSTEM
 let lockedEnemyId = null;
 
 // --- MENUS & UI ---
@@ -1570,23 +1568,16 @@ function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
     document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
     document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
-
     document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
     document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
     document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
-
     document.getElementById('cfg-volume').value = userSettings.masterVolume;
     document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
-    
-    // Audio Toggles
     document.getElementById('chk-sfx').checked = userSettings.audioFX !== false;
     document.getElementById('chk-voice-words').checked = userSettings.audioWords !== false;
     document.getElementById('chk-voice-bombs').checked = userSettings.audioBombs !== false;
-
-    // Boss Freq
     document.getElementById('cfg-boss-freq').value = userSettings.bossFrequency || 15;
     document.getElementById('val-boss-freq').textContent = userSettings.bossFrequency || 15;
-
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
     document.getElementById('cfg-speed').value = userSettings.enemySpeed;
@@ -1673,7 +1664,7 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA & CLEANING (ACENTOS FIX) ---
+// --- DATA LOGIC ---
 let activeVocabList = []; 
 let gameDeck = [];        
 
@@ -1735,17 +1726,13 @@ function loadVocabData() {
 
 function refreshGameDeck() {
     gameDeck = [];
-    
-    // Check if we have active words
     const hasData = activeVocabList.length > 0 && activeVocabList[0].en !== "NO DATA";
 
     if (hasData) {
         activeVocabList.forEach(item => {
             if (!disabledWords.has(item.en)) {
-                // Add once normally
                 gameDeck.push(item);
-                
-                // If reinforced, add 10 more times to increase probability
+                // Si está reforzada, la metemos 10 veces más para que salga MUCHO
                 if (reinforcedWords.has(item.en)) {
                     for(let k=0; k<10; k++) {
                         gameDeck.push(item);
@@ -1772,7 +1759,7 @@ function toggleReinforceStatus(engWord) {
     refreshGameDeck();
 }
 
-// --- ALGORITMO LEVENSHTEIN ---
+// --- QUIZ & LEVENSHTEIN ---
 function similarity(s1, s2) {
     var longer = s1;
     var shorter = s2;
@@ -1804,7 +1791,6 @@ function editDistance(s1, s2) {
     return costs[s2.length];
 }
 
-// --- POP QUIZ LOGIC ---
 function triggerPopQuiz() {
     gameRunning = false; 
     const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
@@ -1889,7 +1875,10 @@ function checkQuizAnswer() {
     }
 }
 
-function launchFireworks() {
+function resolveQuizSuccess() {
+    quizTimer = 0; 
+    document.getElementById('quiz-screen').style.display = 'none';
+    
     for(let i=0; i<10; i++) {
         setTimeout(() => {
             const x = Math.random() * canvas.width;
@@ -1899,13 +1888,6 @@ function launchFireworks() {
             playSound('firework'); 
         }, i * 200); 
     }
-}
-
-function resolveQuizSuccess() {
-    quizTimer = 0; 
-    document.getElementById('quiz-screen').style.display = 'none';
-    
-    launchFireworks();
 
     enemyBombs = []; 
     enemies.forEach(e => {
@@ -1924,9 +1906,8 @@ document.getElementById('quiz-input').addEventListener('keypress', function (e) 
     if (e.key === 'Enter') checkQuizAnswer();
 });
 
-
 /* =========================================
-   4. GAME ENGINE
+   GAME ENGINE
    ========================================= */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -1942,9 +1923,6 @@ const studyTableContainer = document.getElementById('study-table-container');
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
-/* =========================================
-   AUDIO MANAGER
-   ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
 let availableVoices = [];
@@ -1970,9 +1948,7 @@ function speak(text, lang, isBomb = false) {
     } else {
         if (!userSettings.audioWords) return;
     }
-    
     if (audioQueue.length > 2) return; 
-
     audioQueue.push({text, lang});
 }
 
@@ -1981,11 +1957,10 @@ function getBestVoice(lang) {
     const baseLang = lang.split('-')[0];
     const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
     if (candidates.length === 0) return null;
-
     const scoreVoice = (v) => {
         let score = 0;
         if (v.lang === lang) score += 10; 
-        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; 
+        if (v.name.includes("Google") || v.name.includes("Premium")) score += 5; 
         if (v.default) score += 1;
         return score;
     };
@@ -1997,19 +1972,14 @@ function playText(text, lang) {
     if (!window.speechSynthesis) return;
     isSpeaking = true;
     window.speechSynthesis.cancel();
-    
     let textToSpeak = text.toLowerCase();
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
-    
     const u = new SpeechSynthesisUtterance(textToSpeak);
-    u.lang = lang; 
-    u.rate = 0.9; 
+    u.lang = lang; u.rate = 0.9; 
     const bestVoice = getBestVoice(lang);
     if (bestVoice) u.voice = bestVoice;
-    
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
-
     window.speechSynthesis.speak(u);
 }
 
@@ -2056,8 +2026,12 @@ function playSound(type) {
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.5);
     }
     else if(type==='boost_success'){
-        o.type='triangle'; o.frequency.setValueAtTime(400,n); o.frequency.linearRampToValueAtTime(1000,n+.3);
-        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.3);
+        // Un sonido más "mágico" o de PowerUp
+        o.type='triangle'; o.frequency.setValueAtTime(400,n); 
+        o.frequency.linearRampToValueAtTime(600,n+.1);
+        o.frequency.linearRampToValueAtTime(800,n+.2);
+        o.frequency.linearRampToValueAtTime(1200,n+.4);
+        g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.4);
     }
     o.start(n); o.stop(n + 0.5);
 }
@@ -2076,10 +2050,7 @@ function populateStudyGuide(){
     activeVocabList.forEach(v => {
         const isChecked = !disabledWords.has(v.en);
         const isBoosted = reinforcedWords.has(v.en);
-        
-        let rowClass = "";
-        if (isBoosted) rowClass = "boosted-row";
-
+        let rowClass = isBoosted ? "boosted-row" : "";
         html += `<tr class="${rowClass}">
             <td class="chk-cell">
                 <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${v.en.replace(/'/g, "\\'")}')">
@@ -2120,27 +2091,18 @@ for(let i=0;i<80;i++) stars.push({
 });
 
 function getRandomBombContent() {
-    if (Math.random() > 0.5) {
-        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        return chars.charAt(Math.floor(Math.random() * chars.length));
-    } else {
-        return Math.floor(Math.random() * (9999 - 10) + 10).toString();
-    }
+    if (Math.random() > 0.5) return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".charAt(Math.floor(Math.random()*26));
+    else return Math.floor(Math.random() * (9999 - 10) + 10).toString();
 }
 
 function getSafeSpawnX(enemyWidth) {
-    const attempts = 15;
-    const padding = 20;
-    
+    const attempts = 15; const padding = 20;
     for (let i = 0; i < attempts; i++) {
         let safe = true;
         let candX = Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
         for (let e of enemies) {
             if (e.y < 250) { 
-                if (candX < e.x + e.w/2 + padding && candX > e.x - e.w/2 - padding) {
-                    safe = false;
-                    break;
-                }
+                if (candX < e.x + e.w/2 + padding && candX > e.x - e.w/2 - padding) { safe = false; break; }
             }
         }
         if (safe) return candX;
@@ -2149,64 +2111,42 @@ function getSafeSpawnX(enemyWidth) {
 }
 
 function spawnEnemy(){
-    // Boss Freq Check
     const bossFreq = userSettings.bossFrequency || 15;
     if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % bossFreq === 0) {
         const src = userSettings.vocabSource;
-        let allowed = false;
-        let specificType = null; 
-
-        if (src === 'ALL_INTERNAL' || src === 'MIXED') { 
-            allowed = true; // Random allowed
-        }
-        else if (src === 'REGULAR_VERBS') {
-            allowed = true; specificType = 'REGULAR_VERBS';
-        }
-        else if (src === 'IRREGULAR_VERBS') {
-            allowed = true; specificType = 'IRREGULAR_VERBS';
-        }
-
-        if (allowed) {
-            spawnBoss(specificType);
-            enemiesSpawnedCount++;
-            return;
-        }
+        let allowed = false; let specificType = null; 
+        if (src === 'ALL_INTERNAL' || src === 'MIXED') allowed = true; 
+        else if (src === 'REGULAR_VERBS') { allowed = true; specificType = 'REGULAR_VERBS'; }
+        else if (src === 'IRREGULAR_VERBS') { allowed = true; specificType = 'IRREGULAR_VERBS'; }
+        if (allowed) { spawnBoss(specificType); enemiesSpawnedCount++; return; }
     }
 
     if(gameDeck.length===0) return;
     const d=gameDeck[Math.floor(Math.random()*gameDeck.length)];
     ctx.font='16px "Press Start 2P"';
     const textWidth=ctx.measureText(d.en).width;
-    
     const startX = getSafeSpawnX(textWidth);
     const vx = (Math.random() - 0.5) * 2.0;
     const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
 
+    // CHECK IF THIS WORD IS REINFORCED (FOR VISUALS)
+    const isBoosted = reinforcedWords.has(d.en);
+
     enemies.push({
         id: Date.now() + Math.random(), 
-        x: startX, 
-        y: -40, 
+        x: startX, y: -40, 
         wordData:d, text:d.en, 
-        stage:0, hits:0, 
-        banHits: 0, 
-        boostHits: 0, // NEW: Counter for Boost
-        speed: baseSpeed, 
-        vx: vx, 
-        color:'#ffffff', 
-        timer:0, fading:false, w:textWidth, droppedBomb: false,
-        isBoss: false 
+        stage:0, hits:0, banHits: 0, boostHits: 0,
+        speed: baseSpeed, vx: vx, 
+        color: isBoosted ? '#FFD700' : '#ffffff', // COLOR DORADO SI ES REFORZADA
+        isBoosted: isBoosted,
+        timer:0, fading:false, w:textWidth, droppedBomb: false, isBoss: false 
     });
     enemiesSpawnedCount++;
 }
 
 function spawnBoss(forcedListType) {
-    let listType;
-    if (forcedListType) {
-        listType = forcedListType;
-    } else {
-        listType = Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
-    }
-
+    let listType = forcedListType ? forcedListType : (Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS');
     const sourceList = INTERNAL_VOCAB[listType] || INTERNAL_VOCAB['REGULAR_VERBS'];
     const verbData = sourceList[Math.floor(Math.random() * sourceList.length)];
 
@@ -2215,34 +2155,23 @@ function spawnBoss(forcedListType) {
     const wPast = ctx.measureText(verbData.past).width;
     const wPart = ctx.measureText(verbData.part).width;
     const maxW = Math.max(wBase, wPast, wPart);
-
     const startX = getSafeSpawnX(maxW);
-    
     let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; 
     let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
 
     enemies.push({
         id: Date.now() + Math.random(),
-        x: startX,
-        y: -100, 
-        wordData: verbData,
-        isBoss: true,
-        bossType: verbData.type,
+        x: startX, y: -100, 
+        wordData: verbData, isBoss: true, bossType: verbData.type,
         phases: [
             { text: verbData.en, hits: 0, completed: false },   
             { text: verbData.past, hits: 0, completed: false }, 
             { text: verbData.part, hits: 0, completed: false }  
         ],
-        activePhase: 0, 
-        speed: (0.5 * userSettings.enemySpeed) * speedMod,
-        vx: 0, 
-        color: bossColor,
-        w: maxW,
-        droppedBomb: false,
-        fading: false,
-        bossFinished: false,
-        banHits: 0,
-        boostHits: 0
+        activePhase: 0, speed: (0.5 * userSettings.enemySpeed) * speedMod,
+        vx: 0, color: bossColor, w: maxW,
+        droppedBomb: false, fading: false, bossFinished: false,
+        banHits: 0, boostHits: 0
     });
 }
 
@@ -2252,11 +2181,9 @@ function createExplosion(x,y,c,n=10){
         particles.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-.5)*6,life:1,color:c});
     }
 }
-
 function checkCollisionRect(r1, r2) {
     return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x && r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
 }
-
 function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = color; ctx.fillRect(x + 8, y + 15, w - 16, h - 20);
     ctx.fillStyle = '#ccc'; ctx.fillRect(x + 4, y, w - 8, 20);
@@ -2270,10 +2197,7 @@ function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
 }
 
-// === OPTIMIZATION: 30 FPS LOCK ===
-let lastFrameTime = 0;
-const targetFPS = 30; 
-const frameInterval = 1000 / targetFPS;
+let lastFrameTime = 0; const targetFPS = 30; const frameInterval = 1000 / targetFPS;
 
 function loop(timestamp) {
     if (!gameRunning) return;
@@ -2282,142 +2206,84 @@ function loop(timestamp) {
     if (elapsed < frameInterval) return;
     lastFrameTime = timestamp - (elapsed % frameInterval);
     const timeScale = elapsed / (1000/60); 
-
     update(elapsed, timeScale);
     draw(timestamp);
 }
 
 function update(dt, timeScale){
     if(timeScale > 4) timeScale = 1;
-
     if (userSettings.quizEnabled) {
         quizTimer += 33; 
-        if (quizTimer >= userSettings.quizInterval * 1000) {
-            triggerPopQuiz();
-            return; 
-        }
+        if (quizTimer >= userSettings.quizInterval * 1000) { triggerPopQuiz(); return; }
     }
-
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
     if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
-    stars.forEach(s=>{
-        s.y += s.speed * timeScale; 
-        if(s.y>canvas.height)s.y=0;
-    });
-    
-    spawnTimer-=dt; 
-    if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
+    stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
+    spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
-        b.y += b.vy * timeScale; 
-        b.x += (Math.sin(b.y * 0.05) * 1.5) * timeScale; 
-        
+        b.y += b.vy * timeScale; b.x += (Math.sin(b.y * 0.05) * 1.5) * timeScale; 
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
              createExplosion(player.x+player.w/2, player.y+player.h/2, '#ff4444', 30);
-             playSound('player_hit');
-             player.invincible=true; player.invTimer=2000;
-             enemyBombs.splice(i,1);
-             if(lives<=0){gameOver();return;}
-             continue;
+             playSound('player_hit'); player.invincible=true; player.invTimer=2000;
+             enemyBombs.splice(i,1); if(lives<=0){gameOver();return;} continue;
         }
-
         for(let j=bullets.length-1; j>=0; j--){
             let bullet = bullets[j];
-            // Only normal bullets destroy bombs, ban/boost bullets ignore bombs
             if(bullet.type === 'normal' && bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
-                bullets.splice(j,1);
-                createExplosion(b.x, b.y, b.color, 15);
-                playSound('hit_eng');
-                speak(b.text, 'en-US', true); 
-                score += 25; scoreEl.innerText = score;
-                enemyBombs.splice(i,1);
-                break;
+                bullets.splice(j,1); createExplosion(b.x, b.y, b.color, 15);
+                playSound('hit_eng'); speak(b.text, 'en-US', true); 
+                score += 25; scoreEl.innerText = score; enemyBombs.splice(i,1); break;
             }
         }
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
-    for(let i=bullets.length-1;i>=0;i--){
-        bullets[i].y -= 12 * timeScale; 
-        if(bullets[i].y<0)bullets.splice(i,1);
-    }
+    for(let i=bullets.length-1;i>=0;i--){ bullets[i].y -= 12 * timeScale; if(bullets[i].y<0)bullets.splice(i,1); }
     
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        
-        // --- BOSS DEAD DELAY LOGIC ---
-        if(e.bossFinished) {
-            e.timer += dt;
-            if(e.timer > 4000) e.fading = true; 
-        } else {
-             e.y += e.speed * timeScale; 
-             e.x += e.vx * timeScale; 
-
+        if(e.bossFinished) { e.timer += dt; if(e.timer > 4000) e.fading = true; } 
+        else {
+             e.y += e.speed * timeScale; e.x += e.vx * timeScale; 
             if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
                 e.vx *= -1; 
                 if(e.x < e.w/2 + 10) e.x = e.w/2 + 11;
                 if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
             }
         }
-        
         if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
-                x: e.x, y: e.y + 40,
-                text: getRandomBombContent(),
-                color: `hsl(${Math.random()*360}, 100%, 70%)`,
-                vy: e.speed + userSettings.bombSpeed, 
-                w: 20, h: 30
+                x: e.x, y: e.y + 40, text: getRandomBombContent(),
+                color: `hsl(${Math.random()*360}, 100%, 70%)`, vy: e.speed + userSettings.bombSpeed, w: 20, h: 30
             });
         }
-
-        // Handle Enemy Fading / Removal
         if(e.fading){
             if (lockedEnemyId === e.id) lockedEnemyId = null;
-            createExplosion(e.x,e.y,e.color,1);
-            enemies.splice(i,1);
-            continue;
+            createExplosion(e.x,e.y,e.color,1); enemies.splice(i,1); continue;
         }
-        
-        let eRect;
-        if (e.isBoss) {
-            eRect = {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90};
-        } else {
-            eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
-        }
-        
+        let eRect = e.isBoss ? {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90} : {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
         if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
-            lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);playSound('player_hit');
-            player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
-            
+            lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);
+            playSound('player_hit'); player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
             if (lockedEnemyId === e.id) lockedEnemyId = null;
-
-            if(lives<=0){gameOver();return;}
-            continue;
+            if(lives<=0){gameOver();return;} continue;
         }
-        
-        // --- NORMAL ENEMY TRANSLATION TIMER ---
         if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} 
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
+            if (lockedEnemyId !== null && lockedEnemyId !== e.id) continue; 
             
-            // --- LOGICA DE FIJAR OBJETIVO (LOCK-ON) ---
-            if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
-                continue; 
-            }
-
-            // Hitbox Logic
-            let hit = false;
-            let targetY = e.y;
+            let hit = false; let targetY = e.y;
             if (e.isBoss && !e.bossFinished) {
-                const yOffset = e.activePhase * 30;
-                targetY = e.y - yOffset;
+                const yOffset = e.activePhase * 30; targetY = e.y - yOffset;
                 if(b.x > e.x-e.w/2-10 && b.x < e.x+e.w/2+10 && b.y > targetY-20 && b.y < targetY+10) hit = true;
             } else if (!e.isBoss) {
                 if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10) hit = true;
@@ -2425,70 +2291,47 @@ function update(dt, timeScale){
 
             if (hit) {
                 bullets.splice(j,1);
-                
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
-
-                // --- 1. LOGICA DE BANEO (Bala Cyan) ---
+                
+                // === LOGICA BAN ===
                 if (b.type === 'ban') {
-                    e.banHits++;
-                    createExplosion(e.isBoss ? e.x : e.x, e.isBoss ? targetY : e.y, '#00ffff', 15);
-                    playSound('hit_eng');
+                    e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
-                        toggleWordStatus(e.wordData.en);
-                        e.fading = true; 
-                        createExplosion(e.x, e.y, '#000000', 50); 
-                        playSound('ban_success');
-                        score += 0; 
+                        toggleWordStatus(e.wordData.en); e.fading = true; 
+                        createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                     }
                 } 
-                // --- 2. LOGICA DE REFUERZO (Bala Amarilla) ---
+                // === LOGICA BOOST (CORREGIDA) ===
                 else if (b.type === 'boost') {
-                    e.boostHits++;
-                    createExplosion(e.isBoss ? e.x : e.x, e.isBoss ? targetY : e.y, '#ffff00', 15);
-                    playSound('hit_eng');
+                    e.boostHits++; createExplosion(e.x, targetY, '#ffff00', 15); playSound('hit_eng');
                     if (e.boostHits >= 3) {
-                         // Activar Refuerzo
                          if (!reinforcedWords.has(e.wordData.en)) {
                              toggleReinforceStatus(e.wordData.en);
-                             createExplosion(e.x, e.y, '#ffff00', 80);
+                             // ELIMINAR EL ENEMIGO AL REFORZARLO (COMO CAPTURADO)
+                             e.fading = true;
+                             createExplosion(e.x, e.y, '#FFD700', 80); // Explosión Dorada
                              playSound('boost_success');
-                             score += 200; // Bonus points for boosting
+                             score += 200; 
                          } else {
-                             // Already boosted feedback
-                             createExplosion(e.x, e.y, '#ffff00', 20);
+                             // Ya estaba reforzada, solo eliminarla
+                             e.fading = true;
+                             createExplosion(e.x, e.y, '#FFD700', 20);
                          }
                     }
                 }
-                // --- 3. LOGICA NORMAL (Bala Roja) ---
+                // === LOGICA NORMAL ===
                 else {
                     if (e.isBoss && !e.bossFinished) {
-                        const phase = e.phases[e.activePhase];
-                        phase.hits++;
-                        playSound('hit_eng');
-                        createExplosion(e.x, targetY, e.color, 10);
-
+                        const phase = e.phases[e.activePhase]; phase.hits++; playSound('hit_eng'); createExplosion(e.x, targetY, e.color, 10);
                         if (phase.hits >= 3) {
-                            phase.completed = true;
-                            speak(phase.text, 'en-US', false);
-                            e.activePhase++;
-                            score += 100;
-                            
+                            phase.completed = true; speak(phase.text, 'en-US', false); e.activePhase++; score += 100;
                             if (e.activePhase >= 3) {
-                                e.bossFinished = true;
-                                e.color = '#00ff00';
-                                e.timer = 0;
-                                e.phases[2].text = e.wordData.es; 
-                                e.phases[2].completed = false; 
-                                e.activePhase = 2; 
-                                
-                                createExplosion(e.x, e.y, '#ffffff', 150);
-                                playSound('hit_syn');
-                                score += 500; combo++;
-                                speak(e.wordData.es, 'es-ES', false); 
+                                e.bossFinished = true; e.color = '#00ff00'; e.timer = 0;
+                                e.phases[2].text = e.wordData.es; e.phases[2].completed = false; e.activePhase = 2; 
+                                createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false); 
                             }
                         }
-                    } 
-                    else if (!e.isBoss) {
+                    } else if (!e.isBoss) {
                         e.timer=0;
                         if(e.stage===0){
                             e.hits++; 
@@ -2496,118 +2339,67 @@ function update(dt, timeScale){
                             playSound('hit_eng');score+=10;
                             if(e.hits >= 3) {
                                 e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
-                                createExplosion(e.x,e.y,'#00ff00',20);
-                                score+=50; combo++;
+                                createExplosion(e.x,e.y,'#00ff00',20); score+=50; combo++;
                                 ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
                             }
-                        }
-                        else if(e.stage===1){
-                            e.fading=true;
-                            createExplosion(e.x,e.y,'#ffffff',40);
-                            playSound('hit_syn'); score+=150; combo++;
-                            speak(e.text, 'es-ES', false); 
+                        } else if(e.stage===1){
+                            e.fading=true; createExplosion(e.x,e.y,'#ffffff',40); playSound('hit_syn'); score+=150; combo++; speak(e.text, 'es-ES', false); 
                         }
                     }
                     scoreEl.innerText=score; comboEl.innerText=combo;
                 }
-                break; // Break bullet loop
+                break; 
             }
         }
-        
         if(e.y>canvas.height){
             if(e.stage<1)combo=0; comboEl.innerText=combo;
-            if (lockedEnemyId === e.id) lockedEnemyId = null;
-            enemies.splice(i,1);
+            if (lockedEnemyId === e.id) lockedEnemyId = null; enemies.splice(i,1);
         }
     }
-    
     for(let i=particles.length-1;i>=0;i--){
-        const p=particles[i]; 
-        p.x += p.vx * timeScale; 
-        p.y += p.vy * timeScale; 
-        p.life -= 0.04 * timeScale; 
-        if(p.life<=0)particles.splice(i,1);
+        const p=particles[i]; p.x += p.vx * timeScale; p.y += p.vy * timeScale; p.life -= 0.04 * timeScale; if(p.life<=0)particles.splice(i,1);
     }
 }
 
 function draw(timestamp){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    
-    // Stars
     stars.forEach(s=>{
         const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
         ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
         ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
     });
-    
-    // Player
     if(!player.invincible||(Math.floor(Date.now()/100)%2===0)){
         drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
     }
-
     ctx.textAlign='center'; ctx.textBaseline='middle';
     
-    // Bombs
     enemyBombs.forEach(b => {
         ctx.strokeStyle='#fff'; ctx.lineWidth=1;
         ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(b.x+10, b.y-15); ctx.lineTo(b.x+4, b.y); ctx.stroke();
         ctx.fillStyle=b.color;
         ctx.beginPath(); ctx.arc(b.x, b.y-15, 12, Math.PI, 0); ctx.fill();
-        ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff';
-        ctx.fillText(b.text, b.x, b.y+10);
+        ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff'; ctx.fillText(b.text, b.x, b.y+10);
     });
 
-    // Bullets (Now handling Types)
     bullets.forEach(b => {
-        if(b.type === 'ban') {
-            ctx.fillStyle = '#00ffff'; 
-        } else if (b.type === 'boost') {
-            ctx.fillStyle = '#ffff00';
-        } else {
-            ctx.fillStyle = '#ff0055'; 
-        }
+        if(b.type === 'ban') ctx.fillStyle = '#00ffff'; 
+        else if (b.type === 'boost') ctx.fillStyle = '#ffff00';
+        else ctx.fillStyle = '#ff0055'; 
         ctx.fillRect(b.x-2,b.y,4,15);
     });
     
-    // Enemies
     enemies.forEach(e=>{
-        // LOCK ON DIMMING
-        if (lockedEnemyId !== null && lockedEnemyId !== e.id) {
-            ctx.globalAlpha = 0.3; 
-        } else {
-            ctx.globalAlpha = 1.0;
-        }
-
+        if (lockedEnemyId !== null && lockedEnemyId !== e.id) ctx.globalAlpha = 0.3; else ctx.globalAlpha = 1.0;
         if (e.isBoss) {
             e.phases.forEach((p, index) => {
                 const yPos = e.y - (index * 30);
-                
-                if (p.completed) {
-                    ctx.fillStyle = '#444'; 
-                    ctx.shadowBlur = 0;
-                    ctx.fillText(p.text, e.x, yPos);
-                }
+                if (p.completed) { ctx.fillStyle = '#444'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
                 else if (index === e.activePhase) {
-                    ctx.fillStyle = e.color;  
-                    ctx.shadowColor = e.color; 
-                    ctx.shadowBlur = 15;       
-                    ctx.font = 'bold 16px "Press Start 2P"';
-                    ctx.fillText(p.text, e.x, yPos);
-                    
-                    ctx.lineWidth = 1; 
-                    ctx.strokeStyle = '#fff';
-                    ctx.strokeText(p.text, e.x, yPos);
-                }
-                else {
-                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
-                    ctx.shadowBlur = 0;
-                    ctx.fillText(p.text, e.x, yPos);
-                }
-                
+                    ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 15; ctx.font = 'bold 16px "Press Start 2P"';
+                    ctx.fillText(p.text, e.x, yPos); ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.strokeText(p.text, e.x, yPos);
+                } else { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
                 ctx.shadowBlur = 0; 
-
-                // Hit dots
                 if (index === e.activePhase) {
                     for(let k=0;k<3;k++){
                         ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
@@ -2615,50 +2407,40 @@ function draw(timestamp){
                     }
                 }
             });
-
         } else {
             ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
-            ctx.fillStyle=e.color;
             
-            if(e.stage>=1){
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#003300';
-                ctx.strokeText(e.text, e.x, e.y);
+            // DIBUJAR DORADO SI ESTA REFORZADA
+            if (e.isBoosted) {
+                ctx.fillStyle = '#FFD700'; 
+                // Un brillo extra para que se note
+                ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = e.color;
+                ctx.shadowBlur = 0;
             }
-            
+
+            if(e.stage>=1){ ctx.lineWidth = 2; ctx.strokeStyle = '#003300'; ctx.strokeText(e.text, e.x, e.y); }
             ctx.fillText(e.text,e.x,e.y);
+            ctx.shadowBlur = 0; // Reset
             
-            // VISUAL INDICATORS FOR BAN/BOOST HITS
             if (e.banHits > 0) {
                  ctx.fillStyle = '#00ffff';
-                 for(let k=0;k<3;k++){
-                     if (k < e.banHits) {
-                         ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill();
-                     }
-                 }
+                 for(let k=0;k<3;k++){ if (k < e.banHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
             }
             if (e.boostHits > 0) {
                  ctx.fillStyle = '#ffff00';
-                 for(let k=0;k<3;k++){
-                     if (k < e.boostHits) {
-                         ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill();
-                     }
-                 }
+                 for(let k=0;k<3;k++){ if (k < e.boostHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
             }
-
             for(let k=0;k<4;k++){
-                if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444';
-                else ctx.fillStyle = '#444';
+                if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444'; else ctx.fillStyle = '#444';
                 ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
             }
         }
         ctx.globalAlpha = 1.0; 
     });
     
-    // Particles
-    particles.forEach(p=>{
-        ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3);
-    });
+    particles.forEach(p=>{ ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3); });
     ctx.globalAlpha=1;
 }
 
@@ -2670,115 +2452,54 @@ function gameOver(){
 }
 function startGame(){
     if(gameRunning) return;
-    
     if(window.speechSynthesis) {
-        window.speechSynthesis.cancel(); 
-        let unlockVoice = new SpeechSynthesisUtterance(""); 
-        unlockVoice.volume = 0; 
-        window.speechSynthesis.speak(unlockVoice);
+        window.speechSynthesis.cancel(); let unlockVoice = new SpeechSynthesisUtterance(""); unlockVoice.volume = 0; window.speechSynthesis.speak(unlockVoice);
     }
-
-    resize();
-    startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
+    resize(); startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
     score=combo=0; lives=5; enemies=[]; bullets=[]; particles=[]; enemyBombs=[]; player.invincible=false;
-    enemiesSpawnedCount = 0; 
-    lockedEnemyId = null; 
-    scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5';
-    loadHighScore();
-    
-    gameRunning=true; 
-    lastFrameTime = performance.now(); 
-    spawnTimer = gameVars.spawnInterval;
-    quizTimer = 0;
-    
+    enemiesSpawnedCount = 0; lockedEnemyId = null; 
+    scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5'; loadHighScore();
+    gameRunning=true; lastFrameTime = performance.now(); spawnTimer = gameVars.spawnInterval; quizTimer = 0;
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
-    
     gameLoopId = requestAnimationFrame(loop);
 }
 
-// === MOBILE INPUT HANDLERS ===
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 const btnFire = document.getElementById('btn-fire');
 const btnBan = document.getElementById('btn-ban'); 
-const btnBoost = document.getElementById('btn-boost'); // Nuevo Handler
+const btnBoost = document.getElementById('btn-boost'); 
 
 const handleTouchStart = (key, customAction = null) => {
-    if (customAction) {
-        customAction();
-    } else {
-        keys[key] = true;
-    }
-    
-    if(key === 'Space' && gameRunning && !customAction) {
-         bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); // Normal Bullet
-         playSound('shoot');
-    }
+    if (customAction) { customAction(); } else { keys[key] = true; }
+    if(key === 'Space' && gameRunning && !customAction) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
 };
-const handleTouchEnd = (key) => {
-    keys[key] = false;
-};
-
-// Fire Blue Bullet Function
-const fireBanBullet = () => {
-    if(gameRunning) {
-        bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); // Ban Bullet
-        playSound('ban_shoot');
-    }
-};
-
-// Fire Yellow Bullet Function
-const fireBoostBullet = () => {
-    if(gameRunning) {
-        bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); // Boost Bullet
-        playSound('boost_shoot');
-    }
-};
+const handleTouchEnd = (key) => { keys[key] = false; };
+const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
+const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
 ['touchstart', 'mousedown'].forEach(evt => {
     btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
     btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
-    
-    // Listener Boton Ban
     btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
-    // Listener Boton Boost
     btnBoost.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBoostBullet); });
 });
-
 ['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
     btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowLeft'); });
     btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
 });
-
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
-    if(e.code==='Space' && gameRunning){
-        e.preventDefault();
-        bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'});
-        playSound('shoot');
-    }
-    // Tecla 'B' para banear en PC
-    if(e.code==='KeyB' && gameRunning){
-        e.preventDefault();
-        fireBanBullet();
-    }
-    // Tecla 'V' para boost en PC
-    if(e.code==='KeyV' && gameRunning){
-        e.preventDefault();
-        fireBoostBullet();
-    }
+    if(e.code==='Space' && gameRunning){ e.preventDefault(); bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
+    if(e.code==='KeyB' && gameRunning){ e.preventDefault(); fireBanBullet(); }
+    if(e.code==='KeyV' && gameRunning){ e.preventDefault(); fireBoostBullet(); }
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
 
-window.onload=()=>{
-    loadConfig(); 
-    loadVocabData();
-    resize();
-    renderCategoryBar();
-};
+window.onload=()=>{ loadConfig(); loadVocabData(); resize(); renderCategoryBar(); };
 </script>
 </body>
 </html>
