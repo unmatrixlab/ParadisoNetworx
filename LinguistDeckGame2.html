@@ -752,10 +752,21 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (QUEUE SYSTEM)
+   AUDIO MANAGER (QUEUE SYSTEM - MEJORADO)
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
+let availableVoices = [];
+
+// Cargar las voces disponibles en el dispositivo
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+}
+// Chrome/Android cargan las voces de forma asíncrona, esto asegura que las detectemos
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices(); // Intento inicial
+}
 
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
@@ -764,7 +775,6 @@ setInterval(() => {
     }
 }, 100);
 
-// Updated Speak function for Bomb/Word Separation
 function speak(text, lang, isBomb = false) {
     if (isBomb) {
         if (!userSettings.audioBombs) return;
@@ -777,6 +787,9 @@ function speak(text, lang, isBomb = false) {
 function playText(text, lang) {
     if (!window.speechSynthesis) return;
     
+    // Asegurarnos de tener voces cargadas si el navegador tardó
+    if (availableVoices.length === 0) loadVoices();
+
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
@@ -786,6 +799,26 @@ function playText(text, lang) {
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; 
     u.rate = 1.1; 
+
+    // --- ALGORITMO DE SELECCIÓN DE VOZ ---
+    // Busca una voz que coincida con el idioma (ej: busca una voz que empiece por "es" para español)
+    // Esto obliga al celular a cambiar de acento.
+    if (availableVoices.length > 0) {
+        // Intentar coincidencia exacta (ej: es-ES o en-US)
+        let selectedVoice = availableVoices.find(v => v.lang === lang);
+        
+        // Si no hay exacta, buscar coincidencia general (ej: cualquier "es" o "en")
+        if (!selectedVoice) {
+            const shortLang = lang.split('-')[0]; // "es" o "en"
+            selectedVoice = availableVoices.find(v => v.lang.startsWith(shortLang));
+        }
+
+        // Si encontramos una voz adecuada, la asignamos forzosamente
+        if (selectedVoice) {
+            u.voice = selectedVoice;
+        }
+    }
+    // -------------------------------------
     
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
