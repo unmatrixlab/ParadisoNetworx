@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Hunter: Optimized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vocabulary Hunter: Final Fix</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -13,15 +14,64 @@
             --dark-bg: #050505;
             --panel-bg: rgba(0, 15, 0, 0.95);
         }
-        body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;}
+        body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;touch-action:none;}
         canvas {display:block;}
-        /* SCANLINES: Reducido la opacidad para menos carga de composición */
-        .scanlines {position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.05) 50%,rgba(0,0,0,0.05));background-size:100% 4px;z-index:999;pointer-events:none;}
+        /* SCANLINES */
+        .scanlines {
+            position:fixed;top:0;left:0;width:100%;height:100%;
+            background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));
+            background-size:100% 4px;z-index:999;pointer-events:none;
+        }
         
-        #ui {position:absolute;top:20px;left:20px;right:20px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000;}
+        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
+        /* CONTROLES MÓVILES */
+        #mobile-controls {
+            display: none; 
+            position: absolute; 
+            bottom: 20px; 
+            width: 100%;
+            justify-content: space-between; 
+            padding: 0 20px; 
+            box-sizing: border-box;
+            z-index: 20; 
+            pointer-events: none;
+            align-items: flex-end; 
+        }
+
+        .touch-group { display: flex; gap: 20px; pointer-events: auto; }
+
+        /* GRUPO IZQUIERDO (Flechas Verdes): 150px arriba */
+        .touch-group:first-child {
+            margin-bottom: 150px; 
+        }
+
+        /* GRUPO DERECHO (Botón Rojo): 90px arriba */
+        .touch-group:last-child {
+            margin-bottom: 90px;
+        }
+
+        .touch-btn {
+            width: 70px; height: 70px;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid var(--neon-green);
+            border-radius: 50%; color: var(--neon-green); font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            user-select: none; -webkit-user-select: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+        .touch-btn:active { background: var(--neon-green); color: #000; }
+        .btn-fire { border-color: var(--neon-red); color: var(--neon-red); }
+        .btn-fire:active { background: var(--neon-red); color: #000; }
+
+        @media (max-width: 768px) or (pointer: coarse) {
+            #mobile-controls { display: flex; }
+            #category-bar-wrapper { bottom: 100px; } 
+            h1 { font-size: 20px; }
+            p { font-size: 10px; line-height: 1.5; }
+        }
+
         /* BARRA INFERIOR */
         #category-bar-wrapper {
             position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
@@ -54,15 +104,15 @@
         /* POP QUIZ MODAL */
         #quiz-overlay {
             background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
-            padding: 40px; border-radius: 10px; max-width: 600px; width: 80%;
+            padding: 20px; border-radius: 10px; max-width: 600px; width: 90%;
             box-shadow: 0 0 50px rgba(255, 0, 0, 0.2);
             transition: border-color 0.3s;
             display: flex; flex-direction: column; align-items: center;
         }
-        #quiz-question { font-size: 20px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; }
+        #quiz-question { font-size: 16px; color: var(--neon-blue); margin: 20px 0; line-height: 1.5; word-break: break-word;}
         #quiz-input {
             background: #000; border: 2px solid #333; color: #fff;
-            padding: 15px; font-family: 'Press Start 2P'; font-size: 16px;
+            padding: 15px; font-family: 'Press Start 2P'; font-size: 14px;
             text-align: center; width: 90%; text-transform: uppercase;
         }
         #quiz-input:focus { border-color: var(--neon-green); outline: none; }
@@ -93,13 +143,13 @@
 
         /* MODAL */
         #study-content {
-            background:var(--panel-bg); padding:30px; border:2px solid var(--neon-green);
-            width:80%; max-width:800px; height:70%; display: flex; flex-direction: column;
+            background:var(--panel-bg); padding:20px; border:2px solid var(--neon-green);
+            width:90%; max-width:800px; height:80%; display: flex; flex-direction: column;
             position:relative; box-shadow:0 0 30px rgba(0,255,0,0.2); text-align:left;
         }
         .tabs-header { display: flex; border-bottom: 2px solid var(--neon-green); margin-bottom: 20px; }
         .tab-btn {
-            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 12px;
+            flex: 1; padding: 10px; cursor: pointer; text-align: center; font-size: 10px;
             background: transparent; border: none; color: #666; font-family: 'Press Start 2P'; transition: 0.2s;
         }
         .tab-btn:hover { background: #002200; color: #fff; }
@@ -107,7 +157,7 @@
         .tab-content { flex: 1; overflow-y: auto; display: none; }
         .tab-content.active { display: block; }
         
-        table {width:100%;border-collapse:separate;border-spacing:0;font-size:12px;}
+        table {width:100%;border-collapse:separate;border-spacing:0;font-size:10px;}
         th {color:var(--neon-green);text-align:left;border-bottom:2px solid var(--neon-green);padding:10px;position:sticky;top:0;background:#001500;z-index:2;}
         td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
@@ -115,9 +165,9 @@
         .chk-cell { width: 40px; text-align: center; }
         input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
 
-        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:18px; margin-bottom: 20px; }
+        .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:14px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 12px; color: #ddd; }
+        .config-label { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 10px; color: #ddd; align-items: center;}
         .config-val { color: var(--neon-yellow); }
         .slider-desc { font-size: 8px; color: #666; margin-top: 5px; display: flex; justify-content: space-between; }
         input[type=range] { width: 100%; cursor: pointer; accent-color: var(--neon-green); }
@@ -142,6 +192,16 @@
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
+    <div id="mobile-controls">
+        <div class="touch-group">
+            <div class="touch-btn" id="btn-left">←</div>
+            <div class="touch-btn" id="btn-right">→</div>
+        </div>
+        <div class="touch-group">
+            <div class="touch-btn btn-fire" id="btn-fire">●</div>
+        </div>
+    </div>
+
     <div id="category-bar-wrapper"></div>
 
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
@@ -150,9 +210,9 @@
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
             3. Shoot Parachutes to hear them.<br><br>
-            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot &nbsp;&nbsp; <span class="key-hint">TAB</span> Menu
+            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
         </p>
-        <div class="blink">CLICK TO START</div>
+        <div class="blink">CLICK / TAP TO START</div>
     </div>
 
     <div id="game-over-screen" class="overlay-screen" style="display:none;" onclick="startGame()">
@@ -210,23 +270,36 @@
                 <h2 class="config-header">SYSTEM CONFIG</h2>
                 
                 <div class="config-group">
-                    <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
-                    <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
-                    <div class="slider-desc"><span>MUTE</span><span>LOUD</span></div>
+                     <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
+                     <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
                 </div>
 
+                <div class="config-group">
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-sfx" onchange="updateConfig('audio_toggles')" checked>
+                        SFX (SHOOT/EXPLOSION)
+                    </label>
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-voice-words" onchange="updateConfig('audio_toggles')" checked>
+                        VOICE: WORDS
+                    </label>
+                    <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="chk-voice-bombs" onchange="updateConfig('audio_toggles')" checked>
+                        VOICE: BOMBS (NUM/LET)
+                    </label>
+                </div>
                 <div class="config-group">
                     <label class="config-label">VOCABULARY SOURCE</label>
                     <select id="cfg-source" onchange="updateConfig('source')"></select>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">5</span></label>
-                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="5" oninput="updateConfig('spawn')">
+                    <label class="config-label">ENEMY FREQUENCY<span id="val-spawn" class="config-val">1</span></label>
+                    <input type="range" id="cfg-spawn" min="1" max="10" step="1" value="1" oninput="updateConfig('spawn')">
                     <div class="slider-desc"><span>FEW</span><span>MANY</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">1.0x</span></label>
-                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="1.0" oninput="updateConfig('speed')">
+                    <label class="config-label">ENEMY SPEED<span id="val-speed" class="config-val">0.5x</span></label>
+                    <input type="range" id="cfg-speed" min="0.5" max="3.0" step="0.1" value="0.5" oninput="updateConfig('speed')">
                     <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
                 </div>
                 <div class="config-group">
@@ -235,8 +308,8 @@
                     <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">2.0</span></label>
-                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="2.0" oninput="updateConfig('bspeed')">
+                    <label class="config-label">BOMB FALL SPEED<span id="val-bspeed" class="config-val">1.0</span></label>
+                    <input type="range" id="cfg-bspeed" min="1.0" max="5.0" step="0.1" value="1.0" oninput="updateConfig('bspeed')">
                     <div class="slider-desc"><span>FLOAT</span><span>DROP</span></div>
                 </div>
                 <div class="config-group">
@@ -279,15 +352,23 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v10';
+const CONFIG_KEY = 'vocab_robot_config_v12'; // Updated Key
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 
+// UPDATED DEFAULTS: 0 Difficulty except Bombs (30)
 let userSettings = {
     vocabSource: 'LOCAL', 
     dataPercent: 100, 
-    spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5',
+    spawnLevel: 1,      // MIN
+    enemySpeed: 0.5,    // MIN
+    bombChance: 30,     // 30%
+    bombSpeed: 1.0,     // MIN
+    playerColor: '#4f46e5',
     quizEnabled: false, quizInterval: 30,
-    masterVolume: 50
+    masterVolume: 50,
+    audioFX: true,
+    audioWords: true,
+    audioBombs: true
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -370,6 +451,11 @@ function applyConfigToUI() {
 
     document.getElementById('cfg-volume').value = userSettings.masterVolume;
     document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
+    
+    // Audio Toggles
+    document.getElementById('chk-sfx').checked = userSettings.audioFX !== false;
+    document.getElementById('chk-voice-words').checked = userSettings.audioWords !== false;
+    document.getElementById('chk-voice-bombs').checked = userSettings.audioBombs !== false;
 
     document.getElementById('cfg-spawn').value = userSettings.spawnLevel;
     document.getElementById('val-spawn').textContent = userSettings.spawnLevel;
@@ -403,6 +489,11 @@ function updateConfig(key) {
         document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
         playSound('shoot'); 
     }
+    else if(key === 'audio_toggles') {
+        userSettings.audioFX = document.getElementById('chk-sfx').checked;
+        userSettings.audioWords = document.getElementById('chk-voice-words').checked;
+        userSettings.audioBombs = document.getElementById('chk-voice-bombs').checked;
+    }
     else if(key === 'quiz') {
         userSettings.quizEnabled = document.getElementById('chk-quiz').checked;
         userSettings.quizInterval = parseInt(document.getElementById('cfg-quiz-time').value);
@@ -429,7 +520,13 @@ function resetConfig() {
     localStorage.removeItem(CONFIG_KEY);
     localStorage.removeItem(DISABLED_WORDS_KEY);
     disabledWords.clear();
-    userSettings = { vocabSource: 'LOCAL', dataPercent: 100, spawnLevel: 5, enemySpeed: 1.0, bombChance: 30, bombSpeed: 2.0, playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, masterVolume: 50 };
+    // Default Reset with Low Difficulty
+    userSettings = { 
+        vocabSource: 'LOCAL', dataPercent: 100, 
+        spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
+        playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
+        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true 
+    };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
 
@@ -441,13 +538,15 @@ function switchTab(tabName) {
     else document.querySelector('button[onclick="switchTab(\'settings\')"]').classList.add('active');
 }
 
-// --- 3. DATA & CLEANING ---
+// --- 3. DATA & CLEANING (ACENTOS FIX) ---
 let activeVocabList = []; 
 let gameDeck = [];        
 
 const cleanText = (str) => {
     if(!str) return "";
-    return str.replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+    // NFD + Remove diacritics = Ignore accents (CAMIÓN -> CAMION)
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+              .replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
 };
 
 function loadVocabData() {
@@ -682,10 +781,20 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER (QUEUE SYSTEM)
+   AUDIO MANAGER (MEJORADO - HIGH QUALITY)
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
+let availableVoices = [];
+
+// Cargar las voces disponibles
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+}
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+}
 
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
@@ -694,8 +803,36 @@ setInterval(() => {
     }
 }, 100);
 
-function speak(text, lang) {
+function speak(text, lang, isBomb = false) {
+    if (isBomb) {
+        if (!userSettings.audioBombs) return;
+    } else {
+        if (!userSettings.audioWords) return;
+    }
     audioQueue.push({text, lang});
+}
+
+function getBestVoice(lang) {
+    if (availableVoices.length === 0) loadVoices();
+    
+    // 1. Filtrar por idioma base (ej: 'es' para 'es-MX')
+    const baseLang = lang.split('-')[0];
+    const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
+    
+    if (candidates.length === 0) return null;
+
+    // 2. Sistema de Puntuación para encontrar la mejor voz
+    // Preferimos: Coincidencia Exacta > Google/Premium > Default
+    const scoreVoice = (v) => {
+        let score = 0;
+        if (v.lang === lang) score += 10; // Coincidencia exacta de región
+        if (v.name.includes("Google") || v.name.includes("Premium") || v.name.includes("Enhanced")) score += 5; // Alta calidad
+        if (v.default) score += 1;
+        return score;
+    };
+
+    candidates.sort((a, b) => scoreVoice(b) - scoreVoice(a));
+    return candidates[0];
 }
 
 function playText(text, lang) {
@@ -710,6 +847,10 @@ function playText(text, lang) {
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; 
     u.rate = 1.1; 
+
+    // Usar la lógica de mejor voz
+    const bestVoice = getBestVoice(lang);
+    if (bestVoice) u.voice = bestVoice;
     
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
@@ -718,6 +859,9 @@ function playText(text, lang) {
 }
 
 function playSound(type) {
+    // Check SFX Toggle
+    if (!userSettings.audioFX) return;
+    
     // Check if context exists/resume it
     if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
     
@@ -794,8 +938,6 @@ function toggleStudyGuide(){
 }
 
 function resize(){
-    // Use innerWidth/Height directly. 
-    // Retina scaling is intentionally ignored to improve performance with high fill-rates on M1/M2/M3 chips
     canvas.width=innerWidth; canvas.height=innerHeight;
     player.y=canvas.height-130; player.x=canvas.width/2-player.w/2;
 }
@@ -860,39 +1002,39 @@ function drawRobot(ctx, x, y, w, h, color) {
     ctx.fillStyle = '#555'; ctx.fillRect(x + 4, y + h - 5, 10, 5); ctx.fillRect(x + w - 14, y + h - 5, 10, 5);
 }
 
-// === OPTIMIZATION: FPS CAP VARIABLES ===
+// === OPTIMIZATION: 30 FPS LOCK ===
 let lastFrameTime = 0;
-const targetFPS = 60;
+const targetFPS = 30; // 30 FPS Retro Cap
 const frameInterval = 1000 / targetFPS;
 
 function loop(timestamp) {
     if (!gameRunning) return;
 
-    // Request next frame immediately to keep loop alive
+    // Request next frame immediately
     gameLoopId = requestAnimationFrame(loop);
 
-    // === OPTIMIZATION: FPS THROTTLE ===
+    // === THROTTLE TO 30 FPS ===
     const elapsed = timestamp - lastFrameTime;
     if (elapsed < frameInterval) return;
 
-    // Adjust for latency to keep smooth 60fps
     lastFrameTime = timestamp - (elapsed % frameInterval);
 
-    // Logic update uses fixed step approximation or just elapsed
-    // Here we use elapsed from previous valid frame for simplicity
-    const dt = elapsed; 
+    // Calculate timeScale to maintain game speed at 30fps
+    // Normalizing against standard 60fps (16.66ms)
+    // At 30fps, elapsed is ~33ms, so timeScale is ~2.0
+    const timeScale = elapsed / (1000/60); 
 
-    update(dt);
+    update(elapsed, timeScale);
     draw(timestamp);
 }
 
-function update(dt){
-    // Clamp DT to prevent massive jumps if tab was inactive
-    if(dt > 100) dt = 16;
+function update(dt, timeScale){
+    // Clamp timeScale to prevent glitches if tab was inactive
+    if(timeScale > 4) timeScale = 1;
 
-    // QUIZ TIMER CHECK
+    // QUIZ TIMER FIX: Independent from variable dt (uses fixed frame time)
     if (userSettings.quizEnabled) {
-        quizTimer += dt;
+        quizTimer += 33; // ~33ms per frame locked at 30fps
         if (quizTimer >= userSettings.quizInterval * 1000) {
             triggerPopQuiz();
             return; 
@@ -901,17 +1043,22 @@ function update(dt){
 
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    if(keys['ArrowLeft']&&player.x>0)player.x-=player.speed;
-    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x+=player.speed;
+    // MOVEMENT MULTIPLIED BY TIME SCALE
+    if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
+    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
-    stars.forEach(s=>{s.y+=s.speed; if(s.y>canvas.height)s.y=0;});
+    stars.forEach(s=>{
+        s.y += s.speed * timeScale; 
+        if(s.y>canvas.height)s.y=0;
+    });
     
     spawnTimer-=dt; 
     if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
-        b.y += b.vy; b.x += Math.sin(b.y * 0.05) * 1.5; 
+        b.y += b.vy * timeScale; 
+        b.x += (Math.sin(b.y * 0.05) * 1.5) * timeScale; 
         
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
@@ -929,7 +1076,7 @@ function update(dt){
                 bullets.splice(j,1);
                 createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng');
-                speak(b.text, 'en-US');
+                speak(b.text, 'en-US', true); // True = Is Bomb
                 score += 25; scoreEl.innerText = score;
                 enemyBombs.splice(i,1);
                 break;
@@ -938,11 +1085,14 @@ function update(dt){
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
-    for(let i=bullets.length-1;i>=0;i--){bullets[i].y-=12;if(bullets[i].y<0)bullets.splice(i,1);}
+    for(let i=bullets.length-1;i>=0;i--){
+        bullets[i].y -= 12 * timeScale; // Scaled Bullet Speed
+        if(bullets[i].y<0)bullets.splice(i,1);
+    }
     
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
-        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < gameVars.bombProb) {
+        if(!e.fading && !e.droppedBomb && e.stage < 2 && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
                 x: e.x, y: e.y + 40,
@@ -955,7 +1105,8 @@ function update(dt){
 
         if(e.fading){createExplosion(e.x,e.y,e.color,1);enemies.splice(i,1);continue;}
         
-        e.y += e.speed; e.x += e.vx; 
+        e.y += e.speed * timeScale; 
+        e.x += e.vx * timeScale; 
 
         if (e.x < e.w/2 + 10 || e.x > canvas.width - e.w/2 - 10) {
             e.vx *= -1; 
@@ -980,7 +1131,7 @@ function update(dt){
                 
                 if(e.stage===0){
                     e.hits++; 
-                    if(e.hits === 1) speak(e.text, 'en-US');
+                    if(e.hits === 1) speak(e.text, 'en-US', false); // False = Word
                     playSound('hit_eng');score+=10;
                     if(e.hits >= 3) {
                         e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
@@ -993,7 +1144,7 @@ function update(dt){
                     e.fading=true;
                     createExplosion(e.x,e.y,'#ffffff',40);
                     playSound('hit_syn'); score+=150; combo++;
-                    speak(e.text, 'es-ES');
+                    speak(e.text, 'es-ES', false); // False = Word
                 }
                 scoreEl.innerText=score;comboEl.innerText=combo;
                 break;
@@ -1003,7 +1154,10 @@ function update(dt){
     }
     
     for(let i=particles.length-1;i>=0;i--){
-        const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=.04; 
+        const p=particles[i]; 
+        p.x += p.vx * timeScale; 
+        p.y += p.vy * timeScale; 
+        p.life -= 0.04 * timeScale; 
         if(p.life<=0)particles.splice(i,1);
     }
 }
@@ -1024,8 +1178,6 @@ function draw(timestamp){
     }
 
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    
-    // === OPTIMIZATION: REMOVED SHADOW BLUR FROM LOOP ===
     
     // Bombs
     enemyBombs.forEach(b => {
@@ -1077,25 +1229,65 @@ function gameOver(){
     document.getElementById('finalScore').innerText=score;
     gameOverScreen.style.display='flex';
 }
-
 function startGame(){
-    if(gameRunning)return;
+    if(gameRunning) return;
+    
+    // --- TRUCO PARA DESBLOQUEAR VOZ EN CELULAR ---
+    // Al iniciar, forzamos al navegador a "hablar" silencio.
+    // Esto le da permiso al juego para seguir hablando después.
+    if(window.speechSynthesis) {
+        window.speechSynthesis.cancel(); // Limpiar cola anterior
+        let unlockVoice = new SpeechSynthesisUtterance(""); // Frase vacía
+        unlockVoice.volume = 0; // Volumen 0 por si acaso
+        window.speechSynthesis.speak(unlockVoice);
+    }
+    // ---------------------------------------------
+
     resize();
-    startScreen.style.display='none';gameOverScreen.style.display='none';studyGuide.style.display='none';
-    score=combo=0;lives=5;enemies=[];bullets=[];particles=[];enemyBombs=[];player.invincible=false;
-    scoreEl.innerText=comboEl.innerText='0';livesEl.innerText='5';
+    startScreen.style.display='none'; gameOverScreen.style.display='none'; studyGuide.style.display='none';
+    score=combo=0; lives=5; enemies=[]; bullets=[]; particles=[]; enemyBombs=[]; player.invincible=false;
+    scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5';
     loadHighScore();
     
     gameRunning=true; 
-    lastFrameTime = performance.now(); // Reset time for FPS logic
+    lastFrameTime = performance.now(); 
     spawnTimer = gameVars.spawnInterval;
     quizTimer = 0;
     
-    // Attempt resume on start click
+    // Intentar reanudar el contexto de audio (Efectos de sonido)
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     
     gameLoopId = requestAnimationFrame(loop);
 }
+
+// === MOBILE INPUT HANDLERS ===
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+const btnFire = document.getElementById('btn-fire');
+
+const handleTouchStart = (key) => {
+    keys[key] = true;
+    if(key === 'Space' && gameRunning) {
+         bullets.push({x:player.x+player.w/2,y:player.y});
+         playSound('shoot');
+    }
+};
+const handleTouchEnd = (key) => {
+    keys[key] = false;
+};
+
+// Add listeners preventing default to stop selection/zoom
+['touchstart', 'mousedown'].forEach(evt => {
+    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
+    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
+});
+
+['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
+    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowLeft'); });
+    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowRight'); });
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
+});
 
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
