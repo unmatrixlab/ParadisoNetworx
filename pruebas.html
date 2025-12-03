@@ -3,13 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: External DB Edition</title>
+    <title>Vocabulary Hunter: Final Polish</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    
-    <script src="https://paradisonetworx.com/database.js"></script>
-
     <style>
+        /* ==========================================================================
+           2) ZONA DE CONFIGURACIÓN DE LOS BOTONES (POSICIÓN Y TRANSPARENCIA)
+           ========================================================================== */
         :root {
+            /* Transparencia de los botones (0.1 a 1.0) */
+            --btn-opacity: 0.8; 
+
+            /* Posición vertical desde abajo (subir o bajar todo el mando) */
+            --btn-bottom-pos: 20px;
+
+            /* Separación lateral desde los bordes de la pantalla */
+            --btn-side-padding: 30px;
+
+            /* Escala de los botones (1.0 es tamaño normal, 1.2 es más grande) */
+            --btn-scale: 1.0;
+
+            /* Colores Neon y Sistema */
             --neon-green: #0f0;
             --neon-red: #ff4444;
             --neon-blue: #4f46e5;
@@ -18,9 +31,14 @@
             --neon-yellow: #ffff00;
             --dark-bg: #050505;
             --panel-bg: rgba(0, 15, 0, 0.95);
+            
+            /* Colores Base de Botones (Estilo Consola) */
+            --btn-shadow: #111;
         }
+
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;touch-action:none;}
         canvas {display:block;}
+
         /* SCANLINES */
         .scanlines {
             position:fixed;top:0;left:0;width:100%;height:100%;
@@ -32,59 +50,100 @@
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
-        /* CONTROLES MÓVILES */
+        /* =========================================
+           ESTILOS DE LOS MANDOS (CONSOLE UI)
+           ========================================= */
         #mobile-controls {
             display: none; 
             position: absolute; 
-            bottom: 20px; 
+            
+            /* Usamos las variables definidas arriba */
+            bottom: var(--btn-bottom-pos); 
+            padding: 0 var(--btn-side-padding);
+            opacity: var(--btn-opacity);
+            transform: scale(var(--btn-scale));
+            transform-origin: bottom center;
+
             width: 100%;
             justify-content: space-between; 
-            padding: 0 20px; 
             box-sizing: border-box;
             z-index: 20; 
             pointer-events: none;
             align-items: flex-end; 
         }
 
-        .touch-group { display: flex; gap: 20px; pointer-events: auto; }
-
-        /* GRUPO IZQUIERDO (Flechas Verdes) */
-        .touch-group:first-child {
-            margin-bottom: 90px; 
+        .gamepad-group {
+            pointer-events: auto;
+            position: relative;
+            width: 140px;
+            height: 140px;
         }
 
-        /* GRUPO DERECHO (Botones de disparo) */
-        .touch-group:last-child {
-            flex-direction: column; /* Apilar botones verticalmente */
-            gap: 15px;
-            margin-bottom: 20px; /* Ajustado para 3 botones */
-            align-items: center;
+        /* CLASE MAESTRA PARA TODOS LOS BOTONES (Izquierda y Derecha iguales) */
+        .action-btn {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            font-size: 14px; font-weight: bold;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 
+                0 6px 0 var(--btn-shadow), 
+                0 8px 15px rgba(0,0,0,0.7),
+                inset 0 2px 5px rgba(255,255,255,0.4);
+            border: 2px solid #000;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            position: absolute;
+            transition: transform 0.05s, box-shadow 0.05s;
+            cursor: pointer;
+            z-index: 10;
         }
 
-        .touch-btn {
-            width: 60px; height: 60px; /* Un poco más pequeños para que quepan 3 */
-            background: rgba(255, 255, 255, 0.1); border: 2px solid var(--neon-green);
-            border-radius: 50%; color: var(--neon-green); font-size: 20px;
-            display: flex; align-items: center; justify-content: center;
-            user-select: none; -webkit-user-select: none;
-            text-shadow: 2px 2px 0 #000;
+        .action-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 var(--btn-shadow), inset 0 3px 8px rgba(0,0,0,0.6);
         }
-        .touch-btn:active { background: var(--neon-green); color: #000; }
+
+        .btn-label { font-size: 8px; margin-top: 2px; opacity: 0.8; font-family: sans-serif; font-weight: 900; }
+
+        /* --- 1) BOTONES GRISES (IZQUIERDA) --- */
+        .btn-gray {
+            background: linear-gradient(145deg, #777, #444);
+            color: #fff;
+            border-color: #333;
+        }
         
-        .btn-fire { border-color: var(--neon-red); color: var(--neon-red); width: 70px; height: 70px; font-size: 24px; }
-        .btn-fire:active { background: var(--neon-red); color: #000; }
+        /* Posición Botones Izquierda */
+        #btn-left {
+            top: 50%; left: 0; transform: translateY(-50%);
+        }
+        #btn-right {
+            top: 50%; right: 0; transform: translateY(-50%);
+        }
 
-        /* BOTON BAN (Celeste) */
-        .btn-ban { border-color: var(--neon-cyan); color: var(--neon-cyan); font-size: 10px; font-weight: bold;}
-        .btn-ban:active { background: var(--neon-cyan); color: #000; }
-
-        /* NUEVO BOTON REFORZAR (Amarillo) */
-        .btn-boost { border-color: var(--neon-yellow); color: var(--neon-yellow); font-size: 20px; font-weight: bold;}
-        .btn-boost:active { background: var(--neon-yellow); color: #000; }
+        /* --- BOTONES DE COLORES (DERECHA - ABXY Layout) --- */
+        /* FIRE (A/Main) - Abajo */
+        #btn-fire {
+            bottom: 0; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(145deg, #ff6b6b, #c00);
+            color: white; border-color: #800;
+            width: 70px; height: 70px; /* Ligeramente más grande el principal */
+            z-index: 12;
+        }
+        /* BAN (X/Left) - Izquierda del grupo derecho */
+        #btn-ban {
+            top: 50%; left: 0; transform: translateY(-50%);
+            background: linear-gradient(145deg, #4da6ff, #0059b3);
+            color: white; border-color: #003366;
+        }
+        /* BOOST (Y/Top) - Arriba */
+        #btn-boost {
+            top: 0; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(145deg, #ffeb3b, #fbc02d);
+            color: #333; border-color: #b38f00;
+        }
 
         @media (max-width: 768px) or (pointer: coarse) {
             #mobile-controls { display: flex; }
-            #category-bar-wrapper { bottom: 100px; } 
+            #category-bar-wrapper { bottom: 160px; } 
             h1 { font-size: 20px; }
             p { font-size: 10px; line-height: 1.5; }
         }
@@ -222,14 +281,28 @@
     </div>
     
     <div id="mobile-controls">
-        <div class="touch-group">
-            <div class="touch-btn" id="btn-left">←</div>
-            <div class="touch-btn" id="btn-right">→</div>
+        <div class="gamepad-group">
+            <div class="action-btn btn-gray" id="btn-left">
+                <span>◀</span>
+            </div>
+            <div class="action-btn btn-gray" id="btn-right">
+                <span>▶</span>
+            </div>
         </div>
-        <div class="touch-group">
-            <div class="touch-btn btn-boost" id="btn-boost">+</div>
-            <div class="touch-btn btn-ban" id="btn-ban">XXX</div>
-            <div class="touch-btn btn-fire" id="btn-fire">●</div>
+
+        <div class="gamepad-group">
+            <div class="action-btn" id="btn-boost">
+                <span>+</span>
+                <span class="btn-label">BOOST</span>
+            </div>
+            <div class="action-btn" id="btn-ban">
+                <span>X</span>
+                <span class="btn-label">BAN</span>
+            </div>
+            <div class="action-btn" id="btn-fire">
+                <span>●</span>
+                <span class="btn-label">FIRE</span>
+            </div>
         </div>
     </div>
 
@@ -408,7 +481,7 @@ const INTERNAL_VOCAB = {
         {en:"COMPANY", es:"COMPAÑÍA"}, {en:"NUMBER", es:"NÚMERO"}, {en:"GROUP", es:"GRUPO"}, {en:"PROBLEM", es:"PROBLEMA"},
         {en:"WRITING", es:"ESCRITURA"}, {en:"YARD", es:"PATIO/YARDA"}, {en:"YOUTH", es:"JUVENTUD"}, {en:"ZONE", es:"ZONA"}
     ],
-  'ADJECTIVES': [
+ 'ADJECTIVES': [
         {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
         {en:"LONG", es:"LARGO"}, {en:"GREAT", es:"GRAN/GENIAL"}, {en:"LITTLE", es:"PEQUEÑO"}, {en:"OWN", es:"PROPIO"},
         {en:"OTHER", es:"OTRO"}, {en:"OLD", es:"VIEJO"}, {en:"RIGHT", es:"DERECHO/CORRECTO"}, {en:"BIG", es:"GRANDE"},
@@ -416,7 +489,7 @@ const INTERNAL_VOCAB = {
         {en:"CHALLENGING", es:"DESAFIANTE"}, {en:"ENJOYABLE", es:"AGRADABLE"}, {en:"MEMORABLE", es:"MEMORABLE"},
         {en:"WRONG", es:"EQUIVOCADO/INCORRECTO"}, {en:"YELLOW", es:"AMARILLO"}, {en:"YOUNG", es:"JOVEN"}
     ],
-  'FUNCTION WORDS': [
+ 'FUNCTION WORDS': [
         {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
         {en:"TO", es:"A/PARA"}, {en:"IN", es:"EN"}, {en:"IS", es:"ES"}, {en:"YOU", es:"TÚ"},
         {en:"THAT", es:"ESO/QUE"}, {en:"IT", es:"ESO"}, {en:"HE", es:"ÉL"}, {en:"WAS", es:"ERA/ESTABA"},
@@ -428,12 +501,12 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v17_external'; // Increment version
+const CONFIG_KEY = 'vocab_robot_config_v16'; // Increment version to force reset
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
-    vocabSource: 'EXTERNAL_DB', // DEFAULT A EXTERNAL
+    vocabSource: 'ALL_INTERNAL', // CAMBIO IMPORTANTE: DEFAULT A INTERNAL
     dataPercent: 100, 
     spawnLevel: 1,      
     enemySpeed: 0.5,    
@@ -459,11 +532,7 @@ let lockedEnemyId = null;
 function renderCategoryBar() {
     const wrapper = document.getElementById('category-bar-wrapper');
     wrapper.innerHTML = '';
-    const opts = [
-        {val: 'EXTERNAL_DB', txt: 'EXTERNAL URL'},
-        {val: 'LOCAL', txt: 'MY LOCAL DB'}, 
-        {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}
-    ];
+    const opts = [{val: 'LOCAL', txt: 'MY DB'}, {val: 'MIXED', txt: 'MIXED'}, {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}];
     Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: key}));
 
     opts.forEach(o => {
@@ -494,10 +563,9 @@ function populateSourceMenu() {
     const select = document.getElementById('cfg-source');
     select.innerHTML = '';
     const opts = [
-        {val: 'EXTERNAL_DB', txt: 'EXTERNAL URL (paradisonetworx)'},
-        {val: 'LOCAL', txt: 'MY DATABASE (Local Storage)'},
+        {val: 'LOCAL', txt: 'MY DATABASE (Custom)'},
         {val: 'ALL_INTERNAL', txt: 'INTERNAL: ALL MIXED'},
-        {val: 'MIXED', txt: 'EVERYTHING (Ext+Local+Int)'}
+        {val: 'MIXED', txt: 'EVERYTHING (Local + Internal)'}
     ];
     Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: `INTERNAL: ${key}`}));
     opts.forEach(o => {
@@ -612,7 +680,7 @@ function resetConfig() {
     disabledWords.clear();
     reinforcedWords.clear();
     userSettings = { 
-        vocabSource: 'EXTERNAL_DB', dataPercent: 100, 
+        vocabSource: 'ALL_INTERNAL', dataPercent: 100, 
         spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
         playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
         masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
@@ -634,12 +702,14 @@ let gameDeck = [];
 
 const cleanText = (str) => {
     if(!str) return "";
+    // Solo quitamos acentos basicos, permitimos caracteres latinos
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
               .trim().toUpperCase();
 };
 
 function loadVocabData() {
     let tempVocabList = [];
+    const countWords = (str) => str.trim().split(/\s+/).length;
     
     // Helper to safely add
     const processItem = (en, es) => {
@@ -651,54 +721,35 @@ function loadVocabData() {
         }
     };
 
-    // --- A. EXTERNAL LOADING ---
-    if (userSettings.vocabSource === 'EXTERNAL_DB' || userSettings.vocabSource === 'MIXED') {
-        let externalData = [];
-        // Attempt to find the variable in global scope
-        if (typeof window.externalDatabase !== 'undefined') externalData = window.externalDatabase;
-        else if (typeof window.database !== 'undefined') externalData = window.database;
-        else if (typeof window.vocabList !== 'undefined') externalData = window.vocabList;
-        
-        if (externalData.length > 0) {
-            console.log("External Data Found:", externalData.length);
-            externalData.forEach(item => {
-                // Handle different property names (eng/esp vs en/es)
-                let en = item.en || item.eng || item.english || item.word;
-                let es = item.es || item.esp || item.spanish || item.translation;
-                processItem(en, es);
-            });
-        } else {
-             if(userSettings.vocabSource === 'EXTERNAL_DB') console.warn("No 'window.externalDatabase' found from external URL.");
-        }
-    }
-
-    // --- B. LOCAL LOADING ---
+    // 1. Try Loading from Local Storage if requested
     if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
         try {
             const saved = localStorage.getItem('mdc_vocab_list');
             if(saved) {
                 const items = JSON.parse(saved);
                 items.forEach(item => {
-                    if (item.isFolder && item.items) item.items.forEach(sub => processItem(sub.eng, sub.esp));
-                    else if (!item.isFolder) processItem(item.eng, item.esp);
+                    if (item.isFolder && item.items) {
+                        item.items.forEach(sub => processItem(sub.eng, sub.esp));
+                    } else if (!item.isFolder) {
+                        processItem(item.eng, item.esp);
+                    }
                 });
             }
         } catch (e) { console.error("Local Load Error", e); }
     }
 
-    // --- C. INTERNAL LOADING ---
+    // 2. Load Internal if requested OR if Local failed/is empty
     let forceInternal = false;
-    // Fallback if external/local are empty
-    if ((userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'EXTERNAL_DB') && tempVocabList.length === 0) {
-        forceInternal = true; 
-        console.log("DB empty, falling back to Internal");
+    if (userSettings.vocabSource === 'LOCAL' && tempVocabList.length === 0) {
+        forceInternal = true; // Fallback so game is playable
+        console.log("Local DB empty, falling back to Internal");
     }
 
-    if (userSettings.vocabSource !== 'LOCAL' && userSettings.vocabSource !== 'EXTERNAL_DB' || forceInternal) {
+    if (userSettings.vocabSource !== 'LOCAL' || forceInternal) {
         let sourcesToLoad = [];
         if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED' || forceInternal) {
             sourcesToLoad = Object.keys(INTERNAL_VOCAB);
-        } else if (INTERNAL_VOCAB[userSettings.vocabSource]) {
+        } else {
             sourcesToLoad = [userSettings.vocabSource];
         }
         sourcesToLoad.forEach(catKey => {
@@ -709,13 +760,15 @@ function loadVocabData() {
     }
 
     if (tempVocabList.length > 0) {
+        // Shuffle slightly so we don't always get 'A' words first if using limits
+        // tempVocabList.sort(() => Math.random() - 0.5); 
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
         activeVocabList = [];
     }
 
-    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["CHECK DB"] });
+    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
     refreshGameDeck();
 }
 
@@ -933,18 +986,18 @@ if (window.speechSynthesis) {
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
         const next = audioQueue.shift();
-        playText(next.text, next.lang);
+        playText(next.text, next.lang, next.enemyId);
     }
 }, 100);
 
-function speak(text, lang, isBomb = false) {
+// MODIFIED: Accepts enemyId for syncing explosion
+function speak(text, lang, isBomb = false, enemyId = null) {
     if (isBomb) {
         if (!userSettings.audioBombs) return;
     } else {
         if (!userSettings.audioWords) return;
     }
-    if (audioQueue.length > 2) return; 
-    audioQueue.push({text, lang});
+    audioQueue.push({text, lang, enemyId});
 }
 
 function getBestVoice(lang) {
@@ -963,7 +1016,8 @@ function getBestVoice(lang) {
     return candidates[0];
 }
 
-function playText(text, lang) {
+// MODIFIED: Handle Explosion Sync
+function playText(text, lang, enemyId) {
     if (!window.speechSynthesis) return;
     isSpeaking = true;
     window.speechSynthesis.cancel();
@@ -973,6 +1027,19 @@ function playText(text, lang) {
     u.lang = lang; u.rate = 0.9; 
     const bestVoice = getBestVoice(lang);
     if (bestVoice) u.voice = bestVoice;
+    
+    // --- SYNCHRONIZED EXPLOSION LOGIC ---
+    u.onstart = () => {
+        if (enemyId) {
+            const targetEnemy = enemies.find(e => e.id === enemyId);
+            if (targetEnemy) {
+                targetEnemy.fading = true; // Trigger fade/destroy cycle
+                createExplosion(targetEnemy.x, targetEnemy.y, '#ffffff', 50); // Immediate Big Explosion
+                playSound('hit_syn');
+            }
+        }
+    };
+    
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
     window.speechSynthesis.speak(u);
@@ -1109,7 +1176,7 @@ function spawnEnemy(){
     if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % bossFreq === 0) {
         const src = userSettings.vocabSource;
         let allowed = false; let specificType = null; 
-        if (src === 'ALL_INTERNAL' || src === 'MIXED' || src === 'EXTERNAL_DB' || src === 'LOCAL') allowed = true; 
+        if (src === 'ALL_INTERNAL' || src === 'MIXED') allowed = true; 
         else if (src === 'REGULAR_VERBS') { allowed = true; specificType = 'REGULAR_VERBS'; }
         else if (src === 'IRREGULAR_VERBS') { allowed = true; specificType = 'IRREGULAR_VERBS'; }
         if (allowed) { spawnBoss(specificType); enemiesSpawnedCount++; return; }
@@ -1129,7 +1196,7 @@ function spawnEnemy(){
         id: Date.now() + Math.random(), 
         x: startX, y: -40, 
         wordData:d, text:d.en, 
-        stage:0, hits:0, banHits: 0, boostHits: 0, demoteHits: 0, // ADDED demoteHits
+        stage:0, hits:0, banHits: 0, boostHits: 0, demoteHits: 0, 
         speed: baseSpeed, vx: vx, 
         color: isBoosted ? '#FFD700' : '#ffffff',
         isBoosted: isBoosted,
@@ -1268,7 +1335,11 @@ function update(dt, timeScale){
             if (lockedEnemyId === e.id) lockedEnemyId = null;
             if(lives<=0){gameOver();return;} continue;
         }
-        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} 
+        
+        if(e.stage===1){
+            e.timer+=dt;
+            if(e.timer>8000) e.fading=true; 
+        } 
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
@@ -1286,7 +1357,6 @@ function update(dt, timeScale){
                 bullets.splice(j,1);
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
                 
-                // === LOGICA BAN ===
                 if (b.type === 'ban') {
                     e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
@@ -1294,7 +1364,6 @@ function update(dt, timeScale){
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                     }
                 } 
-                // === LOGICA BOOST ===
                 else if (b.type === 'boost') {
                     e.boostHits++; createExplosion(e.x, targetY, '#ffff00', 15); playSound('hit_eng');
                     if (e.boostHits >= 3) {
@@ -1304,24 +1373,20 @@ function update(dt, timeScale){
                          } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
                     }
                 }
-                // === LOGICA NORMAL (ROJO) ===
                 else {
-                    // *** NUEVA LOGICA: SI ES BOOSTED, EL ROJO LA NORMALIZA (3 Tiros) ***
                     if (e.isBoosted) {
                          e.demoteHits++; 
-                         createExplosion(e.x, targetY, '#ff4444', 5); // Chispas rojas
+                         createExplosion(e.x, targetY, '#ff4444', 5);
                          playSound('hit_eng');
                          if (e.demoteHits >= 3) {
-                             // "Romper" el estado dorado
-                             toggleReinforceStatus(e.wordData.en); // Quitar de DB
+                             toggleReinforceStatus(e.wordData.en);
                              e.isBoosted = false; 
-                             e.color = '#ffffff'; // Volver blanca
-                             e.demoteHits = 0; e.banHits = 0; e.hits = 0; // Resetear contadores
-                             createExplosion(e.x, e.y, '#ffffff', 30); // Humo blanco de transformación
-                             playSound('hit_syn'); // Sonido de cambio de estado
+                             e.color = '#ffffff'; 
+                             e.demoteHits = 0; e.banHits = 0; e.hits = 0; 
+                             createExplosion(e.x, e.y, '#ffffff', 30);
+                             playSound('hit_syn');
                          }
                     } 
-                    // Si NO es boosted (es normal o Boss), funciona igual que antes
                     else {
                         if (e.isBoss && !e.bossFinished) {
                             const phase = e.phases[e.activePhase]; phase.hits++; playSound('hit_eng'); createExplosion(e.x, targetY, e.color, 10);
@@ -1330,7 +1395,7 @@ function update(dt, timeScale){
                                 if (e.activePhase >= 3) {
                                     e.bossFinished = true; e.color = '#00ff00'; e.timer = 0;
                                     e.phases[2].text = e.wordData.es; e.phases[2].completed = false; e.activePhase = 2; 
-                                    createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false); 
+                                    createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false, e.id); 
                                 }
                             }
                         } else if (!e.isBoss) {
@@ -1343,9 +1408,8 @@ function update(dt, timeScale){
                                     e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
                                     createExplosion(e.x,e.y,'#00ff00',20); score+=50; combo++;
                                     ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                                    speak(e.text, 'es-ES', false, e.id); 
                                 }
-                            } else if(e.stage===1){
-                                e.fading=true; createExplosion(e.x,e.y,'#ffffff',40); playSound('hit_syn'); score+=150; combo++; speak(e.text, 'es-ES', false); 
                             }
                         }
                     }
@@ -1393,13 +1457,24 @@ function draw(timestamp){
     });
     
     enemies.forEach(e=>{
-        if (lockedEnemyId !== null && lockedEnemyId !== e.id) ctx.globalAlpha = 0.3; else ctx.globalAlpha = 1.0;
+        // MODIFICADO: Lógica estricta de transparencia para nuevos spawns si hay bloqueo activo
+        const isLockedOut = (lockedEnemyId !== null && lockedEnemyId !== e.id);
+        
+        if (isLockedOut) {
+            ctx.globalAlpha = 0.3; 
+            ctx.shadowBlur = 0; // Importante: quitar brillo para que se vea gris
+        } else {
+            ctx.globalAlpha = 1.0;
+        }
+
         if (e.isBoss) {
             e.phases.forEach((p, index) => {
                 const yPos = e.y - (index * 30);
                 if (p.completed) { ctx.fillStyle = '#444'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
                 else if (index === e.activePhase) {
-                    ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 15; ctx.font = 'bold 16px "Press Start 2P"';
+                    ctx.fillStyle = e.color; 
+                    if(!isLockedOut) { ctx.shadowColor = e.color; ctx.shadowBlur = 15; }
+                    ctx.font = 'bold 16px "Press Start 2P"';
                     ctx.fillText(p.text, e.x, yPos); ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.strokeText(p.text, e.x, yPos);
                 } else { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
                 ctx.shadowBlur = 0; 
@@ -1416,7 +1491,7 @@ function draw(timestamp){
             // DIBUJAR DORADO SI ESTA REFORZADA
             if (e.isBoosted) {
                 ctx.fillStyle = '#FFD700'; 
-                ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 10;
+                if(!isLockedOut) { ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 10; }
             } else {
                 ctx.fillStyle = e.color;
                 ctx.shadowBlur = 0;
