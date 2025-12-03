@@ -623,30 +623,35 @@ const cleanText = (str) => {
 
 function loadVocabData() {
     let tempVocabList = [];
-    
- // Busca esta parte dentro de loadVocabData y reemplaza la función processItem:
 
-const processItem = (en, es) => {
-    if(!en || !es) return;
-    const safeEn = cleanText(en);
-    
-    // --- NUEVO CÓDIGO: FILTRO DE LONGITUD ---
-    // Dividimos por espacios. Si hay más de 2 partes (palabras), salimos.
-    // Ejemplo: "BUS STOP" (2 partes) -> Pasa. 
-    // "OUT OF ORDER" (3 partes) -> Se ignora.
-    if (safeEn.split(' ').length > 2) return; 
-    // ----------------------------------------
+    // --- 1. DEFINICIÓN DEL PROCESADOR (Con tu filtro de longitud) ---
+    const processItem = (en, es) => {
+        if (!en || !es) return;
+        
+        // Limpieza de texto
+        const safeEn = cleanText(en);
+        
+        // === TU NUEVO FILTRO ===
+        // Si tiene más de 2 palabras (ej: "OUT OF ORDER"), se ignora.
+        if (safeEn.split(' ').length > 2) return; 
+        // =======================
 
-    const safeEs = cleanText(es);
-    if(safeEn.length > 0 && safeEs.length > 0) {
-        tempVocabList.push({en: safeEn, es: [safeEs]});
-    }
-};
+        const safeEs = cleanText(es);
 
-    if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
+        if (safeEn.length > 0 && safeEs.length > 0) {
+            tempVocabList.push({ en: safeEn, es: [safeEs] });
+        }
+    };
+
+    const source = userSettings.vocabSource; // 'LOCAL', 'ALL_INTERNAL', 'MIXED' o Categoría Específica
+
+    // --- 2. CARGA DE LOCALSTORAGE (MY DB) ---
+    // Se ejecuta si elegiste 'LOCAL' o 'MIXED'
+    let localDataLoaded = false;
+    if (source === 'LOCAL' || source === 'MIXED') {
         try {
             const saved = localStorage.getItem('mdc_vocab_list');
-            if(saved) {
+            if (saved) {
                 const items = JSON.parse(saved);
                 items.forEach(item => {
                     if (item.isFolder && item.items) {
@@ -656,36 +661,63 @@ const processItem = (en, es) => {
                     }
                 });
             }
-        } catch (e) { console.error("Local Load Error", e); }
+        } catch (e) { console.error("Error cargando LocalStorage", e); }
+        
+        if (tempVocabList.length > 0) localDataLoaded = true;
     }
 
+    // --- 3. LÓGICA DE FALLBACK (RESPALDO) ---
+    // Si elegiste 'LOCAL' pero no hay datos, forzamos la carga interna para que el juego no se rompa.
     let forceInternal = false;
-    if (userSettings.vocabSource === 'LOCAL' && tempVocabList.length === 0) {
-        forceInternal = true; 
+    if (source === 'LOCAL' && !localDataLoaded) {
+        console.warn("MY DB está vacía. Usando INTERNAL como respaldo.");
+        forceInternal = true;
     }
 
-    if (userSettings.vocabSource !== 'LOCAL' || forceInternal) {
-        let sourcesToLoad = [];
-        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED' || forceInternal) {
-            sourcesToLoad = Object.keys(INTERNAL_VOCAB);
-        } else {
-            sourcesToLoad = [userSettings.vocabSource];
+    // --- 4. CARGA DE BASE DE DATOS EXTERNA (JSON) ---
+    // Se ejecuta si:
+    // A. Elegiste 'ALL_INTERNAL'
+    // B. Elegiste una categoría específica (ej: 'REGULAR_VERBS')
+    // C. Elegiste 'MIXED'
+    // D. Ocurrió el fallback (forceInternal)
+    
+    if (typeof INTERNAL_VOCAB !== 'undefined') { // Verificamos que el script externo cargó
+        
+        let categoriesToLoad = [];
+
+        if (source === 'ALL_INTERNAL' || source === 'MIXED' || forceInternal) {
+            // Cargar TODAS las categorías disponibles en el JSON externo
+            categoriesToLoad = Object.keys(INTERNAL_VOCAB);
+        } else if (source !== 'LOCAL') {
+            // Caso contrario: El usuario eligió una categoría específica del menú (ej: 'IRREGULAR_VERBS')
+            // Solo cargamos esa categoría si existe
+            if (INTERNAL_VOCAB[source]) {
+                categoriesToLoad = [source];
+            }
         }
-        sourcesToLoad.forEach(catKey => {
-            if(INTERNAL_VOCAB[catKey]) {
+
+        // Procesar las categorías seleccionadas
+        categoriesToLoad.forEach(catKey => {
+            if (INTERNAL_VOCAB[catKey]) {
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
             }
         });
     }
 
+    // --- 5. APLICAR LÍMITE DE PORCENTAJE (Slider) ---
     if (tempVocabList.length > 0) {
+        // Mezclar un poco antes de cortar para que el porcentaje sea aleatorio
+        // (Opcional: si prefieres orden estricto, quita el sort)
+        // tempVocabList.sort(() => Math.random() - 0.5); 
+
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
-        activeVocabList = [];
+        // Si absolutamente nada cargó
+        activeVocabList = [{ en: "NO DATA", es: ["VACIO"] }];
     }
 
-    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+    // --- 6. ACTUALIZAR EL MAZO DE JUEGO ---
     refreshGameDeck();
 }
 
