@@ -54,7 +54,7 @@
         .touch-group:last-child {
             flex-direction: column; /* Apilar botones verticalmente */
             gap: 15px;
-            margin-bottom: 40px; /* Ajustado para 3 botones */
+            margin-bottom: 20px; /* Ajustado para 3 botones */
             align-items: center;
         }
 
@@ -425,12 +425,12 @@ const INTERNAL_VOCAB = {
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v15'; 
+const CONFIG_KEY = 'vocab_robot_config_v16'; // Increment version to force reset
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
-    vocabSource: 'LOCAL', 
+    vocabSource: 'ALL_INTERNAL', // CAMBIO IMPORTANTE: DEFAULT A INTERNAL
     dataPercent: 100, 
     spawnLevel: 1,      
     enemySpeed: 0.5,    
@@ -604,7 +604,7 @@ function resetConfig() {
     disabledWords.clear();
     reinforcedWords.clear();
     userSettings = { 
-        vocabSource: 'LOCAL', dataPercent: 100, 
+        vocabSource: 'ALL_INTERNAL', dataPercent: 100, 
         spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
         playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
         masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
@@ -626,38 +626,52 @@ let gameDeck = [];
 
 const cleanText = (str) => {
     if(!str) return "";
+    // Solo quitamos acentos basicos, permitimos caracteres latinos
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-              .replace(/[.,;¡!¿?]/g, '').trim().toUpperCase();
+              .trim().toUpperCase();
 };
 
 function loadVocabData() {
     let tempVocabList = [];
     const countWords = (str) => str.trim().split(/\s+/).length;
+    
+    // Helper to safely add
     const processItem = (en, es) => {
+        if(!en || !es) return;
         const safeEn = cleanText(en);
         const safeEs = cleanText(es);
-        if(safeEn && safeEs && countWords(safeEn) <= 2) {
+        if(safeEn.length > 0 && safeEs.length > 0) {
             tempVocabList.push({en: safeEn, es: [safeEs]});
         }
     };
 
+    // 1. Try Loading from Local Storage if requested
     if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
         try {
             const saved = localStorage.getItem('mdc_vocab_list');
-            const items = saved ? JSON.parse(saved) : [];
-            items.forEach(item => {
-                if (item.isFolder && item.items) {
-                    item.items.forEach(sub => processItem(sub.eng, sub.esp));
-                } else if (!item.isFolder) {
-                    processItem(item.eng, item.esp);
-                }
-            });
+            if(saved) {
+                const items = JSON.parse(saved);
+                items.forEach(item => {
+                    if (item.isFolder && item.items) {
+                        item.items.forEach(sub => processItem(sub.eng, sub.esp));
+                    } else if (!item.isFolder) {
+                        processItem(item.eng, item.esp);
+                    }
+                });
+            }
         } catch (e) { console.error("Local Load Error", e); }
     }
 
-    if (userSettings.vocabSource !== 'LOCAL') {
+    // 2. Load Internal if requested OR if Local failed/is empty
+    let forceInternal = false;
+    if (userSettings.vocabSource === 'LOCAL' && tempVocabList.length === 0) {
+        forceInternal = true; // Fallback so game is playable
+        console.log("Local DB empty, falling back to Internal");
+    }
+
+    if (userSettings.vocabSource !== 'LOCAL' || forceInternal) {
         let sourcesToLoad = [];
-        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED') {
+        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED' || forceInternal) {
             sourcesToLoad = Object.keys(INTERNAL_VOCAB);
         } else {
             sourcesToLoad = [userSettings.vocabSource];
@@ -670,6 +684,8 @@ function loadVocabData() {
     }
 
     if (tempVocabList.length > 0) {
+        // Shuffle slightly so we don't always get 'A' words first if using limits
+        // tempVocabList.sort(() => Math.random() - 0.5); 
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
