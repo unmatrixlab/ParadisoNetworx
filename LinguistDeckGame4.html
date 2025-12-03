@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Boss Update</title>
+    <title>Vocabulary Hunter: Final Boss Logic</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -211,7 +211,7 @@
         <p>
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
-            3. <strong>SUPER BOSSES</strong> appear every 15 kills.<br><br>
+            3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
             <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
         </p>
         <div class="blink">CLICK / TAP TO START</div>
@@ -859,7 +859,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let gameLoopId;
 
 /* =========================================
-   AUDIO MANAGER
+   AUDIO MANAGER (FIX: QUEUE LIMIT)
    ========================================= */
 const audioQueue = [];
 let isSpeaking = false;
@@ -886,6 +886,12 @@ function speak(text, lang, isBomb = false) {
     } else {
         if (!userSettings.audioWords) return;
     }
+    
+    // FIX 1: Audio Queue Limit (Anti-Lag)
+    // Only allow max 3 items pending. Priority to Boss/Bombs (if we wanted), 
+    // but a hard cap is best for game feel.
+    if (audioQueue.length > 2) return; 
+
     audioQueue.push({text, lang});
 }
 
@@ -961,7 +967,7 @@ function playSound(type) {
 
 let gameRunning=false, score=0, combo=0, lives=5, highScore=0, lastTime=0;
 let spawnTimer = 0;
-let enemiesSpawnedCount = 0; // NEW GLOBAL TRACKER
+let enemiesSpawnedCount = 0; 
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
 let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
@@ -1020,20 +1026,15 @@ function getRandomBombContent() {
     }
 }
 
-// 2. SISTEMA DE SPAWN INTELIGENTE (ANTI-SUPERPOSICIÓN)
 function getSafeSpawnX(enemyWidth) {
     const attempts = 15;
     const padding = 20;
     
     for (let i = 0; i < attempts; i++) {
         let safe = true;
-        // Generar candidato aleatorio
         let candX = Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
-        
-        // Comprobar contra todos los enemigos vivos (solo los que están arriba para optimizar, y<200)
         for (let e of enemies) {
-            if (e.y < 250) { // Solo nos preocupan los de arriba
-                // Chequeo de superposición horizontal con margen
+            if (e.y < 250) { 
                 if (candX < e.x + e.w/2 + padding && candX > e.x - e.w/2 - padding) {
                     safe = false;
                     break;
@@ -1042,17 +1043,32 @@ function getSafeSpawnX(enemyWidth) {
         }
         if (safe) return candX;
     }
-    // Fallback: aleatorio si no encuentra hueco
     return Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
 }
 
 function spawnEnemy(){
-    // 3. MECÁNICA "SUPER ENEMIGO" (JEFE VERBO)
-    // Se activa cada 15 spawns normales
+    // FIX 2: BOSS SPAWN LOGIC BY CATEGORY
     if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % 15 === 0) {
-        spawnBoss();
-        enemiesSpawnedCount++; // Incrementar para no spawnear otro inmediatamente
-        return;
+        const src = userSettings.vocabSource;
+        let allowed = false;
+        let specificType = null; // null = random, 'REGULAR' or 'IRREGULAR'
+
+        if (src === 'ALL_INTERNAL' || src === 'MIXED') { 
+            allowed = true; // Random allowed
+        }
+        else if (src === 'REGULAR_VERBS') {
+            allowed = true; specificType = 'REGULAR_VERBS';
+        }
+        else if (src === 'IRREGULAR_VERBS') {
+            allowed = true; specificType = 'IRREGULAR_VERBS';
+        }
+        // NOUNS, ADJECTIVES, LOCAL -> allowed remains false
+
+        if (allowed) {
+            spawnBoss(specificType);
+            enemiesSpawnedCount++;
+            return;
+        }
     }
 
     if(gameDeck.length===0) return;
@@ -1078,9 +1094,15 @@ function spawnEnemy(){
     enemiesSpawnedCount++;
 }
 
-function spawnBoss() {
-    // Seleccionar lista aleatoria (Regular o Irregular)
-    const listType = Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
+function spawnBoss(forcedListType) {
+    // Determine Type
+    let listType;
+    if (forcedListType) {
+        listType = forcedListType;
+    } else {
+        listType = Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
+    }
+
     const sourceList = INTERNAL_VOCAB[listType] || INTERNAL_VOCAB['REGULAR_VERBS'];
     const verbData = sourceList[Math.floor(Math.random() * sourceList.length)];
 
@@ -1092,24 +1114,23 @@ function spawnBoss() {
 
     const startX = getSafeSpawnX(maxW);
     
-    // Configuración según tipo
-    let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; // Cyan vs Magenta
-    let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; // Irregulares 40% más lentos
+    let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; 
+    let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
 
     enemies.push({
         x: startX,
-        y: -100, // Empieza más arriba por la torre
+        y: -100, 
         wordData: verbData,
         isBoss: true,
         bossType: verbData.type,
         phases: [
-            { text: verbData.en, hits: 0, completed: false },   // Abajo (Base)
-            { text: verbData.past, hits: 0, completed: false }, // Medio (Pasado)
-            { text: verbData.part, hits: 0, completed: false }  // Arriba (Participio)
+            { text: verbData.en, hits: 0, completed: false },   
+            { text: verbData.past, hits: 0, completed: false }, 
+            { text: verbData.part, hits: 0, completed: false }  
         ],
-        activePhase: 0, // Indice de la fase actual
+        activePhase: 0, 
         speed: (0.5 * userSettings.enemySpeed) * speedMod,
-        vx: 0, // Bosses bajan recto para ser más imponentes (o muy poco mov lateral)
+        vx: 0, 
         color: bossColor,
         w: maxW,
         droppedBomb: false,
@@ -1220,7 +1241,6 @@ function update(dt, timeScale){
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
         
-        // Probabilidad de bomba
         if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
@@ -1243,10 +1263,8 @@ function update(dt, timeScale){
             if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
         }
 
-        // Hitbox Collision Player
         let eRect;
         if (e.isBoss) {
-            // Boss Hitbox es grande (cubre toda la torre aprox)
             eRect = {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90};
         } else {
             eRect = {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
@@ -1261,14 +1279,10 @@ function update(dt, timeScale){
         
         if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;}
         
-        // 4. INTEGRACIÓN DE COMBATE (NORMAL Y BOSS)
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
             
-            // LÓGICA JEFE
             if (e.isBoss) {
-                // Chequear impacto contra la palabra ACTIVA
-                // Offset Y depende de la fase: 0 (Base) -> y, 1 (Past) -> y-30, 2 (Part) -> y-60
                 const yOffset = e.activePhase * 30;
                 const targetY = e.y - yOffset;
                 
@@ -1281,26 +1295,23 @@ function update(dt, timeScale){
                     createExplosion(e.x, targetY, e.color, 10);
 
                     if (phase.hits >= 3) {
-                        // Fase completada
                         phase.completed = true;
                         speak(phase.text, 'en-US', false);
                         e.activePhase++;
                         score += 100;
                         
-                        // Chequear muerte total
                         if (e.activePhase >= 3) {
                             e.fading = true;
                             createExplosion(e.x, e.y, '#ffffff', 60);
                             playSound('hit_syn');
                             score += 500; combo++;
-                            speak(e.wordData.es, 'es-ES', false); // Traducción final
+                            speak(e.wordData.es, 'es-ES', false); 
                         }
                     }
                     scoreEl.innerText=score;
                     break;
                 }
             } 
-            // LÓGICA NORMAL
             else {
                 if(b.x>e.x-e.w/2-10 && b.x<e.x+e.w/2+10 && b.y>e.y-20 && b.y<e.y+10){
                     bullets.splice(j,1); e.timer=0;
@@ -1374,26 +1385,31 @@ function draw(timestamp){
     // Enemies
     enemies.forEach(e=>{
         if (e.isBoss) {
-            // DIBUJAR TORRE DE JEFE
-            // Fase 0 (Base) -> y
-            // Fase 1 (Past) -> y-30
-            // Fase 2 (Part) -> y-60
             e.phases.forEach((p, index) => {
                 const yPos = e.y - (index * 30);
                 
-                // Color Logic
-                if (p.completed) ctx.fillStyle = '#444'; // Gris si está muerta
-                else if (index === e.activePhase) {
-                    ctx.fillStyle = e.color; // Color brillante si es target
-                    ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
-                    ctx.strokeText(p.text, e.x, yPos);
+                // FIX 3: VISUAL ALIGNMENT FIX (Single Pass + Glow)
+                if (p.completed) {
+                    ctx.fillStyle = '#444'; 
+                    ctx.shadowBlur = 0;
                 }
-                else ctx.fillStyle = 'rgba(255,255,255,0.3)'; // Tenue si está esperando
+                else if (index === e.activePhase) {
+                    ctx.fillStyle = '#fff';  // Main text is white
+                    ctx.shadowColor = e.color; // Glow matches Boss Color
+                    ctx.shadowBlur = 10;       // Glow strength
+                }
+                else {
+                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; 
+                    ctx.shadowBlur = 0;
+                }
                 
                 ctx.font = '16px "Press Start 2P"';
                 ctx.fillText(p.text, e.x, yPos);
+                
+                // Reset shadow for subsequent draws
+                ctx.shadowBlur = 0;
 
-                // Puntos de vida (solo para activa)
+                // Hit dots
                 if (index === e.activePhase) {
                     for(let k=0;k<3;k++){
                         ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
@@ -1403,7 +1419,6 @@ function draw(timestamp){
             });
 
         } else {
-            // DIBUJO NORMAL
             ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
             ctx.fillStyle=e.color;
             
