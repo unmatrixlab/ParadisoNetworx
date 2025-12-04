@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Manual Fire</title>
+    <title>Vocabulary Hunter: Logic Fix</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* ==========================================================================
-           ESTILOS (Mantenemos la estética previa)
+           ESTILOS (Sin cambios estructurales)
            ========================================================================== */
         :root {
             --right-pad-x: 20px; 
             --right-pad-y: 110px; 
-            --btn-opacity: 0.4;
+            --btn-opacity: 0.3; 
             --btn-scale: 1.1; 
             --neon-green: #0f0;
             --neon-red: #ff4444;
@@ -44,13 +44,12 @@
             pointer-events: none;
         }
 
-        /* ZONA DE TOQUE: Ahora maneja movimiento y TAP para disparo */
-        #touch-zone {
+        #touch-surface {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            z-index: 15; 
             pointer-events: auto;
+            z-index: 10; 
         }
 
         .gamepad-group {
@@ -75,7 +74,7 @@
             position: absolute;
             transition: transform 0.05s, box-shadow 0.05s;
             cursor: pointer;
-            z-index: 25; 
+            z-index: 20; 
             opacity: var(--btn-opacity);
         }
 
@@ -87,24 +86,25 @@
 
         .btn-label { font-size: 7px; margin-top: 2px; opacity: 0.9; font-family: sans-serif; font-weight: 900; letter-spacing: 1px; }
 
-        /* ROJO = BAN */
-        #btn-action-red {
+        #btn-red {
             width: 75px; height: 75px;
             bottom: 0; right: 0;
             background: linear-gradient(145deg, #ff4444, #cc0000);
             color: white; border-color: #800;
+            z-index: 22;
         }
 
-        /* AMARILLO = BOOST (BUSTER) */
-        #btn-action-yellow {
+        #btn-yellow {
             width: 55px; height: 55px;
             bottom: 80px; 
             right: 5px;   
             background: linear-gradient(145deg, #ffff00, #cccc00);
             color: #333; border-color: #999900;
+            z-index: 22;
         }
 
         @media (max-width: 768px) or (pointer: coarse) {
+            #mobile-controls { display: block; }
             #category-bar-wrapper { bottom: 160px; } 
             h1 { font-size: 20px; }
             p { font-size: 10px; line-height: 1.5; }
@@ -234,15 +234,10 @@
     </div>
     
     <div id="mobile-controls">
-        <div id="touch-zone"></div>
-
+        <div id="touch-surface"></div>
         <div class="gamepad-group group-right">
-            <div class="action-btn" id="btn-action-yellow">
-                <span>+</span><span class="btn-label">BOOST</span>
-            </div>
-            <div class="action-btn" id="btn-action-red">
-                <span>X</span><span class="btn-label">BAN</span>
-            </div>
+            <div class="action-btn" id="btn-yellow"><span>+</span><span class="btn-label">BOOST</span></div>
+            <div class="action-btn" id="btn-red"><span>X</span><span class="btn-label">BAN</span></div>
         </div>
     </div>
 
@@ -251,12 +246,12 @@
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
         <h1>VOCAB ROBOT</h1>
         <p>
-            1. <strong>DRAG</strong> to MOVE. <strong>TAP</strong> to SHOOT (Normal).<br>
-            2. <strong>RED BUTTON (X)</strong> = BAN WORD (Never appears again).<br>
-            3. <strong>YELLOW BUTTON (+)</strong> = BOOST (Appears more in Yellow).<br><br>
-            <span style="color: var(--neon-cyan);">NUMBERS (BOMBS) ARE DEACTIVATED BY DEFAULT.</span><br>
-            <span style="color: var(--neon-yellow);">SUPER BOSSES appear in VERB modes.</span><br><br>
-            <span class="key-hint">TAP & DRAG</span> to Play
+            1. <strong>DRAG</strong> to MOVE. <strong>TAP</strong> to SHOOT.<br>
+            2. Enemies drop English words & <strong>Number Bombs</strong>.<br>
+            3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
+            <span style="color: var(--neon-red);">RED (X): BAN WORD (REMOVES FOREVER)</span><br>
+            <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (MAKES IT YELLOW)</span><br><br>
+            <span class="key-hint">TOUCH & DRAG</span> to Play
         </p>
         <div class="blink">CLICK / TAP TO START</div>
     </div>
@@ -274,7 +269,6 @@
             <div id="quiz-question">WORD</div>
             <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
             <div id="quiz-feedback"></div>
-            
             <div class="quiz-actions">
                 <button class="quiz-btn btn-skip" onclick="skipQuiz()">FORCE REBOOT (-500 PTS)</button>
                 <button class="quiz-btn btn-verify" onclick="checkQuizAnswer()">VERIFY REPAIR</button>
@@ -378,27 +372,18 @@
 /* =========================================
    CONFIG & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v18'; 
+const CONFIG_KEY = 'vocab_robot_config_v20_fixed'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
-    vocabSource: 'ALL_INTERNAL', 
-    dataPercent: 100, 
-    spawnLevel: 1,      
-    enemySpeed: 0.5,    
-    bombChance: 0, 
-    bombSpeed: 1.0,     
-    playerColor: '#4f46e5',
-    quizEnabled: true, 
-    quizInterval: 30,
-    masterVolume: 50,
-    audioFX: true, audioWords: true, audioBombs: true, bossFrequency: 15
+    vocabSource: 'ALL_INTERNAL', dataPercent: 100, spawnLevel: 1, enemySpeed: 0.5, 
+    bombChance: 0, bombSpeed: 1.0, playerColor: '#4f46e5', quizEnabled: true, 
+    quizInterval: 30, masterVolume: 50, audioFX: true, audioWords: true, audioBombs: true, bossFrequency: 15
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
 let reinforcedWords = new Set(); 
-
 let quizTimer = 0;
 let currentQuizWord = null;
 let lockedEnemyId = null;
@@ -615,27 +600,37 @@ function refreshGameDeck() {
     if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
 }
 
-// LOGICA DE BAN Y BOOST
-function disableWord(engWord) {
+// LOGICA DE BAN Y BOOST - MODIFICADA
+function banWord(engWord) {
     disabledWords.add(engWord);
+    // IMPORTANTE: Al banear, se remueve el refuerzo si existía
+    if(reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
+    
     localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
     refreshGameDeck();
 }
 
-function enableReinforce(engWord) {
+function boostWord(engWord) {
     reinforcedWords.add(engWord);
     localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
     refreshGameDeck();
 }
 
 function toggleWordStatus(engWord) {
-    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
-    else disabledWords.add(engWord);
+    if(disabledWords.has(engWord)) {
+        disabledWords.delete(engWord);
+    } else {
+        disabledWords.add(engWord);
+        // IMPORTANTE: Al desactivar manualmente, se remueve el refuerzo
+        if(reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
+    }
     localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
     refreshGameDeck();
 }
 
-// --- QUIZ ---
+// --- QUIZ & LEVENSHTEIN ---
 function similarity(s1, s2) {
     var longer = s1; var shorter = s2;
     if (s1.length < s2.length) { longer = s2; shorter = s1; }
@@ -868,7 +863,9 @@ function playSound(type) {
     }
     else if(type==='boost_success'){
         o.type='triangle'; o.frequency.setValueAtTime(400,n); 
-        o.frequency.linearRampToValueAtTime(600,n+.1); o.frequency.linearRampToValueAtTime(800,n+.2); o.frequency.linearRampToValueAtTime(1200,n+.4);
+        o.frequency.linearRampToValueAtTime(600,n+.1);
+        o.frequency.linearRampToValueAtTime(800,n+.2);
+        o.frequency.linearRampToValueAtTime(1200,n+.4);
         g.gain.setValueAtTime(0.2 * vol, n); g.gain.linearRampToValueAtTime(0,n+.4);
     }
     o.start(n); o.stop(n + 0.5);
@@ -906,7 +903,8 @@ function toggleStudyGuide(){
     if(isOpen){
         studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
-            gameRunning=true; lastTime=performance.now(); gameLoopId = requestAnimationFrame(loop);
+            gameRunning=true; lastTime=performance.now(); 
+            gameLoopId = requestAnimationFrame(loop);
         }
     }else{
         gameRunning=false; cancelAnimationFrame(gameLoopId);
@@ -995,7 +993,11 @@ function spawnBoss(forcedListType) {
         id: Date.now() + Math.random(),
         x: startX, y: -100, 
         wordData: verbData, isBoss: true, bossType: verbData.type,
-        phases: [ { text: verbData.en, hits: 0, completed: false }, { text: verbData.past, hits: 0, completed: false }, { text: verbData.part, hits: 0, completed: false } ],
+        phases: [
+            { text: verbData.en, hits: 0, completed: false },   
+            { text: verbData.past, hits: 0, completed: false }, 
+            { text: verbData.part, hits: 0, completed: false }  
+        ],
         activePhase: 0, speed: (0.5 * userSettings.enemySpeed) * speedMod,
         vx: 0, color: bossColor, w: maxW,
         droppedBomb: false, fading: false, bossFinished: false,
@@ -1046,13 +1048,9 @@ function update(dt, timeScale){
     }
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    // Movimiento (Se controla vía Touch/Keys)
     if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
-    // DISPARO MANUAL (TECLADO SPACE O TOUCH TAP)
-    // No hay auto-fire.
-
     stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
     spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
@@ -1130,33 +1128,31 @@ function update(dt, timeScale){
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
                 
                 if (b.type === 'ban') {
-                    // DISPARO ROJO (BAN)
-                    e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
+                    // CAMBIO: Disparo ROJO elimina palabra Y ELIMINA REFUERZO si lo tuviera
+                    e.banHits++; createExplosion(e.x, targetY, '#ff0000', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
-                        disableWord(e.wordData.en); // AÑADE A LISTA NEGRA
+                        banWord(e.wordData.en); 
                         e.fading = true; 
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                     }
                 } 
                 else if (b.type === 'boost') {
-                    // DISPARO AMARILLO (BOOST)
+                    // CAMBIO: Disparo AMARILLO destruye pero refuerza
                     e.boostHits++; createExplosion(e.x, targetY, '#ffff00', 15); playSound('hit_eng');
                     if (e.boostHits >= 3) {
-                         enableReinforce(e.wordData.en); // REFUERZA LA PALABRA
-                         e.fading = true; // Se va de la pantalla
-                         createExplosion(e.x, e.y, '#FFD700', 80); playSound('boost_success'); score += 200; 
+                         if (!reinforcedWords.has(e.wordData.en)) {
+                             boostWord(e.wordData.en); 
+                             e.fading = true; 
+                             createExplosion(e.x, e.y, '#FFD700', 80); playSound('boost_success'); score += 200; 
+                         } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
                     }
                 }
                 else {
-                    // DISPARO NORMAL
                     if (e.isBoosted) {
                          e.demoteHits++; 
                          createExplosion(e.x, targetY, '#ff4444', 5);
                          playSound('hit_eng');
                          if (e.demoteHits >= 3) {
-                             // Aquí se quitaba el boost, pero ahora las balas normales solo destruyen al enemigo actual
-                             // Si queremos que pierda el status de boost habría que llamar a toggle, pero dijiste que solo se elimina con rojo.
-                             // Así que solo matamos al enemigo actual.
                              e.fading = true; 
                              createExplosion(e.x, e.y, '#ffffff', 30);
                              playSound('hit_syn');
@@ -1225,9 +1221,9 @@ function draw(timestamp){
     });
 
     bullets.forEach(b => {
-        if(b.type === 'ban') ctx.fillStyle = '#00ffff'; 
-        else if (b.type === 'boost') ctx.fillStyle = '#ffff00';
-        else ctx.fillStyle = '#ff0055'; 
+        if(b.type === 'ban') ctx.fillStyle = '#ff0000'; // COLOR ROJO PURO
+        else if (b.type === 'boost') ctx.fillStyle = '#ffff00'; 
+        else ctx.fillStyle = '#00ff55'; 
         ctx.fillRect(b.x-2,b.y,4,15);
     });
     
@@ -1267,7 +1263,7 @@ function draw(timestamp){
             ctx.shadowBlur = 0; 
             
             if (e.banHits > 0) {
-                 ctx.fillStyle = '#00ffff';
+                 ctx.fillStyle = '#ff0000';
                  for(let k=0;k<3;k++){ if (k < e.banHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
             }
             if (e.boostHits > 0) {
@@ -1312,20 +1308,17 @@ function startGame(){
     gameLoopId = requestAnimationFrame(loop);
 }
 
-// BOTONES DE ACCION
-const btnFireRed = document.getElementById('btn-action-red');   // AHORA ES BAN
-const btnBoostYellow = document.getElementById('btn-action-yellow'); // AHORA ES BOOST
-
+const btnRed = document.getElementById('btn-red');
+const btnYellow = document.getElementById('btn-yellow');
 const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
 const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
-// TOUCH ZONE: MOVER + TAP PARA DISPARAR NORMAL
-const touchZone = document.getElementById('touch-zone');
+const touchSurface = document.getElementById('touch-surface');
 let lastTouchX = null;
 let touchStartX = 0;
 let touchStartTime = 0;
 
-touchZone.addEventListener('touchstart', (e) => {
+touchSurface.addEventListener('touchstart', (e) => {
     e.preventDefault();
     if (!gameRunning) return;
     lastTouchX = e.touches[0].clientX;
@@ -1333,7 +1326,7 @@ touchZone.addEventListener('touchstart', (e) => {
     touchStartTime = Date.now();
 }, {passive: false});
 
-touchZone.addEventListener('touchmove', (e) => {
+touchSurface.addEventListener('touchmove', (e) => {
     e.preventDefault();
     if (!gameRunning || lastTouchX === null) return;
     const currentX = e.touches[0].clientX;
@@ -1344,27 +1337,25 @@ touchZone.addEventListener('touchmove', (e) => {
     lastTouchX = currentX;
 }, {passive: false});
 
-touchZone.addEventListener('touchend', (e) => {
+touchSurface.addEventListener('touchend', (e) => {
     e.preventDefault();
     if (!gameRunning) return;
     const touchEndX = e.changedTouches[0].clientX;
     const timeDiff = Date.now() - touchStartTime;
     const distDiff = Math.abs(touchEndX - touchStartX);
     
-    // Si fue un toque rápido y sin apenas mover el dedo, es un TAP = DISPARO NORMAL
-    if (timeDiff < 300 && distDiff < 10) {
+    if (timeDiff < 200 && distDiff < 10) {
          bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); 
          playSound('shoot');
     }
     lastTouchX = null;
 });
 
-// LISTENERS PARA LOS BOTONES ESPECIALES
 const handleBtnStart = (action) => { action(); };
 
 ['touchstart', 'mousedown'].forEach(evt => {
-    btnFireRed.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBanBullet); });
-    btnBoostYellow.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBoostBullet); });
+    btnRed.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBanBullet); });
+    btnYellow.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBoostBullet); });
 });
 
 document.addEventListener('keydown', e=>{
