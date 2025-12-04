@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Slide Control</title>
+    <title>Vocabulary Hunter: Slide Movement</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* ==========================================================================
@@ -46,9 +46,7 @@
             position: absolute; 
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; 
-            /* Quitamos pointer-events: none para detectar el slide en toda la pantalla, 
-               pero los botones deben tener pointer-events: auto para funcionar */
-            pointer-events: auto; 
+            pointer-events: none;
         }
 
         /* Contenedores de grupos */
@@ -56,8 +54,11 @@
             position: absolute;
             pointer-events: auto;
             transform: scale(var(--btn-scale));
+            /* El ancho/alto ahora es relativo al contenido para un ajuste fino */
             width: 150px; height: 150px; 
         }
+
+        /* NOTA: Se eliminó .group-left ya que no hay botones de dirección */
 
         .group-right {
             right: var(--right-pad-x);
@@ -75,7 +76,7 @@
             position: absolute;
             transition: transform 0.05s, box-shadow 0.05s;
             cursor: pointer;
-            z-index: 30; /* Z-index mayor para estar sobre la capa de slide */
+            z-index: 10;
             opacity: var(--btn-opacity);
         }
 
@@ -88,16 +89,27 @@
 
         /* --- GRUPO DERECHO (Acciones - Compacto) --- */
         
-        /* 1. FIRE/BAN (Rojo): Ancla en la esquina inferior derecha */
-        /* Ahora es BANEO según instrucciones */
+        /* 1. FIRE (Rojo): Ancla en la esquina inferior derecha */
         #btn-fire {
             width: 75px; height: 75px;
             bottom: 0; right: 0;
             background: linear-gradient(145deg, #ff4444, #cc0000);
             color: white; border-color: #800;
+            z-index: 12;
+        }
+
+        /* 2. BAN (Azul): A la izquierda del Rojo */
+        /* Calculo: Ancho Rojo (75px) + Espacio (5px) = 80px desde la derecha */
+        #btn-ban {
+            width: 55px; height: 55px;
+            bottom: 0px; 
+            right: 80px; /* Pegado a la izquierda del rojo */
+            background: linear-gradient(145deg, #00ffff, #009999);
+            color: #003333; border-color: #004444;
         }
 
         /* 3. BOOST (Amarillo): Encima del Rojo */
+        /* Calculo: Alto Rojo (75px) + Espacio (5px) = 80px desde abajo */
         #btn-boost {
             width: 55px; height: 55px;
             bottom: 80px; /* Pegado arriba del rojo */
@@ -241,10 +253,13 @@
             <div class="action-btn" id="btn-boost">
                 <span>+</span><span class="btn-label">BOOST</span>
             </div>
-            <div class="action-btn" id="btn-fire">
+            <div class="action-btn" id="btn-ban">
                 <span>X</span><span class="btn-label">BAN</span>
             </div>
+            <div class="action-btn" id="btn-fire">
+                <span>●</span><span class="btn-label">FIRE</span>
             </div>
+        </div>
     </div>
 
     <div id="category-bar-wrapper"></div>
@@ -255,10 +270,11 @@
             1. Enemies drop English words & <strong>Bombs</strong>.<br>
             2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
             3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
-            <span style="color: var(--neon-red);">RED (X): BAN WORD (3 HITS)</span><br>
+            <span style="color: var(--neon-cyan);">BLUE (X): BAN WORD (3 HITS)</span><br>
             <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (3 HITS)</span><br>
-            <br>
-            <span class="key-hint">SLIDE</span> Move Robot
+            <span style="color: var(--neon-red);">RED (●): 3 HITS TO REMOVE BOOST</span><br><br>
+            <span class="key-hint">TOUCH / MOUSE</span> Move<br>
+            <span class="key-hint">RED BTN</span> Shoot
         </p>
         <div class="blink">CLICK / TAP TO START</div>
     </div>
@@ -1018,6 +1034,9 @@ let enemiesSpawnedCount = 0;
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
 let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
+// ===== NUEVA VARIABLE PARA EL TARGET DEL MOVIMIENTO =====
+let targetX = 0;
+
 function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');highScore=s?parseInt(s):0;highScoreEl.innerText=highScore;}
 
 function populateStudyGuide(){
@@ -1057,6 +1076,7 @@ function toggleStudyGuide(){
 function resize(){
     canvas.width=innerWidth; canvas.height=innerHeight;
     player.y=canvas.height-130; player.x=canvas.width/2-player.w/2;
+    targetX = player.x; // Evitar saltos al redimensionar
 }
 window.addEventListener('resize',resize);
 
@@ -1193,8 +1213,21 @@ function update(dt, timeScale){
     }
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
-    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
+    // ===== NUEVO LOGICA DE MOVIMIENTO (SLIDE/FOLLOW) =====
+    // El jugador se mueve hacia targetX respetando su velocidad
+    const dx = targetX - player.x;
+    const moveStep = player.speed * timeScale;
+    
+    if (Math.abs(dx) > moveStep) {
+        player.x += Math.sign(dx) * moveStep;
+    } else {
+        player.x = targetX;
+    }
+
+    // Mantener dentro de la pantalla
+    if (player.x < 0) player.x = 0;
+    if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+    
     
     stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
     spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
@@ -1448,54 +1481,66 @@ function startGame(){
     enemiesSpawnedCount = 0; lockedEnemyId = null; 
     scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5'; loadHighScore();
     gameRunning=true; lastFrameTime = performance.now(); spawnTimer = gameVars.spawnInterval; quizTimer = 0;
+    
+    // Inicializar targetX al centro para no saltar
+    targetX = canvas.width/2 - player.w/2;
+    player.x = targetX;
+
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
 
-const btnFire = document.getElementById('btn-fire'); // Ahora es BAN
+const btnFire = document.getElementById('btn-fire');
+const btnBan = document.getElementById('btn-ban'); 
 const btnBoost = document.getElementById('btn-boost'); 
+
+// ===== CONTROLADORES DE ENTRADA ACTUALIZADOS (TOUCH TRACKING) =====
 
 const handleTouchStart = (key, customAction = null) => {
     if (customAction) { customAction(); } else { keys[key] = true; }
     if(key === 'Space' && gameRunning && !customAction) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
 };
 const handleTouchEnd = (key) => { keys[key] = false; };
+
 const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
 const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
-// --- LOGICA DE DESLIZAMIENTO (SLIDE) ---
-let touchStartX = 0;
-document.addEventListener('touchstart', e => {
-    if(e.touches.length > 0) touchStartX = e.touches[0].clientX;
-}, {passive: false});
-
-document.addEventListener('touchmove', e => {
-    if(gameRunning && e.touches.length > 0) {
-        // Evitamos que el navegador haga scroll o gestos nativos
-        if(e.target.tagName !== 'BUTTON' && e.target.className.indexOf('action-btn') === -1) {
-             e.preventDefault(); 
-        }
-        
-        const currentX = e.touches[0].clientX;
-        const deltaX = currentX - touchStartX;
-        
-        player.x += deltaX; 
-        
-        // Limites de pantalla
-        if(player.x < 0) player.x = 0;
-        if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-        
-        touchStartX = currentX;
-    }
-}, {passive: false});
-// ----------------------------------------
-
+// --- 1. Botones de Acción (Derecha) ---
 ['touchstart', 'mousedown'].forEach(evt => {
-    // btn-fire ahora dispara BAN
-    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
+    btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
     btnBoost.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBoostBullet); });
 });
+['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
+});
 
+// --- 2. Tracking de Movimiento (Slide) ---
+function updateTargetPosition(e) {
+    if(!gameRunning) return;
+    let clientX;
+    if(e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+    } else {
+        clientX = e.clientX;
+    }
+    // Centrar el robot en el dedo
+    targetX = clientX - player.w / 2;
+}
+
+// Escuchar en toda la ventana para que el dedo no "se salga" del canvas
+window.addEventListener('touchmove', (e) => { updateTargetPosition(e); }, {passive: true});
+window.addEventListener('touchstart', (e) => { 
+    // Ignorar si toca sobre los botones de la derecha
+    if(e.target.closest('.gamepad-group')) return;
+    updateTargetPosition(e); 
+}, {passive: true});
+window.addEventListener('mousemove', (e) => { 
+    if(e.buttons === 1) updateTargetPosition(e); // Solo si hace click y arrastra (PC) o movimiento libre
+    else updateTargetPosition(e);
+});
+
+// --- 3. Teclado ---
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
