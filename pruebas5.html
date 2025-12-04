@@ -3,17 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Logic Fix</title>
+    <title>Vocabulary Hunter: Slide Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* ==========================================================================
-           ESTILOS (Sin cambios estructurales)
+           CONFIGURACIÓN DE POSICIÓN
            ========================================================================== */
         :root {
+            /* Mover todo el grupo de botones (Derecha) */
             --right-pad-x: 20px; 
             --right-pad-y: 110px; 
-            --btn-opacity: 0.3; 
-            --btn-scale: 1.1; 
+
+            /* Ajustes Generales */
+            --btn-opacity: 0.8;
+            --btn-scale: 1.1; /* Escala global de los botones */
+            
+            /* Colores */
             --neon-green: #0f0;
             --neon-red: #ff4444;
             --neon-blue: #4f46e5;
@@ -32,26 +37,21 @@
             background-size:100% 4px;z-index:999;pointer-events:none;
         }
         
-        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:30;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
+        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
         #mobile-controls {
-            display: block; 
+            display: none; 
             position: absolute; 
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; 
-            pointer-events: none;
+            /* Quitamos pointer-events: none para detectar el slide en toda la pantalla, 
+               pero los botones deben tener pointer-events: auto para funcionar */
+            pointer-events: auto; 
         }
 
-        #touch-surface {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: auto;
-            z-index: 10; 
-        }
-
+        /* Contenedores de grupos */
         .gamepad-group {
             position: absolute;
             pointer-events: auto;
@@ -64,6 +64,7 @@
             bottom: var(--right-pad-y);
         }
 
+        /* Estilos Botones */
         .action-btn {
             border-radius: 50%;
             font-size: 14px; font-weight: bold;
@@ -74,33 +75,35 @@
             position: absolute;
             transition: transform 0.05s, box-shadow 0.05s;
             cursor: pointer;
-            z-index: 20; 
+            z-index: 30; /* Z-index mayor para estar sobre la capa de slide */
             opacity: var(--btn-opacity);
         }
 
         .action-btn:active {
             transform: translateY(4px) scale(0.95);
             box-shadow: 0 2px 0 var(--btn-shadow), inset 0 3px 8px rgba(0,0,0,0.6);
-            opacity: 0.8;
         }
 
         .btn-label { font-size: 7px; margin-top: 2px; opacity: 0.9; font-family: sans-serif; font-weight: 900; letter-spacing: 1px; }
 
-        #btn-red {
+        /* --- GRUPO DERECHO (Acciones - Compacto) --- */
+        
+        /* 1. FIRE/BAN (Rojo): Ancla en la esquina inferior derecha */
+        /* Ahora es BANEO según instrucciones */
+        #btn-fire {
             width: 75px; height: 75px;
             bottom: 0; right: 0;
             background: linear-gradient(145deg, #ff4444, #cc0000);
             color: white; border-color: #800;
-            z-index: 22;
         }
 
-        #btn-yellow {
+        /* 3. BOOST (Amarillo): Encima del Rojo */
+        #btn-boost {
             width: 55px; height: 55px;
-            bottom: 80px; 
-            right: 5px;   
+            bottom: 80px; /* Pegado arriba del rojo */
+            right: 5px;   /* Ligeramente alineado con el borde derecho */
             background: linear-gradient(145deg, #ffff00, #cccc00);
             color: #333; border-color: #999900;
-            z-index: 22;
         }
 
         @media (max-width: 768px) or (pointer: coarse) {
@@ -112,7 +115,7 @@
 
         #category-bar-wrapper {
             position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
-            background:rgba(0,0,0,0.85); z-index:25; overflow-x:auto; white-space:nowrap;
+            background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
             display:flex; justify-content:center; border-top:1px solid #333;
             box-shadow:0 -5px 15px rgba(0,255,0,0.1);
         }
@@ -234,11 +237,14 @@
     </div>
     
     <div id="mobile-controls">
-        <div id="touch-surface"></div>
         <div class="gamepad-group group-right">
-            <div class="action-btn" id="btn-yellow"><span>+</span><span class="btn-label">BOOST</span></div>
-            <div class="action-btn" id="btn-red"><span>X</span><span class="btn-label">BAN</span></div>
-        </div>
+            <div class="action-btn" id="btn-boost">
+                <span>+</span><span class="btn-label">BOOST</span>
+            </div>
+            <div class="action-btn" id="btn-fire">
+                <span>X</span><span class="btn-label">BAN</span>
+            </div>
+            </div>
     </div>
 
     <div id="category-bar-wrapper"></div>
@@ -246,12 +252,13 @@
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
         <h1>VOCAB ROBOT</h1>
         <p>
-            1. <strong>DRAG</strong> to MOVE. <strong>TAP</strong> to SHOOT.<br>
-            2. Enemies drop English words & <strong>Number Bombs</strong>.<br>
+            1. Enemies drop English words & <strong>Bombs</strong>.<br>
+            2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
             3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
-            <span style="color: var(--neon-red);">RED (X): BAN WORD (REMOVES FOREVER)</span><br>
-            <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (MAKES IT YELLOW)</span><br><br>
-            <span class="key-hint">TOUCH & DRAG</span> to Play
+            <span style="color: var(--neon-red);">RED (X): BAN WORD (3 HITS)</span><br>
+            <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (3 HITS)</span><br>
+            <br>
+            <span class="key-hint">SLIDE</span> Move Robot
         </p>
         <div class="blink">CLICK / TAP TO START</div>
     </div>
@@ -269,6 +276,7 @@
             <div id="quiz-question">WORD</div>
             <input type="text" id="quiz-input" placeholder="TYPE TRANSLATION" autocomplete="off">
             <div id="quiz-feedback"></div>
+            
             <div class="quiz-actions">
                 <button class="quiz-btn btn-skip" onclick="skipQuiz()">FORCE REBOOT (-500 PTS)</button>
                 <button class="quiz-btn btn-verify" onclick="checkQuizAnswer()">VERIFY REPAIR</button>
@@ -343,8 +351,8 @@
                     <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">0%</span></label>
-                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="0" oninput="updateConfig('bomb')">
+                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">30%</span></label>
+                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="30" oninput="updateConfig('bomb')">
                     <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
                 </div>
                 <div class="config-group">
@@ -370,34 +378,52 @@
 
 <script>
 /* =========================================
-   CONFIG & STATE
+   1. INTERNAL DATA
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v20_fixed'; 
+
+
+/* =========================================
+   2. CONFIGURATION & STATE
+   ========================================= */
+const CONFIG_KEY = 'vocab_robot_config_v16'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
-    vocabSource: 'ALL_INTERNAL', dataPercent: 100, spawnLevel: 1, enemySpeed: 0.5, 
-    bombChance: 0, bombSpeed: 1.0, playerColor: '#4f46e5', quizEnabled: true, 
-    quizInterval: 30, masterVolume: 50, audioFX: true, audioWords: true, audioBombs: true, bossFrequency: 15
+    vocabSource: 'ALL_INTERNAL', 
+    dataPercent: 100, 
+    spawnLevel: 1,      
+    enemySpeed: 0.5,    
+    bombChance: 30,     
+    bombSpeed: 1.0,     
+    playerColor: '#4f46e5',
+    quizEnabled: false, quizInterval: 30,
+    masterVolume: 50,
+    audioFX: true, audioWords: true, audioBombs: true, bossFrequency: 15
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
 let reinforcedWords = new Set(); 
+
 let quizTimer = 0;
 let currentQuizWord = null;
 let lockedEnemyId = null;
 
+// --- MENUS & UI ---
 function renderCategoryBar() {
     const wrapper = document.getElementById('category-bar-wrapper');
     wrapper.innerHTML = '';
     const opts = [{val: 'LOCAL', txt: 'MY DB'}, {val: 'MIXED', txt: 'MIXED'}, {val: 'ALL_INTERNAL', txt: 'ALL INTERNAL'}];
     Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: key}));
+
     opts.forEach(o => {
         const chip = document.createElement('div');
         chip.className = 'category-chip' + (userSettings.vocabSource === o.val ? ' active' : '');
         chip.textContent = o.txt;
-        chip.onclick = () => { document.getElementById('cfg-source').value = o.val; updateConfig('source'); };
+        chip.onclick = () => {
+            document.getElementById('cfg-source').value = o.val;
+            updateConfig('source');
+        };
         wrapper.appendChild(chip);
     });
     const help = document.createElement('div');
@@ -416,19 +442,36 @@ function updateDataPercent(val) {
 function populateSourceMenu() {
     const select = document.getElementById('cfg-source');
     select.innerHTML = '';
-    const opts = [ {val: 'LOCAL', txt: 'MY DATABASE (Custom)'}, {val: 'ALL_INTERNAL', txt: 'INTERNAL: ALL MIXED'}, {val: 'MIXED', txt: 'EVERYTHING (Local + Internal)'} ];
+    const opts = [
+        {val: 'LOCAL', txt: 'MY DATABASE (Custom)'},
+        {val: 'ALL_INTERNAL', txt: 'INTERNAL: ALL MIXED'},
+        {val: 'MIXED', txt: 'EVERYTHING (Local + Internal)'}
+    ];
     Object.keys(INTERNAL_VOCAB).forEach(key => opts.push({val: key, txt: `INTERNAL: ${key}`}));
-    opts.forEach(o => { const op = document.createElement('option'); op.value = o.val; op.textContent = o.txt; select.appendChild(op); });
+    opts.forEach(o => {
+        const op = document.createElement('option');
+        op.value = o.val; op.textContent = o.txt;
+        select.appendChild(op);
+    });
 }
 
 function loadConfig() {
     populateSourceMenu();
     const saved = localStorage.getItem(CONFIG_KEY);
-    if(saved) { try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } catch(e) {} }
+    if(saved) {
+        try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
+        catch(e) { console.error("Config error", e); }
+    }
     const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
-    if(savedDisabled) { try { disabledWords = new Set(JSON.parse(savedDisabled)); } catch(e) {} }
+    if(savedDisabled) {
+        try { disabledWords = new Set(JSON.parse(savedDisabled)); }
+        catch(e) { disabledWords = new Set(); }
+    }
     const savedReinforced = localStorage.getItem(REINFORCED_WORDS_KEY);
-    if(savedReinforced) { try { reinforcedWords = new Set(JSON.parse(savedReinforced)); } catch(e) {} }
+    if(savedReinforced) {
+        try { reinforcedWords = new Set(JSON.parse(savedReinforced)); }
+        catch(e) { reinforcedWords = new Set(); }
+    }
     applyConfigToUI();
     recalcGameVars();
 }
@@ -470,7 +513,10 @@ function updateConfig(key) {
         loadVocabData(); populateStudyGuide(); renderCategoryBar();
         if(gameRunning) enemies = []; 
     }
-    else if(key === 'percent_only') { loadVocabData(); populateStudyGuide(); if(gameRunning) enemies = []; }
+    else if(key === 'percent_only') {
+        loadVocabData(); populateStudyGuide();
+        if(gameRunning) enemies = [];
+    }
     else if(key === 'volume') {
         userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
         document.getElementById('val-volume').textContent = userSettings.masterVolume + "%";
@@ -499,7 +545,10 @@ function updateConfig(key) {
         userSettings.playerColor = document.getElementById('cfg-color').value;
         player.color = userSettings.playerColor;
     }
-    if(key !== 'percent_only' && key !== 'volume') { applyConfigToUI(); }
+    
+    if(key !== 'percent_only' && key !== 'volume') {
+        applyConfigToUI(); 
+    }
     recalcGameVars();
     localStorage.setItem(CONFIG_KEY, JSON.stringify(userSettings));
 }
@@ -512,8 +561,8 @@ function resetConfig() {
     reinforcedWords.clear();
     userSettings = { 
         vocabSource: 'ALL_INTERNAL', dataPercent: 100, 
-        spawnLevel: 1, enemySpeed: 0.5, bombChance: 0, bombSpeed: 1.0, 
-        playerColor: '#4f46e5', quizEnabled: true, quizInterval: 30, 
+        spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
+        playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
         masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
     };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
@@ -538,15 +587,30 @@ const cleanText = (str) => {
 
 function loadVocabData() {
     let tempVocabList = [];
+
+    // --- 1. DEFINICIÓN DEL PROCESADOR (Con tu filtro de longitud) ---
     const processItem = (en, es) => {
         if (!en || !es) return;
+        
+        // Limpieza de texto
         const safeEn = cleanText(en);
+        
+        // === TU NUEVO FILTRO ===
+        // Si tiene más de 2 palabras (ej: "OUT OF ORDER"), se ignora.
         if (safeEn.split(' ').length > 2) return; 
+        // =======================
+
         const safeEs = cleanText(es);
-        if (safeEn.length > 0 && safeEs.length > 0) tempVocabList.push({ en: safeEn, es: [safeEs] });
+
+        if (safeEn.length > 0 && safeEs.length > 0) {
+            tempVocabList.push({ en: safeEn, es: [safeEs] });
+        }
     };
 
-    const source = userSettings.vocabSource; 
+    const source = userSettings.vocabSource; // 'LOCAL', 'ALL_INTERNAL', 'MIXED' o Categoría Específica
+
+    // --- 2. CARGA DE LOCALSTORAGE (MY DB) ---
+    // Se ejecuta si elegiste 'LOCAL' o 'MIXED'
     let localDataLoaded = false;
     if (source === 'LOCAL' || source === 'MIXED') {
         try {
@@ -554,45 +618,85 @@ function loadVocabData() {
             if (saved) {
                 const items = JSON.parse(saved);
                 items.forEach(item => {
-                    if (item.isFolder && item.items) item.items.forEach(sub => processItem(sub.eng, sub.esp));
-                    else if (!item.isFolder) processItem(item.eng, item.esp);
+                    if (item.isFolder && item.items) {
+                        item.items.forEach(sub => processItem(sub.eng, sub.esp));
+                    } else if (!item.isFolder) {
+                        processItem(item.eng, item.esp);
+                    }
                 });
             }
         } catch (e) { console.error("Error cargando LocalStorage", e); }
+        
         if (tempVocabList.length > 0) localDataLoaded = true;
     }
 
+    // --- 3. LÓGICA DE FALLBACK (RESPALDO) ---
+    // Si elegiste 'LOCAL' pero no hay datos, forzamos la carga interna para que el juego no se rompa.
     let forceInternal = false;
-    if (source === 'LOCAL' && !localDataLoaded) forceInternal = true;
+    if (source === 'LOCAL' && !localDataLoaded) {
+        console.warn("MY DB está vacía. Usando INTERNAL como respaldo.");
+        forceInternal = true;
+    }
 
-    if (typeof INTERNAL_VOCAB !== 'undefined') { 
+    // --- 4. CARGA DE BASE DE DATOS EXTERNA (JSON) ---
+    // Se ejecuta si:
+    // A. Elegiste 'ALL_INTERNAL'
+    // B. Elegiste una categoría específica (ej: 'REGULAR_VERBS')
+    // C. Elegiste 'MIXED'
+    // D. Ocurrió el fallback (forceInternal)
+    
+    if (typeof INTERNAL_VOCAB !== 'undefined') { // Verificamos que el script externo cargó
+        
         let categoriesToLoad = [];
-        if (source === 'ALL_INTERNAL' || source === 'MIXED' || forceInternal) categoriesToLoad = Object.keys(INTERNAL_VOCAB);
-        else if (source !== 'LOCAL' && INTERNAL_VOCAB[source]) categoriesToLoad = [source];
 
+        if (source === 'ALL_INTERNAL' || source === 'MIXED' || forceInternal) {
+            // Cargar TODAS las categorías disponibles en el JSON externo
+            categoriesToLoad = Object.keys(INTERNAL_VOCAB);
+        } else if (source !== 'LOCAL') {
+            // Caso contrario: El usuario eligió una categoría específica del menú (ej: 'IRREGULAR_VERBS')
+            // Solo cargamos esa categoría si existe
+            if (INTERNAL_VOCAB[source]) {
+                categoriesToLoad = [source];
+            }
+        }
+
+        // Procesar las categorías seleccionadas
         categoriesToLoad.forEach(catKey => {
-            if (INTERNAL_VOCAB[catKey]) INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
+            if (INTERNAL_VOCAB[catKey]) {
+                INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
+            }
         });
     }
 
+    // --- 5. APLICAR LÍMITE DE PORCENTAJE (Slider) ---
     if (tempVocabList.length > 0) {
+        // Mezclar un poco antes de cortar para que el porcentaje sea aleatorio
+        // (Opcional: si prefieres orden estricto, quita el sort)
+        // tempVocabList.sort(() => Math.random() - 0.5); 
+
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
+        // Si absolutamente nada cargó
         activeVocabList = [{ en: "NO DATA", es: ["VACIO"] }];
     }
+
+    // --- 6. ACTUALIZAR EL MAZO DE JUEGO ---
     refreshGameDeck();
 }
 
 function refreshGameDeck() {
     gameDeck = [];
     const hasData = activeVocabList.length > 0 && activeVocabList[0].en !== "NO DATA";
+
     if (hasData) {
         activeVocabList.forEach(item => {
             if (!disabledWords.has(item.en)) {
                 gameDeck.push(item);
                 if (reinforcedWords.has(item.en)) {
-                    for(let k=0; k<10; k++) gameDeck.push(item);
+                    for(let k=0; k<10; k++) {
+                        gameDeck.push(item);
+                    }
                 }
             }
         });
@@ -600,32 +704,16 @@ function refreshGameDeck() {
     if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
 }
 
-// LOGICA DE BAN Y BOOST - MODIFICADA
-function banWord(engWord) {
-    disabledWords.add(engWord);
-    // IMPORTANTE: Al banear, se remueve el refuerzo si existía
-    if(reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
-    
-    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
-    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
-    refreshGameDeck();
-}
-
-function boostWord(engWord) {
-    reinforcedWords.add(engWord);
-    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
-    refreshGameDeck();
-}
-
 function toggleWordStatus(engWord) {
-    if(disabledWords.has(engWord)) {
-        disabledWords.delete(engWord);
-    } else {
-        disabledWords.add(engWord);
-        // IMPORTANTE: Al desactivar manualmente, se remueve el refuerzo
-        if(reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
-    }
+    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
+    else disabledWords.add(engWord);
     localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    refreshGameDeck();
+}
+
+function toggleReinforceStatus(engWord) {
+    if (reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
+    else reinforcedWords.add(engWord);
     localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
     refreshGameDeck();
 }
@@ -665,6 +753,7 @@ function triggerPopQuiz() {
     gameRunning = false; 
     const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
     currentQuizWord = randomItem;
+    
     const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
     currentQuizWord.mode = mode;
 
@@ -674,27 +763,36 @@ function triggerPopQuiz() {
     const titleEl = document.getElementById('quiz-title');
     const overlay = document.getElementById('quiz-overlay');
     
-    iEl.value = ""; fEl.innerText = "";
-    titleEl.innerText = "SYSTEM HACK!"; titleEl.style.color = "var(--neon-red)";
+    iEl.value = "";
+    fEl.innerText = "";
+    titleEl.innerText = "SYSTEM HACK!";
+    titleEl.style.color = "var(--neon-red)";
     overlay.style.borderColor = "var(--neon-red)";
     
     if (mode === 'EN_TO_ES') {
-        qEl.innerText = `TRANSLATE: ${randomItem.en}`; iEl.placeholder = "TYPE IN SPANISH";
+        qEl.innerText = `TRANSLATE: ${randomItem.en}`;
+        iEl.placeholder = "TYPE IN SPANISH";
     } else {
-        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; iEl.placeholder = "TYPE IN ENGLISH";
+        qEl.innerText = `TRANSLATE: ${randomItem.es[0]}`; 
+        iEl.placeholder = "TYPE IN ENGLISH";
     }
+
     document.getElementById('quiz-screen').style.display = 'flex';
     document.getElementById('quiz-input').focus();
 }
 
 function skipQuiz() {
-    score = Math.max(0, score - 500); scoreEl.innerText = score;
+    score = Math.max(0, score - 500); 
+    scoreEl.innerText = score;
     const feedback = document.getElementById('quiz-feedback');
     feedback.style.color = '#ffaa00';
     feedback.innerText = `CORRECT WAS: ${currentQuizWord.mode === 'EN_TO_ES' ? currentQuizWord.es[0] : currentQuizWord.en}`;
+    
     setTimeout(() => {
         document.getElementById('quiz-screen').style.display = 'none';
-        quizTimer = 0; gameRunning = true; lastTime = performance.now();
+        quizTimer = 0; 
+        gameRunning = true;
+        lastTime = performance.now();
         gameLoopId = requestAnimationFrame(loop);
     }, 2000); 
 }
@@ -709,7 +807,9 @@ function checkQuizAnswer() {
     if (currentQuizWord.mode === 'EN_TO_ES') correctAnswers = currentQuizWord.es; 
     else correctAnswers = [currentQuizWord.en];
 
-    let maxSim = 0; let bestMatch = "";
+    let maxSim = 0;
+    let bestMatch = "";
+    
     correctAnswers.forEach(ans => {
         const sim = similarity(userInput, ans);
         if (sim > maxSim) { maxSim = sim; bestMatch = ans; }
@@ -721,31 +821,48 @@ function checkQuizAnswer() {
         setTimeout(resolveQuizSuccess, 1000);
     } else {
         const inputEl = document.getElementById('quiz-input');
-        inputEl.classList.add('shake'); setTimeout(()=>inputEl.classList.remove('shake'), 500);
-        titleEl.innerText = "CRITICAL FAILURE!"; overlay.style.borderColor = "#ff0000";
+        inputEl.classList.add('shake');
+        setTimeout(()=>inputEl.classList.remove('shake'), 500);
+        titleEl.innerText = "CRITICAL FAILURE!";
+        overlay.style.borderColor = "#ff0000";
         const displayCorrect = bestMatch || correctAnswers[0] || "ERROR";
         feedback.innerHTML = `INCORRECT. REPAIR SEQUENCE REQUIRED:<br><span class="correct-ans-highlight">${displayCorrect}</span>`;
-        inputEl.value = ""; inputEl.placeholder = "TYPE THE WORD ABOVE"; inputEl.focus();
+        inputEl.value = "";
+        inputEl.placeholder = "TYPE THE WORD ABOVE";
+        inputEl.focus();
     }
 }
 
 function resolveQuizSuccess() {
-    quizTimer = 0; document.getElementById('quiz-screen').style.display = 'none';
+    quizTimer = 0; 
+    document.getElementById('quiz-screen').style.display = 'none';
+    
     for(let i=0; i<10; i++) {
         setTimeout(() => {
-            const x = Math.random() * canvas.width; const y = Math.random() * canvas.height;
-            createExplosion(x, y, `hsl(${Math.random()*360}, 100%, 50%)`, 40); playSound('firework'); 
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const color = `hsl(${Math.random()*360}, 100%, 50%)`;
+            createExplosion(x, y, color, 40); 
+            playSound('firework'); 
         }, i * 200); 
     }
+
     enemyBombs = []; 
     enemies.forEach(e => {
-        e.fading = true; createExplosion(e.x, e.y, e.color, 20); score += 50;
+        e.fading = true;
+        createExplosion(e.x, e.y, e.color, 20);
+        score += 50;
     });
     lockedEnemyId = null; 
-    gameRunning = true; lastTime = performance.now(); gameLoopId = requestAnimationFrame(loop);
+    
+    gameRunning = true;
+    lastTime = performance.now();
+    gameLoopId = requestAnimationFrame(loop);
 }
 
-document.getElementById('quiz-input').addEventListener('keypress', function (e) { if (e.key === 'Enter') checkQuizAnswer(); });
+document.getElementById('quiz-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') checkQuizAnswer();
+});
 
 /* =========================================
    GAME ENGINE
@@ -768,8 +885,13 @@ const audioQueue = [];
 let isSpeaking = false;
 let availableVoices = [];
 
-function loadVoices() { availableVoices = window.speechSynthesis.getVoices(); }
-if (window.speechSynthesis) { window.speechSynthesis.onvoiceschanged = loadVoices; loadVoices(); }
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices();
+}
+if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
+}
 
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
@@ -779,7 +901,11 @@ setInterval(() => {
 }, 100);
 
 function speak(text, lang, isBomb = false, enemyId = null) {
-    if (isBomb) { if (!userSettings.audioBombs) return; } else { if (!userSettings.audioWords) return; }
+    if (isBomb) {
+        if (!userSettings.audioBombs) return;
+    } else {
+        if (!userSettings.audioWords) return;
+    }
     audioQueue.push({text, lang, enemyId});
 }
 
@@ -789,31 +915,46 @@ function getBestVoice(lang) {
     const candidates = availableVoices.filter(v => v.lang.startsWith(baseLang));
     if (candidates.length === 0) return null;
     const scoreVoice = (v) => {
-        let score = 0; if (v.lang === lang) score += 10; 
+        let score = 0;
+        if (v.lang === lang) score += 10; 
         if (v.name.includes("Google") || v.name.includes("Premium")) score += 5; 
-        if (v.default) score += 1; return score;
+        if (v.default) score += 1;
+        return score;
     };
     candidates.sort((a, b) => scoreVoice(b) - scoreVoice(a));
     return candidates[0];
 }
 
+// Busca la función playText y actualízala así:
+
 function playText(text, lang, enemyId) {
     if (!window.speechSynthesis) return;
-    isSpeaking = true; window.speechSynthesis.cancel();
+    isSpeaking = true;
+    window.speechSynthesis.cancel();
+    
+    // --- NUEVO CÓDIGO: FILTRO DE AUDIO ---
+    // 1. Convertimos a minúsculas.
+    // 2. Reemplazamos cualquier '/' globalmente por una coma (que crea pausa).
     let textToSpeak = text.toLowerCase().replace(/\//g, ', '); 
+    // -------------------------------------
+
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; u.rate = 0.9; 
     const bestVoice = getBestVoice(lang);
     if (bestVoice) u.voice = bestVoice;
+    
     u.onstart = () => {
         if (enemyId) {
             const targetEnemy = enemies.find(e => e.id === enemyId);
             if (targetEnemy) {
-                targetEnemy.fading = true; createExplosion(targetEnemy.x, targetEnemy.y, '#ffffff', 50); playSound('hit_syn');
+                targetEnemy.fading = true; 
+                createExplosion(targetEnemy.x, targetEnemy.y, '#ffffff', 50); 
+                playSound('hit_syn');
             }
         }
     };
+    
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
     window.speechSynthesis.speak(u);
@@ -925,7 +1066,10 @@ for(let i=0;i<80;i++) stars.push({
     alphaBase: Math.random()*0.5+0.3, phase: Math.random() * Math.PI * 2
 });
 
-function getRandomBombContent() { return Math.floor(Math.random() * (9999 - 10) + 10).toString(); }
+function getRandomBombContent() {
+    if (Math.random() > 0.5) return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".charAt(Math.floor(Math.random()*26));
+    else return Math.floor(Math.random() * (9999 - 10) + 10).toString();
+}
 
 function getSafeSpawnX(enemyWidth) {
     const attempts = 15; const padding = 20;
@@ -960,6 +1104,7 @@ function spawnEnemy(){
     const startX = getSafeSpawnX(textWidth);
     const vx = (Math.random() - 0.5) * 2.0;
     const baseSpeed = (Math.random()*0.8+0.4) * userSettings.enemySpeed;
+
     const isBoosted = reinforcedWords.has(d.en);
 
     enemies.push({
@@ -1128,22 +1273,18 @@ function update(dt, timeScale){
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
                 
                 if (b.type === 'ban') {
-                    // CAMBIO: Disparo ROJO elimina palabra Y ELIMINA REFUERZO si lo tuviera
-                    e.banHits++; createExplosion(e.x, targetY, '#ff0000', 15); playSound('hit_eng');
+                    e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
-                        banWord(e.wordData.en); 
-                        e.fading = true; 
+                        toggleWordStatus(e.wordData.en); e.fading = true; 
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                     }
                 } 
                 else if (b.type === 'boost') {
-                    // CAMBIO: Disparo AMARILLO destruye pero refuerza
                     e.boostHits++; createExplosion(e.x, targetY, '#ffff00', 15); playSound('hit_eng');
                     if (e.boostHits >= 3) {
                          if (!reinforcedWords.has(e.wordData.en)) {
-                             boostWord(e.wordData.en); 
-                             e.fading = true; 
-                             createExplosion(e.x, e.y, '#FFD700', 80); playSound('boost_success'); score += 200; 
+                             toggleReinforceStatus(e.wordData.en);
+                             e.fading = true; createExplosion(e.x, e.y, '#FFD700', 80); playSound('boost_success'); score += 200; 
                          } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
                     }
                 }
@@ -1153,7 +1294,10 @@ function update(dt, timeScale){
                          createExplosion(e.x, targetY, '#ff4444', 5);
                          playSound('hit_eng');
                          if (e.demoteHits >= 3) {
-                             e.fading = true; 
+                             toggleReinforceStatus(e.wordData.en);
+                             e.isBoosted = false; 
+                             e.color = '#ffffff'; 
+                             e.demoteHits = 0; e.banHits = 0; e.hits = 0; 
                              createExplosion(e.x, e.y, '#ffffff', 30);
                              playSound('hit_syn');
                          }
@@ -1221,9 +1365,9 @@ function draw(timestamp){
     });
 
     bullets.forEach(b => {
-        if(b.type === 'ban') ctx.fillStyle = '#ff0000'; // COLOR ROJO PURO
-        else if (b.type === 'boost') ctx.fillStyle = '#ffff00'; 
-        else ctx.fillStyle = '#00ff55'; 
+        if(b.type === 'ban') ctx.fillStyle = '#00ffff'; 
+        else if (b.type === 'boost') ctx.fillStyle = '#ffff00';
+        else ctx.fillStyle = '#ff0055'; 
         ctx.fillRect(b.x-2,b.y,4,15);
     });
     
@@ -1263,7 +1407,7 @@ function draw(timestamp){
             ctx.shadowBlur = 0; 
             
             if (e.banHits > 0) {
-                 ctx.fillStyle = '#ff0000';
+                 ctx.fillStyle = '#00ffff';
                  for(let k=0;k<3;k++){ if (k < e.banHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
             }
             if (e.boostHits > 0) {
@@ -1308,62 +1452,56 @@ function startGame(){
     gameLoopId = requestAnimationFrame(loop);
 }
 
-const btnRed = document.getElementById('btn-red');
-const btnYellow = document.getElementById('btn-yellow');
+const btnFire = document.getElementById('btn-fire'); // Ahora es BAN
+const btnBoost = document.getElementById('btn-boost'); 
+
+const handleTouchStart = (key, customAction = null) => {
+    if (customAction) { customAction(); } else { keys[key] = true; }
+    if(key === 'Space' && gameRunning && !customAction) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
+};
+const handleTouchEnd = (key) => { keys[key] = false; };
 const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
 const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
-const touchSurface = document.getElementById('touch-surface');
-let lastTouchX = null;
+// --- LOGICA DE DESLIZAMIENTO (SLIDE) ---
 let touchStartX = 0;
-let touchStartTime = 0;
-
-touchSurface.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    if (!gameRunning) return;
-    lastTouchX = e.touches[0].clientX;
-    touchStartX = e.touches[0].clientX;
-    touchStartTime = Date.now();
+document.addEventListener('touchstart', e => {
+    if(e.touches.length > 0) touchStartX = e.touches[0].clientX;
 }, {passive: false});
 
-touchSurface.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (!gameRunning || lastTouchX === null) return;
-    const currentX = e.touches[0].clientX;
-    const diff = currentX - lastTouchX;
-    player.x += diff * 1.5; 
-    if (player.x < 0) player.x = 0;
-    if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-    lastTouchX = currentX;
-}, {passive: false});
-
-touchSurface.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    if (!gameRunning) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const timeDiff = Date.now() - touchStartTime;
-    const distDiff = Math.abs(touchEndX - touchStartX);
-    
-    if (timeDiff < 200 && distDiff < 10) {
-         bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); 
-         playSound('shoot');
+document.addEventListener('touchmove', e => {
+    if(gameRunning && e.touches.length > 0) {
+        // Evitamos que el navegador haga scroll o gestos nativos
+        if(e.target.tagName !== 'BUTTON' && e.target.className.indexOf('action-btn') === -1) {
+             e.preventDefault(); 
+        }
+        
+        const currentX = e.touches[0].clientX;
+        const deltaX = currentX - touchStartX;
+        
+        player.x += deltaX; 
+        
+        // Limites de pantalla
+        if(player.x < 0) player.x = 0;
+        if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+        
+        touchStartX = currentX;
     }
-    lastTouchX = null;
-});
-
-const handleBtnStart = (action) => { action(); };
+}, {passive: false});
+// ----------------------------------------
 
 ['touchstart', 'mousedown'].forEach(evt => {
-    btnRed.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBanBullet); });
-    btnYellow.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBoostBullet); });
+    // btn-fire ahora dispara BAN
+    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
+    btnBoost.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBoostBullet); });
 });
 
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
     if(e.code==='Space' && gameRunning){ e.preventDefault(); bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
-    if(e.code==='KeyB' && gameRunning){ e.preventDefault(); fireBanBullet(); } 
-    if(e.code==='KeyV' && gameRunning){ e.preventDefault(); fireBoostBullet(); } 
+    if(e.code==='KeyB' && gameRunning){ e.preventDefault(); fireBanBullet(); }
+    if(e.code==='KeyV' && gameRunning){ e.preventDefault(); fireBoostBullet(); }
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
 
