@@ -63,33 +63,34 @@
 
         /* --- LÓGICA DE ZONAS TOUCH (CLASICA VS FULL) --- */
         
-        /* 1. Modo Clásico (Por defecto en CSS, JS añade clase para Full) */
+        /* 1. Modo Clásico */
         #touch-zone-left {
             left: var(--left-pad-x);
             bottom: var(--left-pad-y);
             transition: width 0.3s, height 0.3s;
         }
 
-        /* 2. Modo Full Screen (Activado por JS) */
+        /* 2. Modo Full Screen (CORREGIDO: RESPETA MENU INFERIOR) */
         #touch-zone-left.touch-area-full {
             width: 50%;
-            height: 100%;
-            left: 0;
-            bottom: 0;
+            /* Cambio Importante: Dejar espacio abajo para el menú */
+            height: auto; 
             top: 0;
-            transform: none; /* Quitamos el scale del grupo para llenar pantalla */
+            bottom: 80px; /* Deja libre la zona del menú */
+            left: 0;
+            transform: none; 
         }
         
         /* Reubicación de botones visuales cuando está en modo Full */
         #touch-zone-left.touch-area-full .action-btn {
             position: absolute;
-            transform: scale(var(--btn-scale)); /* Re-aplicamos escala a botones individuales */
+            transform: scale(var(--btn-scale)); 
         }
         #touch-zone-left.touch-area-full #btn-left { 
-            left: 40px; bottom: 80px; top: auto; 
+            left: 40px; bottom: 20px; top: auto; /* Ajustado para quedar dentro del area */
         }
         #touch-zone-left.touch-area-full #btn-right { 
-            left: 110px; bottom: 80px; top: auto; 
+            left: 110px; bottom: 20px; top: auto; 
         }
 
         .group-right {
@@ -348,7 +349,7 @@
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
-    <div id="level-up-msg">LEVEL UP!<br>+1% DATA</div>
+    <div id="level-up-msg">LEVEL UP!<br>+20 WORDS</div>
 
     <div id="mobile-controls">
         <div class="gamepad-group group-left" id="touch-zone-left">
@@ -750,7 +751,8 @@ function switchTab(tabName) {
 
 // --- DATA LOGIC ---
 let activeVocabList = []; 
-let gameDeck = [];        
+let gameDeck = []; 
+let totalAvailableWords = 0; // Total de palabras disponibles en la lista actual (para calculo de %)
 
 const cleanText = (str) => {
     if(!str) return "";
@@ -840,12 +842,11 @@ function loadVocabData() {
         });
     }
 
+    // Almacenamos el total real de palabras posibles antes de recortar por porcentaje
+    totalAvailableWords = tempVocabList.length;
+
     // --- 5. APLICAR LÍMITE DE PORCENTAJE (Slider) ---
     if (tempVocabList.length > 0) {
-        // Mezclar un poco antes de cortar para que el porcentaje sea aleatorio
-        // (Opcional: si prefieres orden estricto, quita el sort)
-        // tempVocabList.sort(() => Math.random() - 0.5); 
-
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
@@ -1572,6 +1573,7 @@ function update(dt, timeScale){
             });
         }
         if(e.fading){
+            // --- CORRECCIÓN BUG 1: DESBLOQUEAR SIEMPRE ---
             if (lockedEnemyId === e.id) lockedEnemyId = null;
             createExplosion(e.x,e.y,e.color,1); enemies.splice(i,1); continue;
         }
@@ -1579,6 +1581,7 @@ function update(dt, timeScale){
         if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);
             playSound('player_hit'); player.invincible=true;player.invTimer=2000;enemies.splice(i,1);combo=0;comboEl.innerText=combo;
+            // --- CORRECCIÓN BUG 1: DESBLOQUEAR SIEMPRE ---
             if (lockedEnemyId === e.id) lockedEnemyId = null;
             if(lives<=0){gameOver();return;} continue;
         }
@@ -1611,8 +1614,6 @@ function update(dt, timeScale){
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                         
                         // --- PROGRESIÓN DE NIVEL ---
-                        // Verificamos si al banear esta palabra, el mazo quedó vacío
-                        // (ignorando el placeholder "NO ACTIVE")
                         const validWords = gameDeck.filter(w => w.en !== "NO ACTIVE");
                         if (validWords.length === 0) {
                             if (userSettings.dataPercent < 100) {
@@ -1679,7 +1680,9 @@ function update(dt, timeScale){
         }
         if(e.y>canvas.height){
             if(e.stage<1)combo=0; comboEl.innerText=combo;
-            if (lockedEnemyId === e.id) lockedEnemyId = null; enemies.splice(i,1);
+            // --- CORRECCIÓN BUG 1: DESBLOQUEAR SIEMPRE ---
+            if (lockedEnemyId === e.id) lockedEnemyId = null; 
+            enemies.splice(i,1);
         }
     }
     for(let i=particles.length-1;i>=0;i--){
@@ -1687,10 +1690,25 @@ function update(dt, timeScale){
     }
 }
 
+// --- NUEVA FUNCIÓN PARA SUBIR DE NIVEL ---
 function increaseLevel() {
-    userSettings.dataPercent++;
+    if (totalAvailableWords === 0) return;
+    
+    // Calcular porcentaje equivalente a 20 palabras
+    const percentFor20 = (20 / totalAvailableWords) * 100;
+    
+    // Asegurar que suba al menos 1% y redondear hacia arriba
+    let addVal = Math.ceil(percentFor20);
+    if (addVal < 1) addVal = 1;
+
+    userSettings.dataPercent += addVal;
+    if (userSettings.dataPercent > 100) userSettings.dataPercent = 100;
+
+    // Actualizar UI
+    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
+    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
+
     updateConfig('percent_only');
-    applyConfigToUI();
     
     // Fuegos artificiales de subida de nivel
     for(let i=0; i<5; i++) {
@@ -1704,6 +1722,7 @@ function increaseLevel() {
     
     // Mostrar cartel
     const msg = document.getElementById('level-up-msg');
+    msg.innerHTML = `LEVEL UP!<br>+${addVal}% DATA`; // Mostrar porcentaje real agregado
     msg.style.animation = 'none';
     msg.offsetHeight; /* trigger reflow */
     msg.style.animation = 'floatUp 2s forwards';
