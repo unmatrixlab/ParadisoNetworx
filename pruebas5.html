@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Slide Movement</title>
+    <title>Vocabulary Hunter: Touch Update</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         /* ==========================================================================
            CONFIGURACIÓN DE POSICIÓN
            ========================================================================== */
         :root {
-            /* Mover todo el grupo de botones (Derecha) */
             --right-pad-x: 20px; 
             --right-pad-y: 110px; 
 
             /* Ajustes Generales */
-            --btn-opacity: 0.8;
-            --btn-scale: 1.1; /* Escala global de los botones */
+            --btn-opacity: 0.4; /* Transparencia aumentada como pediste */
+            --btn-scale: 1.1; 
             
             /* Colores */
             --neon-green: #0f0;
@@ -37,16 +36,25 @@
             background-size:100% 4px;z-index:999;pointer-events:none;
         }
         
-        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:10;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
+        #ui {position:absolute;top:10px;left:10px;right:10px;z-index:30;pointer-events:none;display:flex;justify-content:space-between;text-shadow:2px 2px 0 #000; font-size: 10px;}
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
         #mobile-controls {
-            display: none; 
+            display: block; /* Siempre visible para manejar el touch */
             position: absolute; 
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; 
             pointer-events: none;
+        }
+
+        /* ZONA DE TOQUE PARA MOVIMIENTO (INVISIBLE) */
+        #touch-zone {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 15; /* Debajo de los botones, encima del canvas */
+            pointer-events: auto;
         }
 
         /* Contenedores de grupos */
@@ -54,11 +62,8 @@
             position: absolute;
             pointer-events: auto;
             transform: scale(var(--btn-scale));
-            /* El ancho/alto ahora es relativo al contenido para un ajuste fino */
             width: 150px; height: 150px; 
         }
-
-        /* NOTA: Se eliminó .group-left ya que no hay botones de dirección */
 
         .group-right {
             right: var(--right-pad-x);
@@ -76,50 +81,38 @@
             position: absolute;
             transition: transform 0.05s, box-shadow 0.05s;
             cursor: pointer;
-            z-index: 10;
+            z-index: 25; /* Encima de la zona de touch */
             opacity: var(--btn-opacity);
         }
 
         .action-btn:active {
             transform: translateY(4px) scale(0.95);
             box-shadow: 0 2px 0 var(--btn-shadow), inset 0 3px 8px rgba(0,0,0,0.6);
+            opacity: 0.8;
         }
 
         .btn-label { font-size: 7px; margin-top: 2px; opacity: 0.9; font-family: sans-serif; font-weight: 900; letter-spacing: 1px; }
 
-        /* --- GRUPO DERECHO (Acciones - Compacto) --- */
+        /* --- GRUPO DERECHO (Acciones - Modificado) --- */
         
-        /* 1. FIRE (Rojo): Ancla en la esquina inferior derecha */
-        #btn-fire {
+        /* 1. ROJO (Ahora es BAN): Ancla en la esquina inferior derecha */
+        #btn-action-red {
             width: 75px; height: 75px;
             bottom: 0; right: 0;
             background: linear-gradient(145deg, #ff4444, #cc0000);
             color: white; border-color: #800;
-            z-index: 12;
         }
 
-        /* 2. BAN (Azul): A la izquierda del Rojo */
-        /* Calculo: Ancho Rojo (75px) + Espacio (5px) = 80px desde la derecha */
-        #btn-ban {
+        /* 2. AMARILLO (BOOST): Encima del Rojo */
+        #btn-action-yellow {
             width: 55px; height: 55px;
-            bottom: 0px; 
-            right: 80px; /* Pegado a la izquierda del rojo */
-            background: linear-gradient(145deg, #00ffff, #009999);
-            color: #003333; border-color: #004444;
-        }
-
-        /* 3. BOOST (Amarillo): Encima del Rojo */
-        /* Calculo: Alto Rojo (75px) + Espacio (5px) = 80px desde abajo */
-        #btn-boost {
-            width: 55px; height: 55px;
-            bottom: 80px; /* Pegado arriba del rojo */
-            right: 5px;   /* Ligeramente alineado con el borde derecho */
+            bottom: 80px; 
+            right: 5px;   
             background: linear-gradient(145deg, #ffff00, #cccc00);
             color: #333; border-color: #999900;
         }
 
         @media (max-width: 768px) or (pointer: coarse) {
-            #mobile-controls { display: block; }
             #category-bar-wrapper { bottom: 160px; } 
             h1 { font-size: 20px; }
             p { font-size: 10px; line-height: 1.5; }
@@ -127,7 +120,7 @@
 
         #category-bar-wrapper {
             position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
-            background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
+            background:rgba(0,0,0,0.85); z-index:25; overflow-x:auto; white-space:nowrap;
             display:flex; justify-content:center; border-top:1px solid #333;
             box-shadow:0 -5px 15px rgba(0,255,0,0.1);
         }
@@ -249,15 +242,14 @@
     </div>
     
     <div id="mobile-controls">
+        <div id="touch-zone"></div>
+
         <div class="gamepad-group group-right">
-            <div class="action-btn" id="btn-boost">
+            <div class="action-btn" id="btn-action-yellow">
                 <span>+</span><span class="btn-label">BOOST</span>
             </div>
-            <div class="action-btn" id="btn-ban">
+            <div class="action-btn" id="btn-action-red">
                 <span>X</span><span class="btn-label">BAN</span>
-            </div>
-            <div class="action-btn" id="btn-fire">
-                <span>●</span><span class="btn-label">FIRE</span>
             </div>
         </div>
     </div>
@@ -267,14 +259,12 @@
     <div id="start-screen" class="overlay-screen" onclick="startGame()">
         <h1>VOCAB ROBOT</h1>
         <p>
-            1. Enemies drop English words & <strong>Bombs</strong>.<br>
-            2. Shoot 3 times to Translate -> 1 time to Destroy.<br>
-            3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
-            <span style="color: var(--neon-cyan);">BLUE (X): BAN WORD (3 HITS)</span><br>
-            <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (3 HITS)</span><br>
-            <span style="color: var(--neon-red);">RED (●): 3 HITS TO REMOVE BOOST</span><br><br>
-            <span class="key-hint">TOUCH / MOUSE</span> Move<br>
-            <span class="key-hint">RED BTN</span> Shoot
+            1. <strong>DRAG SCREEN</strong> to MOVE & SHOOT.<br>
+            2. <strong>RED BUTTON (X)</strong> = BAN WORD.<br>
+            3. <strong>YELLOW BUTTON (+)</strong> = BOOST WORD.<br><br>
+            <span style="color: var(--neon-cyan);">NUMBERS (BOMBS) ARE DEACTIVATED BY DEFAULT.</span><br>
+            <span style="color: var(--neon-yellow);">SUPER BOSSES appear in VERB modes.</span><br><br>
+            <span class="key-hint">TOUCH & DRAG</span> to Play
         </p>
         <div class="blink">CLICK / TAP TO START</div>
     </div>
@@ -367,8 +357,8 @@
                     <div class="slider-desc"><span>SLOW</span><span>FAST</span></div>
                 </div>
                 <div class="config-group">
-                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">30%</span></label>
-                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="30" oninput="updateConfig('bomb')">
+                    <label class="config-label">BOMB QUANTITY<span id="val-bomb" class="config-val">0%</span></label>
+                    <input type="range" id="cfg-bomb" min="0" max="100" step="10" value="0" oninput="updateConfig('bomb')">
                     <div class="slider-desc"><span>NONE</span><span>RAIN</span></div>
                 </div>
                 <div class="config-group">
@@ -401,7 +391,7 @@
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v16'; 
+const CONFIG_KEY = 'vocab_robot_config_v17'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
@@ -410,10 +400,11 @@ let userSettings = {
     dataPercent: 100, 
     spawnLevel: 1,      
     enemySpeed: 0.5,    
-    bombChance: 30,     
+    bombChance: 0, // CAMBIO: Desactivado por defecto (0%)
     bombSpeed: 1.0,     
     playerColor: '#4f46e5',
-    quizEnabled: false, quizInterval: 30,
+    quizEnabled: true, // CAMBIO: Activado por defecto
+    quizInterval: 30,
     masterVolume: 50,
     audioFX: true, audioWords: true, audioBombs: true, bossFrequency: 15
 };
@@ -577,8 +568,8 @@ function resetConfig() {
     reinforcedWords.clear();
     userSettings = { 
         vocabSource: 'ALL_INTERNAL', dataPercent: 100, 
-        spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
-        playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
+        spawnLevel: 1, enemySpeed: 0.5, bombChance: 0, bombSpeed: 1.0, 
+        playerColor: '#4f46e5', quizEnabled: true, quizInterval: 30, 
         masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
     };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
@@ -603,30 +594,18 @@ const cleanText = (str) => {
 
 function loadVocabData() {
     let tempVocabList = [];
-
-    // --- 1. DEFINICIÓN DEL PROCESADOR (Con tu filtro de longitud) ---
     const processItem = (en, es) => {
         if (!en || !es) return;
-        
-        // Limpieza de texto
         const safeEn = cleanText(en);
-        
-        // === TU NUEVO FILTRO ===
-        // Si tiene más de 2 palabras (ej: "OUT OF ORDER"), se ignora.
         if (safeEn.split(' ').length > 2) return; 
-        // =======================
-
         const safeEs = cleanText(es);
-
         if (safeEn.length > 0 && safeEs.length > 0) {
             tempVocabList.push({ en: safeEn, es: [safeEs] });
         }
     };
 
-    const source = userSettings.vocabSource; // 'LOCAL', 'ALL_INTERNAL', 'MIXED' o Categoría Específica
+    const source = userSettings.vocabSource; 
 
-    // --- 2. CARGA DE LOCALSTORAGE (MY DB) ---
-    // Se ejecuta si elegiste 'LOCAL' o 'MIXED'
     let localDataLoaded = false;
     if (source === 'LOCAL' || source === 'MIXED') {
         try {
@@ -646,37 +625,22 @@ function loadVocabData() {
         if (tempVocabList.length > 0) localDataLoaded = true;
     }
 
-    // --- 3. LÓGICA DE FALLBACK (RESPALDO) ---
-    // Si elegiste 'LOCAL' pero no hay datos, forzamos la carga interna para que el juego no se rompa.
     let forceInternal = false;
     if (source === 'LOCAL' && !localDataLoaded) {
         console.warn("MY DB está vacía. Usando INTERNAL como respaldo.");
         forceInternal = true;
     }
 
-    // --- 4. CARGA DE BASE DE DATOS EXTERNA (JSON) ---
-    // Se ejecuta si:
-    // A. Elegiste 'ALL_INTERNAL'
-    // B. Elegiste una categoría específica (ej: 'REGULAR_VERBS')
-    // C. Elegiste 'MIXED'
-    // D. Ocurrió el fallback (forceInternal)
-    
-    if (typeof INTERNAL_VOCAB !== 'undefined') { // Verificamos que el script externo cargó
-        
+    if (typeof INTERNAL_VOCAB !== 'undefined') { 
         let categoriesToLoad = [];
-
         if (source === 'ALL_INTERNAL' || source === 'MIXED' || forceInternal) {
-            // Cargar TODAS las categorías disponibles en el JSON externo
             categoriesToLoad = Object.keys(INTERNAL_VOCAB);
         } else if (source !== 'LOCAL') {
-            // Caso contrario: El usuario eligió una categoría específica del menú (ej: 'IRREGULAR_VERBS')
-            // Solo cargamos esa categoría si existe
             if (INTERNAL_VOCAB[source]) {
                 categoriesToLoad = [source];
             }
         }
 
-        // Procesar las categorías seleccionadas
         categoriesToLoad.forEach(catKey => {
             if (INTERNAL_VOCAB[catKey]) {
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
@@ -684,20 +648,13 @@ function loadVocabData() {
         });
     }
 
-    // --- 5. APLICAR LÍMITE DE PORCENTAJE (Slider) ---
     if (tempVocabList.length > 0) {
-        // Mezclar un poco antes de cortar para que el porcentaje sea aleatorio
-        // (Opcional: si prefieres orden estricto, quita el sort)
-        // tempVocabList.sort(() => Math.random() - 0.5); 
-
         const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
-        // Si absolutamente nada cargó
         activeVocabList = [{ en: "NO DATA", es: ["VACIO"] }];
     }
 
-    // --- 6. ACTUALIZAR EL MAZO DE JUEGO ---
     refreshGameDeck();
 }
 
@@ -941,18 +898,12 @@ function getBestVoice(lang) {
     return candidates[0];
 }
 
-// Busca la función playText y actualízala así:
-
 function playText(text, lang, enemyId) {
     if (!window.speechSynthesis) return;
     isSpeaking = true;
     window.speechSynthesis.cancel();
     
-    // --- NUEVO CÓDIGO: FILTRO DE AUDIO ---
-    // 1. Convertimos a minúsculas.
-    // 2. Reemplazamos cualquier '/' globalmente por una coma (que crea pausa).
     let textToSpeak = text.toLowerCase().replace(/\//g, ', '); 
-    // -------------------------------------
 
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
     const u = new SpeechSynthesisUtterance(textToSpeak);
@@ -1034,9 +985,6 @@ let enemiesSpawnedCount = 0;
 const player = {x:0, y:0, w:48, h:48, speed:8, color:'#4f46e5', invincible:false, invTimer:0}; 
 let bullets=[], enemies=[], particles=[], stars=[], enemyBombs=[], keys={};
 
-// ===== NUEVA VARIABLE PARA EL TARGET DEL MOVIMIENTO =====
-let targetX = 0;
-
 function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');highScore=s?parseInt(s):0;highScoreEl.innerText=highScore;}
 
 function populateStudyGuide(){
@@ -1076,7 +1024,6 @@ function toggleStudyGuide(){
 function resize(){
     canvas.width=innerWidth; canvas.height=innerHeight;
     player.y=canvas.height-130; player.x=canvas.width/2-player.w/2;
-    targetX = player.x; // Evitar saltos al redimensionar
 }
 window.addEventListener('resize',resize);
 
@@ -1087,8 +1034,8 @@ for(let i=0;i<80;i++) stars.push({
 });
 
 function getRandomBombContent() {
-    if (Math.random() > 0.5) return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".charAt(Math.floor(Math.random()*26));
-    else return Math.floor(Math.random() * (9999 - 10) + 10).toString();
+    // CAMBIO: Solo números
+    return Math.floor(Math.random() * (9999 - 10) + 10).toString();
 }
 
 function getSafeSpawnX(enemyWidth) {
@@ -1213,22 +1160,16 @@ function update(dt, timeScale){
     }
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
-    // ===== NUEVO LOGICA DE MOVIMIENTO (SLIDE/FOLLOW) =====
-    // El jugador se mueve hacia targetX respetando su velocidad
-    const dx = targetX - player.x;
-    const moveStep = player.speed * timeScale;
+    // Movimiento
+    if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
+    if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
-    if (Math.abs(dx) > moveStep) {
-        player.x += Math.sign(dx) * moveStep;
-    } else {
-        player.x = targetX;
+    // Auto-fire si 'Space' está activo (que ahora se activa con el touch drag)
+    if(keys['Space'] && gameRunning){
+         // Limitador de disparo simple usando un contador o probabilidad, o dejamos que dispare cada frame/input (cuidado con spam)
+         // Para este juego simple, añadimos un pequeño delay si quisiéramos, pero por ahora lo dejamos en el event listener (ver abajo)
     }
 
-    // Mantener dentro de la pantalla
-    if (player.x < 0) player.x = 0;
-    if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
-    
-    
     stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
     spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
@@ -1481,72 +1422,81 @@ function startGame(){
     enemiesSpawnedCount = 0; lockedEnemyId = null; 
     scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5'; loadHighScore();
     gameRunning=true; lastFrameTime = performance.now(); spawnTimer = gameVars.spawnInterval; quizTimer = 0;
-    
-    // Inicializar targetX al centro para no saltar
-    targetX = canvas.width/2 - player.w/2;
-    player.x = targetX;
-
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
 
-const btnFire = document.getElementById('btn-fire');
-const btnBan = document.getElementById('btn-ban'); 
-const btnBoost = document.getElementById('btn-boost'); 
-
-// ===== CONTROLADORES DE ENTRADA ACTUALIZADOS (TOUCH TRACKING) =====
-
-const handleTouchStart = (key, customAction = null) => {
-    if (customAction) { customAction(); } else { keys[key] = true; }
-    if(key === 'Space' && gameRunning && !customAction) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
-};
-const handleTouchEnd = (key) => { keys[key] = false; };
+// BOTONES DE ACCION
+const btnFireRed = document.getElementById('btn-action-red');   // AHORA ES BAN
+const btnBoostYellow = document.getElementById('btn-action-yellow'); // AHORA ES BOOST
 
 const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
 const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
-// --- 1. Botones de Acción (Derecha) ---
-['touchstart', 'mousedown'].forEach(evt => {
-    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
-    btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
-    btnBoost.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBoostBullet); });
-});
-['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
-    btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
-});
+// NUEVO SISTEMA DE TOUCH DRAG + DISPARO AUTOMATICO
+const touchZone = document.getElementById('touch-zone');
+let lastTouchX = null;
+let autoFireInterval = null;
 
-// --- 2. Tracking de Movimiento (Slide) ---
-function updateTargetPosition(e) {
-    if(!gameRunning) return;
-    let clientX;
-    if(e.touches && e.touches.length > 0) {
-        clientX = e.touches[0].clientX;
-    } else {
-        clientX = e.clientX;
+touchZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (!gameRunning) return;
+    lastTouchX = e.touches[0].clientX;
+    // Iniciar auto-fire
+    if(!autoFireInterval) {
+         // Disparo inmediato
+         bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot');
+         // Loop de disparo
+         autoFireInterval = setInterval(() => {
+             if(gameRunning) {
+                bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); 
+                playSound('shoot');
+             }
+         }, 200); // Velocidad de disparo automático
     }
-    // Centrar el robot en el dedo
-    targetX = clientX - player.w / 2;
-}
+}, {passive: false});
 
-// Escuchar en toda la ventana para que el dedo no "se salga" del canvas
-window.addEventListener('touchmove', (e) => { updateTargetPosition(e); }, {passive: true});
-window.addEventListener('touchstart', (e) => { 
-    // Ignorar si toca sobre los botones de la derecha
-    if(e.target.closest('.gamepad-group')) return;
-    updateTargetPosition(e); 
-}, {passive: true});
-window.addEventListener('mousemove', (e) => { 
-    if(e.buttons === 1) updateTargetPosition(e); // Solo si hace click y arrastra (PC) o movimiento libre
-    else updateTargetPosition(e);
+touchZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (!gameRunning || lastTouchX === null) return;
+    
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - lastTouchX;
+    
+    player.x += diff * 1.5; // Multiplicador de sensibilidad para mejor sensación
+    
+    // Limites de pantalla
+    if (player.x < 0) player.x = 0;
+    if (player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+    
+    lastTouchX = currentX;
+}, {passive: false});
+
+touchZone.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    lastTouchX = null;
+    if(autoFireInterval) {
+        clearInterval(autoFireInterval);
+        autoFireInterval = null;
+    }
 });
 
-// --- 3. Teclado ---
+// LISTENERS PARA LOS BOTONES ESPECIALES
+const handleBtnStart = (action) => {
+    action();
+};
+
+['touchstart', 'mousedown'].forEach(evt => {
+    btnFireRed.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBanBullet); });
+    btnBoostYellow.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); handleBtnStart(fireBoostBullet); });
+});
+
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
     if(e.code==='Space' && gameRunning){ e.preventDefault(); bullets.push({x:player.x+player.w/2, y:player.y, type: 'normal'}); playSound('shoot'); }
-    if(e.code==='KeyB' && gameRunning){ e.preventDefault(); fireBanBullet(); }
-    if(e.code==='KeyV' && gameRunning){ e.preventDefault(); fireBoostBullet(); }
+    if(e.code==='KeyB' && gameRunning){ e.preventDefault(); fireBanBullet(); } // B para Ban
+    if(e.code==='KeyV' && gameRunning){ e.preventDefault(); fireBoostBullet(); } // V para Boost
 });
 document.addEventListener('keyup', e=>keys[e.code]=false);
 
