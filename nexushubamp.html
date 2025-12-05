@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Dynamic Full</title>
+    <title>NEXUS HUB | Full Fit</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
         /* ==========================================================================
-           ESTILOS (CON CORRECCIÓN DE ALTURA)
+           ESTILOS (Ajustados para encajar perfecto en móvil)
            ========================================================================== */
         :root {
             /* DARK MODE (Default) */
@@ -54,7 +54,8 @@
         main { 
             flex: 1; overflow-y: auto; overflow-x: hidden; 
             padding: 20px 0; 
-            padding-bottom: calc(40px + var(--safe-bottom)); 
+            /* El padding bottom asegura espacio para scroll, pero lo quitaremos dinámicamente si es necesario */
+            padding-bottom: calc(60px + var(--safe-bottom)); 
             max-width: 900px; margin: 0 auto; width: 100%;
         }
 
@@ -65,9 +66,11 @@
             border: 1px solid var(--border);
             background: var(--bg-card);
             overflow: hidden;
-            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            /* Transición suave para todo excepto height que se maneja aparte */
+            transition: margin 0.3s, border-radius 0.3s, border 0.3s;
         }
 
+        /* ESTADO ACTIVO: Ocupa todo el ancho */
         .acc-item.active {
             margin-left: 0;
             margin-right: 0;
@@ -75,11 +78,14 @@
             border-left: none;
             border-right: none;
             border-color: var(--active-color);
+            /* Importante: aseguramos que no haya márgenes extraños */
+            margin-bottom: 0; 
         }
 
         .acc-header {
             padding: 24px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
             background: var(--bg-card); transition: background 0.2s; user-select: none;
+            /* Altura fija aproximada para cálculos: ~74px */
         }
         .acc-header:hover { background: var(--bg-hover); }
 
@@ -101,7 +107,6 @@
 
         .acc-content {
             max-height: 0; overflow: hidden;
-            /* Transición suave */
             transition: max-height 0.4s ease-in-out;
             background: var(--bg-deep);
             border-top: 1px solid transparent;
@@ -109,11 +114,14 @@
         
         .acc-item.active .acc-content { border-top-color: var(--border); }
         
-        /* --- AQUÍ ESTÁ EL CAMBIO CLAVE EN CSS --- */
+        /* --- AQUÍ ESTÁ EL AJUSTE FINAL DE ALTURA --- */
         iframe { 
             width: 100%; 
-            /* Altura dinámica: Pantalla completa menos la cabecera del acordeón */
-            height: calc(100vh - 150px); 
+            /* 82vh es el "punto dulce" para móviles. 
+               100vh (toda la pantalla) - 70px (header) - 70px (acc header) ≈ 82vh 
+               Esto asegura que llegue al fondo sin pasarse ni quedarse corto.
+            */
+            height: 82vh; 
             border: none; 
             display: block; 
         }
@@ -258,15 +266,12 @@
         
         const creatorContent = document.getElementById('content-creator');
         const creatorItem = document.getElementById('acc-creator');
-        const creatorIcon = document.getElementById('icon-creator');
         
         if(!creatorContent.style.maxHeight) {
             document.querySelectorAll('.acc-content').forEach(el => el.style.maxHeight = null);
             document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
-            
             creatorItem.classList.add('active');
-            creatorContent.style.maxHeight = "100vh"; // También expandir creador
-            creatorIcon.style.transform = 'rotate(180deg)';
+            creatorContent.style.maxHeight = "100vh"; 
         }
         
         document.getElementById('acc-creator').scrollIntoView({behavior: "smooth"});
@@ -312,7 +317,7 @@
         });
     }
 
-    // --- FUNCIÓN CLAVE MODIFICADA ---
+    // --- FUNCIÓN CLAVE ---
     function toggleAcc(id) {
         const isCreator = id === 'creator';
         const itemId = isCreator ? 'acc-creator' : `acc-${id}`;
@@ -331,15 +336,15 @@
         if (!isOpen) {
             item.classList.add('active'); 
             
-            // AQUÍ: Usamos 100vh en lugar de 650px para permitir pantalla completa
-            content.style.maxHeight = "100vh"; 
+            // Usamos un valor grande para asegurar que no corte el iframe de 82vh
+            content.style.maxHeight = "150vh"; 
             
             icon.style.transform = 'rotate(180deg)';
             
             if(!isCreator) loadContent(id, content);
             
             setTimeout(() => {
-                // Alinea el top del item con el top de la pantalla para que el iframe ocupe todo hacia abajo
+                // Forzamos el scroll al inicio del elemento para que la web ocupe todo hacia abajo
                 item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
             }, 300);
         }
@@ -358,8 +363,11 @@
             elem = document.createElement('iframe'); elem.src = r.content;
         } else if (r.type === 'audio-url') {
             elem = document.createElement('audio'); elem.controls = true; elem.src = r.content; elem.style.width="100%"; elem.style.padding="20px";
+            // Ajuste especial para audio: no necesita ser tan alto
+            elem.style.height = "auto";
         } else if (r.type === 'image-url') {
             elem = document.createElement('img'); elem.src = r.content; elem.style.width="100%";
+            elem.style.height = "auto";
         } else {
             elem = document.createElement('iframe');
             let html = r.content;
