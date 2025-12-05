@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Full Fit</title>
+    <title>NEXUS HUB | Perfect Fit</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
         /* ==========================================================================
-           ESTILOS (Ajustados para encajar perfecto en móvil)
+           1. ESTÉTICA
            ========================================================================== */
         :root {
             /* DARK MODE (Default) */
@@ -54,8 +54,7 @@
         main { 
             flex: 1; overflow-y: auto; overflow-x: hidden; 
             padding: 20px 0; 
-            /* El padding bottom asegura espacio para scroll, pero lo quitaremos dinámicamente si es necesario */
-            padding-bottom: calc(60px + var(--safe-bottom)); 
+            padding-bottom: calc(40px + var(--safe-bottom)); 
             max-width: 900px; margin: 0 auto; width: 100%;
         }
 
@@ -66,26 +65,24 @@
             border: 1px solid var(--border);
             background: var(--bg-card);
             overflow: hidden;
-            /* Transición suave para todo excepto height que se maneja aparte */
-            transition: margin 0.3s, border-radius 0.3s, border 0.3s;
+            /* Transición suave */
+            transition: margin 0.3s cubic-bezier(0.25, 1, 0.5, 1), border-radius 0.3s, border 0.3s;
         }
 
-        /* ESTADO ACTIVO: Ocupa todo el ancho */
         .acc-item.active {
             margin-left: 0;
             margin-right: 0;
+            margin-bottom: 0; /* Pega el siguiente elemento justo abajo, fuera de vista */
             border-radius: 0;
             border-left: none;
             border-right: none;
             border-color: var(--active-color);
-            /* Importante: aseguramos que no haya márgenes extraños */
-            margin-bottom: 0; 
         }
 
         .acc-header {
             padding: 24px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
             background: var(--bg-card); transition: background 0.2s; user-select: none;
-            /* Altura fija aproximada para cálculos: ~74px */
+            /* El header mide aprox 75-80px de alto total */
         }
         .acc-header:hover { background: var(--bg-hover); }
 
@@ -102,26 +99,24 @@
         }
         .action-btn:hover { color: var(--active-color); transform: scale(1.1); }
         .btn-del:hover { color: #ef4444; }
-        
         .acc-item:hover .action-btn, .acc-item.active .action-btn { opacity: 1; pointer-events: auto; }
 
         .acc-content {
             max-height: 0; overflow: hidden;
-            transition: max-height 0.4s ease-in-out;
+            transition: max-height 0.5s ease-in-out; /* Animación un poco más lenta para alturas grandes */
             background: var(--bg-deep);
             border-top: 1px solid transparent;
         }
         
         .acc-item.active .acc-content { border-top-color: var(--border); }
         
-        /* --- AQUÍ ESTÁ EL AJUSTE FINAL DE ALTURA --- */
+        /* --- AQUÍ ESTÁ EL SECRETO DEL AJUSTE PERFECTO --- */
         iframe { 
             width: 100%; 
-            /* 82vh es el "punto dulce" para móviles. 
-               100vh (toda la pantalla) - 70px (header) - 70px (acc header) ≈ 82vh 
-               Esto asegura que llegue al fondo sin pasarse ni quedarse corto.
-            */
-            height: 82vh; 
+            /* Fallback para navegadores viejos */
+            height: calc(100vh - 85px); 
+            /* dvh = Dynamic Viewport Height. Se adapta perfectamente ignorando la barra de Safari/Chrome móvil */
+            height: calc(100dvh - 85px); 
             border: none; 
             display: block; 
         }
@@ -130,7 +125,7 @@
         .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh; padding: 0; margin: 0; }
         .acc-content:fullscreen iframe { height: 100%; }
 
-        /* --- FORMULARIO --- */
+        /* --- CREADOR / FORMULARIO --- */
         .creator-form { padding: 20px; display: flex; flex-direction: column; gap: 15px; background: var(--bg-card); }
         .form-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
         
@@ -271,7 +266,7 @@
             document.querySelectorAll('.acc-content').forEach(el => el.style.maxHeight = null);
             document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
             creatorItem.classList.add('active');
-            creatorContent.style.maxHeight = "100vh"; 
+            creatorContent.style.maxHeight = "150vh"; 
         }
         
         document.getElementById('acc-creator').scrollIntoView({behavior: "smooth"});
@@ -317,7 +312,7 @@
         });
     }
 
-    // --- FUNCIÓN CLAVE ---
+    // --- FUNCIÓN MODIFICADA PARA PERMITIR ALTURA TOTAL ---
     function toggleAcc(id) {
         const isCreator = id === 'creator';
         const itemId = isCreator ? 'acc-creator' : `acc-${id}`;
@@ -336,7 +331,8 @@
         if (!isOpen) {
             item.classList.add('active'); 
             
-            // Usamos un valor grande para asegurar que no corte el iframe de 82vh
+            // Damos una altura máxima muy grande (150% de la pantalla) 
+            // para que el iframe (que tiene su propia altura calculada) no se corte.
             content.style.maxHeight = "150vh"; 
             
             icon.style.transform = 'rotate(180deg)';
@@ -344,7 +340,7 @@
             if(!isCreator) loadContent(id, content);
             
             setTimeout(() => {
-                // Forzamos el scroll al inicio del elemento para que la web ocupe todo hacia abajo
+                // Alinea el elemento arriba para que la web ocupe todo el espacio hacia abajo
                 item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
             }, 300);
         }
@@ -363,7 +359,7 @@
             elem = document.createElement('iframe'); elem.src = r.content;
         } else if (r.type === 'audio-url') {
             elem = document.createElement('audio'); elem.controls = true; elem.src = r.content; elem.style.width="100%"; elem.style.padding="20px";
-            // Ajuste especial para audio: no necesita ser tan alto
+            // El audio no necesita ocupar toda la pantalla
             elem.style.height = "auto";
         } else if (r.type === 'image-url') {
             elem = document.createElement('img'); elem.src = r.content; elem.style.width="100%";
