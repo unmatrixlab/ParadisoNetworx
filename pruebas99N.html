@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | v7.2 Stable</title>
+    <title>LINGUA NEXUS | v7.3 Hint</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -98,6 +98,8 @@
         /* HOME GRID */
         .welcome-text { margin-bottom: 30px; text-align: center; }
         .welcome-text h1 { font-family: var(--font-head); font-size: 48px; margin: 0; line-height: 0.9; }
+        /* SUBTITLE REMOVED HERE */
+
         .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 30px; }
         .stat-pill { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
         .stat-val { font-family: var(--font-code); font-weight: 700; font-size: 24px; display: block; }
@@ -140,7 +142,20 @@
         .action-btn { width: 100%; padding: 20px; margin-top: 30px; border-radius: 16px; border: none; background: var(--bg-input); color: var(--txt-sec); font-family: var(--font-head); font-size: 24px; cursor: not-allowed; transition: 0.3s; }
         .action-btn.active { background: var(--primary); color: #fff; cursor: pointer; box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
 
-        /* SETTINGS & LIB - REDESIGNED FOR FULL WIDTH */
+        /* DICTIONARY HINT */
+        .hint-btn { 
+            background: none; border: none; color: var(--primary); 
+            font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; 
+            margin-top: 15px; display: inline-block; opacity: 0.8;
+        }
+        .hint-btn:hover { opacity: 1; text-decoration: underline; }
+        .hint-text { 
+            display: none; margin-top: 15px; font-size: 14px; 
+            color: var(--txt-sec); font-style: italic; line-height: 1.5; 
+            background: var(--bg-input); padding: 15px; border-radius: 12px;
+        }
+
+        /* SETTINGS & LIB */
         .section-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
         .section-head { font-family: var(--font-head); font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
         .row-ctrl { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
@@ -148,33 +163,16 @@
         
         .lib-search { width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 14px; border-radius: 12px; color: var(--txt-main); font-size: 16px; margin-bottom: 15px; }
         
-        /* FULL WIDTH LIBRARY CARDS */
         .lib-card { 
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            margin-bottom: 10px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+            margin-bottom: 10px; overflow: hidden; display: flex; flex-direction: column;
         }
-        
         .lib-content { padding: 15px; }
         .lib-en { font-weight: 700; font-size: 16px; color: var(--txt-main); }
         .lib-es { font-size: 13px; color: var(--txt-sec); margin-top: 2px; }
         
-        /* FULL WIDTH PROGRESS BAR */
-        .prog-track { 
-            width: 100%; 
-            height: 6px; 
-            background: var(--bg-input); 
-            position: relative;
-        }
-        .prog-fill { 
-            height: 100%; 
-            width: 0%; 
-            transition: width 0.3s ease; 
-        }
+        .prog-track { width: 100%; height: 6px; background: var(--bg-input); position: relative; }
+        .prog-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
 
         .lvl-0 .prog-fill { background: transparent; }
         .lvl-1 .prog-fill { background: var(--danger); }
@@ -213,8 +211,7 @@
         <div id="view-home" class="view-screen active">
             <div class="welcome-text">
                 <h1>TRAINING HUB</h1>
-                <p>Select a module to begin session</p>
-            </div>
+                </div>
             
             <div class="stats-row">
                 <div class="stat-pill">
@@ -282,8 +279,15 @@
                 <div class="stage-pill" id="game-cat-pill">CATEGORY</div>
                 <h2 class="main-word" id="game-word">...</h2>
             </div>
+            
             <div class="input-list" id="game-inputs"></div>
+            
             <button id="btn-action" class="action-btn" onclick="App.checkOrNext()">CHECK ANSWER</button>
+
+            <div style="text-align:center; margin-top:10px;">
+                <button id="btn-hint" class="hint-btn" onclick="App.getHint()">💡 SHOW DEFINITION HINT</button>
+                <div id="hint-text" class="hint-text"></div>
+            </div>
         </div>
     </main>
 
@@ -405,6 +409,12 @@ const App = {
             if(m >= Profile.cfg.time) { alert("Time's Up!"); return this.nav('home'); }
         }
 
+        // RESET HINT
+        document.getElementById('hint-text').style.display = 'none';
+        document.getElementById('hint-text').innerText = '';
+        document.getElementById('btn-hint').innerText = '💡 SHOW DEFINITION HINT';
+        document.getElementById('btn-hint').style.display = 'inline-block';
+
         const curr = this.q[this.idx];
         this.fail = false;
         
@@ -487,10 +497,34 @@ const App = {
         }
     },
 
+    // NEW HINT FUNCTION
+    async getHint() {
+        const btn = document.getElementById('btn-hint');
+        const txt = document.getElementById('hint-text');
+        const w = this.q[this.idx].en; // Use English word for dictionary
+
+        btn.innerText = "SEARCHING...";
+        try {
+            // Using Free Dictionary API (Google Data Wrapper)
+            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${w}`);
+            const data = await res.json();
+            
+            if(data && data[0] && data[0].meanings && data[0].meanings[0].definitions) {
+                // Get the first definition
+                txt.innerText = '"' + data[0].meanings[0].definitions[0].definition + '"';
+                txt.style.display = 'block';
+                btn.style.display = 'none';
+            } else {
+                btn.innerText = "NO DEFINITION FOUND";
+            }
+        } catch(e) {
+            btn.innerText = "OFFLINE / ERROR";
+        }
+    },
+
     renderLib(s='') {
         const c = document.getElementById('lib-list');
         c.innerHTML = '';
-        // FIX: Increased limit to 2000 and fixed case sensitivity
         const term = s.toLowerCase();
         
         DB.all().filter(x => !s || x.en.toLowerCase().includes(term)).slice(0, 2000).forEach(w => {
