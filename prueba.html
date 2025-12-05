@@ -3,22 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vocabulary Hunter: Final Polish</title>
+    <title>Vocabulary Hunter: Final Layout (Fixed)</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
+        /* ==========================================================================
+           CONFIGURACIÓN DE POSICIÓN
+           ========================================================================== */
         :root {
+            --left-pad-x: 20px; 
+            --left-pad-y: 80px; 
+
+            --right-pad-x: 20px; 
+            --right-pad-y: 110px; 
+
+            --btn-opacity: 0.8;
+            --btn-scale: 1.1;
+            
             --neon-green: #0f0;
             --neon-red: #ff4444;
             --neon-blue: #4f46e5;
-            --neon-cyan: #00ffff;
-            --neon-magenta: #ff00ff;
             --neon-yellow: #ffff00;
+            --neon-cyan: #00ffff;
             --dark-bg: #050505;
             --panel-bg: rgba(0, 15, 0, 0.95);
+            --btn-shadow: #111;
         }
+
         body {margin:0;overflow:hidden;background:var(--dark-bg);font-family:'Press Start 2P',monospace;color:white;user-select:none;touch-action:none;}
         canvas {display:block;}
-        /* SCANLINES */
+
         .scanlines {
             position:fixed;top:0;left:0;width:100%;height:100%;
             background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,0) 50%,rgba(0,0,0,0.1) 50%,rgba(0,0,0,0.1));
@@ -29,64 +42,125 @@
         #lives-panel {color:var(--neon-red);}
         #score-panel {color:var(--neon-green);}
         
-        /* CONTROLES MÓVILES */
         #mobile-controls {
             display: none; 
             position: absolute; 
-            bottom: 20px; 
-            width: 100%;
-            justify-content: space-between; 
-            padding: 0 20px; 
-            box-sizing: border-box;
+            top: 0; left: 0; width: 100%; height: 100%;
             z-index: 20; 
-            pointer-events: none;
-            align-items: flex-end; 
+            pointer-events: none; /* Deja pasar clicks donde no hay botones */
         }
 
-        .touch-group { display: flex; gap: 20px; pointer-events: auto; }
-
-        /* GRUPO IZQUIERDO (Flechas Verdes) */
-        .touch-group:first-child {
-            margin-bottom: 90px; 
+        .gamepad-group {
+            position: absolute;
+            pointer-events: auto; /* Reactiva clicks en los botones/zonas */
+            transform: scale(var(--btn-scale));
+            width: 150px; height: 150px; 
         }
 
-        /* GRUPO DERECHO (Botones de disparo) */
-        .touch-group:last-child {
-            flex-direction: column; /* Apilar botones verticalmente */
-            gap: 15px;
-            margin-bottom: 20px; /* Ajustado para 3 botones */
-            align-items: center;
+        /* --- CORRECCIÓN ZONA TÁCTIL IZQUIERDA --- */
+        #touch-zone-left {
+            left: 0; bottom: 0;
+            width: 150px; height: 150px; 
+            transition: width 0.3s, height 0.3s;
         }
 
-        .touch-btn {
-            width: 60px; height: 60px; /* Un poco más pequeños para que quepan 3 */
-            background: rgba(255, 255, 255, 0.1); border: 2px solid var(--neon-green);
-            border-radius: 50%; color: var(--neon-green); font-size: 20px;
-            display: flex; align-items: center; justify-content: center;
-            user-select: none; -webkit-user-select: none;
-            text-shadow: 2px 2px 0 #000;
+        /* Full Screen Left Side Logic */
+        #touch-zone-left.touch-area-full {
+            width: 50%;
+            /* IMPORTANTE: Dejamos espacio abajo para el menú */
+            bottom: 120px; 
+            height: auto; 
+            top: 0; left: 0;
+            transform: none; 
+            /* Se quitaron bordes y fondos visibles */
+            background: transparent;
+            border: none;
         }
-        .touch-btn:active { background: var(--neon-green); color: #000; }
         
-        .btn-fire { border-color: var(--neon-red); color: var(--neon-red); width: 70px; height: 70px; font-size: 24px; }
-        .btn-fire:active { background: var(--neon-red); color: #000; }
+        /* El indicador visual "mira verde" */
+        .move-anchor {
+            position: absolute;
+            /* Ajustado para simetría y altura */
+            bottom: 40px; 
+            left: 50px;
+            width: 40px; height: 40px;
+            border: 2px solid rgba(0, 255, 0, 0.3);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none;
+            animation: pulse-anchor 2s infinite;
+        }
+        .move-anchor::after {
+            content: ''; width: 4px; height: 4px; background: var(--neon-green); border-radius: 50%;
+        }
+        .move-label {
+            position: absolute; top: -15px; width: 100%; text-align: center;
+            font-size: 6px; color: var(--neon-green); opacity: 0.7; letter-spacing: 1px;
+        }
+        
+        @keyframes pulse-anchor {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0.2); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 0, 0); }
+        }
 
-        /* BOTON BAN (Celeste) */
-        .btn-ban { border-color: var(--neon-cyan); color: var(--neon-cyan); font-size: 10px; font-weight: bold;}
-        .btn-ban:active { background: var(--neon-cyan); color: #000; }
+        .group-right {
+            right: var(--right-pad-x);
+            bottom: var(--right-pad-y);
+        }
 
-        /* NUEVO BOTON REFORZAR (Amarillo) */
-        .btn-boost { border-color: var(--neon-yellow); color: var(--neon-yellow); font-size: 20px; font-weight: bold;}
-        .btn-boost:active { background: var(--neon-yellow); color: #000; }
+        .action-btn {
+            border-radius: 50%;
+            font-size: 14px; font-weight: bold;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 6px 0 var(--btn-shadow), 0 8px 15px rgba(0,0,0,0.7), inset 0 2px 5px rgba(255,255,255,0.4);
+            border: 2px solid #000;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            position: absolute;
+            transition: transform 0.05s, box-shadow 0.05s;
+            cursor: pointer;
+            z-index: 10;
+            opacity: var(--btn-opacity);
+        }
+
+        .action-btn:active {
+            transform: translateY(4px) scale(0.95);
+            box-shadow: 0 2px 0 var(--btn-shadow), inset 0 3px 8px rgba(0,0,0,0.6);
+        }
+
+        .btn-label { font-size: 7px; margin-top: 2px; opacity: 0.9; font-family: sans-serif; font-weight: 900; letter-spacing: 1px; }
+
+        #btn-fire {
+            width: 75px; height: 75px;
+            bottom: 0; right: 0;
+            background: linear-gradient(145deg, #ff4444, #cc0000);
+            color: white; border-color: #800;
+            z-index: 12;
+        }
+
+        #btn-ban {
+            width: 55px; height: 55px;
+            bottom: 0px; 
+            right: 80px; 
+            background: linear-gradient(145deg, #00ffff, #009999);
+            color: #003333; border-color: #004444;
+        }
+
+        #btn-boost {
+            width: 55px; height: 55px;
+            bottom: 80px; 
+            right: 5px;   
+            background: linear-gradient(145deg, #ffff00, #cccc00);
+            color: #333; border-color: #999900;
+        }
 
         @media (max-width: 768px) or (pointer: coarse) {
-            #mobile-controls { display: flex; }
-            #category-bar-wrapper { bottom: 100px; } 
+            #mobile-controls { display: block; }
+            #category-bar-wrapper { bottom: 160px; } 
             h1 { font-size: 20px; }
             p { font-size: 10px; line-height: 1.5; }
         }
 
-        /* BARRA INFERIOR */
         #category-bar-wrapper {
             position:absolute; bottom:30px; left:0; width:100%; padding:10px 0;
             background:rgba(0,0,0,0.85); z-index:15; overflow-x:auto; white-space:nowrap;
@@ -106,7 +180,6 @@
         .category-chip.help-btn { border-color:var(--neon-yellow); color:var(--neon-yellow); }
         .category-chip.help-btn:hover { background:#222200; box-shadow:0 0 10px var(--neon-yellow); }
         
-        /* OVERLAYS */
         .overlay-screen {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:100;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;}
         h1 {color:var(--neon-green);text-shadow:4px 4px #003300;font-size:35px;margin-bottom:20px;line-height:1.5;}
         h2 {color:var(--neon-red);font-size:30px;margin-bottom:20px;text-shadow:3px 3px 0 #300;}
@@ -114,8 +187,24 @@
         .key-hint {display:inline-block;padding:2px 6px;border:1px solid #666;border-radius:4px;color:#fff;background:#222;font-size:10px;}
         .blink {animation:blinker 1s linear infinite;color:var(--neon-yellow);margin-top:40px;font-size:14px;cursor:pointer;}
         @keyframes blinker {50%{opacity:0;}}
+
+        /* --- CONTROLS GUIDE TABLE --- */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 700px;
+            margin-top: 20px;
+            border: 1px solid #333;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+        }
+        .control-col { text-align: left; padding: 10px; }
+        .control-col h3 { color: var(--neon-cyan); border-bottom: 1px solid #444; font-size: 12px; padding-bottom: 5px; margin-bottom: 10px; }
+        .control-item { font-size: 10px; margin-bottom: 8px; color: #ccc; }
+        .control-key { color: var(--neon-yellow); font-weight: bold; }
         
-        /* POP QUIZ MODAL */
         #quiz-overlay {
             background: rgba(0, 10, 0, 0.98); border: 4px solid var(--neon-red);
             padding: 20px; border-radius: 10px; max-width: 600px; width: 90%;
@@ -131,10 +220,7 @@
         }
         #quiz-input:focus { border-color: var(--neon-green); outline: none; }
         
-        #quiz-feedback { 
-            margin-top: 20px; min-height: 30px; font-size: 10px; 
-            color: var(--neon-yellow); line-height: 1.6; text-align: center;
-        }
+        #quiz-feedback { margin-top: 20px; min-height: 30px; font-size: 10px; color: var(--neon-yellow); line-height: 1.6; text-align: center; }
         .correct-ans-highlight {
             color: #fff; background: var(--neon-red); padding: 5px 10px; display: inline-block; margin-top: 5px; border-radius: 4px;
             font-weight: bold; font-size: 12px; border: 1px solid #fff;
@@ -156,7 +242,6 @@
         .btn-skip { border-color: #555; color: #777; font-size: 8px; }
         .btn-skip:hover { border-color: var(--neon-red); color: var(--neon-red); }
 
-        /* MODAL */
         #study-content {
             background:var(--panel-bg); padding:20px; border:2px solid var(--neon-green);
             width:90%; max-width:800px; height:80%; display: flex; flex-direction: column;
@@ -177,12 +262,49 @@
         td {padding:12px 10px;border-bottom:1px solid #333;color:#aaa;}
         tr:hover td {background:#002200;color:#fff;cursor:crosshair;}
         .en-word {color:var(--neon-blue);font-weight:bold;}
-        .chk-cell { width: 40px; text-align: center; }
+        .chk-cell { width: 40px; text-align: center; vertical-align: middle; }
         input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
         
-        /* ESTILO PARA FILAS REFORZADAS (Boosted) */
-        tr.boosted-row td { color: var(--neon-yellow); text-shadow: 0 0 5px rgba(255,255,0,0.5); }
-        tr.boosted-row .en-word { color: #fff; }
+        tr.boosted-row td { 
+            color: var(--neon-yellow); 
+            background: rgba(255, 255, 0, 0.05); 
+        }
+        tr.boosted-row .en-word { 
+            color: #fff; 
+            text-shadow: 0 0 5px var(--neon-yellow);
+        }
+
+        tr.banned-row td {
+            color: #444 !important;
+            text-decoration: line-through; 
+        }
+        tr.banned-row .en-word {
+            color: #555 !important;
+            text-shadow: none !important;
+        }
+
+        .star-cell {
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+        }
+        .star-active {
+            color: var(--neon-yellow);
+            text-shadow: 0 0 5px var(--neon-yellow);
+            animation: pulseStar 1s infinite alternate;
+        }
+        .star-inactive {
+            color: #333;
+            transition: color 0.2s;
+        }
+        .star-cell:hover .star-inactive {
+            color: #666;
+        }
+
+        @keyframes pulseStar {
+            from { transform: scale(1); opacity: 0.8; }
+            to { transform: scale(1.2); opacity: 1; }
+        }
 
         .config-header { color:var(--neon-green); margin-top:0; text-transform:uppercase; border-bottom:1px solid #333; padding-bottom:10px; font-size:14px; margin-bottom: 20px; }
         .config-group { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
@@ -200,11 +322,41 @@
             position:absolute; top:5px; right:5px;
             font-size:20px; color:var(--neon-red); cursor:pointer;
             border:1px solid var(--neon-red); padding:5px 10px;
-            z-index:20; background: #000;
-            border-radius: 0; width: auto; height: auto;
+            z-index:20; background: #000; border-radius: 0; width: auto; height: auto;
         }
         .close-btn:hover {background:var(--neon-red);color:#000;}
         
+        #level-up-msg {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            color: var(--neon-yellow); font-size: 30px; text-shadow: 0 0 20px #fff;
+            pointer-events: none; opacity: 0; z-index: 50;
+            text-align: center;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -60%) scale(1.2); }
+            100% { opacity: 0; transform: translate(-50%, -80%) scale(1.0); }
+        }
+
+        #grand-finale-screen {
+            position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:200;
+            display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center;
+        }
+
+        /* --- ESTILOS NUEVOS PARA EL STEPPER --- */
+        .stepper-container {
+            display: flex; align-items: center; justify-content: center; gap: 15px; margin-top: 10px;
+        }
+        .stepper-btn {
+            background: #222; border: 1px solid var(--neon-green); color: var(--neon-green);
+            width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; 
+            align-items: center; justify-content: center; border-radius: 5px;
+        }
+        .stepper-btn:active { background: var(--neon-green); color: #000; }
+        .stepper-val { font-size: 16px; color: #fff; width: 50px; text-align: center; }
+        .db-stats { font-size: 8px; color: #666; text-align: center; margin-top: 10px; line-height: 1.5; }
+        .highlight-stat { color: var(--neon-blue); }
+
         ::-webkit-scrollbar {width:10px;}
         ::-webkit-scrollbar-track {background:#111;}
         ::-webkit-scrollbar-thumb {background:#333;border:1px solid var(--neon-green);}
@@ -218,15 +370,25 @@
         <div id="high-score-panel">HIGH: <span id="highScore">0</span></div>
     </div>
     
+    <div id="level-up-msg">LEVEL UP!<br>+20 WORDS</div>
+
     <div id="mobile-controls">
-        <div class="touch-group">
-            <div class="touch-btn" id="btn-left">←</div>
-            <div class="touch-btn" id="btn-right">→</div>
+        <div class="gamepad-group group-left" id="touch-zone-left">
+             <div class="move-anchor">
+                 <div class="move-label">SLIDE</div>
+             </div>
         </div>
-        <div class="touch-group">
-            <div class="touch-btn btn-boost" id="btn-boost">+</div>
-            <div class="touch-btn btn-ban" id="btn-ban">XXX</div>
-            <div class="touch-btn btn-fire" id="btn-fire">●</div>
+
+        <div class="gamepad-group group-right">
+            <div class="action-btn" id="btn-boost">
+                <span>+</span><span class="btn-label">BOOST</span>
+            </div>
+            <div class="action-btn" id="btn-ban">
+                <span>X</span><span class="btn-label">BAN</span>
+            </div>
+            <div class="action-btn" id="btn-fire">
+                <span>●</span><span class="btn-label">FIRE</span>
+            </div>
         </div>
     </div>
 
@@ -240,9 +402,24 @@
             3. <strong>SUPER BOSSES</strong> appear in VERB modes.<br><br>
             <span style="color: var(--neon-cyan);">BLUE (X): BAN WORD (3 HITS)</span><br>
             <span style="color: var(--neon-yellow);">YELLOW (+): BOOST FREQUENCY (3 HITS)</span><br>
-            <span style="color: var(--neon-red);">RED (●): 3 HITS TO REMOVE BOOST</span><br><br>
-            <span class="key-hint">← →</span> Move &nbsp;&nbsp; <span class="key-hint">SPACE</span> Shoot
+            <span style="color: var(--neon-red);">RED (●): 3 HITS TO REMOVE BOOST</span>
         </p>
+
+        <div class="controls-grid">
+            <div class="control-col">
+                <h3>PC CONTROLS</h3>
+                <div class="control-item"><span class="control-key">← →</span> MOVE ROBOT</div>
+                <div class="control-item"><span class="control-key">SPACE</span> FIRE BULLET</div>
+                <div class="control-item"><span class="control-key">V</span> BOOST | <span class="control-key">B</span> BAN</div>
+            </div>
+            <div class="control-col">
+                <h3>TOUCH CONTROLS</h3>
+                <div class="control-item"><span class="control-key">LEFT SCREEN</span> SLIDE FINGER</div>
+                <div class="control-item"><span class="control-key">RED BTN</span> FIRE</div>
+                <div class="control-item"><span class="control-key">X / +</span> SPECIALS</div>
+            </div>
+        </div>
+
         <div class="blink">CLICK / TAP TO START</div>
     </div>
 
@@ -250,6 +427,13 @@
         <h2>MISSION FAILED</h2>
         <p>FINAL SCORE: <span id="finalScore" style="color:white;">0</span></p>
         <div class="blink">CLICK TO RETRY</div>
+    </div>
+    
+    <div id="grand-finale-screen" onclick="location.reload()">
+        <h1 style="color: #fff; font-size: 40px; text-shadow: 0 0 20px #FFD700;">MISSION COMPLETE!</h1>
+        <h2 style="color: var(--neon-green);">100% VOCABULARY UNLOCKED</h2>
+        <p>YOU ARE A LEGEND!</p>
+        <div class="blink">CLICK TO RESTART SYSTEM</div>
     </div>
 
     <div id="quiz-screen" class="overlay-screen" style="display:none;">
@@ -279,9 +463,18 @@
                 <h2 id="db-title" class="config-header">ACTIVE VOCABULARY</h2>
                 
                 <div class="config-group" style="margin-bottom: 10px;">
-                    <label class="config-label">DATA USAGE LIMIT<span id="lbl-percent" class="config-val">100%</span></label>
-                    <input type="range" id="mini-slider-percent" min="1" max="100" value="100" oninput="updateDataPercent(this.value)">
-                    <div class="slider-desc"><span>START</span><span>ALL DATA</span></div>
+                    <label class="config-label">WORDS ADDED PER LEVEL (INCREMENT)</label>
+                    <div class="stepper-container">
+                        <div class="stepper-btn" onclick="adjustWordsPerLevel(-5)">-</div>
+                        <span id="val-level-inc-display" class="stepper-val">10</span>
+                        <div class="stepper-btn" onclick="adjustWordsPerLevel(5)">+</div>
+                    </div>
+                    <div id="db-stats-display" class="db-stats">
+                        Total DB: 0 | Increment is 0% of Total
+                    </div>
+                    <div id="active-stats-display" class="db-stats" style="color: var(--neon-green); margin-top: 5px;">
+                        PLAYING WITH: 0 / 0 WORDS
+                    </div>
                 </div>
 
                 <div class="config-group" style="border-top: 1px dashed #333; padding-top: 10px;">
@@ -290,10 +483,9 @@
                         ENABLE POP QUIZ TIMER
                     </label>
                     <label class="config-label" style="margin-top:5px;">FREQUENCY<span id="val-quiz-time" class="config-val">30s</span></label>
-                    <input type="range" id="cfg-quiz-time" min="10" max="60" step="5" value="30" oninput="updateConfig('quiz')">
+                    <input type="range" id="cfg-quiz-time" min="10" max="180" step="5" value="90" oninput="updateConfig('quiz')" checked>
                     <div class="slider-desc"><span>OFTEN</span><span>RARE</span></div>
                 </div>
-
                 <div id="study-table-container"></div>
             </div>
 
@@ -301,10 +493,26 @@
                 <h2 class="config-header">SYSTEM CONFIG</h2>
                 
                 <div class="config-group">
+                    <label class="config-label">TOUCH MOVEMENT TYPE</label>
+                    <select id="cfg-movement" onchange="updateConfig('movement')">
+                        <option value="algo1">ALGO 1: VIRTUAL KEYS (Standard)</option>
+                        <option value="algo2">ALGO 2: DIRECT (Follow Finger)</option>
+                        <option value="algo3">ALGO 3: DYNAMIC (Speed/Slide)</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">TOUCH AREA SIZE</label>
+                    <select id="cfg-touch-area" onchange="updateConfig('touch_area')">
+                        <option value="classic">CLASSIC (Fixed Zone)</option>
+                        <option value="full">FULL SCREEN (Left Side)</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
                       <label class="config-label">MASTER VOLUME<span id="val-volume" class="config-val">50%</span></label>
                       <input type="range" id="cfg-volume" min="0" max="100" step="10" value="50" oninput="updateConfig('volume')">
                 </div>
-
                 <div class="config-group">
                     <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
                         <input type="checkbox" id="chk-sfx" onchange="updateConfig('audio_toggles')" checked>
@@ -315,7 +523,7 @@
                         VOICE: WORDS
                     </label>
                     <label class="config-label" style="justify-content: flex-start; gap: 10px; cursor: pointer;">
-                        <input type="checkbox" id="chk-voice-bombs" onchange="updateConfig('audio_toggles')" checked>
+                        <input type="checkbox" id="chk-voice-bombs" onchange="updateConfig('audio_toggles')">
                         VOICE: BOMBS (NUM/LET)
                     </label>
                 </div>
@@ -362,87 +570,30 @@
 
     <canvas id="gameCanvas"></canvas>
 
-<script>
-/* =========================================
-   1. INTERNAL DATA (EXPANDED)
-   ========================================= */
-const INTERNAL_VOCAB = {
-    'IRREGULAR_VERBS': [
-        {en: "ABIDE", past: "ABODE", part: "ABIDDEN", es: "ACATAR/SOPORTAR", type: "IRREGULAR"},
-        {en: "ARISE", past: "AROSE", part: "ARISEN", es: "SURGIR/LEVANTARSE", type: "IRREGULAR"},
-        {en: "AWAKE", past: "AWOKE", part: "AWOKEN", es: "DESPERTAR", type: "IRREGULAR"},
-        {en: "BE", past: "WAS/WERE", part: "BEEN", es: "SER/ESTAR", type: "IRREGULAR"},
-        {en: "BEAR", past: "BORE", part: "BORN", es: "SOPORTAR/DAR A LUZ", type: "IRREGULAR"},
-        {en: "BEAT", past: "BEAT", part: "BEATEN", es: "GOLPEAR/VENCER", type: "IRREGULAR"},
-        {en: "BECOME", past: "BECAME", part: "BECOME", es: "LLEGAR A SER", type: "IRREGULAR"},
-        {en: "BEGIN", past: "BEGAN", part: "BEGUN", es: "EMPEZAR", type: "IRREGULAR"},
-        {en: "BEND", past: "BENT", part: "BENT", es: "DOBLAR", type: "IRREGULAR"},
-        {en: "BET", past: "BET", part: "BET", es: "APOSTAR", type: "IRREGULAR"},
-        {en: "BIND", past: "BOUND", part: "BOUND", es: "ATAR/ENCUADERNAR", type: "IRREGULAR"},
-        {en: "BITE", past: "BIT", part: "BITTEN", es: "MORDER", type: "IRREGULAR"},
-        {en: "WRITE", past: "WROTE", part: "WRITTEN", es: "ESCRIBIR", type: "IRREGULAR"}
-    ],
-    'REGULAR_VERBS': [
-        {en: "ACCEPT", past: "ACCEPTED", part: "ACCEPTED", es: "ACEPTAR", type: "REGULAR"},
-        {en: "ADD", past: "ADDED", part: "ADDED", es: "AÑADIR", type: "REGULAR"},
-        {en: "ADMIRE", past: "ADMIRED", part: "ADMIRED", es: "ADMIRAR", type: "REGULAR"},
-        {en: "ADMIT", past: "ADMITTED", part: "ADMITTED", es: "ADMITIR", type: "REGULAR"},
-        {en: "ADVISE", past: "ADVISED", part: "ADVISED", es: "ACONSEJAR", type: "REGULAR"},
-        {en: "AFFORD", past: "AFFORDED", part: "AFFORDED", es: "PERMITIRSE", type: "REGULAR"},
-        {en: "AGREE", past: "AGREED", part: "AGREED", es: "ESTAR DE ACUERDO", type: "REGULAR"},
-        {en: "ALERT", past: "ALERTED", part: "ALERTED", es: "ALERTAR", type: "REGULAR"},
-        {en: "ALLOW", past: "ALLOWED", part: "ALLOWED", es: "PERMITIR", type: "REGULAR"},
-        {en: "AMUSE", past: "AMUSED", part: "AMUSED", es: "DIVERTIR", type: "REGULAR"},
-        {en: "ANALYSE", past: "ANALYSED", part: "ANALYSED", es: "ANALIZAR", type: "REGULAR"},
-        {en: "YELL", past: "YELLED", part: "YELLED", es: "GRITAR", type: "REGULAR"}
-    ],
- 'NOUNS': [
-        {en:"TIME", es:"TIEMPO"}, {en:"PERSON", es:"PERSONA"}, {en:"YEAR", es:"AÑO"}, {en:"WAY", es:"CAMINO/MANERA"},
-        {en:"DAY", es:"DÍA"}, {en:"THING", es:"COSA"}, {en:"MAN", es:"HOMBRE"}, {en:"WORLD", es:"MUNDO"},
-        {en:"LIFE", es:"VIDA"}, {en:"HAND", es:"MANO"}, {en:"PART", es:"PARTE"}, {en:"CHILD", es:"NIÑO/A"},
-        {en:"EYE", es:"OJO"}, {en:"WOMAN", es:"MUJER"}, {en:"PLACE", es:"LUGAR"}, {en:"WORK", es:"TRABAJO"},
-        {en:"WEEK", es:"SEMANA"}, {en:"CASE", es:"CASO"}, {en:"POINT", es:"PUNTO/TEMA"}, {en:"GOVERNMENT", es:"GOBIERNO"},
-        {en:"COMPANY", es:"COMPAÑÍA"}, {en:"NUMBER", es:"NÚMERO"}, {en:"GROUP", es:"GRUPO"}, {en:"PROBLEM", es:"PROBLEMA"},
-        {en:"WRITING", es:"ESCRITURA"}, {en:"YARD", es:"PATIO/YARDA"}, {en:"YOUTH", es:"JUVENTUD"}, {en:"ZONE", es:"ZONA"}
-    ],
-  'ADJECTIVES': [
-        {en:"GOOD", es:"BUENO"}, {en:"NEW", es:"NUEVO"}, {en:"FIRST", es:"PRIMERO"}, {en:"LAST", es:"ÚLTIMO"},
-        {en:"LONG", es:"LARGO"}, {en:"GREAT", es:"GRAN/GENIAL"}, {en:"LITTLE", es:"PEQUEÑO"}, {en:"OWN", es:"PROPIO"},
-        {en:"OTHER", es:"OTRO"}, {en:"OLD", es:"VIEJO"}, {en:"RIGHT", es:"DERECHO/CORRECTO"}, {en:"BIG", es:"GRANDE"},
-        {en:"HIGH", es:"ALTO"}, {en:"DIFFERENT", es:"DIFERENTE"}, {en:"SMALL", es:"PEQUEÑO"}, {en:"LARGE", es:"GRANDE"},
-        {en:"CHALLENGING", es:"DESAFIANTE"}, {en:"ENJOYABLE", es:"AGRADABLE"}, {en:"MEMORABLE", es:"MEMORABLE"},
-        {en:"WRONG", es:"EQUIVOCADO/INCORRECTO"}, {en:"YELLOW", es:"AMARILLO"}, {en:"YOUNG", es:"JOVEN"}
-    ],
-  'FUNCTION WORDS': [
-        {en:"THE", es:"EL/LA/LOS/LAS"}, {en:"OF", es:"DE"}, {en:"AND", es:"Y"}, {en:"A", es:"UN/UNA"},
-        {en:"TO", es:"A/PARA"}, {en:"IN", es:"EN"}, {en:"IS", es:"ES"}, {en:"YOU", es:"TÚ"},
-        {en:"THAT", es:"ESO/QUE"}, {en:"IT", es:"ESO"}, {en:"HE", es:"ÉL"}, {en:"WAS", es:"ERA/ESTABA"},
-        {en:"FOR", es:"PARA"}, {en:"ON", es:"SOBRE/EN"}, {en:"ARE", es:"SON/ESTÁN"}, {en:"AS", es:"COMO"},
-        {en:"YOURS", es:"TUYO/SUYO"}, {en:"YOURSELF", es:"TÚ MISMO"}, {en:"YOURSELVES", es:"VOSOTROS MISMOS"}
-    ]
-};
+    <script src="https://paradisonetworx.com/database.js"></script>
 
+<script>
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v16'; // Increment version to force reset
+const CONFIG_KEY = 'vocab_robot_config_v20'; 
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
-    vocabSource: 'ALL_INTERNAL', // CAMBIO IMPORTANTE: DEFAULT A INTERNAL
-    dataPercent: 100, 
-    spawnLevel: 1,      
-    enemySpeed: 0.5,    
-    bombChance: 30,     
-    bombSpeed: 1.0,     
+    vocabSource: 'ALL_INTERNAL', 
+    activeWordLimit: 10, 
+    wordsPerLevel: 10,   
+    spawnLevel: 1,       
+    enemySpeed: 0.5,     
+    bombChance: 30,      
+    bombSpeed: 1.0,      
     playerColor: '#4f46e5',
-    quizEnabled: false, quizInterval: 30,
+    quizEnabled: true, quizInterval: 90,
     masterVolume: 50,
-    audioFX: true,
-    audioWords: true,
-    audioBombs: true,
-    bossFrequency: 15
+    audioFX: true, audioWords: true, audioBombs: false, bossFrequency: 15,
+    movementAlgo: 'algo2', 
+    touchArea: 'full'      
 };
 let gameVars = { spawnInterval: 3500, bombProb: 0.005 };
 let disabledWords = new Set(); 
@@ -452,7 +603,10 @@ let quizTimer = 0;
 let currentQuizWord = null;
 let lockedEnemyId = null;
 
-// --- MENUS & UI ---
+let touchStartX = 0;
+let touchCurrentX = 0;
+let isTouchingLeft = false;
+
 function renderCategoryBar() {
     const wrapper = document.getElementById('category-bar-wrapper');
     wrapper.innerHTML = '';
@@ -469,7 +623,6 @@ function renderCategoryBar() {
         };
         wrapper.appendChild(chip);
     });
-
     const help = document.createElement('div');
     help.className = 'category-chip help-btn';
     help.textContent = 'CONFIG / HELP';
@@ -477,10 +630,31 @@ function renderCategoryBar() {
     wrapper.appendChild(help);
 }
 
-function updateDataPercent(val) {
-    userSettings.dataPercent = parseInt(val);
-    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
-    updateConfig('percent_only');
+function adjustWordsPerLevel(delta) {
+    let newVal = userSettings.wordsPerLevel + delta;
+    if (newVal < 5) newVal = 5;
+    if (newVal > 100) newVal = 100; 
+    
+    userSettings.wordsPerLevel = newVal;
+    userSettings.activeWordLimit = newVal; 
+    updateConfig('limit_update'); 
+}
+
+function updateDbStats() {
+    const inc = userSettings.wordsPerLevel;
+    const total = totalAvailableWords;
+    let percent = 0;
+    if (total > 0) percent = ((inc / total) * 100).toFixed(2);
+    
+    document.getElementById('val-level-inc-display').textContent = inc;
+    document.getElementById('db-stats-display').innerHTML = 
+        `Total DB: <span class="highlight-stat">${total}</span> | <span class="highlight-stat">${inc}</span> is ${percent}% of Total`;
+    
+    let currentActive = activeVocabList.length;
+    if(activeVocabList.length === 1 && activeVocabList[0].en === "NO DATA") currentActive = 0;
+    
+    document.getElementById('active-stats-display').textContent = 
+        `PLAYING WITH: ${currentActive} / ${total} WORDS`;
 }
 
 function populateSourceMenu() {
@@ -506,6 +680,9 @@ function loadConfig() {
         try { userSettings = { ...userSettings, ...JSON.parse(saved) }; } 
         catch(e) { console.error("Config error", e); }
     }
+    if (!userSettings.activeWordLimit) userSettings.activeWordLimit = 10;
+    if (!userSettings.wordsPerLevel) userSettings.wordsPerLevel = 10;
+
     const savedDisabled = localStorage.getItem(DISABLED_WORDS_KEY);
     if(savedDisabled) {
         try { disabledWords = new Set(JSON.parse(savedDisabled)); }
@@ -522,8 +699,6 @@ function loadConfig() {
 
 function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
-    document.getElementById('mini-slider-percent').value = userSettings.dataPercent;
-    document.getElementById('lbl-percent').textContent = userSettings.dataPercent + '%';
     document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
     document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
     document.getElementById('val-quiz-time').textContent = userSettings.quizInterval + 's';
@@ -543,6 +718,13 @@ function applyConfigToUI() {
     document.getElementById('cfg-bspeed').value = userSettings.bombSpeed;
     document.getElementById('val-bspeed').textContent = userSettings.bombSpeed;
     document.getElementById('cfg-color').value = userSettings.playerColor;
+    document.getElementById('cfg-movement').value = userSettings.movementAlgo || 'algo2';
+    
+    document.getElementById('cfg-touch-area').value = userSettings.touchArea || 'full';
+    const touchZone = document.getElementById('touch-zone-left');
+    if (userSettings.touchArea === 'full') touchZone.classList.add('touch-area-full');
+    else touchZone.classList.remove('touch-area-full');
+
     player.color = userSettings.playerColor;
 }
 
@@ -552,14 +734,29 @@ function recalcGameVars() {
 }
 
 function updateConfig(key) {
+    lockedEnemyId = null;
+
     if(key === 'source') {
         userSettings.vocabSource = document.getElementById('cfg-source').value;
+        userSettings.activeWordLimit = userSettings.wordsPerLevel;
         loadVocabData(); populateStudyGuide(); renderCategoryBar();
         if(gameRunning) enemies = []; 
     }
-    else if(key === 'percent_only') {
+    else if(key === 'level_inc_only') {
+        updateDbStats();
+    }
+    else if(key === 'limit_update') {
         loadVocabData(); populateStudyGuide();
         if(gameRunning) enemies = [];
+    }
+    else if(key === 'movement') {
+        userSettings.movementAlgo = document.getElementById('cfg-movement').value;
+    }
+    else if(key === 'touch_area') {
+        userSettings.touchArea = document.getElementById('cfg-touch-area').value;
+        const touchZone = document.getElementById('touch-zone-left');
+        if (userSettings.touchArea === 'full') touchZone.classList.add('touch-area-full');
+        else touchZone.classList.remove('touch-area-full');
     }
     else if(key === 'volume') {
         userSettings.masterVolume = parseInt(document.getElementById('cfg-volume').value);
@@ -590,7 +787,7 @@ function updateConfig(key) {
         player.color = userSettings.playerColor;
     }
     
-    if(key !== 'percent_only' && key !== 'volume') {
+    if(key !== 'limit_update' && key !== 'volume' && key !== 'touch_area' && key !== 'level_inc_only') {
         applyConfigToUI(); 
     }
     recalcGameVars();
@@ -604,10 +801,12 @@ function resetConfig() {
     disabledWords.clear();
     reinforcedWords.clear();
     userSettings = { 
-        vocabSource: 'ALL_INTERNAL', dataPercent: 100, 
+        vocabSource: 'ALL_INTERNAL', 
+        activeWordLimit: 10, wordsPerLevel: 10,
         spawnLevel: 1, enemySpeed: 0.5, bombChance: 30, bombSpeed: 1.0, 
-        playerColor: '#4f46e5', quizEnabled: false, quizInterval: 30, 
-        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:true, bossFrequency: 15
+        playerColor: '#4f46e5', quizEnabled: true, quizInterval: 90, 
+        masterVolume: 50, audioFX:true, audioWords:true, audioBombs:false, bossFrequency: 15,
+        movementAlgo: 'algo2', touchArea: 'full'
     };
     loadConfig(); loadVocabData(); populateStudyGuide(); renderCategoryBar();
 }
@@ -622,34 +821,34 @@ function switchTab(tabName) {
 
 // --- DATA LOGIC ---
 let activeVocabList = []; 
-let gameDeck = [];        
+let gameDeck = []; 
+let totalAvailableWords = 0; 
 
 const cleanText = (str) => {
     if(!str) return "";
-    // Solo quitamos acentos basicos, permitimos caracteres latinos
-    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-              .trim().toUpperCase();
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
 };
 
 function loadVocabData() {
     let tempVocabList = [];
-    const countWords = (str) => str.trim().split(/\s+/).length;
-    
-    // Helper to safely add
+
     const processItem = (en, es) => {
-        if(!en || !es) return;
+        if (!en || !es) return;
         const safeEn = cleanText(en);
+        if (safeEn.split(' ').length > 2) return; 
         const safeEs = cleanText(es);
-        if(safeEn.length > 0 && safeEs.length > 0) {
-            tempVocabList.push({en: safeEn, es: [safeEs]});
+        if (safeEn.length > 0 && safeEs.length > 0) {
+            tempVocabList.push({ en: safeEn, es: [safeEs] });
         }
     };
 
-    // 1. Try Loading from Local Storage if requested
-    if (userSettings.vocabSource === 'LOCAL' || userSettings.vocabSource === 'MIXED') {
+    const source = userSettings.vocabSource;
+
+    let localDataLoaded = false;
+    if (source === 'LOCAL' || source === 'MIXED') {
         try {
             const saved = localStorage.getItem('mdc_vocab_list');
-            if(saved) {
+            if (saved) {
                 const items = JSON.parse(saved);
                 items.forEach(item => {
                     if (item.isFolder && item.items) {
@@ -659,40 +858,45 @@ function loadVocabData() {
                     }
                 });
             }
-        } catch (e) { console.error("Local Load Error", e); }
+        } catch (e) { console.error("Error cargando LocalStorage", e); }
+        if (tempVocabList.length > 0) localDataLoaded = true;
     }
 
-    // 2. Load Internal if requested OR if Local failed/is empty
     let forceInternal = false;
-    if (userSettings.vocabSource === 'LOCAL' && tempVocabList.length === 0) {
-        forceInternal = true; // Fallback so game is playable
-        console.log("Local DB empty, falling back to Internal");
+    if (source === 'LOCAL' && !localDataLoaded) {
+        console.warn("MY DB está vacía. Usando INTERNAL como respaldo.");
+        forceInternal = true;
     }
 
-    if (userSettings.vocabSource !== 'LOCAL' || forceInternal) {
-        let sourcesToLoad = [];
-        if (userSettings.vocabSource === 'ALL_INTERNAL' || userSettings.vocabSource === 'MIXED' || forceInternal) {
-            sourcesToLoad = Object.keys(INTERNAL_VOCAB);
-        } else {
-            sourcesToLoad = [userSettings.vocabSource];
+    if (typeof INTERNAL_VOCAB !== 'undefined') { 
+        let categoriesToLoad = [];
+        if (source === 'ALL_INTERNAL' || source === 'MIXED' || forceInternal) {
+            categoriesToLoad = Object.keys(INTERNAL_VOCAB);
+        } else if (source !== 'LOCAL') {
+            if (INTERNAL_VOCAB[source]) {
+                categoriesToLoad = [source];
+            }
         }
-        sourcesToLoad.forEach(catKey => {
-            if(INTERNAL_VOCAB[catKey]) {
+        categoriesToLoad.forEach(catKey => {
+            if (INTERNAL_VOCAB[catKey]) {
                 INTERNAL_VOCAB[catKey].forEach(i => processItem(i.en, i.es));
             }
         });
     }
 
+    totalAvailableWords = tempVocabList.length;
+
     if (tempVocabList.length > 0) {
-        // Shuffle slightly so we don't always get 'A' words first if using limits
-        // tempVocabList.sort(() => Math.random() - 0.5); 
-        const limit = Math.ceil(tempVocabList.length * (userSettings.dataPercent / 100));
+        let limit = userSettings.activeWordLimit || 10;
+        if (limit > totalAvailableWords) limit = totalAvailableWords;
+        
         activeVocabList = tempVocabList.slice(0, limit);
     } else {
-        activeVocabList = [];
+        activeVocabList = [{ en: "NO DATA", es: ["VACIO"] }];
     }
-
-    if (activeVocabList.length === 0) activeVocabList.push({ en: "NO DATA", es: ["VACIO"] });
+    
+    updateDbStats();
+    
     refreshGameDeck();
 }
 
@@ -704,7 +908,6 @@ function refreshGameDeck() {
         activeVocabList.forEach(item => {
             if (!disabledWords.has(item.en)) {
                 gameDeck.push(item);
-                // Si está reforzada, la metemos 10 veces más para que salga MUCHO
                 if (reinforcedWords.has(item.en)) {
                     for(let k=0; k<10; k++) {
                         gameDeck.push(item);
@@ -713,28 +916,45 @@ function refreshGameDeck() {
             }
         });
     }
-
     if(gameDeck.length === 0) gameDeck.push({en: "NO ACTIVE", es: ["CHECK LIST"]});
 }
 
 function toggleWordStatus(engWord) {
-    if(disabledWords.has(engWord)) disabledWords.delete(engWord);
-    else disabledWords.add(engWord);
-    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    if(disabledWords.has(engWord)) {
+        disabledWords.delete(engWord);
+    } else {
+        disabledWords.add(engWord);
+        if (reinforcedWords.has(engWord)) {
+            reinforcedWords.delete(engWord);
+        }
+    }
+    saveLists();
     refreshGameDeck();
+    if(studyGuide.style.display === 'flex') populateStudyGuide();
 }
 
 function toggleReinforceStatus(engWord) {
-    if (reinforcedWords.has(engWord)) reinforcedWords.delete(engWord);
-    else reinforcedWords.add(engWord);
-    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
+    if (reinforcedWords.has(engWord)) {
+        reinforcedWords.delete(engWord);
+    } else {
+        reinforcedWords.add(engWord);
+        if (disabledWords.has(engWord)) {
+            disabledWords.delete(engWord);
+        }
+    }
+    saveLists();
     refreshGameDeck();
+    if(studyGuide.style.display === 'flex') populateStudyGuide();
+}
+
+function saveLists() {
+    localStorage.setItem(DISABLED_WORDS_KEY, JSON.stringify([...disabledWords]));
+    localStorage.setItem(REINFORCED_WORDS_KEY, JSON.stringify([...reinforcedWords]));
 }
 
 // --- QUIZ & LEVENSHTEIN ---
 function similarity(s1, s2) {
-    var longer = s1;
-    var shorter = s2;
+    var longer = s1; var shorter = s2;
     if (s1.length < s2.length) { longer = s2; shorter = s1; }
     var longerLength = longer.length;
     if (longerLength == 0) return 1.0;
@@ -765,7 +985,14 @@ function editDistance(s1, s2) {
 
 function triggerPopQuiz() {
     gameRunning = false; 
-    const randomItem = gameDeck[Math.floor(Math.random() * gameDeck.length)];
+    
+    let candidateList = gameDeck.filter(item => reinforcedWords.has(item.en));
+    if (candidateList.length === 0) {
+        candidateList = gameDeck;
+    }
+
+    const randomItem = candidateList[Math.floor(Math.random() * candidateList.length)];
+    
     currentQuizWord = randomItem;
     
     const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
@@ -910,18 +1137,17 @@ if (window.speechSynthesis) {
 setInterval(() => {
     if (!isSpeaking && audioQueue.length > 0) {
         const next = audioQueue.shift();
-        playText(next.text, next.lang);
+        playText(next.text, next.lang, next.enemyId);
     }
 }, 100);
 
-function speak(text, lang, isBomb = false) {
+function speak(text, lang, isBomb = false, enemyId = null) {
     if (isBomb) {
         if (!userSettings.audioBombs) return;
     } else {
         if (!userSettings.audioWords) return;
     }
-    if (audioQueue.length > 2) return; 
-    audioQueue.push({text, lang});
+    audioQueue.push({text, lang, enemyId});
 }
 
 function getBestVoice(lang) {
@@ -940,16 +1166,30 @@ function getBestVoice(lang) {
     return candidates[0];
 }
 
-function playText(text, lang) {
+function playText(text, lang, enemyId) {
     if (!window.speechSynthesis) return;
     isSpeaking = true;
     window.speechSynthesis.cancel();
-    let textToSpeak = text.toLowerCase();
+    
+    let textToSpeak = text.toLowerCase().replace(/\//g, ', '); 
+
     if (text.length === 1 && text.match(/[A-Z]/i)) textToSpeak = text.toLowerCase() + ".";
     const u = new SpeechSynthesisUtterance(textToSpeak);
     u.lang = lang; u.rate = 0.9; 
     const bestVoice = getBestVoice(lang);
     if (bestVoice) u.voice = bestVoice;
+    
+    u.onstart = () => {
+        if (enemyId) {
+            const targetEnemy = enemies.find(e => e.id === enemyId);
+            if (targetEnemy) {
+                targetEnemy.fading = true; 
+                createExplosion(targetEnemy.x, targetEnemy.y, '#ffffff', 50); 
+                playSound('hit_syn');
+            }
+        }
+    };
+    
     u.onend = () => { setTimeout(() => { isSpeaking = false; }, 400); };
     u.onerror = () => { isSpeaking = false; };
     window.speechSynthesis.speak(u);
@@ -1017,16 +1257,32 @@ function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');
 
 function populateStudyGuide(){
     document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
-    let html='<table><thead><tr><th class="chk-cell">PLAY?</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    
+    let html='<table><thead><tr><th class="chk-cell">PLAY</th><th class="chk-cell">BOOST</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    
     activeVocabList.forEach(v => {
-        const isChecked = !disabledWords.has(v.en);
-        const isBoosted = reinforcedWords.has(v.en);
-        let rowClass = isBoosted ? "boosted-row" : "";
+        const cleanWord = v.en; 
+        const cleanWordQuote = cleanWord.replace(/'/g, "\\'"); 
+        
+        const isBanned = disabledWords.has(cleanWord);
+        const isBoosted = reinforcedWords.has(cleanWord);
+        const isChecked = !isBanned;
+
+        let rowClass = "";
+        if (isBoosted) rowClass = "boosted-row";
+        if (isBanned) rowClass = "banned-row"; 
+
+        const starIcon = isBoosted ? '★' : '☆';
+        const starClass = isBoosted ? 'star-active' : 'star-inactive';
+
         html += `<tr class="${rowClass}">
             <td class="chk-cell">
-                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${v.en.replace(/'/g, "\\'")}')">
+                <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleWordStatus('${cleanWordQuote}')">
             </td>
-            <td class="en-word">${v.en} ${isBoosted ? '★' : ''}</td>
+            <td class="chk-cell star-cell" onclick="toggleReinforceStatus('${cleanWordQuote}')">
+                <span class="${starClass}">${starIcon}</span>
+            </td>
+            <td class="en-word">${cleanWord}</td>
             <td>${v.es[0]||"-"}</td>
         </tr>`;
     });
@@ -1034,9 +1290,35 @@ function populateStudyGuide(){
     studyTableContainer.innerHTML=html;
 }
 
+function refreshLiveEnemies() {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+
+        if (disabledWords.has(e.text) || disabledWords.has(e.wordData.en)) {
+            createExplosion(e.x, e.y, '#555', 15);
+            enemies.splice(i, 1);
+            continue; 
+        }
+
+        const shouldBeBoosted = reinforcedWords.has(e.wordData.en);
+        
+        if (e.isBoosted !== shouldBeBoosted) {
+            e.isBoosted = shouldBeBoosted;
+            if (shouldBeBoosted) {
+                e.color = '#FFD700'; 
+            } else {
+                if (!e.isBoss) {
+                    e.color = e.stage > 0 ? '#00ff00' : '#ffffff';
+                }
+            }
+        }
+    }
+}
+    
 function toggleStudyGuide(){
     const isOpen = studyGuide.style.display==='flex';
     if(isOpen){
+        refreshLiveEnemies();
         studyGuide.style.display='none';
         if(startScreen.style.display==='none' && gameOverScreen.style.display==='none'){
             gameRunning=true; lastTime=performance.now(); 
@@ -1081,15 +1363,28 @@ function getSafeSpawnX(enemyWidth) {
     return Math.random() * (canvas.width - enemyWidth - 50) + enemyWidth/2 + 25;
 }
 
+function getBossTypeForSource(source) {
+    if (source === 'ALL_INTERNAL' || source === 'MIXED') {
+        return Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS';
+    }
+    if (source === 'REGULAR_VERBS') return 'REGULAR_VERBS';
+    if (source === 'IRREGULAR_VERBS') return 'IRREGULAR_VERBS';
+    if (source === 'LOCAL') return null;
+    return null; 
+}
+
 function spawnEnemy(){
     const bossFreq = userSettings.bossFrequency || 15;
+    
     if (enemiesSpawnedCount > 0 && enemiesSpawnedCount % bossFreq === 0) {
-        const src = userSettings.vocabSource;
-        let allowed = false; let specificType = null; 
-        if (src === 'ALL_INTERNAL' || src === 'MIXED') allowed = true; 
-        else if (src === 'REGULAR_VERBS') { allowed = true; specificType = 'REGULAR_VERBS'; }
-        else if (src === 'IRREGULAR_VERBS') { allowed = true; specificType = 'IRREGULAR_VERBS'; }
-        if (allowed) { spawnBoss(specificType); enemiesSpawnedCount++; return; }
+        const source = userSettings.vocabSource;
+        const bossType = getBossTypeForSource(source);
+
+        if (bossType) {
+            spawnBoss(bossType); 
+            enemiesSpawnedCount++; 
+            return; 
+        }
     }
 
     if(gameDeck.length===0) return;
@@ -1106,7 +1401,7 @@ function spawnEnemy(){
         id: Date.now() + Math.random(), 
         x: startX, y: -40, 
         wordData:d, text:d.en, 
-        stage:0, hits:0, banHits: 0, boostHits: 0, demoteHits: 0, // ADDED demoteHits
+        stage:0, hits:0, banHits: 0, boostHits: 0, demoteHits: 0, 
         speed: baseSpeed, vx: vx, 
         color: isBoosted ? '#FFD700' : '#ffffff',
         isBoosted: isBoosted,
@@ -1116,9 +1411,42 @@ function spawnEnemy(){
 }
 
 function spawnBoss(forcedListType) {
-    let listType = forcedListType ? forcedListType : (Math.random() > 0.5 ? 'IRREGULAR_VERBS' : 'REGULAR_VERBS');
-    const sourceList = INTERNAL_VOCAB[listType] || INTERNAL_VOCAB['REGULAR_VERBS'];
-    const verbData = sourceList[Math.floor(Math.random() * sourceList.length)];
+    if (typeof INTERNAL_VOCAB === 'undefined' || !INTERNAL_VOCAB) return;
+
+    const activeEnglishWords = new Set(gameDeck.map(d => d.en));
+    
+    const allRegulars = INTERNAL_VOCAB['REGULAR_VERBS'] || [];
+    const allIrregulars = INTERNAL_VOCAB['IRREGULAR_VERBS'] || [];
+
+    const validRegulars = allRegulars.filter(v => activeEnglishWords.has(v.en));
+    const validIrregulars = allIrregulars.filter(v => activeEnglishWords.has(v.en));
+
+    let poolToUse = [];
+    let listType = '';
+
+    if (forcedListType) {
+        if (forcedListType === 'REGULAR_VERBS') poolToUse = validRegulars;
+        else if (forcedListType === 'IRREGULAR_VERBS') poolToUse = validIrregulars;
+        listType = forcedListType;
+    } else {
+        if (Math.random() > 0.5 && validIrregulars.length > 0) {
+            poolToUse = validIrregulars;
+            listType = 'IRREGULAR_VERBS';
+        } else if (validRegulars.length > 0) {
+            poolToUse = validRegulars;
+            listType = 'REGULAR_VERBS';
+        } else if (validIrregulars.length > 0) {
+            poolToUse = validIrregulars;
+            listType = 'IRREGULAR_VERBS';
+        }
+    }
+
+    if (poolToUse.length === 0) {
+        spawnEnemy(); 
+        return;
+    }
+
+    const verbData = poolToUse[Math.floor(Math.random() * poolToUse.length)];
 
     ctx.font = '16px "Press Start 2P"';
     const wBase = ctx.measureText(verbData.en).width;
@@ -1126,6 +1454,7 @@ function spawnBoss(forcedListType) {
     const wPart = ctx.measureText(verbData.part).width;
     const maxW = Math.max(wBase, wPast, wPart);
     const startX = getSafeSpawnX(maxW);
+    
     let bossColor = listType === 'REGULAR_VERBS' ? '#00ffff' : '#ff00ff'; 
     let speedMod = listType === 'REGULAR_VERBS' ? 1.0 : 0.6; 
 
@@ -1188,9 +1517,42 @@ function update(dt, timeScale){
     }
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
+    if (isTouchingLeft) {
+        const delta = touchCurrentX - touchStartX;
+        const algo = userSettings.movementAlgo || 'algo2';
+
+        if (algo === 'algo1') {
+            if (delta < -15) keys['ArrowLeft'] = true; else keys['ArrowLeft'] = false;
+            if (delta > 15) keys['ArrowRight'] = true; else keys['ArrowRight'] = false;
+        } 
+        else if (algo === 'algo2') {
+            player.x += delta * 1.5; 
+            touchStartX = touchCurrentX; 
+        }
+        else if (algo === 'algo3') {
+            let moveSpeed = 0;
+            const deadZone = 10;
+            const maxRange = 100; 
+            
+            if (Math.abs(delta) > deadZone) {
+                let factor = (Math.abs(delta) - deadZone) / maxRange;
+                if(factor > 1) factor = 1;
+                
+                if (delta < 0) player.x -= (player.speed * 1.5 * factor) * timeScale;
+                else player.x += (player.speed * 1.5 * factor) * timeScale;
+            }
+        }
+    } else {
+        if (userSettings.movementAlgo === 'algo1') {
+        }
+    }
+
     if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
+    if(player.x < 0) player.x = 0;
+    if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
+
     stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
     spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
@@ -1205,7 +1567,7 @@ function update(dt, timeScale){
         }
         for(let j=bullets.length-1; j>=0; j--){
             let bullet = bullets[j];
-            if(bullet.type === 'normal' && bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
+            if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
                 bullets.splice(j,1); createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng'); speak(b.text, 'en-US', true); 
                 score += 25; scoreEl.innerText = score; enemyBombs.splice(i,1); break;
@@ -1245,7 +1607,11 @@ function update(dt, timeScale){
             if (lockedEnemyId === e.id) lockedEnemyId = null;
             if(lives<=0){gameOver();return;} continue;
         }
-        if(e.stage===1){e.timer+=dt;if(e.timer>4000)e.fading=true;} 
+        
+        if(e.stage===1){
+            e.timer+=dt;
+            if(e.timer>8000) e.fading=true; 
+        } 
         
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
@@ -1263,42 +1629,45 @@ function update(dt, timeScale){
                 bullets.splice(j,1);
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
                 
-                // === LOGICA BAN ===
                 if (b.type === 'ban') {
                     e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
                         toggleWordStatus(e.wordData.en); e.fading = true; 
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
+                        
+                        const validWords = gameDeck.filter(w => w.en !== "NO ACTIVE");
+                        if (validWords.length === 0) {
+                            if (userSettings.activeWordLimit < totalAvailableWords) {
+                                increaseLevel();
+                            } else {
+                                triggerGrandFinale();
+                            }
+                        }
                     }
                 } 
-                // === LOGICA BOOST ===
                 else if (b.type === 'boost') {
                     e.boostHits++; createExplosion(e.x, targetY, '#ffff00', 15); playSound('hit_eng');
                     if (e.boostHits >= 3) {
-                         if (!reinforcedWords.has(e.wordData.en)) {
+                          if (!reinforcedWords.has(e.wordData.en)) {
                              toggleReinforceStatus(e.wordData.en);
                              e.fading = true; createExplosion(e.x, e.y, '#FFD700', 80); playSound('boost_success'); score += 200; 
-                         } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
+                          } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
                     }
                 }
-                // === LOGICA NORMAL (ROJO) ===
                 else {
-                    // *** NUEVA LOGICA: SI ES BOOSTED, EL ROJO LA NORMALIZA (3 Tiros) ***
                     if (e.isBoosted) {
-                         e.demoteHits++; 
-                         createExplosion(e.x, targetY, '#ff4444', 5); // Chispas rojas
-                         playSound('hit_eng');
-                         if (e.demoteHits >= 3) {
-                             // "Romper" el estado dorado
-                             toggleReinforceStatus(e.wordData.en); // Quitar de DB
-                             e.isBoosted = false; 
-                             e.color = '#ffffff'; // Volver blanca
-                             e.demoteHits = 0; e.banHits = 0; e.hits = 0; // Resetear contadores
-                             createExplosion(e.x, e.y, '#ffffff', 30); // Humo blanco de transformación
-                             playSound('hit_syn'); // Sonido de cambio de estado
-                         }
+                          e.demoteHits++; 
+                          createExplosion(e.x, targetY, '#ff4444', 5);
+                          playSound('hit_eng');
+                          if (e.demoteHits >= 3) {
+                              toggleReinforceStatus(e.wordData.en);
+                              e.isBoosted = false; 
+                              e.color = '#ffffff'; 
+                              e.demoteHits = 0; e.banHits = 0; e.hits = 0; 
+                              createExplosion(e.x, e.y, '#ffffff', 30);
+                              playSound('hit_syn');
+                          }
                     } 
-                    // Si NO es boosted (es normal o Boss), funciona igual que antes
                     else {
                         if (e.isBoss && !e.bossFinished) {
                             const phase = e.phases[e.activePhase]; phase.hits++; playSound('hit_eng'); createExplosion(e.x, targetY, e.color, 10);
@@ -1307,7 +1676,7 @@ function update(dt, timeScale){
                                 if (e.activePhase >= 3) {
                                     e.bossFinished = true; e.color = '#00ff00'; e.timer = 0;
                                     e.phases[2].text = e.wordData.es; e.phases[2].completed = false; e.activePhase = 2; 
-                                    createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false); 
+                                    createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false, e.id); 
                                 }
                             }
                         } else if (!e.isBoss) {
@@ -1320,117 +1689,33 @@ function update(dt, timeScale){
                                     e.stage = 1; e.text = e.wordData.es[0]; e.color='#00ff00';
                                     createExplosion(e.x,e.y,'#00ff00',20); score+=50; combo++;
                                     ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
+                                    speak(e.text, 'es-ES', false, e.id); 
                                 }
-                            } else if(e.stage===1){
-                                e.fading=true; createExplosion(e.x,e.y,'#ffffff',40); playSound('hit_syn'); score+=150; combo++; speak(e.text, 'es-ES', false); 
+                            } 
+                            // --- FIX AÑADIDO: Destruir en Etapa 1 ---
+                            else if (e.stage === 1) {
+                                e.fading = true;
+                                createExplosion(e.x, e.y, '#00ff00', 40);
+                                score += 100;
+                                playSound('hit_syn');
+                                if (lockedEnemyId === e.id) lockedEnemyId = null;
                             }
                         }
                     }
-                    scoreEl.innerText=score; comboEl.innerText=combo;
                 }
+                scoreEl.innerText=score; comboEl.innerText=combo;
                 break; 
             }
         }
         if(e.y>canvas.height){
             if(e.stage<1)combo=0; comboEl.innerText=combo;
-            if (lockedEnemyId === e.id) lockedEnemyId = null; enemies.splice(i,1);
+            if (lockedEnemyId === e.id) lockedEnemyId = null; 
+            enemies.splice(i,1);
         }
     }
     for(let i=particles.length-1;i>=0;i--){
         const p=particles[i]; p.x += p.vx * timeScale; p.y += p.vy * timeScale; p.life -= 0.04 * timeScale; if(p.life<=0)particles.splice(i,1);
     }
-}
-
-function draw(timestamp){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    stars.forEach(s=>{
-        const opacity = s.alphaBase + Math.sin(timestamp * 0.005 + s.phase) * 0.2;
-        ctx.fillStyle=`rgba(255,255,255,${Math.max(0.1, opacity)})`;
-        ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();
-    });
-    if(!player.invincible||(Math.floor(Date.now()/100)%2===0)){
-        drawRobot(ctx, player.x, player.y, player.w, player.h, player.color);
-    }
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    
-    enemyBombs.forEach(b => {
-        ctx.strokeStyle='#fff'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(b.x-10, b.y-15); ctx.lineTo(b.x-4, b.y); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(b.x+10, b.y-15); ctx.lineTo(b.x+4, b.y); ctx.stroke();
-        ctx.fillStyle=b.color;
-        ctx.beginPath(); ctx.arc(b.x, b.y-15, 12, Math.PI, 0); ctx.fill();
-        ctx.font='12px "Press Start 2P"'; ctx.fillStyle='#fff'; ctx.fillText(b.text, b.x, b.y+10);
-    });
-
-    bullets.forEach(b => {
-        if(b.type === 'ban') ctx.fillStyle = '#00ffff'; 
-        else if (b.type === 'boost') ctx.fillStyle = '#ffff00';
-        else ctx.fillStyle = '#ff0055'; 
-        ctx.fillRect(b.x-2,b.y,4,15);
-    });
-    
-    enemies.forEach(e=>{
-        if (lockedEnemyId !== null && lockedEnemyId !== e.id) ctx.globalAlpha = 0.3; else ctx.globalAlpha = 1.0;
-        if (e.isBoss) {
-            e.phases.forEach((p, index) => {
-                const yPos = e.y - (index * 30);
-                if (p.completed) { ctx.fillStyle = '#444'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
-                else if (index === e.activePhase) {
-                    ctx.fillStyle = e.color; ctx.shadowColor = e.color; ctx.shadowBlur = 15; ctx.font = 'bold 16px "Press Start 2P"';
-                    ctx.fillText(p.text, e.x, yPos); ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.strokeText(p.text, e.x, yPos);
-                } else { ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.shadowBlur = 0; ctx.fillText(p.text, e.x, yPos); }
-                ctx.shadowBlur = 0; 
-                if (index === e.activePhase) {
-                    for(let k=0;k<3;k++){
-                        ctx.fillStyle = k < p.hits ? '#ff0000' : '#00ff00';
-                        ctx.beginPath();ctx.arc(e.x-20+(k*20), yPos+12, 3, 0, Math.PI*2);ctx.fill();
-                    }
-                }
-            });
-        } else {
-            ctx.font=e.stage>=1?'20px "Press Start 2P"':'16px "Press Start 2P"';
-            
-            // DIBUJAR DORADO SI ESTA REFORZADA
-            if (e.isBoosted) {
-                ctx.fillStyle = '#FFD700'; 
-                ctx.shadowColor = '#FFD700'; ctx.shadowBlur = 10;
-            } else {
-                ctx.fillStyle = e.color;
-                ctx.shadowBlur = 0;
-            }
-
-            if(e.stage>=1){ ctx.lineWidth = 2; ctx.strokeStyle = '#003300'; ctx.strokeText(e.text, e.x, e.y); }
-            ctx.fillText(e.text,e.x,e.y);
-            ctx.shadowBlur = 0; // Reset
-            
-            // PUNTOS DE BAN (AZUL)
-            if (e.banHits > 0) {
-                 ctx.fillStyle = '#00ffff';
-                 for(let k=0;k<3;k++){ if (k < e.banHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
-            }
-            // PUNTOS DE BOOST (AMARILLO)
-            if (e.boostHits > 0) {
-                 ctx.fillStyle = '#ffff00';
-                 for(let k=0;k<3;k++){ if (k < e.boostHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y-25, 3, 0, Math.PI*2);ctx.fill(); } }
-            }
-            // ** PUNTOS DE DEMOTE (ROJO SOBRE DORADO) **
-            if (e.isBoosted && e.demoteHits > 0) {
-                ctx.fillStyle = '#ff4444';
-                for(let k=0;k<3;k++){ if (k < e.demoteHits) { ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25, 3, 0, Math.PI*2);ctx.fill(); } }
-            }
-            // PUNTOS NORMALES (ROJO)
-            if (!e.isBoosted) {
-                for(let k=0;k<4;k++){
-                    if(k<3) ctx.fillStyle = (e.stage===0 && k<e.hits) || e.stage>0 ? '#00ff00' : '#444'; else ctx.fillStyle = '#444';
-                    ctx.beginPath();ctx.arc(e.x-22+(k*15),e.y+25,3,0,Math.PI*2);ctx.fill();
-                }
-            }
-        }
-        ctx.globalAlpha = 1.0; 
-    });
-    
-    particles.forEach(p=>{ ctx.globalAlpha=p.life; ctx.fillStyle=p.color; ctx.fillRect(p.x,p.y,3,3); });
-    ctx.globalAlpha=1;
 }
 
 function gameOver(){
@@ -1449,15 +1734,17 @@ function startGame(){
     enemiesSpawnedCount = 0; lockedEnemyId = null; 
     scoreEl.innerText=comboEl.innerText='0'; livesEl.innerText='5'; loadHighScore();
     gameRunning=true; lastFrameTime = performance.now(); spawnTimer = gameVars.spawnInterval; quizTimer = 0;
+    
+    keys = {}; isTouchingLeft = false;
+
     if(audioCtx.state==='suspended') audioCtx.resume().catch(e=>{});
     gameLoopId = requestAnimationFrame(loop);
 }
 
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
 const btnFire = document.getElementById('btn-fire');
 const btnBan = document.getElementById('btn-ban'); 
 const btnBoost = document.getElementById('btn-boost'); 
+const touchZoneLeft = document.getElementById('touch-zone-left'); 
 
 const handleTouchStart = (key, customAction = null) => {
     if (customAction) { customAction(); } else { keys[key] = true; }
@@ -1467,18 +1754,38 @@ const handleTouchEnd = (key) => { keys[key] = false; };
 const fireBanBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'ban'}); playSound('ban_shoot'); } };
 const fireBoostBullet = () => { if(gameRunning) { bullets.push({x:player.x+player.w/2, y:player.y, type: 'boost'}); playSound('boost_shoot'); } };
 
+touchZoneLeft.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (gameRunning) {
+        isTouchingLeft = true;
+        touchStartX = e.touches[0].clientX;
+        touchCurrentX = touchStartX;
+    }
+}, {passive: false});
+
+touchZoneLeft.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (gameRunning && isTouchingLeft) {
+        touchCurrentX = e.touches[0].clientX;
+    }
+}, {passive: false});
+
+touchZoneLeft.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    isTouchingLeft = false;
+    keys['ArrowLeft'] = false;
+    keys['ArrowRight'] = false;
+});
+
 ['touchstart', 'mousedown'].forEach(evt => {
-    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowLeft'); });
-    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart('Space'); });
     btnBan.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBanBullet); });
     btnBoost.addEventListener(evt, (e) => { e.preventDefault(); handleTouchStart(null, fireBoostBullet); });
 });
 ['touchend', 'mouseup', 'mouseleave'].forEach(evt => {
-    btnLeft.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowLeft'); });
-    btnRight.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('ArrowRight'); });
     btnFire.addEventListener(evt, (e) => { e.preventDefault(); handleTouchEnd('Space'); });
 });
+
 document.addEventListener('keydown', e=>{
     if((e.code==='Tab'||e.code==='Escape') && startScreen.style.display==='none' && gameOverScreen.style.display==='none'){e.preventDefault(); toggleStudyGuide();}
     keys[e.code]=true;
