@@ -1549,15 +1549,20 @@ function loop(timestamp) {
 
 function update(dt, timeScale){
     if(timeScale > 4) timeScale = 1;
+    
+    // 1. Quiz Timer
     if (userSettings.quizEnabled) {
         quizTimer += 33; 
         if (quizTimer >= userSettings.quizInterval * 1000) { triggerPopQuiz(); return; }
     }
+
+    // 2. Player Invincibility
     if(player.invincible){player.invTimer-=dt;if(player.invTimer<=0)player.invincible=false;}
     
+    // 3. Touch Movement Logic
     if (isTouchingLeft) {
         const delta = touchCurrentX - touchStartX;
-        const algo = userSettings.movementAlgo || 'algo2'; // Default fallback
+        const algo = userSettings.movementAlgo || 'algo2';
 
         if (algo === 'algo1') {
             if (delta < -15) keys['ArrowLeft'] = true; else keys['ArrowLeft'] = false;
@@ -1580,33 +1585,37 @@ function update(dt, timeScale){
                 else player.x += (player.speed * 1.5 * factor) * timeScale;
             }
         }
-    } else {
-        if (userSettings.movementAlgo === 'algo1') {
-        }
     }
 
+    // 4. Player Movement Limits
     if(keys['ArrowLeft']&&player.x>0)player.x -= player.speed * timeScale;
     if(keys['ArrowRight']&&player.x<canvas.width-player.w)player.x += player.speed * timeScale;
     
     if(player.x < 0) player.x = 0;
     if(player.x > canvas.width - player.w) player.x = canvas.width - player.w;
 
+    // 5. Background Stars
     stars.forEach(s=>{ s.y += s.speed * timeScale; if(s.y>canvas.height)s.y=0; });
+
+    // 6. Enemy Spawning
     spawnTimer-=dt; if(spawnTimer<0){spawnEnemy(); spawnTimer=gameVars.spawnInterval;}
     
+    // 7. Enemy Bombs Logic
     for(let i=enemyBombs.length-1; i>=0; i--){
         let b = enemyBombs[i];
         b.y += b.vy * timeScale; b.x += (Math.sin(b.y * 0.05) * 1.5) * timeScale; 
+        
+        // Player vs Bomb
         if(!player.invincible && checkCollisionRect(player, b)){
              lives--; livesEl.innerText=lives;
              createExplosion(player.x+player.w/2, player.y+player.h/2, '#ff4444', 30);
              playSound('player_hit'); player.invincible=true; player.invTimer=2000;
              enemyBombs.splice(i,1); if(lives<=0){gameOver();return;} continue;
         }
+        
+        // Bullet vs Bomb
         for(let j=bullets.length-1; j>=0; j--){
             let bullet = bullets[j];
-            // --- CAMBIO: Se removió la condición que requeria bullet.type === 'normal' ---
-            // AHORA CUALQUIER BALA DESTRUYE BOMBAS
             if(bullet.x > b.x-20 && bullet.x < b.x+b.w+20 && bullet.y > b.y && bullet.y < b.y+b.h){
                 bullets.splice(j,1); createExplosion(b.x, b.y, b.color, 15);
                 playSound('hit_eng'); speak(b.text, 'en-US', true); 
@@ -1616,10 +1625,14 @@ function update(dt, timeScale){
         if(b.y > canvas.height) enemyBombs.splice(i,1);
     }
 
+    // 8. Bullets Movement
     for(let i=bullets.length-1;i>=0;i--){ bullets[i].y -= 12 * timeScale; if(bullets[i].y<0)bullets.splice(i,1); }
     
+    // 9. Enemy Logic (Main Loop)
     for(let i=enemies.length-1;i>=0;i--){
         const e=enemies[i];
+
+        // Boss Timer logic
         if(e.bossFinished) { e.timer += dt; if(e.timer > 4000) e.fading = true; } 
         else {
              e.y += e.speed * timeScale; e.x += e.vx * timeScale; 
@@ -1629,6 +1642,8 @@ function update(dt, timeScale){
                 if(e.x > canvas.width - e.w/2 - 10) e.x = canvas.width - e.w/2 - 11;
             }
         }
+
+        // Drop Bombs
         if(!e.fading && !e.droppedBomb && (e.isBoss || e.stage < 2) && Math.random() < (gameVars.bombProb * timeScale)) {
             e.droppedBomb = true; 
             enemyBombs.push({
@@ -1636,10 +1651,14 @@ function update(dt, timeScale){
                 color: `hsl(${Math.random()*360}, 100%, 70%)`, vy: e.speed + userSettings.bombSpeed, w: 20, h: 30
             });
         }
+
+        // Remove Fading Enemies
         if(e.fading){
             if (lockedEnemyId === e.id) lockedEnemyId = null;
             createExplosion(e.x,e.y,e.color,1); enemies.splice(i,1); continue;
         }
+
+        // Player vs Enemy Collision
         let eRect = e.isBoss ? {x: e.x-e.w/2, y: e.y-70, w: e.w, h: 90} : {x: e.x-e.w/2, y: e.y-15, w: e.w, h:30};
         if(!player.invincible && !e.bossFinished && checkCollisionRect(player, eRect)){
             lives--;livesEl.innerText=lives;createExplosion(player.x+player.w/2,player.y+player.h/2,'#ff4444',30);
@@ -1648,13 +1667,17 @@ function update(dt, timeScale){
             if(lives<=0){gameOver();return;} continue;
         }
         
+        // Auto-fade timer for Stage 1 enemies (if not shot)
         if(e.stage===1){
             e.timer+=dt;
             if(e.timer>8000) e.fading=true; 
         } 
         
+        // Bullet vs Enemy Collision
         for(let j=bullets.length-1;j>=0;j--){
             const b=bullets[j];
+            
+            // Lock-on Logic check
             if (lockedEnemyId !== null && lockedEnemyId !== e.id) continue; 
             
             let hit = false; let targetY = e.y;
@@ -1669,13 +1692,13 @@ function update(dt, timeScale){
                 bullets.splice(j,1);
                 if (lockedEnemyId === null) lockedEnemyId = e.id;
                 
+                // --- SPECIAL BULLETS LOGIC ---
                 if (b.type === 'ban') {
                     e.banHits++; createExplosion(e.x, targetY, '#00ffff', 15); playSound('hit_eng');
                     if (e.banHits >= 3) {
                         toggleWordStatus(e.wordData.en); e.fading = true; 
                         createExplosion(e.x, e.y, '#000000', 50); playSound('ban_success');
                         
-                        // Revisión de victoria o Level Up
                         const validWords = gameDeck.filter(w => w.en !== "NO ACTIVE");
                         if (validWords.length === 0) {
                             if (userSettings.activeWordLimit < totalAvailableWords) {
@@ -1695,7 +1718,9 @@ function update(dt, timeScale){
                           } else { e.fading = true; createExplosion(e.x, e.y, '#FFD700', 20); }
                     }
                 }
+                // --- NORMAL BULLETS LOGIC ---
                 else {
+                    // Logic to remove Boost (Demote)
                     if (e.isBoosted) {
                           e.demoteHits++; 
                           createExplosion(e.x, targetY, '#ff4444', 5);
@@ -1710,6 +1735,7 @@ function update(dt, timeScale){
                           }
                     } 
                     else {
+                        // Boss Damage Logic
                         if (e.isBoss && !e.bossFinished) {
                             const phase = e.phases[e.activePhase]; phase.hits++; playSound('hit_eng'); createExplosion(e.x, targetY, e.color, 10);
                             if (phase.hits >= 3) {
@@ -1720,8 +1746,12 @@ function update(dt, timeScale){
                                     createExplosion(e.x, e.y, '#ffffff', 150); playSound('hit_syn'); score += 500; combo++; speak(e.wordData.es, 'es-ES', false, e.id); 
                                 }
                             }
-                        } else if (!e.isBoss) {
-                            e.timer=0;
+                        } 
+                        // Regular Enemy Damage Logic
+                        else if (!e.isBoss) {
+                            e.timer=0; // Reset fade timer on hit
+                            
+                            // STAGE 0: ENGLISH -> SPANISH
                             if(e.stage===0){
                                 e.hits++; 
                                 if(e.hits === 1) speak(e.text, 'en-US', false); 
@@ -1732,20 +1762,32 @@ function update(dt, timeScale){
                                     ctx.font='20px "Press Start 2P"'; e.w = ctx.measureText(e.text).width;
                                     speak(e.text, 'es-ES', false, e.id); 
                                 }
+                            } 
+                            // STAGE 1: SPANISH -> DESTROY (AQUI ESTABA EL ERROR)
+                            else if (e.stage === 1) {
+                                e.fading = true;
+                                createExplosion(e.x, e.y, '#00ff00', 40);
+                                score += 100;
+                                playSound('hit_syn');
+                                if (lockedEnemyId === e.id) lockedEnemyId = null;
                             }
                         }
                     }
-                    scoreEl.innerText=score; comboEl.innerText=combo;
                 }
-                break; 
+                scoreEl.innerText=score; comboEl.innerText=combo;
+                break; // Bullet hit something, stop checking other enemies for this bullet
             }
         }
+        
+        // Enemy reached bottom
         if(e.y>canvas.height){
             if(e.stage<1)combo=0; comboEl.innerText=combo;
             if (lockedEnemyId === e.id) lockedEnemyId = null; 
             enemies.splice(i,1);
         }
     }
+    
+    // 10. Particles Logic
     for(let i=particles.length-1;i>=0;i--){
         const p=particles[i]; p.x += p.vx * timeScale; p.y += p.vy * timeScale; p.life -= 0.04 * timeScale; if(p.life<=0)particles.splice(i,1);
     }
