@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS HUB | Dynamic Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           1. ESTÉTICA BASE (TU CÓDIGO)
+           ========================================================================== */
+        :root {
+            /* DARK MODE (Default) */
+            --bg-deep: #09090b; 
+            --bg-card: #18181b; 
+            --bg-hover: #27272a; 
+            --border: #3f3f46;
+            --txt-main: #f4f4f5;
+            --txt-sec: #a1a1aa;
+            
+            /* Accents */
+            --c-1: #38bdf8; --c-2: #e879f9; --c-3: #4ade80; --c-4: #fbbf24; --c-5: #818cf8;
+            --c-6: #ff5733; 
+            
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        :root.light-mode {
+            --bg-deep: #f8fafc; --bg-card: #ffffff; --bg-hover: #f1f5f9; --border: #e2e8f0;
+            --txt-main: #0f172a; --txt-sec: #64748b;
+            --c-1: #0284c7; --c-2: #c026d3; --c-3: #16a34a; --c-4: #d97706; --c-5: #4f46e5;
+            --c-6: #c2410c;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body { 
+            background-color: var(--bg-deep); color: var(--txt-main); 
+            font-family: var(--font-ui); margin: 0; height: 100vh; 
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        header { 
+            height: 70px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
+            padding: 0 24px; background: var(--bg-deep); 
+            border-bottom: 1px solid var(--border); z-index: 100;
+        }
+        .hub-brand { font-family: var(--font-head); font-size: 32px; letter-spacing: 1px; color: var(--txt-main); }
+        .theme-btn, .btn-clear { background: none; border: none; color: var(--txt-sec); cursor: pointer; transition: 0.2s; padding: 5px; }
+        .btn-clear:hover { color: #ef4444; } /* Rojo para borrar */
+
+        main { 
+            flex: 1; overflow-y: auto; overflow-x: hidden; 
+            padding: 20px 0; 
+            padding-bottom: calc(40px + var(--safe-bottom)); 
+            max-width: 900px; margin: 0 auto; width: 100%;
+        }
+
+        /* --- ESTILOS DE ACORDEÓN --- */
+        .acc-item {
+            margin: 0 20px 15px 20px; 
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            overflow: hidden;
+            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            position: relative;
+        }
+
+        .acc-item.active {
+            margin-left: 0; margin-right: 0; border-radius: 0;
+            border-left: none; border-right: none;
+            border-color: var(--active-color);
+        }
+
+        .acc-header {
+            padding: 24px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-card); transition: background 0.2s; user-select: none;
+        }
+        .acc-header:hover { background: var(--bg-hover); }
+
+        .acc-title-group { display: flex; align-items: center; gap: 12px; }
+        .acc-title { font-family: var(--font-head); font-size: 28px; line-height: 1; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .acc-tag { 
+            font-family: var(--font-ui); font-size: 10px; font-weight: 700; padding: 4px 8px; 
+            border-radius: 6px; background: rgba(255,255,255,0.05); letter-spacing: 1px; 
+            text-transform: uppercase;
+        }
+        
+        .acc-controls { display: flex; align-items: center; gap: 15px; }
+        .acc-icon { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--txt-sec); }
+
+        /* FS Button */
+        .fs-btn, .del-btn {
+            background: none; border: none; color: var(--txt-sec); cursor: pointer;
+            padding: 5px; opacity: 0; transition: 0.2s; pointer-events: none;
+        }
+        .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
+        .del-btn:hover { color: #ef4444; transform: scale(1.1); } /* Botón borrar */
+        
+        .acc-item:hover .fs-btn, .acc-item.active .fs-btn,
+        .acc-item:hover .del-btn, .acc-item.active .del-btn { opacity: 1; pointer-events: auto; }
+
+        .acc-content {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-deep);
+            border-top: 1px solid transparent;
+        }
+        
+        .acc-item.active .acc-content { border-top-color: var(--border); }
+        
+        iframe { width: 100%; height: 650px; border: none; display: block; background: #fff; }
+
+        /* Fullscreen override */
+        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh; padding: 0; margin: 0; }
+        .acc-content:fullscreen iframe { height: 100%; }
+
+        /* Colores Cíclicos */
+        .item-1 { --active-color: var(--c-1); color: var(--c-1); }
+        .item-2 { --active-color: var(--c-2); color: var(--c-2); }
+        .item-3 { --active-color: var(--c-3); color: var(--c-3); }
+        .item-4 { --active-color: var(--c-4); color: var(--c-4); }
+        .item-5 { --active-color: var(--c-5); color: var(--c-5); }
+        .item-6 { --active-color: var(--c-6); color: var(--c-6); }
+        .item-0 { --active-color: #ffffff; color: #ffffff; } /* Estilo para el Creador */
+
+        /* ==========================================================================
+           2. ESTILOS DEL FORMULARIO DE CREACIÓN
+           ========================================================================== */
+        .creator-form {
+            padding: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .form-row { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+        
+        input, textarea, select {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+            color: var(--txt-main); padding: 12px; border-radius: 8px;
+            font-family: var(--font-ui); font-size: 14px;
+        }
+        textarea { resize: vertical; min-height: 100px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+        
+        input:focus, textarea:focus { border-color: var(--c-3); }
+
+        .btn-create {
+            background: var(--c-3); color: #000; font-weight: 800;
+            padding: 15px; border-radius: 8px; border: none; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; font-family: var(--font-head); font-size: 18px;
+        }
+        .btn-create:hover { filter: brightness(1.1); }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="hub-brand">NEXUS HUB</div>
+        <div>
+            <button class="btn-clear" onclick="clearAllData()" title="Borrar Todo">🗑️</button>
+            <button class="theme-btn" onclick="toggleHubTheme()">
+                <svg id="hub-theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <main id="mainContainer">
+        <div class="acc-item item-0">
+            <div class="acc-header" onclick="toggleAcc('creator')">
+                <div class="acc-title-group">
+                    <h2 class="acc-title">+ NEW RESOURCE <span class="acc-tag">BUILDER</span></h2>
+                </div>
+                <div class="acc-controls">
+                    <svg class="acc-icon" id="icon-creator" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                </div>
+            </div>
+            <div class="acc-content" id="content-creator">
+                <div class="creator-form">
+                    <div class="form-row">
+                        <input type="text" id="inpTitle" placeholder="TITULO DEL RECURSO (Ej: Grid Layout)">
+                        <input type="text" id="inpTag" placeholder="CATEGORÍA (Ej: CSS)">
+                    </div>
+                    <textarea id="inpContent" placeholder="Pega aquí tu URL (https://...) o tu código HTML completo..."></textarea>
+                    <button class="btn-create" onclick="createNewResource()">CREAR ACORDEÓN</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="dynamicList"></div>
+
+    </main>
+
+<script>
+    // --- LÓGICA DE DATOS ---
+    let resources = JSON.parse(localStorage.getItem('nexusData')) || [];
+
+    // Cargar al inicio
+    renderResources();
+
+    function createNewResource() {
+        const title = document.getElementById('inpTitle').value;
+        const tag = document.getElementById('inpTag').value || 'DOCS';
+        const content = document.getElementById('inpContent').value;
+
+        if(!title || !content) { alert("Necesito al menos un título y contenido"); return; }
+
+        const newItem = {
+            id: 'res-' + Date.now(),
+            title: title,
+            tag: tag,
+            content: content,
+            type: detectType(content)
+        };
+
+        resources.push(newItem);
+        saveData();
+        renderResources();
+        
+        // Limpiar formulario y cerrar creador
+        document.getElementById('inpTitle').value = '';
+        document.getElementById('inpContent').value = '';
+        document.getElementById('inpTag').value = '';
+        toggleAcc('creator'); // Cierra el creador
+    }
+
+    function detectType(str) {
+        str = str.trim();
+        if (str.startsWith('http')) return 'url';
+        if (str.startsWith('{') || str.startsWith('[')) return 'json';
+        return 'html'; // Asumimos HTML/Código por defecto
+    }
+
+    function deleteResource(id) {
+        if(confirm("¿Eliminar este recurso?")) {
+            resources = resources.filter(r => r.id !== id);
+            saveData();
+            renderResources();
+        }
+    }
+
+    function clearAllData() {
+        if(confirm("¿ESTÁS SEGURO? Se borrarán todos los recursos creados.")) {
+            localStorage.removeItem('nexusData');
+            resources = [];
+            renderResources();
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem('nexusData', JSON.stringify(resources));
+    }
+
+    // --- LÓGICA DE RENDERIZADO ---
+    function renderResources() {
+        const container = document.getElementById('dynamicList');
+        container.innerHTML = ''; // Limpiar
+
+        resources.forEach((r, index) => {
+            // Asignar color cíclico (item-1 a item-6)
+            const colorClass = `item-${(index % 6) + 1}`;
+            
+            // Preparar el contenido del iframe
+            let iframeAttr = '';
+            if(r.type === 'url') {
+                iframeAttr = `src="${r.content}"`;
+            } else if (r.type === 'json') {
+                // Formatear JSON bonito dentro del iframe
+                const jsonContent = `<pre style='color:#333; padding:10px; font-family:monospace;'>${r.content}</pre>`;
+                iframeAttr = `srcdoc="${jsonContent.replace(/"/g, "&quot;")}"`; 
+            } else {
+                // Es HTML: Usamos srcdoc para inyectar el código directamente
+                // Escapamos comillas para que no rompa el atributo HTML
+                iframeAttr = `srcdoc="${r.content.replace(/"/g, "&quot;")}"`;
+            }
+
+            const html = `
+                <div class="acc-item ${colorClass}" id="acc-${r.id}">
+                    <div class="acc-header" onclick="toggleAcc('${r.id}')">
+                        <div class="acc-title-group">
+                            <h2 class="acc-title">${r.title.toUpperCase()} <span class="acc-tag">${r.tag.toUpperCase()}</span></h2>
+                        </div>
+                        <div class="acc-controls">
+                            <button class="del-btn" onclick="event.stopPropagation(); deleteResource('${r.id}')" title="Eliminar">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                            <button class="fs-btn" onclick="event.stopPropagation(); toggleFS('content-${r.id}')" title="Fullscreen">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                            </button>
+                            <svg class="acc-icon" id="icon-${r.id}" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                        </div>
+                    </div>
+                    <div class="acc-content" id="content-${r.id}">
+                        <div class="iframe-placeholder" data-attr='${iframeAttr}'></div>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        });
+    }
+
+    // --- LÓGICA DE INTERACCIÓN (CORE) ---
+    function toggleAcc(id) {
+        // Encontrar elementos dinámicamente
+        // Nota: para el creator, el id es 'creator'. Para items, es 'res-123...'
+        const isCreator = id === 'creator';
+        const item = isCreator ? document.querySelector('.item-0') : document.getElementById(`acc-${id}`);
+        const content = document.getElementById(`content-${id}`);
+        const icon = document.getElementById(`icon-${id}`);
+        
+        // Verificar si ya está abierto
+        const isOpen = content.style.maxHeight;
+
+        // 1. CERRAR TODOS (Resetear)
+        document.querySelectorAll('.acc-content').forEach(el => el.style.maxHeight = null);
+        document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
+        document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
+
+        // 2. ABRIR EL SELECCIONADO
+        if (!isOpen) {
+            item.classList.add('active');
+            content.style.maxHeight = "650px"; 
+            icon.style.transform = 'rotate(180deg)';
+            
+            // TRUCO DE OPTIMIZACIÓN: Crear el iframe solo al abrir
+            // Esto evita que carguen 20 páginas web al iniciar la app
+            if (!isCreator) {
+                const placeholder = content.querySelector('.iframe-placeholder');
+                if(placeholder && !content.querySelector('iframe')) {
+                    const attr = placeholder.getAttribute('data-attr');
+                    content.innerHTML = `<iframe ${attr} loading="lazy"></iframe>`;
+                }
+            }
+
+            setTimeout(() => {
+                item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+            }, 300);
+        }
+    }
+    
+    // FULLSCREEN
+    function toggleFS(id) {
+        const elem = document.getElementById(id);
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+
+    function toggleHubTheme() {
+        const doc = document.documentElement;
+        const icon = document.getElementById('hub-theme-icon');
+        
+        if (doc.classList.contains('light-mode')) {
+            doc.classList.remove('light-mode');
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        } else {
+            doc.classList.add('light-mode');
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
+        }
+    }
+</script>
+
+</body>
+</html>
