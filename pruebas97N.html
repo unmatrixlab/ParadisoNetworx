@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LINGUA NEXUS | System Core v4.0</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           1. CORE STYLES (Preserved)
+           ========================================================================== */
+        :root {
+            --bg-deep: #050507;
+            --bg-card: #121216;
+            --c-noun: #22d3ee; --c-adj: #e879f9; --c-reg: #4ade80;
+            --c-irreg:#fbbf24; --c-func: #818cf8;
+            --primary: #3b82f6; --success: #10b981; --danger: #ef4444;
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { background-color: var(--bg-deep); color: #f8fafc; font-family: var(--font-ui); margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ==========================================================================
+           2. HEADER (Updated with Settings Trigger)
+           ========================================================================== */
+        header {
+            height: 60px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; background: rgba(5, 5, 7, 0.9); border-bottom: 1px solid rgba(255,255,255,0.05); z-index: 50;
+        }
+        .brand { font-family: var(--font-head); font-size: 24px; color: #fff; letter-spacing: 1px; }
+        
+        .header-controls { display: flex; gap: 15px; align-items: center; }
+        
+        .icon-btn {
+            background: none; border: none; color: #94a3b8; cursor: pointer;
+            transition: 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .icon-btn:hover { color: #fff; transform: rotate(90deg); }
+
+        /* ==========================================================================
+           3. MAIN WORKSPACE
+           ========================================================================== */
+        main {
+            flex: 1; position: relative; overflow-y: auto; overflow-x: hidden;
+            padding-bottom: calc(140px + var(--safe-bottom)); scroll-behavior: smooth;
+        }
+
+        .view-screen {
+            display: none; flex-direction: column; align-items: center; padding: 20px;
+            max-width: 600px; margin: 0 auto; animation: fadeIn 0.3s ease;
+        }
+        .view-screen.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ==========================================================================
+           4. SETTINGS & LIBRARY UI (NEW)
+           ========================================================================== */
+        .settings-group {
+            width: 100%; background: var(--bg-card); padding: 20px; border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05); margin-bottom: 20px;
+        }
+        .settings-header { font-family: var(--font-head); font-size: 20px; color: #fff; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+        
+        /* Config Options */
+        .cfg-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .cfg-label { font-size: 14px; color: #cbd5e1; }
+        
+        .pill-select { display: flex; background: #000; border-radius: 8px; padding: 2px; }
+        .pill-opt {
+            padding: 6px 12px; font-size: 12px; font-family: var(--font-code);
+            cursor: pointer; border-radius: 6px; color: #666; transition: 0.2s;
+        }
+        .pill-opt.active { background: var(--primary); color: #fff; font-weight: bold; }
+
+        /* Library List */
+        .lib-search {
+            width: 100%; background: #000; border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px; border-radius: 8px; color: #fff; font-family: var(--font-ui);
+            margin-bottom: 15px;
+        }
+        .lib-list { width: 100%; max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        
+        .lib-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px;
+            border-left: 3px solid transparent;
+        }
+        .lib-item.status-mastered { border-left-color: var(--success); background: rgba(16, 185, 129, 0.05); }
+        .lib-item.status-hard { border-left-color: var(--danger); background: rgba(239, 68, 68, 0.05); }
+        
+        .lib-word { font-weight: bold; color: #fff; font-size: 14px; }
+        .lib-sub { font-size: 11px; color: #666; }
+        .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-family: var(--font-code); text-transform: uppercase; }
+        .badge.mas { color: var(--success); border: 1px solid var(--success); }
+        .badge.hard { color: var(--danger); border: 1px solid var(--danger); }
+
+        /* ==========================================================================
+           5. GAME COMPONENTS (Preserved)
+           ========================================================================== */
+        .word-display { margin: 20px 0 40px 0; text-align: center; width: 100%; }
+        .ctx-pill { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; background: rgba(255,255,255,0.05); color: #94a3b8; margin-bottom: 15px; }
+        .big-word { font-size: clamp(32px, 8vw, 56px); font-weight: 800; line-height: 1.1; text-shadow: 0 0 30px rgba(255,255,255,0.1); }
+        .input-grid { display: flex; flex-direction: column; gap: 15px; width: 100%; }
+        .input-row { position: relative; width: 100%; }
+        .input-label { position: absolute; top: 12px; left: 15px; font-size: 9px; font-weight: bold; color: rgba(255,255,255,0.3); letter-spacing: 1px; pointer-events: none; }
+        .game-input { width: 100%; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 28px 15px 12px 15px; font-family: var(--font-code); font-size: 18px; color: #fff; text-transform: uppercase; transition: 0.2s; }
+        .game-input:focus { border-color: var(--primary); background: #1a1a20; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); }
+        .input-row.correct .game-input { border-color: var(--success); color: var(--success); background: rgba(16, 185, 129, 0.05); }
+        .input-row.error .game-input { border-color: var(--danger); color: var(--danger); }
+        .action-area { width: 100%; margin-top: 30px; display: flex; justify-content: center; }
+        .btn-check { width: 100%; padding: 18px; border-radius: 14px; border: none; background: #2a2a30; color: #666; font-family: var(--font-head); font-size: 24px; letter-spacing: 1px; cursor: not-allowed; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-check.ready { background: var(--primary); color: #fff; cursor: pointer; box-shadow: 0 10px 30px -5px rgba(59, 130, 246, 0.4); transform: translateY(-2px); }
+
+        /* ==========================================================================
+           6. DOCK (Preserved)
+           ========================================================================== */
+        .dock-container { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: rgba(5, 5, 7, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.08); padding-bottom: var(--safe-bottom); height: calc(110px + var(--safe-bottom)); display: flex; align-items: center; }
+        .dock-scroll { display: flex; align-items: center; gap: 15px; padding: 0 25px; width: 100%; overflow-x: auto; scrollbar-width: none; }
+        .dock-scroll::-webkit-scrollbar { display: none; }
+        .dock-item { flex-shrink: 0; height: 70px; min-width: 80px; display: flex; flex-direction: column; justify-content: center; align-items: center; opacity: 0.5; transition: 0.3s; cursor: pointer; }
+        .dock-item span { font-family: var(--font-head); font-size: 26px; line-height: 1; color: #fff; letter-spacing: 0.5px; }
+        .dock-bar { margin-top: 6px; width: 4px; height: 4px; border-radius: 50%; background: transparent; transition: 0.3s; }
+        .dock-item.active { opacity: 1; transform: translateY(-5px); }
+        .dock-item.active .dock-bar { width: 20px; background: currentColor; box-shadow: 0 0 10px currentColor; }
+        .dock-item[data-c="nouns"] { color: var(--c-noun); } .dock-item[data-c="adj"] { color: var(--c-adj); }
+        .dock-item[data-c="reg"] { color: var(--c-reg); } .dock-item[data-c="irreg"] { color: var(--c-irreg); }
+        .dock-item[data-c="func"] { color: var(--c-func); } .dock-item[data-c="dash"] { color: #fff; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .card h3 { margin: 0; font-family: var(--font-head); font-size: 24px; color: #fff; }
+        .card small { color: #666; font-size: 10px; display: block; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <script src="https://paradisonetworx.com/database.js"></script>
+
+    <header>
+        <div class="brand">LINGUA NEXUS</div>
+        <div class="header-controls">
+            <button class="icon-btn" onclick="App.nav('settings')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div id="view-home" class="view-screen active">
+            <h1 style="font-family:var(--font-head); font-size:42px; margin-bottom:10px;">TRAINING HUB</h1>
+            <p style="color:#666; font-size:14px; text-align:center; margin-bottom:30px;">Select a module from the dock below.</p>
+            
+            <div style="width:100%; background:rgba(255,255,255,0.05); padding:15px; border-radius:12px; margin-bottom:20px; display:flex; justify-content:space-around;">
+                <div style="text-align:center;">
+                    <div style="font-size:24px; font-weight:bold; color:var(--success);" id="stat-mastered">0</div>
+                    <div style="font-size:10px; color:#666;">MASTERED</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:24px; font-weight:bold; color:var(--danger);" id="stat-hard">0</div>
+                    <div style="font-size:10px; color:#666;">HARD WORDS</div>
+                </div>
+            </div>
+
+            <div class="grid">
+                <div class="card" onclick="App.start('nouns')"><h3 style="color:var(--c-noun)">NOUNS</h3><small>Objects</small></div>
+                <div class="card" onclick="App.start('adjectives')"><h3 style="color:var(--c-adj)">ADJECTIVES</h3><small>Descriptors</small></div>
+                <div class="card" onclick="App.start('verbs_irreg')"><h3 style="color:var(--c-irreg)">IRREGULAR</h3><small>Verbs Matrix</small></div>
+                <div class="card" onclick="App.start('functionals')"><h3 style="color:var(--c-func)">SYNTAX</h3><small>Logic</small></div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view-screen">
+            <h1 style="font-family:var(--font-head); font-size:32px; margin-bottom:20px;">SYSTEM CONFIG</h1>
+            
+            <div class="settings-group">
+                <div class="settings-header">PREFERENCES</div>
+                <div class="cfg-row">
+                    <span class="cfg-label">Session Length</span>
+                    <div class="pill-select" id="sess-opts">
+                        <div class="pill-opt" onclick="Profile.setBatch(5, this)">5</div>
+                        <div class="pill-opt active" onclick="Profile.setBatch(10, this)">10</div>
+                        <div class="pill-opt" onclick="Profile.setBatch(20, this)">20</div>
+                        <div class="pill-opt" onclick="Profile.setBatch(999, this)">ALL</div>
+                    </div>
+                </div>
+                <div class="cfg-row">
+                    <span class="cfg-label">Reset Progress</span>
+                    <button onclick="Profile.reset()" style="background:#330000; color:var(--danger); border:1px solid var(--danger); padding:6px 12px; border-radius:6px; font-size:11px;">WIPE DATA</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-header">DATABASE LIBRARY</div>
+                <input type="text" class="lib-search" placeholder="Search database..." onkeyup="App.renderLibrary(this.value)">
+                <div class="lib-list" id="lib-container">
+                    </div>
+            </div>
+        </div>
+
+        <div id="view-game" class="view-screen">
+            <div class="word-display">
+                <div class="ctx-pill" id="lbl-ctx">LOADING</div>
+                <div class="big-word" id="lbl-word">...</div>
+            </div>
+            <div class="input-grid" id="input-area"></div>
+            <div class="action-area">
+                <button id="btn-submit" class="btn-check" onclick="App.validate()">
+                    <span>CONFIRM ANSWER</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div class="dock-container">
+        <div class="dock-scroll">
+            <div class="dock-item active" data-c="dash" onclick="App.nav('home')"><span>HOME</span><div class="dock-bar"></div></div>
+            <div class="dock-item" data-c="nouns" onclick="App.start('nouns')"><span>NOUNS</span><div class="dock-bar"></div></div>
+            <div class="dock-item" data-c="adj" onclick="App.start('adjectives')"><span>ADJ</span><div class="dock-bar"></div></div>
+            <div class="dock-item" data-c="reg" onclick="App.start('verbs_reg')"><span>REGULAR</span><div class="dock-bar"></div></div>
+            <div class="dock-item" data-c="irreg" onclick="App.start('verbs_irreg')"><span>IRREGULAR</span><div class="dock-bar"></div></div>
+            <div class="dock-item" data-c="func" onclick="App.start('functionals')"><span>LOGIC</span><div class="dock-bar"></div></div>
+        </div>
+    </div>
+
+<script>
+/**
+ * LINGUA NEXUS | v4.0 System Core
+ * Features: LocalStorage Persistence, Library View, Configurable Sessions
+ */
+
+// 1. PROFILE MANAGER (Handles Persistence)
+const Profile = {
+    key: 'LN_v4_data',
+    state: {
+        batchSize: 10,
+        mastered: [], // Array of English words
+        hard: []      // Array of English words
+    },
+
+    init() {
+        const saved = localStorage.getItem(this.key);
+        if(saved) this.state = JSON.parse(saved);
+        this.updateUI();
+    },
+
+    save() {
+        localStorage.setItem(this.key, JSON.stringify(this.state));
+        this.updateUI();
+    },
+
+    setBatch(size, el) {
+        this.state.batchSize = size;
+        this.save();
+        // UI Update for pills
+        document.querySelectorAll('#sess-opts .pill-opt').forEach(p => p.classList.remove('active'));
+        el.classList.add('active');
+    },
+
+    logResult(word, isSuccess) {
+        // Remove from both lists first to avoid duplicates
+        this.state.mastered = this.state.mastered.filter(w => w !== word);
+        this.state.hard = this.state.hard.filter(w => w !== word);
+
+        if(isSuccess) {
+            this.state.mastered.push(word);
+        } else {
+            this.state.hard.push(word);
+        }
+        this.save();
+    },
+
+    reset() {
+        if(confirm("Are you sure? This will delete all progress.")) {
+            this.state.mastered = [];
+            this.state.hard = [];
+            this.save();
+            alert("Data Wiped.");
+            App.renderLibrary(); // Refresh view
+        }
+    },
+
+    updateUI() {
+        // Update stats on dashboard
+        const mEl = document.getElementById('stat-mastered');
+        const hEl = document.getElementById('stat-hard');
+        if(mEl) mEl.innerText = this.state.mastered.length;
+        if(hEl) hEl.innerText = this.state.hard.length;
+
+        // Update Batch Size Selector UI
+        const pills = document.querySelectorAll('#sess-opts .pill-opt');
+        pills.forEach(p => {
+            p.classList.remove('active');
+            if(parseInt(p.innerText) === this.state.batchSize || (p.innerText === 'ALL' && this.state.batchSize === 999)) {
+                p.classList.add('active');
+            }
+        });
+    }
+};
+
+const DB = {
+    data: {},
+    async load() {
+        return new Promise(resolve => {
+            const i = setInterval(() => {
+                if(typeof INTERNAL_VOCAB !== 'undefined') {
+                    this.data = INTERNAL_VOCAB;
+                    clearInterval(i);
+                    Profile.init(); // Init profile after DB
+                    resolve();
+                }
+            }, 100);
+        });
+    },
+    fetch(cat) {
+        let key = '';
+        if(cat === 'nouns') key = 'NOUNS';
+        if(cat === 'adjectives') key = 'ADJECTIVES';
+        if(cat === 'verbs_reg') key = 'REGULAR_VERBS';
+        if(cat === 'verbs_irreg') key = 'IRREGULAR_VERBS';
+        if(cat === 'functionals') key = 'FUNCTION WORDS';
+        
+        const list = this.data[key] || [];
+        const limit = Profile.state.batchSize || 10;
+
+        // Smart Shuffle: Could prioritize Hard words here in v5
+        return list.sort(() => 0.5 - Math.random()).slice(0, limit).map(i => ({
+            ...i,
+            isTriad: (cat.includes('verbs'))
+        }));
+    },
+    getAllFlat() {
+        // Returns all words in a single array for the Library view
+        let all = [];
+        Object.keys(this.data).forEach(k => {
+            this.data[k].forEach(item => {
+                all.push({...item, type: k});
+            });
+        });
+        return all;
+    }
+};
+
+const TTS = {
+    speak(txt) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(txt);
+        u.lang = 'en-US'; u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+    }
+};
+
+const App = {
+    queue: [],
+    curr: 0,
+
+    async init() {
+        await DB.load();
+        this.nav('home');
+    },
+
+    nav(view) {
+        document.querySelectorAll('.view-screen').forEach(el => el.classList.remove('active'));
+        
+        if(view === 'settings') {
+            document.getElementById('view-settings').classList.add('active');
+            this.renderLibrary(); // Build library when opening settings
+        } else if(view === 'home') {
+            document.getElementById('view-home').classList.add('active');
+        } else {
+            document.getElementById('view-game').classList.add('active');
+        }
+
+        // Dock Logic
+        document.querySelectorAll('.dock-item').forEach(el => el.classList.remove('active'));
+        if(view === 'home' || view === 'settings') {
+            document.querySelector('[data-c="dash"]').classList.add('active');
+        } else {
+            const match = document.querySelector(`.dock-item[onclick*="${view}"]`);
+            if(match) match.classList.add('active');
+        }
+    },
+
+    start(cat) {
+        this.queue = DB.fetch(cat);
+        this.curr = 0;
+        this.nav(cat);
+        const color = getComputedStyle(document.querySelector(`.dock-item[onclick*="${cat}"]`)).color;
+        document.getElementById('lbl-ctx').style.color = color;
+        document.getElementById('lbl-ctx').innerText = cat.toUpperCase();
+        this.render();
+    },
+
+    render() {
+        if(this.curr >= this.queue.length) {
+            this.nav('home');
+            return;
+        }
+        const item = this.queue[this.curr];
+        const area = document.getElementById('input-area');
+        area.innerHTML = '';
+        const btn = document.getElementById('btn-submit');
+        btn.classList.remove('ready'); btn.disabled = true;
+
+        const display = Array.isArray(item.es) ? item.es.join(" / ") : item.es;
+        document.getElementById('lbl-word').innerText = display;
+
+        if(item.isTriad) {
+            this.addInput(area, 'BASE FORM', item.en);
+            this.addInput(area, 'PAST SIMPLE', item.past);
+            this.addInput(area, 'PARTICIPLE', item.part);
+        } else {
+            this.addInput(area, 'TRANSLATION', item.en);
+        }
+        setTimeout(() => area.querySelector('input').focus(), 100);
+    },
+
+    addInput(parent, label, ans) {
+        const div = document.createElement('div');
+        div.className = 'input-row';
+        div.innerHTML = `<span class="input-label">${label}</span><input type="text" class="game-input" data-ans="${ans}" autocomplete="off">`;
+        const inp = div.querySelector('input');
+        inp.addEventListener('input', () => this.checkInputStatus());
+        inp.addEventListener('keydown', (e) => {
+            if(e.key === 'Enter') {
+                const all = document.querySelectorAll('.game-input');
+                const idx = Array.from(all).indexOf(e.target);
+                if(idx < all.length - 1) all[idx+1].focus(); else this.validate();
+            }
+        });
+        parent.appendChild(div);
+    },
+
+    checkInputStatus() {
+        const all = document.querySelectorAll('.game-input');
+        const filled = Array.from(all).every(i => i.value.trim().length > 0);
+        const btn = document.getElementById('btn-submit');
+        if(filled) { btn.classList.add('ready'); btn.disabled = false; }
+        else { btn.classList.remove('ready'); btn.disabled = true; }
+    },
+
+    validate() {
+        const btn = document.getElementById('btn-submit');
+        if(!btn.classList.contains('ready')) return;
+
+        const item = this.queue[this.curr];
+        const inputs = document.querySelectorAll('.game-input');
+        let allOk = true;
+
+        inputs.forEach(inp => {
+            const val = inp.value.trim().toLowerCase();
+            const correct = inp.dataset.ans.toLowerCase();
+            const row = inp.parentElement;
+            row.classList.remove('error', 'correct');
+            if(val === correct) { row.classList.add('correct'); }
+            else { allOk = false; row.classList.add('error'); inp.value = ''; inp.placeholder = correct.toUpperCase(); }
+        });
+
+        // LOGIC: Pedagogical Tracking
+        Profile.logResult(item.en, allOk);
+
+        if(allOk) {
+            let say = item.en;
+            if(item.isTriad) say = `${item.en}, ${item.past}, ${item.part}`;
+            TTS.speak(say);
+            setTimeout(() => { this.curr++; this.render(); }, 1200);
+        } else {
+            btn.classList.remove('ready'); btn.disabled = true;
+        }
+    },
+
+    // LIBRARY VIEW LOGIC
+    renderLibrary(filter = '') {
+        const container = document.getElementById('lib-container');
+        container.innerHTML = '';
+        const allWords = DB.getAllFlat();
+        const search = filter.toLowerCase();
+
+        allWords.forEach(w => {
+            if(filter && !w.en.toLowerCase().includes(search) && !w.es.toString().toLowerCase().includes(search)) return;
+
+            let statusClass = '';
+            let badge = '';
+            
+            if(Profile.state.mastered.includes(w.en)) {
+                statusClass = 'status-mastered';
+                badge = '<span class="badge mas">MASTERED</span>';
+            } else if (Profile.state.hard.includes(w.en)) {
+                statusClass = 'status-hard';
+                badge = '<span class="badge hard">HARD</span>';
+            }
+
+            const div = document.createElement('div');
+            div.className = `lib-item ${statusClass}`;
+            const displayEs = Array.isArray(w.es) ? w.es.join(", ") : w.es;
+            
+            div.innerHTML = `
+                <div>
+                    <div class="lib-word">${w.en} ${w.isTriad || w.type.includes('VERB') ? (w.past ? ` / ${w.past} / ${w.part}` : '') : ''}</div>
+                    <div class="lib-sub">${displayEs}</div>
+                </div>
+                ${badge}
+            `;
+            container.appendChild(div);
+        });
+    }
+};
+
+window.onload = () => App.init();
+</script>
+</body>
+</html>
