@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | v7.5 Filters</title>
+    <title>LINGUA NEXUS | v7.6 Speed</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -162,16 +162,17 @@
         
         .lib-search { width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 14px; border-radius: 12px; color: var(--txt-main); font-size: 16px; margin-bottom: 15px; }
         
-        /* NEW: FILTER BAR */
+        /* FIXED: FILTER BAR (WRAPPED) */
         .filter-bar { 
-            display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; 
-            padding-bottom: 5px; scrollbar-width: none; 
+            display: flex; gap: 8px; margin-bottom: 15px; 
+            flex-wrap: wrap; /* Allows wrapping */
+            justify-content: flex-start;
         }
         .filter-btn {
             background: var(--bg-card); border: 1px solid var(--border);
-            color: var(--txt-sec); padding: 8px 14px; border-radius: 10px;
-            font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer;
-            transition: 0.2s;
+            color: var(--txt-sec); padding: 8px 12px; border-radius: 8px;
+            font-size: 11px; font-weight: 700; cursor: pointer;
+            transition: 0.2s; flex: 1; min-width: 50px; text-align: center;
         }
         .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
         
@@ -197,6 +198,14 @@
             font-size: 10px; font-weight: bold; padding: 2px 6px; 
             border-radius: 4px; background: var(--bg-input); color: var(--txt-sec);
         }
+
+        .load-more-btn {
+            width: 100%; padding: 15px; background: var(--bg-card);
+            border: 1px solid var(--border); color: var(--txt-main);
+            border-radius: 12px; margin-top: 10px; cursor: pointer;
+            font-weight: 700; font-size: 12px; letter-spacing: 1px;
+        }
+        .load-more-btn:hover { background: var(--bg-hover); }
 
     </style>
 </head>
@@ -282,7 +291,7 @@
                 </div>
             </div>
 
-            <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.renderLib()">
+            <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.resetRender()">
             
             <div class="filter-bar">
                 <button class="filter-btn active" onclick="App.setLibFilter('all', this)">ALL</button>
@@ -294,6 +303,7 @@
             </div>
 
             <div id="lib-list" style="padding-bottom:20px;"></div>
+            <button id="btn-load-more" class="load-more-btn" onclick="App.renderMore()">LOAD MORE...</button>
         </div>
 
         <div id="view-game" class="view-screen">
@@ -389,7 +399,9 @@ const Profile = {
 
 const App = {
     q: [], idx: 0, t0: 0, fail: false,
-    filterLvl: 'all', // NEW FILTER STATE
+    filterLvl: 'all',
+    filteredResults: [],
+    renderCount: 50, // Initial limit
 
     async boot() { await DB.init(); Profile.load(); this.nav('home'); },
     
@@ -397,7 +409,7 @@ const App = {
         document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
         document.getElementById('view-'+v).classList.add('active');
         document.body.className = (v === 'home') ? 'is-home' : '';
-        if(v === 'settings') this.renderLib();
+        if(v === 'settings') this.resetRender();
     },
 
     start(cat) {
@@ -544,33 +556,54 @@ const App = {
         }
     },
 
-    // FILTER LOGIC
+    // OPTIMIZED RENDER + FILTER
     setLibFilter(lvl, btn) {
         this.filterLvl = lvl;
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        this.resetRender();
+    },
+
+    resetRender() {
+        this.renderCount = 50; // Reset pagination
+        this.calculateFilteredList();
         this.renderLib();
     },
 
-    renderLib() {
+    renderMore() {
+        this.renderCount += 50;
+        this.renderLib();
+    },
+
+    calculateFilteredList() {
         const s = document.getElementById('inp-search').value;
-        const c = document.getElementById('lib-list');
-        c.innerHTML = '';
         const term = s.toLowerCase();
         
-        // UNLIMITED RENDER + FILTER
-        const frag = document.createDocumentFragment();
-        
-        DB.all().filter(x => {
-            // Text Filter
+        this.filteredResults = DB.all().filter(x => {
             const matchesText = !s || x.en.toLowerCase().includes(term);
             if(!matchesText) return false;
-
-            // Level Filter
             if(this.filterLvl === 'all') return true;
             return Profile.getLvl(x.en) === this.filterLvl;
-            
-        }).forEach(w => {
+        });
+    },
+
+    renderLib() {
+        const c = document.getElementById('lib-list');
+        c.innerHTML = '';
+        
+        // Show Load More button if needed
+        const btnMore = document.getElementById('btn-load-more');
+        if(this.filteredResults.length > this.renderCount) {
+            btnMore.style.display = 'block';
+            btnMore.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount} REMAINING)`;
+        } else {
+            btnMore.style.display = 'none';
+        }
+
+        const frag = document.createDocumentFragment();
+        
+        // Slice for performance (Pagination)
+        this.filteredResults.slice(0, this.renderCount).forEach(w => {
             const l = Profile.getLvl(w.en);
             const pct = l * 25; 
             
