@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LINGUA NEXUS | Platinum v7.0</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           1. DESIGN TOKENS (HSL for Semantic Colors)
+           ========================================================================== */
+        :root {
+            /* DARK THEME (Default) */
+            --hue-bg: 240;
+            --bg-body: hsl(240, 10%, 4%);
+            --bg-surface: hsl(240, 10%, 8%);
+            --bg-glass: hsla(240, 10%, 8%, 0.85); /* High opacity glass */
+            --bg-input: hsl(240, 10%, 12%);
+            
+            --txt-primary: hsl(0, 0%, 98%);
+            --txt-secondary: hsl(240, 5%, 60%);
+            --txt-tertiary: hsl(240, 5%, 40%);
+            
+            --border-light: hsla(0, 0%, 100%, 0.08);
+            --border-focus: hsla(217, 91%, 60%, 0.5);
+            
+            /* Accents */
+            --c-brand: hsl(217, 91%, 60%);
+            --c-success: hsl(150, 80%, 40%);
+            --c-danger: hsl(340, 80%, 55%);
+            --c-warn: hsl(35, 90%, 50%);
+
+            /* Typography */
+            --font-display: 'Bebas Neue', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            /* Categories */
+            --cat-noun: hsl(190, 90%, 50%);
+            --cat-adj: hsl(290, 90%, 60%);
+            --cat-reg: hsl(140, 70%, 50%);
+            --cat-irreg: hsl(35, 90%, 60%);
+            --cat-func: hsl(240, 80%, 70%);
+
+            --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* LIGHT THEME OVERRIDES */
+        body.light-mode {
+            --bg-body: hsl(210, 20%, 96%);
+            --bg-surface: hsl(0, 0%, 100%);
+            --bg-glass: hsla(0, 0%, 100%, 0.9);
+            --bg-input: hsl(210, 20%, 92%);
+            
+            --txt-primary: hsl(220, 20%, 10%);
+            --txt-secondary: hsl(220, 10%, 45%);
+            --border-light: hsla(0, 0%, 0%, 0.06);
+            
+            --c-brand: hsl(217, 91%, 50%);
+            --cat-noun: hsl(190, 90%, 40%);
+            --cat-adj: hsl(290, 80%, 50%);
+            --cat-reg: hsl(140, 70%, 40%);
+            --cat-irreg: hsl(35, 90%, 50%);
+            --cat-func: hsl(240, 80%, 60%);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
+        
+        body {
+            background: var(--bg-body); color: var(--txt-primary);
+            font-family: var(--font-body); margin: 0; height: 100vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.4s ease, color 0.4s ease;
+        }
+
+        /* ==========================================================================
+           2. HEADER (Clean & Minimal)
+           ========================================================================== */
+        header {
+            height: 64px; flex-shrink: 0;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 24px;
+            background: var(--bg-body); /* Solid to hide scroll overlap at top */
+            z-index: 50;
+        }
+
+        .brand-lockup { display: flex; align-items: center; gap: 8px; }
+        .brand-dot { width: 8px; height: 8px; background: var(--c-brand); border-radius: 50%; box-shadow: 0 0 10px var(--c-brand); }
+        .brand-text { font-family: var(--font-display); font-size: 22px; letter-spacing: 1px; color: var(--txt-primary); }
+
+        .btn-icon {
+            width: 40px; height: 40px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            background: transparent; border: 1px solid transparent;
+            color: var(--txt-secondary); cursor: pointer; transition: 0.2s;
+        }
+        .btn-icon:hover { background: var(--bg-surface); color: var(--c-brand); border-color: var(--border-light); }
+        .btn-icon:active { transform: scale(0.92); }
+
+        /* ==========================================================================
+           3. MAIN CONTAINER
+           ========================================================================== */
+        main {
+            flex: 1; position: relative;
+            overflow-y: auto; overflow-x: hidden;
+            /* Extra padding bottom to ensure scroll clears the glass dock completely */
+            padding-bottom: calc(120px + var(--safe-bottom)); 
+        }
+
+        .view {
+            display: none; flex-direction: column; align-items: center;
+            padding: 24px; max-width: 500px; margin: 0 auto;
+            opacity: 0; transform: translateY(10px);
+            transition: opacity 0.3s ease, transform 0.3s var(--ease-elastic);
+        }
+        .view.active { display: flex; opacity: 1; transform: translateY(0); }
+
+        /* ==========================================================================
+           4. DASHBOARD & STATS (SVG RINGS)
+           ========================================================================== */
+        .h1-title { font-family: var(--font-display); font-size: 42px; width: 100%; text-align: left; margin: 10px 0 30px 0; line-height: 0.9; }
+        
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; margin-bottom: 30px; }
+        
+        .stat-card {
+            background: var(--bg-surface); border: 1px solid var(--border-light);
+            border-radius: 20px; padding: 20px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+        }
+        
+        /* Circular Progress */
+        .ring-container { position: relative; width: 80px; height: 80px; margin-bottom: 10px; }
+        .ring-bg { fill: none; stroke: var(--bg-input); stroke-width: 6; }
+        .ring-val { 
+            fill: none; stroke-width: 6; stroke-linecap: round;
+            stroke-dasharray: 220; stroke-dashoffset: 220; /* 2*PI*35 approx 220 */
+            transform: rotate(-90deg); transform-origin: 50% 50%;
+            transition: stroke-dashoffset 1s ease;
+        }
+        .stat-num-center {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 20px; font-weight: 700;
+        }
+        .stat-label { font-size: 11px; font-weight: 600; color: var(--txt-secondary); letter-spacing: 0.5px; text-transform: uppercase; }
+
+        .grid-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+        .menu-card {
+            background: var(--bg-surface); padding: 24px; border-radius: 18px;
+            border: 1px solid var(--border-light); cursor: pointer;
+            transition: all 0.2s; position: relative;
+        }
+        .menu-card:hover { transform: translateY(-3px); border-color: var(--txt-secondary); }
+        .menu-card:active { transform: scale(0.98); }
+        .menu-card h3 { margin: 0; font-family: var(--font-display); font-size: 20px; color: var(--txt-primary); pointer-events: none;}
+        .menu-card span { font-size: 10px; color: var(--txt-secondary); text-transform: uppercase; pointer-events: none;}
+        .decoration-dot { position: absolute; top: 15px; right: 15px; width: 6px; height: 6px; border-radius: 50%; opacity: 0.8; }
+
+        /* ==========================================================================
+           5. GAME UI (Refined)
+           ========================================================================== */
+        .word-stage { margin: 30px 0 50px 0; text-align: center; width: 100%; }
+        .ctx-label { font-family: var(--font-mono); font-size: 10px; color: var(--c-brand); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; display: block; }
+        .the-word { font-size: clamp(32px, 8vw, 48px); font-weight: 800; color: var(--txt-primary); line-height: 1.1; }
+
+        .input-group { width: 100%; margin-bottom: 16px; position: relative; }
+        .input-box {
+            width: 100%; background: var(--bg-input); border: 2px solid transparent;
+            color: var(--txt-primary); font-family: var(--font-mono); font-size: 16px;
+            padding: 24px 16px 10px 16px; border-radius: 14px;
+            transition: 0.3s;
+        }
+        .input-box:focus { background: var(--bg-surface); border-color: var(--c-brand); box-shadow: 0 4px 20px -5px rgba(59,130,246,0.3); }
+        
+        .floating-label {
+            position: absolute; left: 18px; top: 18px; font-size: 10px; font-weight: 700;
+            color: var(--txt-secondary); text-transform: uppercase; letter-spacing: 1px;
+            pointer-events: none; transition: 0.3s;
+        }
+        .input-box:focus ~ .floating-label, .input-box:not(:placeholder-shown) ~ .floating-label {
+            color: var(--c-brand);
+        }
+
+        /* Validation Colors */
+        .input-group.correct .input-box { border-color: var(--c-success); background: hsla(150, 80%, 40%, 0.05); color: var(--c-success); }
+        .input-group.error .input-box { border-color: var(--c-danger); animation: shake 0.4s; }
+        @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-4px);} 75% {transform: translateX(4px);} }
+
+        .btn-primary {
+            width: 100%; padding: 18px; border-radius: 16px; border: none;
+            background: var(--bg-input); color: var(--txt-secondary);
+            font-family: var(--font-display); font-size: 20px; letter-spacing: 1px;
+            margin-top: 20px; transition: 0.3s var(--ease-elastic); cursor: default;
+        }
+        .btn-primary.ready {
+            background: var(--c-brand); color: #fff; cursor: pointer;
+            box-shadow: 0 10px 25px -5px rgba(59,130,246,0.5); transform: translateY(-2px);
+        }
+        .btn-primary.ready:active { transform: scale(0.95); }
+
+        /* ==========================================================================
+           6. SETTINGS (Clean)
+           ========================================================================== */
+        .cfg-section { width: 100%; background: var(--bg-surface); padding: 20px; border-radius: 18px; margin-bottom: 16px; border: 1px solid var(--border-light); }
+        .cfg-label { font-size: 13px; font-weight: 600; color: var(--txt-secondary); display: block; margin-bottom: 10px; }
+        .num-picker { 
+            width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-light);
+            color: var(--txt-primary); border-radius: 10px; font-family: var(--font-mono); text-align: center;
+            font-size: 18px;
+        }
+        .library-list { margin-top: 20px; width: 100%; }
+        .lib-row { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 12px; border-bottom: 1px solid var(--border-light);
+        }
+        .lib-row span { font-size: 14px; font-weight: 500; }
+        .lvl-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; background: var(--bg-input); color: var(--txt-secondary); font-family: var(--font-mono); }
+
+        /* ==========================================================================
+           7. THE GLASS DOCK (Redesigned)
+           ========================================================================== */
+        .glass-dock {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            height: calc(85px + var(--safe-bottom));
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--border-light);
+            z-index: 100;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding-top: 10px; padding-bottom: var(--safe-bottom);
+        }
+
+        .dock-inner {
+            position: relative;
+            display: flex; align-items: center; gap: 8px;
+            background: var(--bg-surface);
+            padding: 6px; border-radius: 24px;
+            border: 1px solid var(--border-light);
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.3);
+            overflow-x: auto;
+            max-width: 95%;
+            scrollbar-width: none;
+        }
+        .dock-inner::-webkit-scrollbar { display: none; }
+
+        /* The Moving Pill Selector */
+        .dock-selector {
+            position: absolute; top: 6px; left: 6px; height: 48px; width: 60px;
+            background: var(--txt-primary);
+            border-radius: 18px;
+            z-index: 1; /* Behind text, above background */
+            transition: transform 0.3s var(--ease-elastic), width 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            pointer-events: none;
+        }
+        /* In light mode, pill is dark. In dark mode, pill is light. */
+
+        .dock-btn {
+            position: relative; z-index: 2;
+            min-width: 60px; height: 48px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 18px; cursor: pointer;
+            color: var(--txt-secondary); transition: color 0.2s;
+            flex-shrink: 0; -webkit-tap-highlight-color: transparent;
+        }
+        
+        .dock-btn span { font-family: var(--font-display); font-size: 18px; line-height: 1; }
+        .dock-btn small { font-size: 8px; font-weight: 700; opacity: 0.7; margin-top: 2px; }
+
+        /* Active State Text Logic */
+        .dock-btn.active { color: var(--bg-body); } /* Contrast against the pill */
+        
+    </style>
+</head>
+<body>
+
+    <script src="https://paradisonetworx.com/database.js"></script>
+
+    <header>
+        <div class="brand-lockup">
+            <div class="brand-dot"></div>
+            <div class="brand-text">LINGUA NEXUS</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-icon" onclick="Theme.toggle()">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+            </button>
+            <button class="btn-icon" onclick="App.nav('settings')">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div id="view-home" class="view active">
+            <h1 class="h1-title">PROGRESS<br>OVERVIEW</h1>
+            
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="ring-container">
+                        <svg width="80" height="80">
+                            <circle class="ring-bg" cx="40" cy="40" r="35"/>
+                            <circle id="ring-master" class="ring-val" cx="40" cy="40" r="35" style="stroke: var(--c-success); stroke-dashoffset: 220;"/>
+                        </svg>
+                        <div class="stat-num-center" id="txt-master">0%</div>
+                    </div>
+                    <span class="stat-label">Mastery</span>
+                </div>
+                <div class="stat-card">
+                    <div class="ring-container">
+                        <svg width="80" height="80">
+                            <circle class="ring-bg" cx="40" cy="40" r="35"/>
+                            <circle id="ring-learn" class="ring-val" cx="40" cy="40" r="35" style="stroke: var(--c-warn); stroke-dashoffset: 220;"/>
+                        </svg>
+                        <div class="stat-num-center" id="txt-learn">0</div>
+                    </div>
+                    <span class="stat-label">Learning</span>
+                </div>
+            </div>
+
+            <div class="grid-menu">
+                <div class="menu-card" onclick="App.start('nouns')">
+                    <h3>NOUNS</h3><span>Objects</span>
+                    <div class="decoration-dot" style="background:var(--cat-noun)"></div>
+                </div>
+                <div class="menu-card" onclick="App.start('adjectives')">
+                    <h3>ADJ</h3><span>Descriptors</span>
+                    <div class="decoration-dot" style="background:var(--cat-adj)"></div>
+                </div>
+                <div class="menu-card" onclick="App.start('verbs_irreg')">
+                    <h3>IRREG</h3><span>Matrix</span>
+                    <div class="decoration-dot" style="background:var(--cat-irreg)"></div>
+                </div>
+                <div class="menu-card" onclick="App.start('functionals')">
+                    <h3>LOGIC</h3><span>Syntax</span>
+                    <div class="decoration-dot" style="background:var(--cat-func)"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-game" class="view">
+            <div class="word-stage">
+                <span class="ctx-label" id="lbl-ctx">LOADING</span>
+                <div class="the-word" id="lbl-word">...</div>
+            </div>
+            <div id="game-inputs" style="width:100%;"></div>
+            <button id="btn-action" class="btn-primary" onclick="App.validate()">CONFIRM</button>
+        </div>
+
+        <div id="view-settings" class="view">
+            <h1 class="h1-title">SYSTEM<br>CONFIG</h1>
+            
+            <div class="cfg-section">
+                <label class="cfg-label">SESSION WORD LIMIT</label>
+                <input type="number" id="inp-limit-count" class="num-picker" value="10" onchange="Data.updateCfg()">
+            </div>
+
+            <div class="cfg-section">
+                <label class="cfg-label">TIME LIMIT (MINS)</label>
+                <input type="number" id="inp-limit-time" class="num-picker" value="0" placeholder="0 = Infinite" onchange="Data.updateCfg()">
+            </div>
+
+            <div class="cfg-section" style="border-color: var(--c-danger);">
+                <label class="cfg-label" style="color:var(--c-danger)">DANGER ZONE</label>
+                <button class="btn-primary" style="background:var(--c-danger); color:#fff; font-size:14px; padding:12px; margin:0;" onclick="Data.reset()">RESET ALL DATA</button>
+            </div>
+            
+            <input type="text" class="num-picker" style="font-size:14px; text-align:left; margin-bottom:10px;" placeholder="Search library..." onkeyup="App.renderLib(this.value)">
+            <div id="lib-out" class="library-list"></div>
+        </div>
+    </main>
+
+    <div class="glass-dock">
+        <div class="dock-inner">
+            <div id="dock-selector" class="dock-selector"></div>
+            
+            <div class="dock-btn active" onclick="App.nav('home', this)">
+                <span>HOME</span>
+            </div>
+            <div class="dock-btn" onclick="App.start('nouns'); App.selectDock(this)">
+                <span>NOUN</span>
+            </div>
+            <div class="dock-btn" onclick="App.start('adjectives'); App.selectDock(this)">
+                <span>ADJ</span>
+            </div>
+            <div class="dock-btn" onclick="App.start('verbs_reg'); App.selectDock(this)">
+                <span>REG</span>
+            </div>
+            <div class="dock-btn" onclick="App.start('verbs_irreg'); App.selectDock(this)">
+                <span>IRR</span>
+            </div>
+            <div class="dock-btn" onclick="App.start('functionals'); App.selectDock(this)">
+                <span>LOG</span>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * LINGUA NEXUS | Platinum Core
+ * Focused on Animation, Glassmorphism, and UX
+ */
+
+const Data = {
+    key: 'LN_Plat_v7',
+    state: {
+        limitCount: 10, limitTime: 0,
+        progress: {} // {word: lvl} 0-4
+    },
+    init() {
+        const s = localStorage.getItem(this.key);
+        if(s) this.state = JSON.parse(s);
+        // Fill UI
+        document.getElementById('inp-limit-count').value = this.state.limitCount;
+        document.getElementById('inp-limit-time').value = this.state.limitTime;
+        this.calcStats();
+    },
+    save() {
+        localStorage.setItem(this.key, JSON.stringify(this.state));
+        this.calcStats();
+    },
+    updateCfg() {
+        this.state.limitCount = parseInt(document.getElementById('inp-limit-count').value) || 10;
+        this.state.limitTime = parseInt(document.getElementById('inp-limit-time').value) || 0;
+        this.save();
+    },
+    getLevel(w) { return this.state.progress[w] || 0; },
+    setResult(w, ok) {
+        let lvl = this.getLevel(w);
+        if(ok) { if(lvl < 4) lvl++; }
+        else { lvl = (lvl===4) ? 2 : 0; }
+        this.state.progress[w] = lvl;
+        this.save();
+    },
+    reset() {
+        if(confirm("Wipe all data?")) {
+            this.state.progress = {};
+            this.save();
+            App.renderLib();
+        }
+    },
+    calcStats() {
+        let m=0, l=0, total=0;
+        const keys = Object.keys(this.state.progress);
+        if(keys.length > 0) {
+            keys.forEach(k => {
+                const v = this.state.progress[k];
+                if(v===4) m++;
+                if(v>0 && v<4) l++;
+            });
+            total = keys.length;
+        }
+        // Update Rings (SVG)
+        // 220 is full circumference
+        const masterPct = total === 0 ? 0 : (m / total); // Simple ratio for now, or fixed max
+        // Let's do % of learned words that are mastered
+        const ringM = document.getElementById('ring-master');
+        const txtM = document.getElementById('txt-master');
+        // Let's say mastery is % of total interactions
+        // For visual demo, let's just map count 0-100
+        const mOffset = 220 - (Math.min(m, 100)/100 * 220);
+        const lOffset = 220 - (Math.min(l, 100)/100 * 220);
+        
+        ringM.style.strokeDashoffset = mOffset;
+        txtM.innerText = m;
+        
+        document.getElementById('ring-learn').style.strokeDashoffset = lOffset;
+        document.getElementById('txt-learn').innerText = l;
+    }
+};
+
+const DB = {
+    src: {},
+    async load() {
+        return new Promise(r => {
+            const i = setInterval(() => {
+                if(typeof INTERNAL_VOCAB !== 'undefined') {
+                    this.src = INTERNAL_VOCAB;
+                    clearInterval(i);
+                    Data.init();
+                    r();
+                }
+            }, 50);
+        })
+    },
+    get(cat) {
+        let k = '';
+        if(cat==='nouns') k='NOUNS';
+        if(cat==='adjectives') k='ADJECTIVES';
+        if(cat==='verbs_reg') k='REGULAR_VERBS';
+        if(cat==='verbs_irreg') k='IRREGULAR_VERBS';
+        if(cat==='functionals') k='FUNCTION WORDS';
+        
+        const arr = this.src[k] || [];
+        // Sort: Learning > New > Mastered
+        return arr.map(i => ({...i, lvl: Data.getLevel(i.en)}))
+           .sort((a,b) => {
+               const score = (x) => (x.lvl > 0 && x.lvl < 4) ? 0 : (x.lvl === 0 ? 1 : 2);
+               return score(a) - score(b) || 0.5 - Math.random();
+           })
+           .slice(0, 50) // buffer
+           .map(i => ({...i, isTriad: k.includes('VERB')}));
+    },
+    getAll() {
+        let all=[];
+        Object.keys(this.src).forEach(k => this.src[k].forEach(i=>all.push(i)));
+        return all;
+    }
+};
+
+const Theme = {
+    toggle() {
+        document.body.classList.toggle('light-mode');
+    }
+};
+
+const App = {
+    queue: [], curr: 0, startT: 0, failed: false,
+
+    async init() {
+        await DB.load();
+        // Setup initial dock pos
+        setTimeout(() => this.selectDock(document.querySelector('.dock-btn.active')), 100);
+        this.nav('home');
+    },
+
+    nav(v, btnEl) {
+        document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
+        document.getElementById('view-'+v).classList.add('active');
+        if(v==='settings') this.renderLib();
+        if(btnEl) this.selectDock(btnEl);
+    },
+
+    selectDock(el) {
+        if(!el) return;
+        document.querySelectorAll('.dock-btn').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+        
+        const sel = document.getElementById('dock-selector');
+        // Calculate position relative to container
+        const parent = el.parentElement;
+        sel.style.width = el.offsetWidth + 'px';
+        sel.style.transform = `translateX(${el.offsetLeft - 6}px)`; // -6 for padding
+    },
+
+    start(cat) {
+        this.queue = DB.get(cat);
+        this.curr = 0;
+        this.startT = Date.now();
+        this.nav('game');
+        
+        // Update context label color
+        const root = document.documentElement;
+        let hue = '217'; // brand
+        if(cat==='nouns') hue='190';
+        if(cat==='adjectives') hue='290';
+        if(cat==='verbs_irreg') hue='35';
+        
+        document.getElementById('lbl-ctx').innerText = cat;
+        // Ideally we update CSS variable for brand color here dynamically for extra polish
+        this.render();
+    },
+
+    render() {
+        // Limits
+        if(this.curr >= Data.state.limitCount && Data.state.limitCount > 0) return this.finish("Limit Reached");
+        if(Data.state.limitTime > 0) {
+             if((Date.now() - this.startT)/60000 > Data.state.limitTime) return this.finish("Time's Up");
+        }
+        if(this.curr >= this.queue.length) return this.finish("Set Complete");
+
+        const itm = this.queue[this.curr];
+        this.failed = false;
+        
+        document.getElementById('lbl-word').innerText = Array.isArray(itm.es) ? itm.es.join('/') : itm.es;
+        const box = document.getElementById('game-inputs');
+        box.innerHTML = '';
+        
+        const mkInp = (lbl, ans) => {
+            box.innerHTML += `
+            <div class="input-group">
+                <input type="text" class="input-box" placeholder=" " data-ans="${ans}" oninput="App.check()" onkeydown="if(event.key==='Enter')App.nextInput(this)">
+                <span class="floating-label">${lbl}</span>
+            </div>`;
+        };
+
+        if(itm.isTriad) {
+            mkInp('Base Form', itm.en);
+            mkInp('Past Simple', itm.past);
+            mkInp('Participle', itm.part);
+        } else {
+            mkInp('Translation', itm.en);
+        }
+        
+        document.getElementById('btn-action').classList.remove('ready');
+        setTimeout(() => document.querySelector('.input-box').focus(), 100);
+    },
+
+    nextInput(el) {
+        const inputs = document.querySelectorAll('.input-box');
+        const idx = Array.from(inputs).indexOf(el);
+        if(idx < inputs.length - 1) inputs[idx+1].focus();
+        else this.validate();
+    },
+
+    check() {
+        const all = Array.from(document.querySelectorAll('.input-box'));
+        const ok = all.every(i => i.value.trim().length > 0);
+        const btn = document.getElementById('btn-action');
+        if(ok) btn.classList.add('ready'); else btn.classList.remove('ready');
+    },
+
+    validate() {
+        const btn = document.getElementById('btn-action');
+        if(!btn.classList.contains('ready')) return;
+        
+        const itm = this.queue[this.curr];
+        const all = document.querySelectorAll('.input-box');
+        let pass = true;
+        
+        all.forEach(i => {
+            const row = i.parentElement;
+            row.classList.remove('correct', 'error');
+            if(i.value.trim().toLowerCase() === i.dataset.ans.toLowerCase()) {
+                row.classList.add('correct');
+            } else {
+                pass = false;
+                row.classList.add('error');
+                i.value = ''; i.placeholder = i.dataset.ans.toUpperCase();
+            }
+        });
+
+        if(!pass) {
+            this.failed = true;
+            btn.classList.remove('ready');
+            Data.setResult(itm.en, false);
+        } else {
+            if(!this.failed) Data.setResult(itm.en, true);
+            
+            // TTS
+            let txt = itm.en;
+            if(itm.isTriad) txt += `, ${itm.past}, ${itm.part}`;
+            const u = new SpeechSynthesisUtterance(txt);
+            u.lang = 'en-US';
+            window.speechSynthesis.speak(u);
+            
+            setTimeout(() => {
+                this.curr++;
+                this.render();
+            }, 1000);
+        }
+    },
+
+    finish(msg) {
+        alert(msg);
+        this.nav('home', document.querySelectorAll('.dock-btn')[0]);
+    },
+
+    renderLib(s='') {
+        const c = document.getElementById('lib-out');
+        c.innerHTML = '';
+        const all = DB.getAll();
+        all.forEach(w => {
+            if(s && !w.en.includes(s.toLowerCase())) return;
+            const lvl = Data.getLevel(w.en);
+            const badgeC = lvl===4 ? 'var(--c-success)' : (lvl===0 ? 'var(--txt-tertiary)' : 'var(--c-brand)');
+            c.innerHTML += `
+            <div class="lib-row">
+                <div style="display:flex; flex-direction:column;">
+                    <span style="color:var(--txt-primary)">${w.en}</span>
+                    <span style="font-size:10px; color:var(--txt-secondary)">${Array.isArray(w.es)?w.es[0]:w.es}</span>
+                </div>
+                <span class="lvl-badge" style="color:${badgeC}; border:1px solid ${badgeC}">${lvl}</span>
+            </div>`;
+        });
+    }
+};
+
+window.onload = () => App.init();
+</script>
+</body>
+</html>
