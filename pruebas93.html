@@ -235,18 +235,6 @@
         .chk-cell { width: 40px; text-align: center; vertical-align: middle; }
         input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--neon-green); cursor: pointer; }
         
-        /* Styles for In-Play vs Locked rows */
-        tr.locked-row td { opacity: 0.5; color: #555; }
-        tr.locked-row .en-word { color: #555; }
-        tr.locked-row:hover td { opacity: 1; }
-
-        tr.active-row td { background: rgba(0, 50, 0, 0.2); }
-        tr.active-row .en-word { color: var(--neon-green); text-shadow: 0 0 5px rgba(0,255,0,0.5); }
-        
-        .status-badge { font-size: 8px; padding: 3px 6px; border-radius: 4px; }
-        .status-active { background: var(--neon-green); color: #000; }
-        .status-locked { background: #333; color: #777; }
-
         tr.boosted-row td { 
             color: var(--neon-yellow); 
             background: rgba(255, 255, 0, 0.05); 
@@ -259,7 +247,6 @@
         tr.banned-row td {
             color: #444 !important;
             text-decoration: line-through; 
-            background: #110000;
         }
         tr.banned-row .en-word {
             color: #555 !important;
@@ -548,12 +535,13 @@
 /* =========================================
    2. CONFIGURATION & STATE
    ========================================= */
-const CONFIG_KEY = 'vocab_robot_config_v19'; 
+const CONFIG_KEY = 'vocab_robot_config_v19'; // Nueva versión para forzar limpieza limpia de lo viejo
 const DISABLED_WORDS_KEY = 'vocab_robot_disabled_v1';
 const REINFORCED_WORDS_KEY = 'vocab_robot_reinforced_v1';
 
 let userSettings = {
     vocabSource: 'ALL_INTERNAL', 
+    // ELIMINADO: dataPercent ya no se usa como control primario
     activeWordLimit: 10, // Cuantas palabras están activas ahora mismo
     wordsPerLevel: 10,   // Cuantas palabras se suman al subir nivel
     spawnLevel: 1,      
@@ -608,10 +596,18 @@ function renderCategoryBar() {
 function adjustWordsPerLevel(delta) {
     let newVal = userSettings.wordsPerLevel + delta;
     if (newVal < 5) newVal = 5;
-    if (newVal > 100) newVal = 100; // Limite razonable
+    if (newVal > 100) newVal = 100; // Límite razonable
     
+    // **PASO 1: Actualizar el valor del incremento**
     userSettings.wordsPerLevel = newVal;
-    updateConfig('level_inc_only');
+    
+    // **PASO 2: Forzar que el límite de palabras activas se ajuste al nuevo valor de incremento**
+    // Esto es lo que hace que el cambio sea visible inmediatamente en la tabla.
+    userSettings.activeWordLimit = newVal; 
+
+    // **PASO 3: Guardar y recargar la lista de vocabulario**
+    // Llama a 'limit_update' para que se ejecuten las funciones de recarga y repoblación.
+    updateConfig('limit_update'); 
 }
 
 function updateDbStats() {
@@ -625,16 +621,11 @@ function updateDbStats() {
         `Total DB: <span class="highlight-stat">${total}</span> | <span class="highlight-stat">${inc}</span> is ${percent}% of Total`;
     
     // Stats de palabras activas actuales
-    // Calculamos cuantas hay en el Mazo Real (descontando baneadas)
-    let playingCount = 0;
-    if(gameDeck.length > 0 && gameDeck[0].en !== "NO ACTIVE") {
-        // Filtrar duplicados por boost para contar palabras unicas reales
-        const uniqueInDeck = new Set(gameDeck.map(w => w.en));
-        playingCount = uniqueInDeck.size;
-    }
+    let currentActive = activeVocabList.length;
+    if(activeVocabList.length === 1 && activeVocabList[0].en === "NO DATA") currentActive = 0;
     
     document.getElementById('active-stats-display').textContent = 
-        `PLAYING WITH: ${playingCount} / ${total} WORDS`;
+        `PLAYING WITH: ${currentActive} / ${total} WORDS`;
 }
 
 function populateSourceMenu() {
@@ -680,6 +671,7 @@ function loadConfig() {
 
 function applyConfigToUI() {
     document.getElementById('cfg-source').value = userSettings.vocabSource;
+    // Stepper Display se actualiza en updateDbStats() llamado al final de loadVocabData
     
     document.getElementById('chk-quiz').checked = userSettings.quizEnabled;
     document.getElementById('cfg-quiz-time').value = userSettings.quizInterval;
@@ -720,11 +712,14 @@ function updateConfig(key) {
 
     if(key === 'source') {
         userSettings.vocabSource = document.getElementById('cfg-source').value;
+        // Al cambiar de fuente, reiniciamos el contador de palabras activas al valor por defecto
         userSettings.activeWordLimit = userSettings.wordsPerLevel;
         loadVocabData(); populateStudyGuide(); renderCategoryBar();
         if(gameRunning) enemies = []; 
     }
     else if(key === 'level_inc_only') {
+        // Solo actualizamos la config y stats, no recargamos todo el juego si no es necesario
+        // Pero si el juego está en marcha y activeLimit < wordsPerLevel, podríamos ajustar
         updateDbStats();
     }
     else if(key === 'limit_update') {
@@ -803,7 +798,6 @@ function switchTab(tabName) {
 
 // --- DATA LOGIC ---
 let activeVocabList = []; 
-let fullVocabList = []; // NUEVO: Mantiene la lista completa para el editor
 let gameDeck = []; 
 let totalAvailableWords = 0; 
 
@@ -867,12 +861,11 @@ function loadVocabData() {
         });
     }
 
-    // Guardar lista completa
-    fullVocabList = [...tempVocabList];
     totalAvailableWords = tempVocabList.length;
 
-    // Crear lista activa basada en el límite
+    // --- APLICAR LÍMITE NUMÉRICO (NO PORCENTAJE) ---
     if (tempVocabList.length > 0) {
+        // Asegurar que activeWordLimit no sea mayor al total
         let limit = userSettings.activeWordLimit || 10;
         if (limit > totalAvailableWords) limit = totalAvailableWords;
         
@@ -881,10 +874,10 @@ function loadVocabData() {
         activeVocabList = [{ en: "NO DATA", es: ["VACIO"] }];
     }
     
-    // Actualizar el deck de juego real
-    refreshGameDeck();
     // Actualizar las estadisticas visuales
     updateDbStats();
+    
+    refreshGameDeck();
 }
 
 function refreshGameDeck() {
@@ -917,9 +910,6 @@ function toggleWordStatus(engWord) {
     }
     saveLists();
     refreshGameDeck();
-    updateDbStats(); // Actualización inmediata de stats
-    
-    // Hack para actualizar estilo fila sin repintar todo si posible, sino repintamos
     if(studyGuide.style.display === 'flex') populateStudyGuide();
 }
 
@@ -934,7 +924,6 @@ function toggleReinforceStatus(engWord) {
     }
     saveLists();
     refreshGameDeck();
-    updateDbStats(); // Actualización inmediata de stats
     if(studyGuide.style.display === 'flex') populateStudyGuide();
 }
 
@@ -977,13 +966,18 @@ function editDistance(s1, s2) {
 function triggerPopQuiz() {
     gameRunning = false; 
     
+    // --- NUEVO CODIGO: FILTRAR SOLO BOOSTED WORDS ---
+    // Buscar en el mazo palabras que estén en la lista de reforzados (reinforcedWords)
     let candidateList = gameDeck.filter(item => reinforcedWords.has(item.en));
+    
+    // Si la lista de candidatos está vacía (usuario no tiene boosts), usar el mazo completo
     if (candidateList.length === 0) {
         candidateList = gameDeck;
     }
 
     const randomItem = candidateList[Math.floor(Math.random() * candidateList.length)];
-    
+    // --- FIN NUEVO CODIGO ---
+
     currentQuizWord = randomItem;
     
     const mode = Math.random() > 0.5 ? 'EN_TO_ES' : 'ES_TO_EN';
@@ -1249,37 +1243,19 @@ function loadHighScore(){const s=localStorage.getItem('synonymHunterHighScore');
 function populateStudyGuide(){
     document.getElementById('db-title').innerText = "DATABASE: " + userSettings.vocabSource;
     
-    // USAMOS fullVocabList AQUI EN LUGAR DE activeVocabList
-    // Esto permite ver TODAS las palabras cargadas
-    let html='<table><thead><tr><th class="chk-cell">PLAY</th><th class="chk-cell">BOOST</th><th>STATUS</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
+    let html='<table><thead><tr><th class="chk-cell">PLAY</th><th class="chk-cell">BOOST</th><th>ENGLISH</th><th>TRANSLATION</th></tr></thead><tbody>';
     
-    fullVocabList.forEach((v, index) => {
+    activeVocabList.forEach(v => {
         const cleanWord = v.en; 
         const cleanWordQuote = cleanWord.replace(/'/g, "\\'"); 
         
         const isBanned = disabledWords.has(cleanWord);
         const isBoosted = reinforcedWords.has(cleanWord);
         const isChecked = !isBanned;
-        
-        // Logica para determinar si está en el nivel actual
-        // El nivel actual corta en userSettings.activeWordLimit
-        const isInActiveLevel = index < userSettings.activeWordLimit;
 
         let rowClass = "";
-        let statusBadge = "";
-
-        if (isBanned) {
-            rowClass = "banned-row";
-            statusBadge = '<span class="status-badge status-locked">BANNED</span>';
-        } else if (isInActiveLevel) {
-            rowClass = "active-row";
-            statusBadge = '<span class="status-badge status-active">ACTIVE</span>';
-        } else {
-            rowClass = "locked-row";
-            statusBadge = '<span class="status-badge status-locked">LOCKED</span>';
-        }
-        
-        if (isBoosted && !isBanned) rowClass += " boosted-row";
+        if (isBoosted) rowClass = "boosted-row";
+        if (isBanned) rowClass = "banned-row"; 
 
         const starIcon = isBoosted ? '★' : '☆';
         const starClass = isBoosted ? 'star-active' : 'star-inactive';
@@ -1291,7 +1267,6 @@ function populateStudyGuide(){
             <td class="chk-cell star-cell" onclick="toggleReinforceStatus('${cleanWordQuote}')">
                 <span class="${starClass}">${starIcon}</span>
             </td>
-            <td>${statusBadge}</td>
             <td class="en-word">${cleanWord}</td>
             <td>${v.es[0]||"-"}</td>
         </tr>`;
