@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Full Width + FS</title>
+    <title>NEXUS HUB | Drag & Drop</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
     <style>
         /* ==========================================================================
            1. ESTÉTICA
@@ -65,7 +67,21 @@
             border: 1px solid var(--border);
             background: var(--bg-card);
             overflow: hidden;
-            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+            transition: margin 0.3s, border-radius 0.3s, border 0.3s; /* Quité 'all' para no afectar el drag */
+        }
+
+        /* Estilos visuales para el Drag & Drop */
+        .sortable-ghost {
+            opacity: 0.4;
+            background: var(--bg-hover);
+            border: 1px dashed var(--txt-sec);
+        }
+        .sortable-drag {
+            cursor: grabbing;
+            opacity: 1;
+            background: var(--bg-card);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            transform: scale(1.02);
         }
 
         .acc-item.active {
@@ -78,9 +94,13 @@
         }
 
         .acc-header {
-            padding: 24px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            padding: 24px; 
+            display: flex; justify-content: space-between; align-items: center;
             background: var(--bg-card); transition: background 0.2s; user-select: none;
+            /* Cursor para indicar que se puede mover */
+            cursor: grab; 
         }
+        .acc-header:active { cursor: grabbing; }
         .acc-header:hover { background: var(--bg-hover); }
 
         .acc-title-group { display: flex; align-items: center; gap: 12px; }
@@ -136,7 +156,8 @@
         </button>
     </header>
 
-    <main>
+    <main id="accordion-list">
+        
         <div class="acc-item item-1">
             <div class="acc-header" onclick="toggleAcc(1)">
                 <div class="acc-title-group">
@@ -242,6 +263,21 @@
     </main>
 
 <script>
+    // === 1. CONFIGURACIÓN DRAG & DROP ===
+    // Esperamos a que el DOM cargue, aunque estando al final del body ya debería estar listo.
+    document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('accordion-list');
+        const sortable = new Sortable(el, {
+            animation: 300,        // Suavidad de la animación (ms)
+            handle: '.acc-header', // Solo se puede arrastrar desde el encabezado
+            ghostClass: 'sortable-ghost', // Clase para el elemento fantasma mientras arrastras
+            dragClass: 'sortable-drag',   // Clase para el elemento que estás moviendo
+            delay: 100,            // Pequeño retraso para evitar arrastres accidentales al hacer clic
+            delayOnTouchOnly: true // El retraso solo aplica en pantallas táctiles
+        });
+    });
+
+    // === 2. LÓGICA DE ACORDEONES ===
     function toggleAcc(id) {
         const item = document.querySelector(`.item-${id}`);
         const content = document.getElementById(`content-${id}`);
@@ -253,7 +289,7 @@
         document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
         document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
 
-        // 2. ABRIR SELECCIONADO
+        // 2. ABRIR SELECCIONADO (Si no estaba abierto ya)
         if (!isOpen) {
             item.classList.add('active');
             content.style.maxHeight = "650px"; 
