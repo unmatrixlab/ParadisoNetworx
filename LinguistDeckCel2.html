@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Polyglot Tutor V31 - Pro UI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap" rel="stylesheet">
+    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap)" rel="stylesheet">
 <style>
         :root {
             --primary: #007AFF;
@@ -789,153 +789,121 @@
         listContainer.innerHTML = listHtml; 
     }
     
-function copyProfessorPrompt() {
-    const ctxSel = document.getElementById('ai-context-select').value;
-    const graSel = document.getElementById('ai-grammar-select').value;
-    const typSel = document.getElementById('ai-type-select').value;
-    const gapCount = document.getElementById('ai-gap-count').value;
-    const optionCount = document.getElementById('ai-option-count').value; 
-    const ctxCust = document.getElementById('ai-context-custom').value.trim();
-    const graCust = document.getElementById('ai-grammar-custom').value.trim();
-    const typCust = document.getElementById('ai-type-custom').value.trim();
-    const extraData = document.getElementById('ai-extra-data').value.trim();
-    const quantity = document.getElementById('ai-sentence-count').value || 5;
+    function copyProfessorPrompt() {
+        const ctxSel = document.getElementById('ai-context-select').value;
+        const graSel = document.getElementById('ai-grammar-select').value;
+        const typSel = document.getElementById('ai-type-select').value;
+        const gapCount = document.getElementById('ai-gap-count').value;
+        const optionCount = document.getElementById('ai-option-count').value; 
+        const ctxCust = document.getElementById('ai-context-custom').value.trim();
+        const graCust = document.getElementById('ai-grammar-custom').value.trim();
+        const typCust = document.getElementById('ai-type-custom').value.trim();
+        const extraData = document.getElementById('ai-extra-data').value.trim();
+        const quantity = document.getElementById('ai-sentence-count').value || 5;
 
-    let requirements = [];
-    let isGrammarFocus = false;
-    let typeStr = typCust ? typCust : typSel;
+        let requirements = [];
+        let isGrammarFocus = false;
+        let typeStr = typCust ? typCust : typSel;
 
-    if (ctxCust) requirements.push(`Topic Context: ${ctxCust}`);
-    else if (ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
+        if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`); else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
+        if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
+        if(typeStr) requirements.push(`Exercise Format: ${typeStr}`);
 
-    if (graCust) { 
-        requirements.push(`Grammar Focus: ${graCust}`); 
-        isGrammarFocus = true; 
-    } else if (graSel) { 
-        requirements.push(`Grammar Focus: ${graSel}`);
-        isGrammarFocus = true; 
-    }
+        if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
 
-    if (typeStr) requirements.push(`Exercise Format: ${typeStr}`);
+        const finalTopic = requirements.join(", ");
+        const target = LANG_NAMES[currentTargetLang];
+        
+        let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**. Do NOT use English words inside the gaps.`;
+        let strictInstruction = "QUALITY CONTROL: Sentences must be culturally authentic and idiomatic (not robotic). Distractors inside gaps {opt1|opt2...} must be GRAMMATICALLY PLAUSIBLE (same part of speech, same conjugation) but incorrect contextually. Make it challenging.";
+        let gapInstruction = "";
 
-    if (requirements.length === 0) return alert("⚠️ Please select at least one option.");
+        if (typeStr && typeStr.includes("Find and Fix")) {
+            strictInstruction += `TYPE: FIND AND FIX THE MISTAKE.\nVISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap.`;
+        } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
+            strictInstruction += `TYPE: VOCABULARY MATCHING.\nFormat: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`;
+        } else if (typeStr && typeStr.includes("True or False")) {
+            strictInstruction += `TYPE: READING COMPREHENSION (TRUE/FALSE).\nFormat: "Statement about the text... {True|False}"`;
+            gapInstruction = "Provide options {True|False}.";
+        }
 
-    const finalTopic = requirements.join(", ");
-    const target = LANG_NAMES[currentTargetLang];
+        const optInst = `Provide exactly ${optionCount} options`; 
 
-    // REMOVED markdown **bold**
-    let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in ${target.toUpperCase()}. Do NOT use English words inside the gaps.`;
+        if (!gapInstruction && gapCount === 'random') {
+             gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Mix of 1, 2, or 3 gaps per sentence.`; 
+        } else if (!gapInstruction) {
+             gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`; 
+        }
 
-    let strictInstruction = 
-        "QUALITY CONTROL: Sentences must be culturally authentic and idiomatic. Distractors inside gaps {opt1|opt2...} must be grammatically plausible but contextually incorrect.";
-
-    let gapInstruction = "";
-
-    if (typeStr && typeStr.includes("Find and Fix")) {
-        strictInstruction += " TYPE: FIND AND FIX THE MISTAKE. VISUAL REQUIREMENT: Include the mistake crossed out using <s>mistake</s>.";
-    } 
-    else if (typeStr && typeStr.includes("Vocabulary Matching")) {
-        strictInstruction += ` TYPE: VOCABULARY MATCHING. Format: Definition text (${target})... {CorrectWord|Distractor1|Distractor2}`;
-    } 
-    else if (typeStr && typeStr.includes("True or False")) {
-        strictInstruction += " TYPE: READING COMPREHENSION (TRUE/FALSE). Format: Statement about the text... {True|False}";
-        gapInstruction = "Provide options {True|False}.";
-    }
-
-    const optInst = `Provide exactly ${optionCount} options`;
-
-    if (!gapInstruction && gapCount === 'random') {
-        gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Mix of 1, 2, or 3 gaps per sentence.`; 
-    } 
-    else if (!gapInstruction) {
-        gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`; 
-    }
-
-    if (isGrammarFocus && (!typeStr || !typeStr.includes("Reordering"))) {
-        strictInstruction += " Focus gaps ONLY on the requested grammar rule.";
-    }
-
-    // JSON example converted to SAFE plain text (NOT real JSON)
-    const jsonExample = `
-EXERCISE EXAMPLE FORMAT (PLAIN TEXT, NOT JSON):
-[START]
-{
-  "cloze_text": "Natural sentence in ${target} with {correct|d1|d2|d3}.",
-  "hint": "A subtle linguistic clue.",
-  "translations": { "es": "Translation" },
-  "full_sentence": "Full sentence without gaps."
-}
-[END]`;
-
-    const promptText = `
-You are a Senior ${target} Linguist.
+        if (isGrammarFocus && (!typeStr || !typeStr.includes("Reordering"))) {
+            strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule.`;
+        }
+        
+        const jsonExample = `
+    {
+      "cloze_text": "Natural sentence in ${target} using idiomatic vocabulary with {correct|distractor1|distractor2} gaps.",
+      "hint": "A subtle linguistic clue. DO NOT give the answer.",
+      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation"`).join(', ')} },
+      "full_sentence": "Full sentence without gaps."
+    }`;
+        
+   const promptText = `ACT AS: Senior ${target} Linguist.
 LEVEL: CEFR ${currentLevel}.
 TASK: Create a structured JSON exercise with exactly ${quantity} sentences.
 
-REQUIREMENTS:
+REQUIREMENTS: 
 ${finalTopic}
 
 RULES:
 1. ${languageInstruction}
 2. GAP DENSITY: ${gapInstruction}
 3. ${strictInstruction}
-4. USE ONLY STRAIGHT DOUBLE QUOTES ("). DO NOT USE CURLY OR SMART QUOTES.
-5. ONLY OUTPUT THE RAW JSON. NO COMMENTS, NO PREVIEWS, NO EXPLANATIONS.
-6. Your response MUST START IMMEDIATELY with "{". No spaces, no new lines before it.
-${extraData ? `7. EXTRA INSTRUCTIONS: ${extraData}` : ''}
+4. USE ONLY STRAIGHT DOUBLE QUOTES (") FOR ALL JSON KEYS AND VALUES. DO NOT USE CURLY, SMART, OR TYPOGRAPHICAL QUOTES (“” or ‘’).
+5. ONLY OUTPUT THE RAW JSON. DO NOT SPEAK, ASK QUESTIONS, OR ADD ANY CONVERSATIONAL TEXT BEFORE OR AFTER THE JSON.
+${extraData ? `6. EXTRA INSTRUCTIONS: ${extraData}` : ''}
 
-OUTPUT FORMAT:
-PURE JSON STRING ONLY. DO NOT USE MARKDOWN. DO NOT WRAP IN CODE BLOCKS.
-START DIRECTLY WITH "{" AND END WITH "}".
-
-${jsonExample}
-`.trim();
-
-    // SANITIZE CURLY QUOTES AUTOMATICALLY
-    const safePrompt = promptText
-        .replace(/[“”]/g, '"')
-        .replace(/[‘’]/g, "'");
-
-    navigator.clipboard.writeText(safePrompt).then(() => {
-        const btn = document.querySelector('.btn-ai-primary'); 
-        const orig = btn.innerText;
-        btn.innerText = "✅ Copied!"; 
-        setTimeout(() => btn.innerText = orig, 2000);
-    }).catch(err => alert("Error copying: " + err));
-}
-
-
-
-async function pasteAIJson() {
-    let jsonString = "";
-
-    try { 
-        jsonString = await navigator.clipboard.readText(); 
-    } catch (err) { 
-        jsonString = prompt("Paste JSON here:"); 
+OUTPUT FORMAT: PURE JSON STRING FOR CANVAS. PROVIDE ONLY THE RAW JSON STRING. DO NOT USE MARKDOWN CODE BLOCKS (\`\`\`json). START DIRECTLY WITH THE CHARACTER "{" AND END WITH "}".
+JSON STRUCTURE:
+{
+  "title": "Short descriptive title in ${target}",
+  "lang_code": "${currentTargetLang}",
+  "theory": "Comprehensive educational guide using HTML tags (<b>, <ul>, <li>, <br>). Explain rules, usage contexts, exceptions, and provide examples.",
+  "exercises": [ ${jsonExample} ] 
+}`.trim();
+        
+        navigator.clipboard.writeText(promptText).then(() => {
+            const btn = document.querySelector('.btn-ai-primary'); const orig = btn.innerText;
+            btn.innerText = "✅ Copied!"; setTimeout(() => btn.innerText = orig, 2000);
+        }).catch(err => alert("Error copying: " + err));
     }
-
-    if (!jsonString) return;
-
-    // NEW: AUTO-CUT EVERYTHING BEFORE FIRST "{"
-    const firstIndex = jsonString.indexOf("{");
-    if (firstIndex > 0) {
-        jsonString = jsonString.substring(firstIndex);
+    
+    async function pasteAIJson() {
+        let jsonString = "";
+        try { jsonString = await navigator.clipboard.readText(); } catch (err) { jsonString = prompt("Paste JSON here:"); }
+        if (!jsonString) return;
+        const btn = document.getElementById('btn-paste-json'); const originalContent = btn.innerHTML; 
+        btn.innerHTML = "<span>✅</span> Pasted!"; setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
+        processJsonAndSave(jsonString);
     }
-
-    const btn = document.getElementById('btn-paste-json'); 
-    const originalContent = btn.innerHTML;
-
-    btn.innerHTML = "<span>✅</span> Pasted!"; 
-    setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
-
-    processJsonAndSave(jsonString);
-}
     
     function processJsonAndSave(jsonString) {
         try {
-            let cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+            // 1. Limpieza básica de Markdown
+            let cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '');
+
+            // 2. Reemplazo de comillas curvas/inteligentes por rectas (CRÍTICO)
+            cleanString = cleanString.replace(/[\u201C\u201D\u201E\u201F\u275D\u275E]/g, '"'); 
+
+            // 3. Buscar inicio y fin reales del JSON
+            const firstBrace = cleanString.indexOf('{');
+            const lastBrace = cleanString.lastIndexOf('}');
+
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                cleanString = cleanString.substring(firstBrace, lastBrace + 1);
+            }
+
             const aiData = JSON.parse(cleanString);
+            
             let finalData = Array.isArray(aiData) ? { title: "Exercise", lang_code: "en", theory: "Review rules.", exercises: aiData } : aiData;
             if (!finalData.lang_code) finalData.lang_code = "en";
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
