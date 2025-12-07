@@ -3,273 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Glass UI</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>NEXUS HUB | Drag & Drop</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
     <style>
+        /* ==========================================================================
+           1. ESTÉTICA (Variables y Reset)
+           ========================================================================== */
         :root {
-            /* === PALETA GLASSY DARK === */
-            --bg-body: #050505; /* Casi negro */
+            /* DARK MODE (Default) */
+            --bg-deep: #09090b; 
+            --bg-card: #18181b; 
+            --bg-hover: #27272a; 
+            --border: #3f3f46;
+            --txt-main: #f4f4f5;
+            --txt-sec: #a1a1aa;
             
-            /* Tarjetas con transparencia */
-            --bg-card: rgba(30, 30, 32, 0.6); 
-            --bg-card-active: rgba(40, 40, 42, 0.9);
-            
-            /* Efecto Vidrio */
-            --blur-amount: 25px;
-            
-            --border: rgba(255, 255, 255, 0.1);
-            --txt-main: #f5f5f7;
-            --txt-sec: #86868b;
+            /* Accents */
+            --c-1: #38bdf8; --c-2: #e879f9; --c-3: #4ade80; --c-4: #fbbf24; --c-5: #818cf8;
+            --c-6: #ff5733; 
             
             --font-head: 'Bebas Neue', sans-serif;
             --font-ui: 'Inter', sans-serif;
-            
-            --safe-top: env(safe-area-inset-top);
             --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        :root.light-mode {
+            --bg-deep: #f8fafc; --bg-card: #ffffff; --bg-hover: #f1f5f9; --border: #e2e8f0;
+            --txt-main: #0f172a; --txt-sec: #64748b;
+            --c-1: #0284c7; --c-2: #c026d3; --c-3: #16a34a; --c-4: #d97706; --c-5: #4f46e5;
+            --c-6: #c2410c;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         
         body { 
-            background-color: var(--bg-body); 
-            background-image: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #050505 70%); /* Luz sutil arriba */
-            color: var(--txt-main); 
-            font-family: var(--font-ui); 
-            margin: 0; height: 100vh; 
+            background-color: var(--bg-deep); color: var(--txt-main); 
+            font-family: var(--font-ui); margin: 0; height: 100vh; 
             display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
         }
 
+        header { 
+            height: 70px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
+            padding: 0 24px; background: var(--bg-deep); 
+            border-bottom: 1px solid var(--border); z-index: 100;
+        }
+        .hub-brand { font-family: var(--font-head); font-size: 32px; letter-spacing: 1px; color: var(--txt-main); }
+        .theme-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; transition: 0.2s; padding: 5px; }
+        
         main { 
             flex: 1; overflow-y: auto; overflow-x: hidden; 
-            width: 100%;
-            /* Padding superior para evitar el Notch en móviles */
-            padding-top: calc(10px + var(--safe-top)); 
-            padding-bottom: var(--safe-bottom);
-            scroll-behavior: smooth;
+            padding: 20px 0; 
+            padding-bottom: calc(40px + var(--safe-bottom)); 
+            max-width: 900px; margin: 0 auto; width: 100%;
         }
 
-        /* === ITEM (VIDRIO) === */
         .acc-item {
-            position: relative;
-            margin: 0 16px 12px 16px; /* Márgenes laterales para efecto flotante */
-            border-radius: 18px; /* Bordes redondeados modernos */
-            background: var(--bg-card);
+            margin: 0 20px 15px 20px; 
+            border-radius: 16px;
             border: 1px solid var(--border);
-            overflow: hidden; /* Importante para contener el contenido */
-            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-            
-            /* Glassmorphism en el item cerrado */
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-
-        /* ESTADO ACTIVO: Se expande y se vuelve más sólido */
-        .acc-item.active {
-            margin: 0 0 0 0; /* Ocupa todo el ancho */
-            border-radius: 0;
-            border: none;
-            background: transparent; /* El fondo lo pone el header sticky */
-            z-index: 100;
-        }
-
-        /* === HEADER DEL ACORDEÓN (STICKY GLASS) === */
-        .acc-header {
-            padding: 24px; display: flex; justify-content: space-between; align-items: center;
-            
-            /* El truco del vidrio */
             background: var(--bg-card);
-            backdrop-filter: blur(0px); /* Sin blur cuando está cerrado para rendimiento */
-            
-            user-select: none; cursor: pointer; 
-            transition: background 0.3s ease;
-            
-            /* Sticky Logic */
-            position: sticky; 
-            top: 0; 
-            z-index: 20;
+            overflow: hidden;
+            transition: margin 0.3s, border-radius 0.3s, border 0.3s;
         }
 
-        .acc-item.active .acc-header {
-            /* Cuando está abierto, es un vidrio fuerte pegado arriba */
-            background: rgba(20, 20, 20, 0.85); 
-            backdrop-filter: blur(var(--blur-amount)) saturate(180%);
-            -webkit-backdrop-filter: blur(var(--blur-amount)) saturate(180%);
-            border-bottom: 1px solid var(--border);
-            padding-top: calc(20px + var(--safe-top)); /* Compensa el notch al pegar arriba */
-            margin-top: calc(-1 * (10px + var(--safe-top))); /* Truco negativo para pegar al borde */
-        }
-        
-        .acc-title-group { display: flex; flex-direction: column; gap: 6px; }
-        
-        .acc-title { 
-            font-family: var(--font-head); font-size: 26px; line-height: 1; margin: 0; 
-            letter-spacing: 0.8px; transition: color 0.5s ease; font-weight: 400; 
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }
-        
-        .acc-subtitle {
-            font-family: var(--font-ui); font-size: 11px; color: var(--txt-sec); font-weight: 600;
-            text-transform: uppercase; letter-spacing: 1.5px; transition: color 0.5s ease;
-        }
-        
-        .acc-controls { display: flex; align-items: center; gap: 16px; }
-        
-        .acc-icon { 
-            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), color 0.4s; 
-            color: var(--txt-sec); opacity: 0.6; 
+        /* Drag & Drop Visuals */
+        .sortable-ghost { opacity: 0.4; background: var(--bg-hover); border: 1px dashed var(--txt-sec); }
+        .sortable-drag { cursor: grabbing; opacity: 1; background: var(--bg-card); box-shadow: 0 10px 20px rgba(0,0,0,0.5); transform: scale(1.02); }
+
+        .acc-item.active {
+            margin-left: 0; margin-right: 0; border-radius: 0;
+            border-left: none; border-right: none;
+            border-color: var(--active-color);
         }
 
-        /* Colores Activos */
-        .acc-item.active .acc-title { color: var(--theme-color); }
-        .acc-item.active .acc-subtitle { color: var(--theme-color); opacity: 0.9; }
-        .acc-item.active .acc-icon {
-            color: var(--theme-color); opacity: 1; transform: rotate(180deg);
-            filter: drop-shadow(0 0 8px var(--theme-color)); /* Glow neón sutil */
+        .acc-header {
+            padding: 24px; 
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-card); transition: background 0.2s; user-select: none;
+            cursor: grab; 
         }
+        .acc-header:active { cursor: grabbing; }
+        .acc-header:hover { background: var(--bg-hover); }
+
+        .acc-title-group { display: flex; align-items: center; gap: 12px; }
+        .acc-title { font-family: var(--font-head); font-size: 28px; line-height: 1; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .acc-tag { font-family: var(--font-ui); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); letter-spacing: 1px; }
+        
+        .acc-controls { display: flex; align-items: center; gap: 15px; }
+        .acc-icon { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--txt-sec); }
 
         .fs-btn {
             background: none; border: none; color: var(--txt-sec); cursor: pointer;
-            padding: 8px; opacity: 0; transition: 0.3s; pointer-events: none; transform: scale(0.9);
+            padding: 5px; opacity: 0; transition: 0.2s; pointer-events: none;
         }
-        .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; transform: scale(1); }
-        .fs-btn:hover { color: var(--theme-color); }
+        .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
+        .acc-item:hover .fs-btn, .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; }
 
-        /* === CONTENIDO === */
         .acc-content {
-            max-height: 0; 
-            overflow: hidden; 
-            transition: max-height 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-            background: #000; /* Fondo negro profundo para el iframe */
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-deep);
+            border-top: 1px solid transparent;
         }
         
-        .acc-item.active .acc-content { max-height: 200vh; }
+        .acc-item.active .acc-content { border-top-color: var(--border); }
+        
+        iframe { width: 100%; height: 650px; border: none; display: block; }
 
-        iframe { 
-            width: 100%; border: none; display: block; 
-            height: calc(100vh - 90px); /* Ajuste de altura */
-            height: calc(100dvh - 90px); 
-            opacity: 0; transition: opacity 0.6s ease 0.3s;
-        }
-        
-        .acc-item.active iframe { opacity: 1; }
-        
-        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh; }
+        /* Fullscreen override */
+        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh; padding: 0; margin: 0; }
         .acc-content:fullscreen iframe { height: 100%; }
-        
-        /* Drag UI Fixes */
-        .sortable-ghost { opacity: 0.2; transform: scale(0.95); }
-        .sortable-drag { opacity: 1; transform: scale(1.02); background: #252525; z-index: 999; box-shadow: 0 15px 40px rgba(0,0,0,0.5); }
+
+        /* Mapeo de Colores dinámicos */
+        .color-1 { --active-color: var(--c-1); color: var(--c-1); }
+        .color-2 { --active-color: var(--c-2); color: var(--c-2); }
+        .color-3 { --active-color: var(--c-3); color: var(--c-3); }
+        .color-4 { --active-color: var(--c-4); color: var(--c-4); }
+        .color-5 { --active-color: var(--c-5); color: var(--c-5); }
+        .color-6 { --active-color: var(--c-6); color: var(--c-6); }
 
     </style>
 </head>
 <body>
 
+    <header>
+        <div class="hub-brand">NEXUS HUB</div>
+        <button class="theme-btn" onclick="toggleHubTheme()">
+            <svg id="hub-theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+    </header>
+
     <main id="accordion-list"></main>
 
 <script>
-    // =========================================================
-    // 🟢 CONFIGURACIÓN
-    // =========================================================
-    const nexusConfig = [
-        { id: 1, title: "LINGUA PLAYER", tag: "Create video", color: "#60a5fa", url: "https://paradisonetworx.com/LinguistDeckPlayer2" },
-        { id: 2, title: "LINGUA LAB", tag: "Vocabulary", color: "#e879f9", url: "https://paradisonetworx.com/LinguistDeckVocabulary" },
-        { id: 3, title: "PHRASAL VERBS", tag: "Master List", color: "#4ade80", url: "https://paradisonetworx.com/nexus002" },
-        { id: 4, title: "LISTENING", tag: "Audio", color: "#fbbf24", url: "https://paradisonetworx.com/LinguistDeckCel.html" },
-        { id: 5, title: "SETTINGS", tag: "System", color: "#818cf8", url: "https://paradisonetworx.com/LinguistDeck" },
-        { id: 6, title: "EXTRAS", tag: "Beta", color: "#fb7185", url: "https://paradisonetworx.com/pruebas94" }
+    // === DATOS DE CONFIGURACIÓN (DRY) ===
+    // Definimos los ítems en un solo lugar. Mucho más fácil de editar.
+    const defaultData = [
+        { id: '1', title: 'LINGUA NEXUS', tag: 'APP',  url: 'https://paradisonetworx.com/LinguistDeckPlayer3',  color: 'color-1' },
+        { id: '2', title: 'GRAMMAR LAB',  tag: 'WIKI', url: 'https://paradisonetworx.com/LinguistDeckVocabulary', color: 'color-2' },
+        { id: '3', title: 'PHRASAL VERBS',tag: 'LIST', url: 'https://paradisonetworx.com/nexus002',             color: 'color-3' },
+        { id: '4', title: 'LISTENING',    tag: 'AUDIO',url: 'https://paradisonetworx.com/nexushubamp.html',     color: 'color-4' },
+        { id: '5', title: 'SETTINGS',     tag: 'SYS',  url: 'https://paradisonetworx.com/LinguistDeck',         color: 'color-5' },
+        { id: '6', title: 'EXTRAS',       tag: 'NEW',  url: 'https://paradisonetworx.com/pruebas94',            color: 'color-6' }
     ];
 
-    let sortableInstance;
+    // Icono genérico (para mantener el código limpio, se usa el mismo, pero podrías añadir svg path al objeto data si quisieras distintos)
+    const chevronIcon = `<path d="M6 9l6 6 6-6"></path>`;
 
-    function renderNexus() {
+    // === INICIALIZACIÓN ===
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTheme();
+        renderItems();
+        initSortable();
+    });
+
+    // === 1. GENERACIÓN DINÁMICA & RENDERIZADO ===
+    function renderItems() {
         const container = document.getElementById('accordion-list');
-        let htmlBuffer = '';
+        
+        // Recuperar orden guardado o usar default
+        const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
+        let dataToRender = [...defaultData];
 
-        nexusConfig.forEach(item => {
-            htmlBuffer += `
-            <div class="acc-item" id="item-${item.id}" style="--theme-color: ${item.color}">
-                <div class="acc-header" onclick="toggleAcc(${item.id})">
+        if (savedOrder && savedOrder.length > 0) {
+            // Reordenar el array de datos según los IDs guardados
+            dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
+        }
+
+        // Construir HTML
+        container.innerHTML = dataToRender.map(item => `
+            <div class="acc-item ${item.color}" data-id="${item.id}">
+                <div class="acc-header" onclick="toggleAcc('${item.id}')">
                     <div class="acc-title-group">
-                        <span class="acc-subtitle">${item.tag}</span>
-                        <h2 class="acc-title">${item.title}</h2>
+                        <h2 class="acc-title">${item.title} <span class="acc-tag">${item.tag}</span></h2>
                     </div>
                     <div class="acc-controls">
                         <button class="fs-btn" onclick="event.stopPropagation(); toggleFS('content-${item.id}')" title="Fullscreen">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
                         </button>
-                        <svg class="acc-icon" id="icon-${item.id}" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <svg class="acc-icon" id="icon-${item.id}" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${chevronIcon}</svg>
                     </div>
                 </div>
                 <div class="acc-content" id="content-${item.id}">
                     <iframe src="${item.url}" loading="lazy"></iframe>
                 </div>
-            </div>`;
-        });
+            </div>
+        `).join('');
+    }
 
-        container.innerHTML = htmlBuffer;
-        
-        sortableInstance = new Sortable(container, {
-            animation: 400,
+    // === 2. SORTABLE CON PERSISTENCIA ===
+    function initSortable() {
+        const el = document.getElementById('accordion-list');
+        new Sortable(el, {
+            animation: 300,
             handle: '.acc-header',
             ghostClass: 'sortable-ghost',
             dragClass: 'sortable-drag',
-            delay: 100, 
+            delay: 100,
             delayOnTouchOnly: true,
-            easing: "cubic-bezier(0.2, 0, 0, 1)",
-            filter: ".fs-btn, .acc-controls", 
-            preventOnFilter: false
+            // Guardar orden al terminar de arrastrar
+            onEnd: function (evt) {
+                const sortable = this; // referencia a la instancia sortable
+                const order = sortable.toArray(); // Obtiene array de IDs (gracias a data-id en el HTML)
+                localStorage.setItem('nexus_order', JSON.stringify(order));
+            }
         });
     }
 
+    // === 3. LÓGICA ACORDEÓN (MEJORADA - Punto 4) ===
     function toggleAcc(id) {
-        const item = document.getElementById(`item-${id}`);
+        const item = document.querySelector(`.acc-item[data-id="${id}"]`); // Selector más seguro
         const content = document.getElementById(`content-${id}`);
-        const isAlreadyActive = item.classList.contains('active');
+        const icon = document.getElementById(`icon-${id}`);
+        const isOpen = content.style.maxHeight;
 
-        // 1. CERRAR TODOS
-        document.querySelectorAll('.acc-item').forEach(el => {
-            el.classList.remove('active');
-            el.querySelector('.acc-content').style.maxHeight = null;
-        });
+        // Cerrar todos
+        document.querySelectorAll('.acc-content').forEach(el => el.style.maxHeight = null);
+        document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
+        document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
 
-        if (sortableInstance) sortableInstance.option("disabled", false);
-
-        // 2. ABRIR (Si corresponde)
-        if (!isAlreadyActive) {
+        // Abrir seleccionado
+        if (!isOpen) {
             item.classList.add('active');
-            content.style.maxHeight = "150vh"; 
             
-            // Bloqueamos drag para evitar conflictos
-            if (sortableInstance) sortableInstance.option("disabled", true);
+            // FIX: Usar scrollHeight para altura exacta dinámica
+            content.style.maxHeight = content.scrollHeight + "px";
             
-            // Scroll suave hacia arriba (Top 0 absoluto por ser modo inmersivo)
+            icon.style.transform = 'rotate(180deg)';
+            
             setTimeout(() => {
-                const elementPosition = item.getBoundingClientRect().top + window.pageYOffset;
-                // Calculamos offset negativo para compensar el margen eliminado
-                const offset = 0; 
-
-                window.scrollTo({
-                    top: elementPosition,
-                    behavior: "smooth"
-                });
-            }, 100);
+                item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+            }, 300);
         }
     }
-    
+
+    // === TEMA CON PERSISTENCIA (Punto 2) ===
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('nexus_theme');
+        const icon = document.getElementById('hub-theme-icon');
+        
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>'; // Luna (para ir a dark)
+        } else {
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>'; // Sol
+        }
+    }
+
+    function toggleHubTheme() {
+        const doc = document.documentElement;
+        const icon = document.getElementById('hub-theme-icon');
+        let newTheme = 'dark';
+
+        if (doc.classList.contains('light-mode')) {
+            doc.classList.remove('light-mode');
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
+        } else {
+            doc.classList.add('light-mode');
+            newTheme = 'light';
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
+        
+        localStorage.setItem('nexus_theme', newTheme);
+    }
+
+    // Fullscreen (Igual que antes)
     function toggleFS(id) {
         const elem = document.getElementById(id);
         if (!document.fullscreenElement) {
             if (elem.requestFullscreen) elem.requestFullscreen();
             else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+            else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
         } else {
             if (document.exitFullscreen) document.exitFullscreen();
         }
     }
-
-    document.addEventListener('DOMContentLoaded', renderNexus);
-
 </script>
+
 </body>
 </html>
