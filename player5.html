@@ -8,10 +8,7 @@
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
-        /* CORRECCIÓN 1: Usar min-height en lugar de height fijo para evitar saltos en iframe */
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
-        
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; }
         #mdc-header { display: none !important; }
         
         /* === SETUP SCREEN === */
@@ -83,7 +80,7 @@
         /* === PLAYER UI === */
         #player-ui { display: none; width: 100%; }
         .page-max-width { max-width: 1000px; margin: 0 auto; width: 100%; position: relative; }
-        .video-wrapper { position: sticky; top: 0; width: 100%; background: #000; z-index: 500; box-shadow: var(--shadow); }
+        .video-wrapper { position: fixed; top: 0; width: 100%; background: #000; z-index: 500; box-shadow: var(--shadow); }
         .video-inner { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; background: #000; }
         .video-inner iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; z-index: 1; }
         
@@ -609,17 +606,12 @@
         }
     }
     
-    // === CORRECCIÓN 2: LÓGICA DE SCROLL SEGURA PARA IFRAMES ===
     function scrollToActiveElement(el) {
         if (!autoScroll) return;
-        // Usamos scrollIntoView nativo que funciona perfecto en iframes
-        el.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center', 
-            inline: 'nearest' 
-        });
+        const rect = el.getBoundingClientRect();
+        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40 + currentVerticalOffset;
+        window.scrollTo({ top: offset, behavior: "smooth" });
     }
-    // =========================================================
 
     function renderSubtitles() {
         const root = document.getElementById('dialogue-root');
@@ -672,8 +664,8 @@
     function updateVerticalOffset(val) {
         currentVerticalOffset = parseInt(val);
         localStorage.setItem(PREF_OFFSET, currentVerticalOffset);
-        // Nota: Con el nuevo sistema de scroll, este offset manual es menos efectivo, 
-        // pero se mantiene para guardar la preferencia.
+        const activeLine = document.querySelector('.line.active');
+        if(activeLine) scrollToActiveElement(activeLine);
     }
     
     function toggleMenu(menuId) {
