@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Polyglot Tutor V32 - Schema Logic Edition</title>
+    <title>Polyglot Tutor V33 - Memory Full Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap" rel="stylesheet">
 <style>
         :root {
@@ -343,7 +343,8 @@
                                 <option value="Gerunds vs Infinitives">Gerunds vs Infinitives</option>
                             </optgroup>
                         </select>
-                        <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar..." oninput="checkCustomOverride('ai-grammar-custom', 'ai-grammar-select')">
+                        <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar..." list="gra-history-list" oninput="checkCustomOverride('ai-grammar-custom', 'ai-grammar-select')">
+                        <datalist id="gra-history-list"></datalist>
                     </div>
                 </div>
 
@@ -368,7 +369,8 @@
                                 <option value="Reverse Translation (ES->EN)">Reverse Translation (See ES, Pick EN)</option>
                             </optgroup>
                         </select>
-                        <input type="text" id="ai-type-custom" class="ai-custom-input" placeholder="Or type custom format..." oninput="checkCustomOverride('ai-type-custom', 'ai-type-select')">
+                        <input type="text" id="ai-type-custom" class="ai-custom-input" placeholder="Or type custom format..." list="typ-history-list" oninput="checkCustomOverride('ai-type-custom', 'ai-type-select')">
+                        <datalist id="typ-history-list"></datalist>
                     </div>
 
                     <div class="ai-card-group" style="justify-content: space-between;">
@@ -490,12 +492,15 @@
 
     /* ====== HISTORY SYSTEM (NEW) ====== */
     function getHistory() {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{"context":[], "extra":[]}');
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{"context":[], "extra":[], "grammar":[], "type":[]}');
     }
 
     function saveToHistory(type, value) {
         if(!value || value.trim() === "") return;
         const history = getHistory();
+        // Ensure array exists (backward compatibility)
+        if(!history[type]) history[type] = [];
+        
         const list = history[type];
         // Remove duplicate if exists, add to top
         const idx = list.indexOf(value.trim());
@@ -511,21 +516,33 @@
     function loadHistory() {
         const history = getHistory();
         
-        // 1. Context Datalist
-        const ctxList = document.getElementById('ctx-history-list');
-        ctxList.innerHTML = '';
-        history.context.forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item;
-            ctxList.appendChild(opt);
-        });
+        // Helper to fill datalists
+        const fillList = (id, items) => {
+            const list = document.getElementById(id);
+            if(!list) return;
+            list.innerHTML = '';
+            (items || []).forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                list.appendChild(opt);
+            });
+        };
 
-        // 2. Extra Instructions Select
+        // 1. Context Datalist
+        fillList('ctx-history-list', history.context);
+        
+        // 2. Grammar Datalist
+        fillList('gra-history-list', history.grammar);
+        
+        // 3. Type (Format) Datalist
+        fillList('typ-history-list', history.type);
+
+        // 4. Extra Instructions Select
         const extraSelect = document.getElementById('extra-history-select');
         // Clear old options but keep first
         while(extraSelect.options.length > 1) { extraSelect.remove(1); }
         
-        history.extra.forEach(item => {
+        (history.extra || []).forEach(item => {
             const opt = document.createElement('option');
             opt.value = item;
             opt.text = item.length > 40 ? item.substring(0,40) + '...' : item;
@@ -736,7 +753,7 @@
         
         // Combine for export
         const exportObj = {
-            version: 2,
+            version: 3,
             type: 'polyglot_full_backup',
             exercises: exercises,
             history: history
@@ -760,7 +777,7 @@
             try { 
                 const importedData = JSON.parse(e.target.result); 
                 
-                // Handle V2 (Object with history) vs V1 (Array only)
+                // Handle V2/V3 vs Legacy V1
                 if(Array.isArray(importedData)) {
                     // Legacy V1 Import
                     const current = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); 
@@ -768,22 +785,26 @@
                     localStorage.setItem(AI_MEM_KEY, JSON.stringify(combined)); 
                     alert("Exercises imported! (Legacy Format)");
                 } else if (importedData.type === 'polyglot_full_backup' || importedData.exercises) {
-                    // V2 Import
+                    // V2/V3 Import
                     const currentEx = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
                     const combinedEx = [...(importedData.exercises || []), ...currentEx];
                     localStorage.setItem(AI_MEM_KEY, JSON.stringify(combinedEx));
                     
                     if(importedData.history) {
                          const currentHist = getHistory();
-                         // Merge Histories logic (simple merge and dedupe)
-                         const newCtx = [...new Set([...(importedData.history.context || []), ...currentHist.context])];
-                         const newExt = [...new Set([...(importedData.history.extra || []), ...currentHist.extra])];
+                         // Helper merge
+                         const mergeArr = (a, b) => [...new Set([...(a || []), ...(b || [])])].slice(0,30);
                          
-                         const mergedHist = { context: newCtx.slice(0, 30), extra: newExt.slice(0, 30) };
+                         const mergedHist = { 
+                             context: mergeArr(importedData.history.context, currentHist.context),
+                             extra: mergeArr(importedData.history.extra, currentHist.extra),
+                             grammar: mergeArr(importedData.history.grammar, currentHist.grammar),
+                             type: mergeArr(importedData.history.type, currentHist.type)
+                         };
                          localStorage.setItem(HISTORY_KEY, JSON.stringify(mergedHist));
                          loadHistory(); // Update UI
                     }
-                    alert("Full Backup (Exercises + History) Imported!");
+                    alert("Full Backup (Exercises + Full History) Imported!");
                 } else {
                     throw new Error("Unknown format");
                 }
@@ -861,10 +882,12 @@
         const quantity = document.getElementById('ai-sentence-count').value || 6;
         const currentTarget = LANG_NAMES[currentTargetLang]; 
 
-        // === NEW: SAVE HISTORY ===
+        // === NEW: SAVE HISTORY (ALL 4 FIELDS) ===
         saveToHistory('context', ctxCust);
+        saveToHistory('grammar', graCust); // NEW
+        saveToHistory('type', typCust);    // NEW
         saveToHistory('extra', extraData);
-        // =========================
+        // ========================================
 
         // 2. Construcción del Contexto
         let contextInstruction = ctxCust ? `Custom Topic: "${ctxCust}"` : (ctxSel ? `Topic: "${ctxSel}"` : "General Daily Life");
