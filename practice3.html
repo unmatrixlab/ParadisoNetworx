@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | v8.5 Visual Stats</title>
+    <title>LINGUA NEXUS | v9.0 Dictation Mode</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -146,6 +145,15 @@
         
         .stage-pill { display: inline-flex; padding: 6px 14px; border-radius: 100px; font-size: 11px; font-weight: 700; background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-sec); }
         
+        /* Audio Toggle Button */
+        .audio-toggle-btn { 
+            background: var(--bg-card); border: 1px solid var(--border); 
+            width: 48px; height: 48px; border-radius: 12px; 
+            color: var(--txt-sec); display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; transition: 0.2s; margin-left: auto; margin-right: 15px;
+        }
+        .audio-toggle-btn.active { background: var(--bg-input); color: var(--primary); border-color: var(--primary); box-shadow: 0 0 10px rgba(59, 130, 246, 0.2); }
+
         .mini-chart {
             width: 48px; height: 48px; border-radius: 50%;
             background: var(--bg-card); /* Fallback */
@@ -162,7 +170,9 @@
         #chart-pct { font-size: 10px; font-weight: 800; font-family: var(--font-code); color: var(--txt-main); }
         
         .word-stage { margin: 10px 0 40px 0; text-align: center; }
-        .main-word { font-size: clamp(36px, 10vw, 64px); font-weight: 800; line-height: 1; color: var(--txt-main); margin: 0; }
+        .main-word { font-size: clamp(36px, 10vw, 64px); font-weight: 800; line-height: 1; color: var(--txt-main); margin: 0; transition: color 0.3s;}
+        .main-word.audio-active { color: var(--primary); cursor: pointer; }
+        
         .input-list { display: flex; flex-direction: column; gap: 16px; }
         .input-group { position: relative; }
         .input-tag { position: absolute; top: 14px; left: 16px; font-size: 10px; font-weight: 700; color: var(--txt-sec); opacity: 0.7; pointer-events: none; }
@@ -313,13 +323,17 @@
             <div class="game-top-bar">
                 <div class="stage-pill" id="game-cat-pill">CATEGORY</div>
                 
+                <button id="btn-audio-mode" class="audio-toggle-btn" onclick="App.toggleAudioMode()">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                </button>
+
                 <div class="mini-chart" id="game-chart">
                     <div class="chart-hole"><span id="chart-pct">0%</span></div>
                 </div>
             </div>
             
             <div class="word-stage">
-                <h2 class="main-word" id="game-word">...</h2>
+                <h2 class="main-word" id="game-word" onclick="App.replayAudio()">...</h2>
             </div>
             
             <div class="input-list" id="game-inputs"></div>
@@ -497,6 +511,7 @@ const App = {
     filteredResults: [],
     renderCount: 50,
     currentCat: '',
+    audioMode: false,
 
     async boot() { await DB.init(); Profile.load(); this.nav('home'); },
     
@@ -515,6 +530,28 @@ const App = {
             if(isCustom) c.classList.add('disabled');
             else c.classList.remove('disabled');
         });
+    },
+
+    toggleAudioMode() {
+        this.audioMode = !this.audioMode;
+        const btn = document.getElementById('btn-audio-mode');
+        if(this.audioMode) btn.classList.add('active');
+        else btn.classList.remove('active');
+
+        // Refresh current word if game is active
+        if(document.getElementById('view-game').classList.contains('active')) {
+            const curr = this.q[this.idx];
+            const wEl = document.getElementById('game-word');
+            
+            if(this.audioMode) {
+                wEl.innerHTML = '<span style="font-size:40px">🔊</span><div style="font-size:14px; opacity:0.5; margin-top:5px">LISTEN & TYPE</div>';
+                wEl.classList.add('audio-active');
+                this.speak(curr);
+            } else {
+                wEl.innerText = Array.isArray(curr.es) ? curr.es[0] : curr.es;
+                wEl.classList.remove('audio-active');
+            }
+        }
     },
 
     start(cat) {
@@ -580,9 +617,7 @@ const App = {
         const p3 = (counts[3] / total) * 100;
         const p2 = (counts[2] / total) * 100;
         const p1 = (counts[1] / total) * 100;
-        // p0 is the rest
         
-        // Build Conic Gradient (Green -> Blue -> Yellow -> Red -> Grey)
         const g = `conic-gradient(
             var(--success) 0% ${p4}%,
             var(--primary) ${p4}% ${p4+p3}%,
@@ -593,6 +628,21 @@ const App = {
         
         document.getElementById('game-chart').style.background = g;
         document.getElementById('chart-pct').innerText = Math.round(p4) + '%';
+    },
+
+    speak(w) {
+        window.speechSynthesis.cancel();
+        let tts = w.en;
+        if(w.cat.includes('verbs') && Profile.cfg.source === 'official') tts = `${w.en}, ${w.past}, ${w.part}`;
+        const u = new SpeechSynthesisUtterance(tts);
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
+    },
+
+    replayAudio() {
+        if(this.audioMode) {
+            this.speak(this.q[this.idx]);
+        }
     },
 
     play() {
@@ -610,7 +660,16 @@ const App = {
         const curr = this.q[this.idx];
         this.fail = false;
         
-        document.getElementById('game-word').innerText = Array.isArray(curr.es) ? curr.es[0] : curr.es;
+        const wEl = document.getElementById('game-word');
+        
+        if(this.audioMode) {
+            wEl.innerHTML = '<span style="font-size:40px">🔊</span><div style="font-size:14px; opacity:0.5; margin-top:5px">LISTEN & TYPE</div>';
+            wEl.classList.add('audio-active');
+            this.speak(curr);
+        } else {
+            wEl.innerText = Array.isArray(curr.es) ? curr.es[0] : curr.es;
+            wEl.classList.remove('audio-active');
+        }
         
         const con = document.getElementById('game-inputs');
         con.innerHTML = '';
@@ -676,18 +735,16 @@ const App = {
         } else {
             if(!this.fail) Profile.setProg(w.en, true);
             
-            let tts = w.en;
-            if(w.cat.includes('verbs') && Profile.cfg.source === 'official') tts = `${w.en}, ${w.past}, ${w.part}`;
-            const u = new SpeechSynthesisUtterance(tts);
-            u.lang = 'en-US';
-            window.speechSynthesis.speak(u);
+            // Speak if not already in audio mode (or speak again for reinforcement)
+            if(!this.audioMode) {
+                this.speak(w);
+            }
 
             const btn = document.getElementById('btn-action');
             btn.innerText = "NEXT";
             btn.onclick = () => { this.idx++; this.play(); };
             setTimeout(() => { this.idx++; this.play(); }, 1000); 
         }
-        // Update chart immediately to show progress
         this.updateChart();
     },
     
