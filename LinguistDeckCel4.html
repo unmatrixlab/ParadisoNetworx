@@ -697,8 +697,7 @@
         listContainer.innerHTML = listHtml; 
     }
     
-    /* ====== SCHEMA-FIRST PROMPT GENERATION ====== */
-    function copyProfessorPrompt() {
+function copyProfessorPrompt() {
         // 1. Recolección de datos
         const ctxSel = document.getElementById('ai-context-select').value;
         const graSel = document.getElementById('ai-grammar-select').value;
@@ -729,11 +728,32 @@
             IMPORTANT: Use them ONLY if they fit the Grammar constraints naturally. If a word forces an awkward sentence, DISCARD IT. Grammar flow is priority #1.`;
         }
 
-        // Reglas visuales especiales
+        // Reglas visuales especiales (Find and Fix)
         let visualRules = "";
         if ((typCust && typCust.includes("Fix")) || (typSel && typSel.includes("Fix"))) {
             visualRules = "CRITICAL VISUAL RULE: Place the <s>crossed out mistake</s> IMMEDIATELY BEFORE the gap. Do NOT put HTML tags inside the curly braces {}. Example: 'He <s>goed</s> {went|gone} to school.'";
         }
+
+        // --- LÓGICA DINÁMICA DE REGLAS ---
+        let isReordering = (typSel && typSel.includes("Reordering")) || (typCust && typCust.includes("Reordering"));
+        let isTranslation = (typSel && typSel.includes("Translation")) || (typCust && typCust.includes("Translation"));
+        
+        // Reglas por defecto
+        let gapRule = '3. GAPS: Format is "{correct|distractor1|distractor2}".';
+        let distractorRule = "4. DISTRACTORS: Must be grammatically plausible but incorrect. NEVER use synonyms of the correct answer as distractors.";
+
+        // Reglas para Reordering
+        if (isReordering) {
+            gapRule = '3. GAPS: For "Sentence Reordering", DO NOT hide the whole sentence. Hide only a SHORT CRITICAL SEGMENT (3-5 words max) where word order is tricky. Keep options short for mobile UI.';
+            distractorRule = '4. DISTRACTORS: For "Reordering", distractors must use the SAME words as the correct answer but scrambled into incorrect order.';
+        }
+        
+        // Reglas para Reverse Translation
+        if (isTranslation) {
+             gapRule = '3. GAPS: For "Reverse Translation", the `cloze_text` must show the SPANISH sentence (wrapped in <b> tags), followed by a <br> tag, and then the gap containing the English translations. Example: "<b>Hola mundo</b><br>{Hello world|Hi earth|Hello moon}".';
+             distractorRule = '4. DISTRACTORS: Distractors must be incorrect translations (wrong grammar, wrong words, or false friends).';
+        }
+        // ---------------------------------
 
         // 3. Definición de Estructura (TypeScript Interface)
         const tsInterface = `
@@ -767,22 +787,7 @@
           ]
         }`;
 
-      // --- INICIO NUEVA LÓGICA REORDERING ---
-        // 1. Detectamos si el usuario eligió "Sentence Reordering"
-        let isReordering = (typSel && typSel.includes("Reordering")) || (typCust && typCust.includes("Reordering"));
-        
-        // 2. Definimos las reglas por defecto (para Cloze, corrección de errores, etc.)
-        let gapRule = '3. GAPS: Format is "{correct|distractor1|distractor2}".';
-        let distractorRule = "4. DISTRACTORS: Must be grammatically plausible but incorrect. NEVER use synonyms of the correct answer as distractors (e.g., if answer is 'fast', do not use 'quick').";
-
-        // 3. Si es Reordering, SOBREESCRIBIMOS las reglas para proteger el diseño móvil
-        if (isReordering) {
-            gapRule = '3. GAPS: For "Sentence Reordering", DO NOT hide the whole sentence. Hide only a SHORT CRITICAL SEGMENT (3-5 words max) where word order is tricky (e.g. Subject-Verb or Adjective-Noun). Keep options short for mobile UI.';
-            distractorRule = '4. DISTRACTORS: For "Reordering", distractors must use the SAME words as the correct answer but scrambled into incorrect order. Example: "She {has usually eaten|usually has eaten|eaten has usually} breakfast."';
-        }
-        // --- FIN NUEVA LÓGICA REORDERING ---
-
-    // 5. Construcción del Prompt Final
+        // 5. Construcción del Prompt Final
         const promptText = `
         ROLE: Expert ${currentTarget} Linguist.
         TASK: Generate a JSON object strictly following the TypeScript interface below.
