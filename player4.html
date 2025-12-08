@@ -814,11 +814,31 @@
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    function saveLineToVocab(btn) {
-        const line = btn.closest('.line'); const vocabKey = 'mdc_vocab_list'; let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
+ function saveLineToVocab(btn) {
+        const line = btn.closest('.line'); 
+        const vocabKey = 'mdc_vocab_list'; 
+        let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
+        
         const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
         const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
+        
+        // --- FUNCIÓN HELPER PARA DETECTAR DUPLICADOS ---
+        const isDuplicate = (textToCheck) => {
+            const cleanCheck = sanitizeText(textToCheck).toLowerCase();
+            for (let item of items) {
+                // Revisar items sueltos
+                if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === cleanCheck) return true;
+                // Revisar dentro de carpetas
+                if (item.isFolder && item.items) {
+                    for (let sub of item.items) {
+                        if (sub.eng && sanitizeText(sub.eng).toLowerCase() === cleanCheck) return true;
+                    }
+                }
+            }
+            return false;
+        };
+        // ----------------------------------------------
         
         if (selectedEng.length > 0) {
             let translation = ""; 
@@ -828,6 +848,13 @@
             
             selectedEng.forEach(span => { 
                 const cleanEng = sanitizeText(span.innerText);
+                
+                // AQUÍ ESTÁ EL CAMBIO: Verificamos si existe antes de agregar
+                if (isDuplicate(cleanEng)) {
+                    console.log(`Palabra "${cleanEng}" ignorada (ya existe).`);
+                    return; // Saltamos esta palabra
+                }
+
                 const cleanEsp = sanitizeText(translation);
                 
                 itemsToAdd.push({ 
@@ -840,25 +867,48 @@
             });
         } else {
             const rawEng = line.querySelector('.english').innerText;
-            const rawEsp = line.querySelector('.spanish').innerText;
-            
             const cleanEng = sanitizeText(rawEng);
-            const cleanEsp = sanitizeText(rawEsp);
 
-            itemsToAdd.push({ 
-                eng: cleanEng, 
-                esp: cleanEsp, 
-                id: Date.now(), 
-                isFolder: false, 
-                isHighlighted: false 
-            });
+            // AQUÍ ESTÁ EL CAMBIO
+            if (!isDuplicate(cleanEng)) {
+                const rawEsp = line.querySelector('.spanish').innerText;
+                const cleanEsp = sanitizeText(rawEsp);
+
+                itemsToAdd.push({ 
+                    eng: cleanEng, 
+                    esp: cleanEsp, 
+                    id: Date.now(), 
+                    isFolder: false, 
+                    isHighlighted: false 
+                });
+            } else {
+                 alert("Esta frase ya existe en tu vocabulario.");
+                 return;
+            }
         }
         
+        if (itemsToAdd.length === 0) {
+            // Animación visual de "Ya existe" (opcional: cambia el color a amarillo momentáneo)
+            const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; 
+            setTimeout(() => { btn.innerHTML = originalText; }, 1000);
+            return;
+        }
+
         const targetFolderName = VIDEO_TITLE || "Saved from Studio"; 
         let targetFolder = items.find(i => i.isFolder === true && i.name === targetFolderName);
-        if (targetFolder) { itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder);
-        } else { const newFolder = { id: Date.now() + 1, isFolder: true, name: targetFolderName, items: itemsToAdd }; items.unshift(newFolder); }
+        
+        if (targetFolder) { 
+            itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); 
+            items = items.filter(i => i.id !== targetFolder.id); 
+            items.unshift(targetFolder);
+        } else { 
+            const newFolder = { id: Date.now() + 1, isFolder: true, name: targetFolderName, items: itemsToAdd }; 
+            items.unshift(newFolder); 
+        }
+        
         localStorage.setItem(vocabKey, JSON.stringify(items));
+        
+        // Animación de Éxito
         const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
         setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
     }
