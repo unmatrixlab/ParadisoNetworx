@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Drag & Drop</title>
+    <title>NEXUS HUB | Real-time Resize</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -103,22 +103,66 @@
         .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
         .acc-item:hover .fs-btn, .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; }
 
+        /* === CONTENIDO & RESIZE === */
         .acc-content {
-            max-height: 0; overflow: hidden;
-            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; 
+            flex-direction: column;
+            height: 0; 
+            overflow: hidden;
+            /* Transición suave solo para abrir/cerrar */
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
             background: var(--bg-deep);
             border-top: 1px solid transparent;
+            will-change: height;
+        }
+
+        /* CLAVE: Desactivar transición mientras arrastramos para que sea TIEMPO REAL */
+        .acc-content.resizing {
+            transition: none !important;
         }
         
         .acc-item.active .acc-content { border-top-color: var(--border); }
         
-        iframe { width: 100%; height: 650px; border: none; display: block; }
+        iframe { 
+            width: 100%; 
+            flex: 1; 
+            border: none; 
+            display: block; 
+            pointer-events: auto;
+        }
+        /* Desactivar puntero en iframe al redimensionar para evitar glitches */
+        .resizing iframe { pointer-events: none; }
+
+        .resize-handle {
+            height: 24px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            cursor: row-resize; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0; 
+            touch-action: none; /* Vital para móviles */
+            transition: background 0.2s;
+        }
+        .resize-handle:hover, .resize-handle:active {
+            background: var(--bg-hover);
+        }
+        
+        .resize-bar {
+            width: 40px;
+            height: 4px;
+            background-color: var(--txt-sec);
+            border-radius: 2px;
+            opacity: 0.5;
+        }
 
         /* Fullscreen override */
-        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh; padding: 0; margin: 0; }
+        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh !important; padding: 0; margin: 0; }
         .acc-content:fullscreen iframe { height: 100%; }
+        .acc-content:fullscreen .resize-handle { display: none; }
 
-        /* Mapeo de Colores dinámicos */
+        /* Mapeo de Colores */
         .color-1 { --active-color: var(--c-1); color: var(--c-1); }
         .color-2 { --active-color: var(--c-2); color: var(--c-2); }
         .color-3 { --active-color: var(--c-3); color: var(--c-3); }
@@ -140,17 +184,14 @@
     <main id="accordion-list"></main>
 
 <script>
-    // === DATOS DE CONFIGURACIÓN (DRY) ===
-    // Definimos los ítems en un solo lugar. Mucho más fácil de editar.
+    // === DATOS DE CONFIGURACIÓN ===
     const defaultData = [
         { id: '1', title: 'PLAYER DECK', tag: 'APP',  url: 'https://paradisonetworx.com/player4', color: 'color-1' },
         { id: '2', title: 'VOCABULARY DECK',  tag: 'APP', url: 'https://paradisonetworx.com/voc1', color: 'color-2' },
         { id: '3', title: 'EXERCISE CREATORE',tag: 'LIST', url: 'https://paradisonetworx.com/LinguistDeckCel.html', color: 'color-3' },
         { id: '4', title: 'VOCABULARY PRACTICE',tag: 'LIST', url: 'https://paradisonetworx.com/practice3.html', color: 'color-4' }
-
     ];
 
-    // Icono genérico (para mantener el código limpio, se usa el mismo, pero podrías añadir svg path al objeto data si quisieras distintos)
     const chevronIcon = `<path d="M6 9l6 6 6-6"></path>`;
 
     // === INICIALIZACIÓN ===
@@ -160,20 +201,16 @@
         initSortable();
     });
 
-    // === 1. GENERACIÓN DINÁMICA & RENDERIZADO ===
+    // === 1. GENERACIÓN DINÁMICA ===
     function renderItems() {
         const container = document.getElementById('accordion-list');
-        
-        // Recuperar orden guardado o usar default
         const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
         let dataToRender = [...defaultData];
 
         if (savedOrder && savedOrder.length > 0) {
-            // Reordenar el array de datos según los IDs guardados
             dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
         }
 
-        // Construir HTML
         container.innerHTML = dataToRender.map(item => `
             <div class="acc-item ${item.color}" data-id="${item.id}">
                 <div class="acc-header" onclick="toggleAcc('${item.id}')">
@@ -189,12 +226,15 @@
                 </div>
                 <div class="acc-content" id="content-${item.id}">
                     <iframe src="${item.url}" loading="lazy"></iframe>
+                    <div class="resize-handle" onmousedown="startResize(event, '${item.id}')" ontouchstart="startResize(event, '${item.id}')">
+                        <div class="resize-bar"></div>
+                    </div>
                 </div>
             </div>
         `).join('');
     }
 
-    // === 2. SORTABLE CON PERSISTENCIA ===
+    // === 2. SORTABLE ===
     function initSortable() {
         const el = document.getElementById('accordion-list');
         new Sortable(el, {
@@ -204,52 +244,103 @@
             dragClass: 'sortable-drag',
             delay: 100,
             delayOnTouchOnly: true,
-            // Guardar orden al terminar de arrastrar
             onEnd: function (evt) {
-                const sortable = this; // referencia a la instancia sortable
-                const order = sortable.toArray(); // Obtiene array de IDs (gracias a data-id en el HTML)
+                const sortable = this;
+                const order = sortable.toArray();
                 localStorage.setItem('nexus_order', JSON.stringify(order));
             }
         });
     }
 
-    // === 3. LÓGICA ACORDEÓN (MEJORADA - Punto 4) ===
+    // === 3. LÓGICA ACORDEÓN ===
     function toggleAcc(id) {
-        const item = document.querySelector(`.acc-item[data-id="${id}"]`); // Selector más seguro
+        const item = document.querySelector(`.acc-item[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
         const icon = document.getElementById(`icon-${id}`);
-        const isOpen = content.style.maxHeight;
+        const isOpen = item.classList.contains('active');
 
         // Cerrar todos
-        document.querySelectorAll('.acc-content').forEach(el => el.style.maxHeight = null);
+        document.querySelectorAll('.acc-content').forEach(el => {
+            el.style.height = '0px'; 
+            el.classList.remove('resizing');
+        });
         document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
         document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
 
-        // Abrir seleccionado
+        // Abrir
         if (!isOpen) {
             item.classList.add('active');
-            
-            // FIX: Usar scrollHeight para altura exacta dinámica
-            content.style.maxHeight = content.scrollHeight + "px";
-            
+            content.style.height = "650px"; 
             icon.style.transform = 'rotate(180deg)';
-            
             setTimeout(() => {
                 item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
             }, 300);
         }
     }
 
-    // === TEMA CON PERSISTENCIA (Punto 2) ===
+    // === 4. REDIMENSIONAMIENTO OPTIMIZADO ===
+    let startY, startHeight, currentContent;
+    let animationFrameId = null;
+
+    function startResize(e, id) {
+        if(e.type === 'mousedown') e.preventDefault(); 
+        
+        currentContent = document.getElementById(`content-${id}`);
+        currentContent.classList.add('resizing'); // Activa el CSS que mata la transición
+        
+        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        startHeight = parseInt(document.defaultView.getComputedStyle(currentContent).height, 10);
+
+        if (e.type.includes('mouse')) {
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        } else {
+            document.documentElement.addEventListener('touchmove', doDrag, { passive: false });
+            document.documentElement.addEventListener('touchend', stopDrag, false);
+        }
+    }
+
+    function doDrag(e) {
+        if(e.type === 'touchmove') e.preventDefault(); 
+
+        // Optimización de frame para evitar lag
+        if (animationFrameId) return;
+
+        animationFrameId = requestAnimationFrame(() => {
+            const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+            const newHeight = startHeight + (clientY - startY);
+
+            if (newHeight > 100) {
+                currentContent.style.height = newHeight + 'px';
+            }
+            animationFrameId = null;
+        });
+    }
+
+    function stopDrag(e) {
+        if(currentContent) {
+            currentContent.classList.remove('resizing'); // Reactiva la transición suave
+        }
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        
+        document.documentElement.removeEventListener('mousemove', doDrag, false);
+        document.documentElement.removeEventListener('mouseup', stopDrag, false);
+        document.documentElement.removeEventListener('touchmove', doDrag);
+        document.documentElement.removeEventListener('touchend', stopDrag);
+    }
+
+    // === TEMA ===
     function loadTheme() {
         const savedTheme = localStorage.getItem('nexus_theme');
         const icon = document.getElementById('hub-theme-icon');
-        
         if (savedTheme === 'light') {
             document.documentElement.classList.add('light-mode');
-            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>'; // Luna (para ir a dark)
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
         } else {
-            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>'; // Sol
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
         }
     }
 
@@ -257,7 +348,6 @@
         const doc = document.documentElement;
         const icon = document.getElementById('hub-theme-icon');
         let newTheme = 'dark';
-
         if (doc.classList.contains('light-mode')) {
             doc.classList.remove('light-mode');
             icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
@@ -266,11 +356,10 @@
             newTheme = 'light';
             icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
         }
-        
         localStorage.setItem('nexus_theme', newTheme);
     }
 
-    // Fullscreen (Igual que antes)
+    // Fullscreen
     function toggleFS(id) {
         const elem = document.getElementById(id);
         if (!document.fullscreenElement) {
