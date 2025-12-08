@@ -42,6 +42,9 @@
         /* BUTTONS */
         button { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: 0.2s; }
         .btn-load { background: #374151; color: white; margin-top: 10px; }
+        .btn-skip { background: transparent; color: #6b7280; border: 2px solid #e5e7eb; margin-top: 10px; }
+        .btn-skip:hover { border-color: #9ca3af; color: #374151; }
+        
         .btn-unlock { background: var(--primary); color: white; margin-top: 10px; width: auto; padding: 10px 30px; }
         .btn-generate { background: var(--primary); color: white; font-size: 16px; margin-top: 10px; }
         .btn-generate:hover { background: #4338ca; transform: translateY(-2px); }
@@ -57,18 +60,21 @@
 <body>
 
 <div class="container">
-    <h1>🚀 Gestor de Biblioteca <span class="badge">V2.1 SECURE</span></h1>
-    <p style="color:#666; font-size:14px; margin-bottom:25px;">Agrega videos a tu lista existente sin romper el formato.</p>
+    <h1>🚀 Gestor de Biblioteca <span class="badge">V2.2</span></h1>
+    <p style="color:#666; font-size:14px; margin-bottom:25px;">Crea o actualiza tu archivo biblioteca.json.</p>
 
     <div class="step-section">
         <div class="step-number">PASO 1</div>
-        <span class="step-title">Cargar Biblioteca Actual</span>
+        <span class="step-title">Origen de Datos</span>
         <div class="group">
-            <label>URL Raw de GitHub (Tu archivo biblioteca.json)</label>
-            <input type="text" id="existing-url" placeholder="https://raw.githubusercontent.com/Usuario/Repo/main/biblioteca.json">
+            <label>URL Raw de GitHub (Opcional)</label>
+            <input type="text" id="existing-url" placeholder="https://raw.githubusercontent.com/.../biblioteca.json">
         </div>
-        <button class="btn-load" onclick="loadExistingLibrary()">📥 DESCARGAR Y ANALIZAR</button>
-        <div id="load-status" class="status-msg">Esperando URL...</div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <button class="btn-load" onclick="loadExistingLibrary()">📥 DESCARGAR</button>
+            <button class="btn-skip" onclick="startFromScratch()">NO TENGO, INICIAR</button>
+        </div>
+        <div id="load-status" class="status-msg">Introduce URL o inicia de cero.</div>
 
         <div id="security-check" class="security-modal">
             <h3 style="margin:0 0 10px 0; color:#991b1b;">🔒 Archivo Protegido</h3>
@@ -83,7 +89,10 @@
     <div id="app-content">
         <div class="step-section" id="step-2" style="opacity:0.5; pointer-events:none;">
             <div class="step-number">PASO 2</div>
-            <span class="step-title">Datos del Nuevo Video</span>
+            <span class="step-title">Nuevo Video (Opcional)</span>
+            <p style="font-size:12px; color:#6b7280; margin-top:-10px; margin-bottom:15px;">
+                Deja esto en blanco si solo quieres generar el archivo de configuración base con PIN.
+            </p>
             
             <div class="group">
                 <label>URL de YouTube</label>
@@ -108,15 +117,15 @@
             </div>
             
             <div style="margin-top:20px; padding-top:20px; border-top:1px dashed #e5e7eb;">
-                <label style="color:#4f46e5;">🛡️ Seguridad (Opcional)</label>
+                <label style="color:#4f46e5;">🛡️ Seguridad / Configuración</label>
                 <div style="display:flex; gap:10px; align-items:center;">
                     <input type="text" id="new-pin-set" maxlength="4" placeholder="PIN" style="width:80px; text-align:center;">
-                    <span style="font-size:11px; color:#666;">Introduce 4 dígitos para proteger futuras ediciones. Déjalo vacío para dejarlo público.</span>
+                    <span style="font-size:11px; color:#666;">Define un PIN de 4 dígitos para proteger este archivo json.</span>
                 </div>
             </div>
         </div>
 
-        <button class="btn-generate" id="btn-gen" onclick="generateMergedJSON()" disabled style="opacity:0.5;">FUSIONAR Y GENERAR CÓDIGO ✨</button>
+        <button class="btn-generate" id="btn-gen" onclick="generateMergedJSON()" disabled style="opacity:0.5;">GENERAR JSON FINAL ✨</button>
         
         <textarea id="output" readonly></textarea>
         <button class="copy-btn" id="btn-copy" onclick="copyToClipboard()">COPIAR JSON COMPLETO 📋</button>
@@ -124,19 +133,26 @@
 </div>
 
 <script>
-    let RAW_DATA = null;     // El JSON tal cual viene de la nube
-    let VIDEO_LIST = [];     // Solo el array de videos
-    let STORED_PIN = null;   // El PIN si existe
-    let IS_LOCKED = false;
+    let RAW_DATA = null;     
+    let VIDEO_LIST = [];     
+    let STORED_PIN = null;   
 
-    // 1. CARGAR LIBRERÍA EXISTENTE
+    // 1. INICIAR SIN ARCHIVO
+    function startFromScratch() {
+        VIDEO_LIST = [];
+        STORED_PIN = null;
+        document.getElementById('existing-url').value = '';
+        unlockApp(0, "Modo creación desde cero activado.");
+    }
+
+    // 2. CARGAR LIBRERÍA EXISTENTE
     async function loadExistingLibrary() {
         const url = document.getElementById('existing-url').value.trim();
         const status = document.getElementById('load-status');
         const securityModal = document.getElementById('security-check');
         const appContent = document.getElementById('app-content');
         
-        if(!url) return alert("Pega la URL Raw de GitHub primero.");
+        if(!url) return alert("Pega una URL o pulsa 'Iniciar sin archivo'.");
         
         status.innerText = "⏳ Conectando...";
         status.style.color = "#4f46e5";
@@ -145,66 +161,64 @@
 
         try {
             const res = await fetch(url + '?t=' + new Date().getTime());
-            if(!res.ok) throw new Error("No se pudo conectar (Error " + res.status + ")");
+            if(!res.ok) throw new Error("Error " + res.status);
             
             RAW_DATA = await res.json();
             
-            // --- LOGICA DE SEGURIDAD ---
-            
-            // CASO A: Es el formato antiguo (Array simple)
             if(Array.isArray(RAW_DATA)) {
+                // Formato antiguo (sin pin)
                 VIDEO_LIST = RAW_DATA;
                 STORED_PIN = null;
-                unlockApp(VIDEO_LIST.length);
+                unlockApp(VIDEO_LIST.length, `Cargados ${VIDEO_LIST.length} videos.`);
             } 
-            // CASO B: Es el formato nuevo (Objeto con PIN)
             else if (RAW_DATA.pin && Array.isArray(RAW_DATA.videos)) {
+                // Formato nuevo (con pin)
                 STORED_PIN = RAW_DATA.pin;
                 VIDEO_LIST = RAW_DATA.videos;
                 
-                // Bloquear interfaz
-                IS_LOCKED = true;
-                status.innerText = "🔒 Archivo bloqueado. Introduce el PIN.";
+                // Bloquear
+                status.innerText = "🔒 Archivo bloqueado.";
                 status.style.color = "#b91c1c";
                 securityModal.classList.add('active');
                 appContent.classList.add('blur-content');
                 document.getElementById('pin-entry').value = '';
                 document.getElementById('pin-entry').focus();
             }
-            // CASO C: JSON vacío o estructura desconocida
             else {
+                // Archivo vacio o raro
                 VIDEO_LIST = [];
-                unlockApp(0);
+                unlockApp(0, "Archivo irreconocible, iniciando vacío.");
             }
 
         } catch (e) {
             console.error(e);
-            status.innerText = "❌ Error: " + e.message;
-            status.style.color = "#ef4444";
+            if(confirm("No se pudo cargar la URL. ¿Quieres empezar de cero?")) {
+                startFromScratch();
+            } else {
+                status.innerText = "❌ Error: " + e.message;
+                status.style.color = "#ef4444";
+            }
         }
     }
 
-    // 1.5 VERIFICAR PIN
     function verifyPin() {
         const inputPin = document.getElementById('pin-entry').value;
         const errorMsg = document.getElementById('pin-error');
         
         if(inputPin === STORED_PIN) {
-            // PIN Correcto
             document.getElementById('security-check').classList.remove('active');
             document.getElementById('app-content').classList.remove('blur-content');
-            // Precargar el PIN en el campo de "Nuevo PIN" para que no se pierda al guardar
-            document.getElementById('new-pin-set').value = STORED_PIN;
-            unlockApp(VIDEO_LIST.length);
+            document.getElementById('new-pin-set').value = STORED_PIN; // Precargar PIN existente
+            unlockApp(VIDEO_LIST.length, "Desbloqueo exitoso.");
         } else {
             errorMsg.style.display = 'block';
             document.getElementById('pin-entry').value = '';
         }
     }
 
-    function unlockApp(count) {
+    function unlockApp(count, msg) {
         const status = document.getElementById('load-status');
-        status.innerHTML = `✅ <b>¡Éxito!</b> Se cargaron ${count} videos.`;
+        status.innerText = `✅ ${msg}`;
         status.style.color = "#065f46";
         
         const step2 = document.getElementById('step-2');
@@ -214,7 +228,7 @@
         document.getElementById('btn-gen').style.opacity = "1";
     }
 
-    // 2. VALIDACIONES UI
+    // UI Helpers
     function validateYoutube() {
         const url = document.getElementById('yt-url').value;
         const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -231,71 +245,6 @@
         }
     }
 
-    // 3. FUSIONAR Y GENERAR
-    async function generateMergedJSON() {
-        // ... (Validaciones existentes) ...
-        const url = document.getElementById('yt-url').value;
-        const title = document.getElementById('vid-title').value;
-        const fileEn = document.getElementById('file-en').files[0];
-        const fileEs = document.getElementById('file-es').files[0];
-        const newPin = document.getElementById('new-pin-set').value.trim();
-
-        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-        const match = url.match(regExp);
-        const videoId = (match && match[7].length == 11) ? match[7] : null;
-
-        if(!videoId) return alert("URL de YouTube inválida");
-        if(!title) return alert("Escribe un título");
-        if(!fileEn || !fileEs) return alert("Faltan los archivos SRT");
-
-        try {
-            const textEn = await readFile(fileEn);
-            const textEs = await readFile(fileEs);
-
-            const newVideo = {
-                id: videoId,
-                title: title,
-                srtEn: textEn,
-                srtEs: textEs
-            };
-
-            // Agregamos al array existente
-            VIDEO_LIST.unshift(newVideo);
-
-            // DECISIÓN FINAL DE FORMATO
-            let finalOutput;
-
-            if (newPin.length === 4) {
-                // Si hay un PIN definido, generamos la estructura segura
-                finalOutput = {
-                    pin: newPin,
-                    videos: VIDEO_LIST
-                };
-            } else {
-                // Si no hay PIN, generamos el Array simple (compatible antigua)
-                finalOutput = VIDEO_LIST;
-            }
-
-            const jsonString = JSON.stringify(finalOutput, null, 4);
-
-            const output = document.getElementById('output');
-            output.value = jsonString;
-            output.style.display = 'block';
-            
-            const btnCopy = document.getElementById('btn-copy');
-            btnCopy.style.display = 'block';
-            
-            output.scrollIntoView({behavior: "smooth"});
-            
-            let msg = `¡Listo! Agregado. Tienes ${VIDEO_LIST.length} videos.`;
-            if(newPin) msg += " 🔒 ARCHIVO PROTEGIDO CON PIN.";
-            alert(msg);
-
-        } catch (e) {
-            alert("Error procesando archivos: " + e);
-        }
-    }
-
     function readFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -305,13 +254,88 @@
         });
     }
 
+    // 3. GENERAR EL JSON (Modificado para permitir "Solo Estructura")
+    async function generateMergedJSON() {
+        const url = document.getElementById('yt-url').value.trim();
+        const title = document.getElementById('vid-title').value.trim();
+        const fileEn = document.getElementById('file-en').files[0];
+        const fileEs = document.getElementById('file-es').files[0];
+        const newPin = document.getElementById('new-pin-set').value.trim();
+
+        // Detectar si el usuario intenta agregar un video
+        const hasVideoIntention = (url || title || fileEn || fileEs);
+        
+        if (hasVideoIntention) {
+            // Si hay intención, VALIDAMOS todo rigurosamente
+            const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+            const match = url.match(regExp);
+            const videoId = (match && match[7].length == 11) ? match[7] : null;
+
+            if(!videoId) return alert("Si vas a agregar un video, la URL debe ser válida.");
+            if(!title) return alert("Falta el título del video.");
+            if(!fileEn || !fileEs) return alert("Debes subir ambos archivos .srt");
+
+            try {
+                const textEn = await readFile(fileEn);
+                const textEs = await readFile(fileEs);
+
+                const newVideo = {
+                    id: videoId,
+                    title: title,
+                    srtEn: textEn,
+                    srtEs: textEs
+                };
+                
+                VIDEO_LIST.unshift(newVideo); // Agregamos el video
+
+            } catch (e) {
+                return alert("Error leyendo archivos: " + e);
+            }
+        } 
+        else {
+            // Si NO hay intención de video (campos vacíos)
+            // Solo seguimos adelante para generar el JSON con (o sin) PIN.
+            if(VIDEO_LIST.length === 0 && !newPin) {
+                return alert("La lista está vacía y no has puesto PIN. No hay nada que generar.");
+            }
+        }
+
+        // GENERACIÓN DEL OUTPUT FINAL
+        let finalOutput;
+
+        if (newPin.length === 4) {
+            finalOutput = {
+                pin: newPin,
+                videos: VIDEO_LIST
+            };
+        } else {
+            if(newPin.length > 0 && newPin.length !== 4) return alert("El PIN debe tener exactamente 4 dígitos.");
+            
+            // Si no hay pin, guardamos como array simple (formato antiguo)
+            finalOutput = VIDEO_LIST;
+        }
+
+        const jsonString = JSON.stringify(finalOutput, null, 4);
+        const output = document.getElementById('output');
+        output.value = jsonString;
+        output.style.display = 'block';
+        
+        const btnCopy = document.getElementById('btn-copy');
+        btnCopy.style.display = 'block';
+        output.scrollIntoView({behavior: "smooth"});
+        
+        let msg = hasVideoIntention ? "¡Video agregado! " : "¡Archivo generado! ";
+        msg += newPin ? "🔒 JSON Protegido con PIN." : "🔓 JSON Público.";
+        alert(msg);
+    }
+
     function copyToClipboard() {
         const output = document.getElementById('output');
         output.select();
         document.execCommand('copy');
         const btn = document.getElementById('btn-copy');
-        btn.innerText = "¡COPIADO! ✅ VE A GITHUB Y PEGA ESTO";
-        setTimeout(() => btn.innerText = "COPIAR JSON COMPLETO 📋", 3000);
+        btn.innerText = "¡COPIADO!";
+        setTimeout(() => btn.innerText = "COPIAR JSON COMPLETO 📋", 2000);
     }
 </script>
 
