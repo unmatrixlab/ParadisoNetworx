@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | v9.5 Queue Monitor</title>
+    <title>LINGUA NEXUS | v9.7 Final Stable</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -75,8 +75,11 @@
         body:not(.is-home) .back-btn { display: block; }
         body:not(.is-home) .brand { display: none; } 
         .header-actions { display: flex; gap: 20px; }
-        .icon-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; padding: 0; }
+        .icon-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; padding: 0; transition: 0.2s; }
         .icon-btn:hover { color: var(--primary); }
+        
+        /* ESTADO ACTIVO DEL BOTÓN (NUEVO) */
+        .icon-btn.active { color: var(--primary); transform: scale(1.1); opacity: 1; }
 
         /* MAIN */
         main { 
@@ -242,7 +245,7 @@
             <button class="icon-btn" onclick="Profile.toggleTheme()">
                 <svg id="theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
-            <button class="icon-btn" onclick="App.nav('settings')">
+            <button id="btn-settings-nav" class="icon-btn" onclick="App.nav('settings')">
                 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
             </button>
         </div>
@@ -329,6 +332,7 @@
                 </p>
                 <div id="study-queue-list" class="queue-grid"></div>
             </div>
+
             <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.resetRender()">
             
             <div class="filter-bar">
@@ -452,7 +456,7 @@ const Profile = {
         if(srcEl) this.cfg.source = srcEl.value;
         this.save();
         App.resetRender();
-        App.renderQueue(); // Update queue when settings change
+        App.renderQueue(); 
         App.updateHomeMenu();
     },
     
@@ -545,10 +549,17 @@ const App = {
         document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
         document.getElementById('view-'+v).classList.add('active');
         document.body.className = (v === 'home') ? 'is-home' : '';
+        
+        // --- CONTROL DEL BOTON DE AJUSTES ---
+        const btnSet = document.getElementById('btn-settings-nav');
         if(v === 'settings') {
-            this.renderQueue(); // Update queue view
-            this.resetRender(); // Update full list view
+            btnSet.classList.add('active');
+            this.renderQueue(); 
+            this.resetRender(); 
+        } else {
+            btnSet.classList.remove('active');
         }
+        
         if(v === 'home') this.updateHomeMenu();
     },
 
@@ -582,18 +593,26 @@ const App = {
         }
     },
 
-    // --- CENTRAL SORTING LOGIC ---
+    // --- LOGICA DE ORDENAMIENTO ALEATORIO + PRIORIDAD ---
     getSortedData(cat) {
         let raw = DB.get(cat);
+        
+        // 1. PRIMERO MEZCLAMOS TODO (Shuffle)
+        // Esto rompe el orden alfabético de palabras nuevas
+        for (let i = raw.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [raw[i], raw[j]] = [raw[j], raw[i]];
+        }
+
+        // 2. LUEGO ORDENAMOS POR NECESIDAD (Prioridad)
         return raw.sort((a,b) => {
             const la = Profile.getLvl(a.en);
             const lb = Profile.getLvl(b.en);
             
-            // Priority: 1 (Learning/Review), 2 (New), 3 (Mastered)
             const getGroup = (l) => {
-                if(l > 0 && l < 4) return 1;
-                if(l === 0) return 2;
-                return 3;
+                if(l > 0 && l < 4) return 1; // Prioridad Alta (Repaso)
+                if(l === 0) return 2;        // Prioridad Media (Nuevas)
+                return 3;                    // Prioridad Baja (Master)
             };
 
             const ga = getGroup(la);
@@ -607,14 +626,10 @@ const App = {
         });
     },
 
-    // --- NEW: RENDER THE STUDY QUEUE ---
-// --- VERSIÓN CORREGIDA: RESPETA TU CONFIGURACIÓN DE CANTIDAD ---
+    // --- VISUALIZAR COLA CON CANTIDAD CORRECTA ---
     renderQueue() {
-        // Usamos 'mixed' para proyectar la mezcla general
         const sorted = this.getSortedData('mixed'); 
-        
-        // AQUÍ ESTÁ EL CAMBIO: Usamos Profile.cfg.count en vez de 10
-        const sessionLimit = Profile.cfg.count; 
+        const sessionLimit = Profile.cfg.count; // USAMOS LA CONFIGURACION
         const nextBatch = sorted.slice(0, sessionLimit);
         
         const container = document.getElementById('study-queue-list');
@@ -626,7 +641,7 @@ const App = {
             return;
         }
 
-        // Agregamos un pequeño texto que confirma cuántas son
+        // Indicador de cantidad
         const countInfo = document.createElement('div');
         countInfo.style.cssText = "font-size:11px; color:var(--primary); margin-bottom:10px; font-weight:700;";
         countInfo.innerText = `NEXT ${nextBatch.length} WORDS (BASED ON SETTINGS):`;
@@ -659,7 +674,6 @@ const App = {
         if(Profile.cfg.source === 'custom' && cat !== 'mixed') return;
         this.currentCat = cat;
 
-        // Use the centralized sorting logic
         const sorted = this.getSortedData(cat);
         
         this.q = sorted.slice(0, Profile.cfg.count); 
