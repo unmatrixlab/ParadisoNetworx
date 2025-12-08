@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Con Biblioteca)</title>
+    <title>MDC Studio Player (Conexión GitHub)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
@@ -149,9 +149,9 @@
 
             <div class="setup-card">
                 <div class="library-section" id="library-container">
-                    <div class="library-label">🔥 Biblioteca Recomendada</div>
+                    <div class="library-label">🔥 Biblioteca GitHub</div>
                     <div id="library-list" class="history-list">
-                        <div class="empty-history">Cargando librería...</div>
+                        <div class="empty-history">Esperando conexión...</div>
                     </div>
                 </div>
                 
@@ -220,63 +220,80 @@
     let SUBTITLES_DATA = [];
     const HISTORY_KEY = 'mdc_studio_history';
 
-    // === DATOS EXTERNOS SIMULADOS (Aquí puedes poner tus videos por defecto) ===
-    // Si quisieras cargarlos de un JSON externo, usaríamos fetch()
-    const LOCAL_LIBRARY = [
-        {
-            id: "Yj0l7iT07Ac",
-            title: "English Practice - Short Story",
-            srtEn: `1\n00:00:00,500 --> 00:00:03,000\nToday, I want to tell you a story.\n\n2\n00:00:03,100 --> 00:00:06,000\nIt's a very simple story about a dog.\n\n3\n00:00:06,100 --> 00:00:10,000\nThe dog's name was Max and he loved to run.`,
-            srtEs: `1\n00:00:00,500 --> 00:00:03,000\nHoy, quiero contarte una historia.\n\n2\n00:00:03,100 --> 00:00:06,000\nEs una historia muy simple sobre un perro.\n\n3\n00:00:06,100 --> 00:00:10,000\nEl perro se llamaba Max y le encantaba correr.`
-        },
-        {
-            id: "t_4R3rTzNoc",
-            title: "Short Clip - Greeting",
-            srtEn: `1\n00:00:00,500 --> 00:00:02,000\nHi everyone!\n\n2\n00:00:02,100 --> 00:00:04,500\nWelcome to this new video tutorial.`,
-            srtEs: `1\n00:00:00,500 --> 00:00:02,000\n¡Hola a todos!\n\n2\n00:00:02,100 --> 00:00:04,500\nBienvenidos a este nuevo video tutorial.`
-        }
-    ];
+    // =========================================================================
+    // ⚙️ CONFIGURACIÓN GITHUB: PEGA AQUÍ TU URL "RAW" DEL ARCHIVO .JSON
+    // =========================================================================
+    const LIBRARY_URL = 'https://raw.githubusercontent.com/TuUsuario/TuRepositorio/main/biblioteca.json'; 
+    // =========================================================================
+
+    let REMOTE_LIBRARY = [];
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
-        renderLibrary(); // <--- Cargar biblioteca al inicio
+        loadRemoteLibrary(); 
     });
 
-    // === FUNCIÓN PARA RENDERIZAR LA BIBLIOTECA ===
-    function renderLibrary() {
+    // === FUNCIÓN PARA DESCARGAR DATOS DE GITHUB ===
+    async function loadRemoteLibrary() {
+        const list = document.getElementById('library-list');
+        list.innerHTML = '<div class="empty-history" style="color:#4f46e5;">⏳ Buscando videos...</div>';
+        
+        // Verificamos si la URL sigue siendo el placeholder
+        if(LIBRARY_URL.includes('TuUsuario/TuRepositorio')) {
+            list.innerHTML = '<div class="empty-history" style="color:#9ca3af;">(Configura la URL de GitHub en el código)</div>';
+            return;
+        }
+
+        try {
+            const response = await fetch(LIBRARY_URL + '?t=' + new Date().getTime());
+            if (!response.ok) throw new Error("Error de conexión");
+            REMOTE_LIBRARY = await response.json();
+            renderLibraryItems(); 
+        } catch (error) {
+            console.error(error);
+            list.innerHTML = `
+                <div class="empty-history" style="color:#ef4444;">
+                    ❌ No se pudo cargar la biblioteca.<br>
+                    <small>Verifica tu URL o conexión.</small>
+                </div>`;
+        }
+    }
+
+    // === RENDERIZAR ITEMS REMOTOS ===
+    function renderLibraryItems() {
         const list = document.getElementById('library-list');
         list.innerHTML = '';
-        
-        // Si quisieras cargar de un archivo externo real:
-        // fetch('https://tu-sitio.com/videos.json').then(res => res.json()).then(data => { ... })
-        // Por ahora usamos la constante LOCAL_LIBRARY definida arriba
-        
-        LOCAL_LIBRARY.forEach((item, index) => {
+
+        if(REMOTE_LIBRARY.length === 0) {
+            list.innerHTML = '<div class="empty-history">La biblioteca está vacía.</div>';
+            return;
+        }
+
+        REMOTE_LIBRARY.forEach((item, index) => {
             const div = document.createElement('div');
             div.className = 'history-item';
-            div.style.borderLeft = "4px solid #4f46e5"; // Diferenciador visual
-            // Guardamos el índice en el onclick para recuperar los datos
+            div.style.borderLeft = "4px solid #4f46e5";
             div.onclick = () => loadFromLibrary(index);
             div.innerHTML = `
                 <div class="h-thumb" style="background-image: url('https://img.youtube.com/vi/${item.id}/default.jpg')"></div>
                 <div class="h-info">
                     <div class="h-title">${item.title}</div>
-                    <div class="h-date" style="color:#4f46e5; font-weight:600;">⭐ Recomendado</div>
+                    <div class="h-date" style="color:#4f46e5; font-weight:600;">☁️ Biblioteca</div>
                 </div>
-                <div style="font-size:18px;">▶</div>
+                <div style="font-size:18px; color:#aaa;">▶</div>
             `;
             list.appendChild(div);
         });
     }
 
     function loadFromLibrary(index) {
-        const item = LOCAL_LIBRARY[index];
+        const item = REMOTE_LIBRARY[index];
+        if(!item) return;
         if(player && typeof player.stopVideo === 'function') player.stopVideo();
         isSegmentPlaying = false;
         resetButtons();
         YOUTUBE_ID = item.id;
         VIDEO_TITLE = item.title;
-        // Inyectamos los SRT guardados en el objeto JSON
         processAndLaunch(item.srtEn, item.srtEs, item.id, item.title);
     }
 
