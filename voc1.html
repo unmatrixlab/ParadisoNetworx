@@ -819,15 +819,43 @@
             if (shouldScan) scanAndTranslateMissing(items); 
         }
 
-        function addVocab() {
-            // LIMPIEZA FINAL AL AGREGAR
-            const eng = sanitizeText(inputEng.value.trim()); 
-            const esp = sanitizeText(inputEsp.value.trim());
-            if (!eng) { alert("English required"); return; }
-            const items = localStorage.getItem(STORAGE_KEY) ? JSON.parse(localStorage.getItem(STORAGE_KEY)) : [];
-            items.unshift({ id: Date.now(), isFolder: false, eng: eng, esp: esp, isHighlighted: false });
-            saveData(items); inputEng.value = ""; inputEsp.value = ""; updateTranslateButtons();
+   function addVocab() {
+        // LIMPIEZA FINAL AL AGREGAR
+        const eng = sanitizeText(inputEng.value.trim()); 
+        const esp = sanitizeText(inputEsp.value.trim());
+        
+        if (!eng) { alert("English required"); return; }
+        
+        const items = localStorage.getItem(STORAGE_KEY) ? JSON.parse(localStorage.getItem(STORAGE_KEY)) : [];
+        
+        // --- VALIDACIÓN DE DUPLICADOS ---
+        const checkEng = eng.toLowerCase();
+        let existe = false;
+
+        // Revisamos en items sueltos y carpetas
+        for (let item of items) {
+            if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === checkEng) existe = true;
+            if (item.isFolder && item.items) {
+                for (let sub of item.items) {
+                    if (sub.eng && sanitizeText(sub.eng).toLowerCase() === checkEng) existe = true;
+                }
+            }
+            if(existe) break;
         }
+
+        if (existe) {
+            alert("⚠️ Esta palabra o frase ya existe en tu lista.");
+            return; // Detiene la función, no guarda nada
+        }
+        // --------------------------------
+        
+        items.unshift({ id: Date.now(), isFolder: false, eng: eng, esp: esp, isHighlighted: false });
+        saveData(items); 
+        
+        inputEng.value = ""; 
+        inputEsp.value = ""; 
+        updateTranslateButtons();
+    }
         function deleteItem(id, parentId = null) {
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             if (parentId) { const f = items.find(i => i.id === parentId); if(f) f.items = f.items.filter(i => i.id !== id); } 
