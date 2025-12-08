@@ -419,18 +419,36 @@
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-        // --- SISTEMA DE LIMPIEZA DE PALABRAS (SANITIZATION) ---
-        function cleanInputText(inputElement) {
-            let text = inputElement.value;
-            // 1. Convertir apostrofes rectos o graves al inclinado (’)
+        // --- SISTEMA DE LIMPIEZA DE PALABRAS (SANITIZATION) CENTRALIZADO ---
+        
+        // 1. Función Maestra de Limpieza
+        function sanitizeText(text) {
+            if (!text) return "";
+            // Convertir apostrofes a tipográficos
             text = text.replace(/['`‘´]/g, "’");
-
-            // 2. Eliminar todo lo que NO sea letras, números, espacios o el apostrofe inclinado
-            // \u00C0-\u017F cubre acentos y caracteres latinos (ñ, á, etc)
+            // Eliminar caracteres prohibidos
             text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
+            return text;
+        }
 
-            if (inputElement.value !== text) {
-                inputElement.value = text;
+        // 2. Función para limpiar un Item completo (o carpeta recursiva)
+        function sanitizeItem(item) {
+            if (item.isFolder) {
+                item.name = sanitizeText(item.name);
+                item.items = item.items.map(sub => sanitizeItem(sub));
+            } else {
+                item.eng = sanitizeText(item.eng);
+                item.esp = sanitizeText(item.esp);
+            }
+            return item;
+        }
+
+        // 3. Función UI para inputs en tiempo real
+        function cleanInputText(inputElement) {
+            const original = inputElement.value;
+            const cleaned = sanitizeText(original);
+            if (original !== cleaned) {
+                inputElement.value = cleaned;
             }
         }
 
@@ -441,7 +459,7 @@
             if (hasEng) btnEng.classList.add('visible'); else if (hasEsp) btnEsp.classList.add('visible');
         }
         
-        // AGREGADA LA LIMPIEZA AQUI
+        // VINCULACIÓN DE LIMPIEZA EN TIEMPO REAL
         inputEng.addEventListener('input', () => { cleanInputText(inputEng); updateTranslateButtons(); });
         inputEsp.addEventListener('input', () => { cleanInputText(inputEsp); updateTranslateButtons(); });
 
@@ -524,9 +542,8 @@
             const svgIcon = activeBtn.querySelector('svg'); svgIcon.classList.add('rotating'); 
             const result = await fetchTranslationHelper(sourceText, from, to);
             if (result) {
-                targetInput.value = result;
-                // LIMPIAR TAMBIEN EL RESULTADO DE LA TRADUCCION
-                cleanInputText(targetInput);
+                // LIMPIEZA DEL RESULTADO DE TRADUCCION
+                targetInput.value = sanitizeText(result);
                 updateTranslateButtons();
             }
             svgIcon.classList.remove('rotating');
@@ -542,7 +559,6 @@
             if (card) {
                 const transDiv = card.querySelector('.text-content');
                 if (!card.querySelector('.auto-translating-indicator')) {
-                    // Hide manual button if exists
                     const existingBtn = card.querySelector('.mini-translate-btn');
                     if(existingBtn) existingBtn.style.display = 'none';
                     
@@ -564,12 +580,11 @@
             try {
                 const result = await fetchTranslationHelper(item.eng, 'en', 'es');
                 if (result) {
-                    // Re-read storage to ensure we don't overwrite concurrent changes
                     let currentItems = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
                     let updated = false;
 
-                    // Limpieza del resultado automático también
-                    let cleanedResult = result.replace(/['`‘´]/g, "’").replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
+                    // LIMPIEZA DEL RESULTADO AUTOMATICO
+                    let cleanedResult = sanitizeText(result);
 
                     if (parentId) {
                         let folder = currentItems.find(f => f.id === parentId);
@@ -583,14 +598,13 @@
                     }
 
                     if (updated) {
-                        saveData(currentItems, false); // Save without rescan to avoid infinite loop
+                        saveData(currentItems, false); 
                     }
                 }
             } catch (e) {
                 console.error("Trans error", e);
             }
 
-            // Delay for rate limiting
             setTimeout(() => {
                 isTranslating = false;
                 processTranslationQueue();
@@ -613,14 +627,12 @@
             });
         }
 
-        // --- NEW: ROBUST STORAGE WATCHER ---
+        // --- STORAGE WATCHER ---
         function startStorageWatcher() {
-            // Check every 2s for changes made by other tabs/pages
             setInterval(() => {
                 const currentString = localStorage.getItem(STORAGE_KEY);
                 if (currentString && currentString !== lastStorageString) {
-                    // console.log("Watcher detected external change");
-                    loadVocab(); // Reload and Scan
+                    loadVocab(); 
                 }
             }, 2000);
         }
@@ -793,22 +805,24 @@
         // --- DATA HELPERS ---
         function loadVocab() {
             const saved = localStorage.getItem(STORAGE_KEY);
-            lastStorageString = saved; // Update tracker
+            lastStorageString = saved; 
             const items = saved ? JSON.parse(saved) : [];
             renderList(items); populateVoices();
-            scanAndTranslateMissing(items); // ALWAYS SCAN ON LOAD
+            scanAndTranslateMissing(items); 
         }
         
         function saveData(items, shouldScan = true) { 
             const stringified = JSON.stringify(items);
             localStorage.setItem(STORAGE_KEY, stringified); 
-            lastStorageString = stringified; // Update tracker
+            lastStorageString = stringified; 
             renderList(items);
             if (shouldScan) scanAndTranslateMissing(items); 
         }
 
         function addVocab() {
-            const eng = inputEng.value.trim(); const esp = inputEsp.value.trim();
+            // LIMPIEZA FINAL AL AGREGAR
+            const eng = sanitizeText(inputEng.value.trim()); 
+            const esp = sanitizeText(inputEsp.value.trim());
             if (!eng) { alert("English required"); return; }
             const items = localStorage.getItem(STORAGE_KEY) ? JSON.parse(localStorage.getItem(STORAGE_KEY)) : [];
             items.unshift({ id: Date.now(), isFolder: false, eng: eng, esp: esp, isHighlighted: false });
@@ -904,15 +918,17 @@
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             let item = parentId ? items.find(i => i.id === parentId).items.find(i => i.id === id) : items.find(i => i.id === id);
             if(!item) return;
-            // AGREGEGADO ONINPUT PARA LIMPIEZA TAMBIEN AL EDITAR
+            // VINCULACIÓN EN EDITAR
             textContentDiv.innerHTML = `<input type="text" id="edit-eng-${id}" class="edit-input" value="${item.eng.replace(/"/g, '&quot;')}" placeholder="English" oninput="cleanInputText(this)"><input type="text" id="edit-esp-${id}" class="edit-input" value="${item.esp.replace(/"/g, '&quot;')}" placeholder="Spanish" oninput="cleanInputText(this)">`;
             const editBtn = cardEl.querySelector('.action-btn.edit');
             editBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>`;
             editBtn.classList.add('save-edit'); editBtn.classList.remove('edit');
         }
         function saveEdit(id, parentId = null) {
-            const engVal = document.getElementById(`edit-eng-${id}`).value.trim();
-            const espVal = document.getElementById(`edit-esp-${id}`).value.trim();
+            // LIMPIEZA FINAL AL GUARDAR EDICION
+            const engVal = sanitizeText(document.getElementById(`edit-eng-${id}`).value.trim());
+            const espVal = sanitizeText(document.getElementById(`edit-esp-${id}`).value.trim());
+            
             if(!engVal) { alert("English text cannot be empty"); return; }
             let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
             if(parentId) { const f = items.find(i => i.id === parentId); if(f) { const item = f.items.find(i => i.id === id); if(item) { item.eng = engVal; item.esp = espVal; } } openFolderId = parentId; } 
@@ -1045,7 +1061,15 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const match = e.target.result.match(/const backupData = (\[.*?\]);/s);
-                if (match && match[1]) { localStorage.setItem(STORAGE_KEY, JSON.stringify(JSON.parse(match[1]))); renderList(JSON.parse(match[1])); alert("Imported!"); }
+                if (match && match[1]) { 
+                    const importedData = JSON.parse(match[1]);
+                    // LIMPIEZA MASIVA AL IMPORTAR BACKUP
+                    const cleanData = importedData.map(item => sanitizeItem(item));
+                    
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanData)); 
+                    renderList(cleanData); 
+                    alert("Imported!"); 
+                }
                 input.value = '';
             }; reader.readAsText(file);
         }
@@ -1064,7 +1088,15 @@
                     if(eng) newItems.push({ id: Date.now() + Math.random(), isFolder: false, eng: eng, esp: esp, isHighlighted: false });
                 });
             }
-            if(newItems.length > 0) { const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); const combined = [...newItems, ...current]; saveData(combined); pasteText.value = ""; togglePasteDrawer(); alert(`Added ${newItems.length} items!`); }
+            if(newItems.length > 0) { 
+                // LIMPIEZA MASIVA AL PEGAR
+                newItems = newItems.map(item => sanitizeItem(item));
+
+                const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); 
+                const combined = [...newItems, ...current]; 
+                saveData(combined); 
+                pasteText.value = ""; togglePasteDrawer(); alert(`Added ${newItems.length} items!`); 
+            }
         }
 
         document.getElementById('inputEsp').addEventListener('keypress', function (e) { if (e.key === 'Enter') addVocab(); });
