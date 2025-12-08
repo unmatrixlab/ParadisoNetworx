@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador JSON para Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #4f46e5; --bg: #f3f4f6; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 40px 20px; min-height: 100vh; margin: 0; box-sizing: border-box; }
+        .container { background: white; width: 100%; max-width: 600px; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); height: fit-content; }
+        h1 { margin-top: 0; color: #1f2937; font-size: 24px; }
+        
+        .group { margin-bottom: 20px; }
+        label { display: block; font-size: 12px; font-weight: 700; color: #6b7280; margin-bottom: 5px; text-transform: uppercase; }
+        input[type="text"] { width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: monospace; outline: none; transition: 0.2s; box-sizing: border-box; }
+        input[type="text"]:focus { border-color: var(--primary); }
+        
+        .file-box { border: 2px dashed #cbd5e1; padding: 20px; text-align: center; border-radius: 8px; cursor: pointer; position: relative; transition: 0.2s; background: #f9fafb; }
+        .file-box:hover { border-color: var(--primary); background: #eef2ff; }
+        .file-box input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .file-status { font-weight: 600; color: #4b5563; font-size: 14px; }
+        .file-box.loaded { border-color: #10b981; background: #d1fae5; }
+        .file-box.loaded .file-status { color: #065f46; }
+
+        button { width: 100%; background: var(--primary); color: white; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: 800; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+        button:hover { background: #4338ca; transform: translateY(-2px); }
+        
+        textarea { width: 100%; height: 200px; margin-top: 20px; padding: 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical; display: none; background: #1f2937; color: #a5f3fc; }
+        
+        .copy-btn { background: #10b981; margin-top: 10px; display: none; }
+        .copy-btn:hover { background: #059669; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🛠️ Creador de JSON</h1>
+    <p style="color:#666; font-size:14px; margin-bottom:25px;">Sube los datos y obtén el código listo para pegar en <code>LOCAL_LIBRARY</code>.</p>
+
+    <div class="group">
+        <label>1. URL de YouTube</label>
+        <input type="text" id="yt-url" placeholder="https://www.youtube.com/watch?v=..." oninput="extractID()">
+    </div>
+
+    <div class="group">
+        <label>2. Título del Video</label>
+        <input type="text" id="vid-title" placeholder="Ej: Friends - The One with the Coffee">
+    </div>
+
+    <div class="group">
+        <label>3. Subtítulos Inglés (.srt)</label>
+        <div class="file-box" id="box-en">
+            <span class="file-status" id="status-en">Arrastra o Click aquí</span>
+            <input type="file" id="file-en" accept=".srt" onchange="updateStatus(this, 'box-en', 'status-en')">
+        </div>
+    </div>
+
+    <div class="group">
+        <label>4. Subtítulos Español (.srt)</label>
+        <div class="file-box" id="box-es">
+            <span class="file-status" id="status-es">Arrastra o Click aquí</span>
+            <input type="file" id="file-es" accept=".srt" onchange="updateStatus(this, 'box-es', 'status-es')">
+        </div>
+    </div>
+
+    <button onclick="generateJSON()">GENERAR JSON ⚙️</button>
+    
+    <textarea id="output" readonly></textarea>
+    <button class="copy-btn" id="btn-copy" onclick="copyToClipboard()">COPIAR CÓDIGO 📋</button>
+</div>
+
+<script>
+    function extractID() {
+        const url = document.getElementById('yt-url').value;
+        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+        const match = url.match(regExp);
+        if (match && match[7].length == 11) {
+            // Flash visual effect valid
+            document.getElementById('yt-url').style.borderColor = "#10b981";
+        }
+    }
+
+    function updateStatus(input, boxId, statusId) {
+        if(input.files && input.files[0]) {
+            document.getElementById(boxId).classList.add('loaded');
+            document.getElementById(statusId).innerText = "✓ " + input.files[0].name;
+        }
+    }
+
+    async function generateJSON() {
+        const url = document.getElementById('yt-url').value;
+        const title = document.getElementById('vid-title').value;
+        const fileEn = document.getElementById('file-en').files[0];
+        const fileEs = document.getElementById('file-es').files[0];
+
+        // Extraer ID
+        const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+        const match = url.match(regExp);
+        const videoId = (match && match[7].length == 11) ? match[7] : null;
+
+        if(!videoId) return alert("URL de YouTube inválida");
+        if(!title) return alert("Escribe un título");
+        if(!fileEn || !fileEs) return alert("Faltan los archivos SRT");
+
+        try {
+            const textEn = await readFile(fileEn);
+            const textEs = await readFile(fileEs);
+
+            // Crear objeto
+            const jsonObject = {
+                id: videoId,
+                title: title,
+                srtEn: textEn, // Se guardará con \n escapados automáticamente
+                srtEs: textEs
+            };
+
+            // Convertir a string JSON formateado
+            const jsonString = JSON.stringify(jsonObject, null, 4);
+
+            const output = document.getElementById('output');
+            output.value = jsonString + ","; // Agregamos una coma al final por comodidad
+            output.style.display = 'block';
+            
+            const btnCopy = document.getElementById('btn-copy');
+            btnCopy.style.display = 'block';
+            
+            // Scroll al resultado
+            output.scrollIntoView({behavior: "smooth"});
+
+        } catch (e) {
+            alert("Error leyendo archivos: " + e);
+        }
+    }
+
+    function readFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
+            reader.readAsText(file);
+        });
+    }
+
+    function copyToClipboard() {
+        const output = document.getElementById('output');
+        output.select();
+        document.execCommand('copy');
+        const btn = document.getElementById('btn-copy');
+        btn.innerText = "¡COPIADO! ✅";
+        setTimeout(() => btn.innerText = "COPIAR CÓDIGO 📋", 2000);
+    }
+</script>
+
+</body>
+</html>
