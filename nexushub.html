@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Real-time Resize</title>
+    <title>NEXUS HUB | Resizable</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -103,52 +103,49 @@
         .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
         .acc-item:hover .fs-btn, .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; }
 
-        /* === CONTENIDO & RESIZE === */
         .acc-content {
+            /* NUEVO: Flex column para que el iframe ocupe el resto y el handle se quede abajo */
             display: flex; 
             flex-direction: column;
-            height: 0; 
+            height: 0; /* Usamos height en lugar de max-height para el resize manual */
             overflow: hidden;
-            /* Transición suave solo para abrir/cerrar */
-            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Transición suave al abrir */
             background: var(--bg-deep);
             border-top: 1px solid transparent;
             will-change: height;
         }
-
-        /* CLAVE: Desactivar transición mientras arrastramos para que sea TIEMPO REAL */
-        .acc-content.resizing {
-            transition: none !important;
-        }
         
         .acc-item.active .acc-content { border-top-color: var(--border); }
         
+        /* NUEVO: Ajuste del Iframe para que sea elástico */
         iframe { 
             width: 100%; 
-            flex: 1; 
+            flex: 1; /* Ocupa todo el espacio disponible menos el handle */
             border: none; 
             display: block; 
-            pointer-events: auto;
+            pointer-events: auto; /* Importante para que el iframe funcione */
         }
-        /* Desactivar puntero en iframe al redimensionar para evitar glitches */
+        /* Cuando estamos redimensionando, desactivamos eventos del iframe para que no "capture" el mouse */
         .resizing iframe { pointer-events: none; }
 
+        /* NUEVO: Estilos para el Handle (La manija) */
         .resize-handle {
             height: 24px;
             background: var(--bg-card);
             border-top: 1px solid var(--border);
-            cursor: row-resize; 
+            cursor: row-resize; /* Cursor de flecha arriba/abajo */
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-shrink: 0; 
-            touch-action: none; /* Vital para móviles */
+            flex-shrink: 0; /* No encoger */
+            touch-action: none; /* Previene scroll de la página al tocar esto en móvil */
             transition: background 0.2s;
         }
         .resize-handle:hover, .resize-handle:active {
             background: var(--bg-hover);
         }
         
+        /* La linea visual dentro de la manija */
         .resize-bar {
             width: 40px;
             height: 4px;
@@ -160,9 +157,9 @@
         /* Fullscreen override */
         .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh !important; padding: 0; margin: 0; }
         .acc-content:fullscreen iframe { height: 100%; }
-        .acc-content:fullscreen .resize-handle { display: none; }
+        .acc-content:fullscreen .resize-handle { display: none; } /* Ocultar manija en fullscreen */
 
-        /* Mapeo de Colores */
+        /* Mapeo de Colores dinámicos */
         .color-1 { --active-color: var(--c-1); color: var(--c-1); }
         .color-2 { --active-color: var(--c-2); color: var(--c-2); }
         .color-3 { --active-color: var(--c-3); color: var(--c-3); }
@@ -201,7 +198,7 @@
         initSortable();
     });
 
-    // === 1. GENERACIÓN DINÁMICA ===
+    // === 1. GENERACIÓN DINÁMICA & RENDERIZADO ===
     function renderItems() {
         const container = document.getElementById('accordion-list');
         const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
@@ -211,6 +208,7 @@
             dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
         }
 
+        // NUEVO: Se agregó el div .resize-handle debajo del iframe
         container.innerHTML = dataToRender.map(item => `
             <div class="acc-item ${item.color}" data-id="${item.id}">
                 <div class="acc-header" onclick="toggleAcc('${item.id}')">
@@ -252,45 +250,58 @@
         });
     }
 
-    // === 3. LÓGICA ACORDEÓN ===
+    // === 3. LÓGICA ACORDEÓN (MODIFICADA PARA RESIZE) ===
     function toggleAcc(id) {
         const item = document.querySelector(`.acc-item[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
         const icon = document.getElementById(`icon-${id}`);
+        
+        // Chequeamos si tiene altura (ya sea por style inline o clase)
         const isOpen = item.classList.contains('active');
 
         // Cerrar todos
         document.querySelectorAll('.acc-content').forEach(el => {
-            el.style.height = '0px'; 
-            el.classList.remove('resizing');
+            el.style.height = '0px'; // Reset a 0 explícito
+            el.classList.remove('resizing'); // Limpieza
         });
         document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
         document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
 
-        // Abrir
+        // Abrir seleccionado si estaba cerrado
         if (!isOpen) {
             item.classList.add('active');
+            
+            // Altura por defecto (puedes cambiar 650px por lo que quieras como base)
             content.style.height = "650px"; 
+            
             icon.style.transform = 'rotate(180deg)';
+            
             setTimeout(() => {
                 item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
             }, 300);
         }
     }
 
-    // === 4. REDIMENSIONAMIENTO OPTIMIZADO ===
+    // === 4. LÓGICA DE REDIMENSIONAMIENTO (NUEVO) ===
     let startY, startHeight, currentContent;
-    let animationFrameId = null;
 
     function startResize(e, id) {
-        if(e.type === 'mousedown') e.preventDefault(); 
+        // Prevenir selección de texto y comportamiento default
+        if(e.type === 'mousedown') {
+            e.preventDefault(); 
+        }
+        // No detener propagación para que no rompa otros eventos, pero sí prevenir scroll si es touch
         
         currentContent = document.getElementById(`content-${id}`);
-        currentContent.classList.add('resizing'); // Activa el CSS que mata la transición
+        currentContent.classList.add('resizing'); // Desactiva pointer-events en iframe
         
+        // Obtener posición inicial Y (mouse o touch)
         startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        
+        // Obtener altura actual calculada
         startHeight = parseInt(document.defaultView.getComputedStyle(currentContent).height, 10);
 
+        // Listeners globales para el movimiento
         if (e.type.includes('mouse')) {
             document.documentElement.addEventListener('mousemove', doDrag, false);
             document.documentElement.addEventListener('mouseup', stopDrag, false);
@@ -301,31 +312,29 @@
     }
 
     function doDrag(e) {
-        if(e.type === 'touchmove') e.preventDefault(); 
+        // Prevenir scroll en móviles mientras arrastras la manija
+        if(e.type === 'touchmove') {
+            e.preventDefault(); 
+        }
 
-        // Optimización de frame para evitar lag
-        if (animationFrameId) return;
+        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        
+        // Calcular nueva altura
+        // clientY - startY es la diferencia de movimiento
+        const newHeight = startHeight + (clientY - startY);
 
-        animationFrameId = requestAnimationFrame(() => {
-            const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-            const newHeight = startHeight + (clientY - startY);
-
-            if (newHeight > 100) {
-                currentContent.style.height = newHeight + 'px';
-            }
-            animationFrameId = null;
-        });
+        // Aplicar (Mínimo 100px para que no desaparezca)
+        if (newHeight > 100) {
+            currentContent.style.height = newHeight + 'px';
+        }
     }
 
     function stopDrag(e) {
         if(currentContent) {
-            currentContent.classList.remove('resizing'); // Reactiva la transición suave
-        }
-        if (animationFrameId) {
-            cancelAnimationFrame(animationFrameId);
-            animationFrameId = null;
+            currentContent.classList.remove('resizing'); // Reactiva iframe
         }
         
+        // Remover listeners
         document.documentElement.removeEventListener('mousemove', doDrag, false);
         document.documentElement.removeEventListener('mouseup', stopDrag, false);
         document.documentElement.removeEventListener('touchmove', doDrag);
