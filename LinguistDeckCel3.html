@@ -1,9 +1,23 @@
+Aquí tienes el código **completo y modificado**.
+
+He integrado la nueva estrategia **"Schema-First"** (usando interfaces de TypeScript en el prompt) y el **Parser Quirúrgico** para la respuesta.
+
+### 🚀 Cambios Clave aplicados en esta versión:
+
+1.  **Motor de Prompt (TypeScript):** La IA ya no recibe instrucciones vagas, recibe una estructura de código estricta. Esto reduce los errores de formato casi a cero.
+2.  **Parser Robusto:** La función `processJsonAndSave` ahora ignora si la IA te saluda o añade texto antes/después del JSON. Busca directamente el primer `{` y el último `}`.
+3.  **Seguridad de Vocabulario:** Si seleccionas palabras de la base de datos, la IA tiene instrucciones explícitas de **descartarlas** si hacen que la frase suene robótica o gramaticalmente incorrecta.
+4.  **Corrección Visual:** Reglas específicas para que los ejercicios de "Find and Fix" (\<s\>error\</s\>) se rendericen correctamente sin romper los selectores.
+
+Copia y pega este código en tu archivo `.html`.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Polyglot Tutor V31 - Ironclad Edition</title>
+    <title>Polyglot Tutor V32 - Schema Logic Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap" rel="stylesheet">
 <style>
         :root {
@@ -110,7 +124,7 @@
         .ai-card-group:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,122,255,0.1); }
         .ai-card-label { font-size: 0.75rem; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px 4px 12px; display: flex; align-items: center; gap: 6px; }
 
-        /* ====== CUSTOM DROPDOWN SYSTEM (HIGH DESIGN) ====== */
+        /* ====== CUSTOM DROPDOWN SYSTEM ====== */
         .ai-select { display: none; } 
         .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
         .custom-select-trigger { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 12px; font-size: 0.95rem; font-weight: 600; color: #111; cursor: pointer; background: transparent; transition: all 0.2s; border-radius: 12px; }
@@ -267,6 +281,12 @@
                         <div class="ai-card-label">🌍 Context</div>
                         <select id="ai-context-select" class="ai-select">
                             <option value="" selected disabled>Select Context...</option>
+                            <optgroup label="📚 Vocabulary Builder DB">
+                                <option value="vb_last_5">Last 5 Saved Words</option>
+                                <option value="vb_last_10">Last 10 Saved Words</option>
+                                <option value="vb_last_15">Last 15 Saved Words</option>
+                                <option value="vb_random">Random Selection (15)</option>
+                            </optgroup>
                             <optgroup label="🏠 Daily Life & Lifestyle">
                                 <option value="Daily Routine & Habits">Daily Routine & Habits</option>
                                 <option value="Family & Relationships">Family & Relationships</option>
@@ -456,6 +476,7 @@
     /* ====== CONFIG & STATE ====== */
     const AI_MEM_KEY = 'mdc_ai_exercises';
     const EDITOR_KEY = 'mdc_simple_editor';
+    const VOCAB_DB_KEY = 'mdc_vocab_list'; // DB CONNECTION
     
     let currentTargetLang = 'en'; 
     let currentLevel = 'B1-B2 (Intermediate)';
@@ -472,6 +493,24 @@
         updateTransFlagsVisibility();
         initCustomDropdowns(); 
     });
+
+    /* ====== DB HELPER ====== */
+    function getDbWords(mode, count) {
+        const raw = localStorage.getItem(VOCAB_DB_KEY);
+        if(!raw) return [];
+        const data = JSON.parse(raw);
+        let allWords = [];
+        const extract = (list) => {
+            list.forEach(item => {
+                if(item.isFolder) extract(item.items);
+                else if(item.eng) allWords.push(item.eng);
+            });
+        };
+        extract(data);
+        if(mode === 'last') return allWords.slice(0, count);
+        if(mode === 'random') return allWords.sort(() => 0.5 - Math.random()).slice(0, count);
+        return [];
+    }
 
     /* ====== CUSTOM DROPDOWN LOGIC ====== */
     function initCustomDropdowns() {
@@ -671,8 +710,9 @@
         listContainer.innerHTML = listHtml; 
     }
     
-    /* ====== IRONCLAD PROMPT GENERATION ====== */
+    /* ====== SCHEMA-FIRST PROMPT GENERATION ====== */
     function copyProfessorPrompt() {
+        // 1. Recolección de datos
         const ctxSel = document.getElementById('ai-context-select').value;
         const graSel = document.getElementById('ai-grammar-select').value;
         const typSel = document.getElementById('ai-type-select').value;
@@ -682,86 +722,102 @@
         const graCust = document.getElementById('ai-grammar-custom').value.trim();
         const typCust = document.getElementById('ai-type-custom').value.trim();
         const extraData = document.getElementById('ai-extra-data').value.trim();
-        const quantity = document.getElementById('ai-sentence-count').value || 5;
+        const quantity = document.getElementById('ai-sentence-count').value || 6;
+        const currentTarget = LANG_NAMES[currentTargetLang]; 
 
-        let requirements = [];
-        let isGrammarFocus = false;
-        let typeStr = typCust ? typCust : typSel;
-
-        if(ctxCust) requirements.push(`Topic Context: ${ctxCust}`); else if(ctxSel) requirements.push(`Topic Context: ${ctxSel}`);
-        if(graCust) { requirements.push(`Grammar Focus: ${graCust}`); isGrammarFocus = true; } else if(graSel) { requirements.push(`Grammar Focus: ${graSel}`); isGrammarFocus = true; }
-        if(typeStr) requirements.push(`Exercise Format: ${typeStr}`);
-
-        if(requirements.length === 0) return alert("⚠️ Please select at least one option.");
-
-        const finalTopic = requirements.join(", ");
-        const target = LANG_NAMES[currentTargetLang];
+        // 2. Construcción del Contexto
+        let contextInstruction = ctxCust ? `Custom Topic: "${ctxCust}"` : (ctxSel ? `Topic: "${ctxSel}"` : "General Daily Life");
         
-        let languageInstruction = `CRITICAL LANGUAGE RULE: The sentences AND the options inside the gaps {opt1|opt2...} MUST BE in **${target.toUpperCase()}**. Do NOT use English words inside the gaps.`;
-        let strictInstruction = "QUALITY CONTROL: Sentences must be culturally authentic and idiomatic (not robotic). Distractors inside gaps {opt1|opt2...} must be GRAMMATICALLY PLAUSIBLE (same part of speech, same conjugation) but incorrect contextually. Make it challenging.";
-        let gapInstruction = "";
-
-        if (typeStr && typeStr.includes("Find and Fix")) {
-            strictInstruction += `TYPE: FIND AND FIX THE MISTAKE.\nVISUAL REQUIREMENT: You MUST include the mistake crossed out using HTML tags <s>mistake</s> immediately before the correct gap.`;
-        } else if (typeStr && typeStr.includes("Vocabulary Matching")) {
-            strictInstruction += `TYPE: VOCABULARY MATCHING.\nFormat: "Definition text (${target})... {CorrectWord|Distractor1|Distractor2}"`;
-        } else if (typeStr && typeStr.includes("True or False")) {
-            strictInstruction += `TYPE: READING COMPREHENSION (TRUE/FALSE).\nFormat: "Statement about the text... {True|False}"`;
-            gapInstruction = "Provide options {True|False}.";
+        let dbWords = [];
+        if (ctxSel && ctxSel.startsWith('vb_')) {
+            let mode = ctxSel.replace('vb_', '');
+            dbWords = getDbWords(mode === 'random' ? 'random' : 'last', mode === 'random' ? 15 : parseInt(mode.split('_')[1] || 10));
         }
 
-        const optInst = `Provide exactly ${optionCount} options`; 
-
-        if (!gapInstruction && gapCount === 'random') {
-             gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Mix of 1, 2, or 3 gaps per sentence.`; 
-        } else if (!gapInstruction) {
-             gapInstruction = `GAP REQUIREMENT: ${optInst} in ${target}. Provide exactly ${gapCount} gap(s) per sentence.`; 
+        let vocabBlock = "";
+        if (dbWords.length > 0) {
+            vocabBlock = `
+            VOCABULARY INJECTION:
+            Try to naturally incorporate these words: [${dbWords.join(', ')}].
+            IMPORTANT: Use them ONLY if they fit the Grammar constraints naturally. If a word forces an awkward sentence, DISCARD IT. Grammar flow is priority #1.`;
         }
 
-        if (isGrammarFocus && (!typeStr || !typeStr.includes("Reordering"))) {
-            strictInstruction += ` Focus gaps ONLY on the requested GRAMMAR rule.`;
+        // Reglas visuales especiales
+        let visualRules = "";
+        if ((typCust && typCust.includes("Fix")) || (typSel && typSel.includes("Fix"))) {
+            visualRules = "CRITICAL VISUAL RULE: Place the <s>crossed out mistake</s> IMMEDIATELY BEFORE the gap. Do NOT put HTML tags inside the curly braces {}. Example: 'He <s>goed</s> {went|gone} to school.'";
         }
+
+        // 3. Definición de Estructura (TypeScript Interface)
+        const tsInterface = `
+        interface PolyglotExercise {
+          title: string; // Title in ${currentTarget}
+          lang_code: "${currentTargetLang}";
+          theory: string; // HTML allowed: <b>, <ul>, <li>. Explanation of the grammar topic.
+          exercises: Array<{
+            full_sentence: string; // Clean sentence without gaps
+            cloze_text: string; // Sentence with gaps: "She {went|goes|gone} to school."
+            hint: string; // Short clue in English
+            translations: {
+              ${Array.from(transLangs).map(l => `${l}: string`).join(',\n              ')}
+            };
+          }>;
+        }`;
+
+        // 4. Ejemplos (Few-Shot)
+        const exampleJSON = `
+        {
+          "title": "Past Simple Practice",
+          "lang_code": "en",
+          "theory": "Use Past Simple for finished actions...",
+          "exercises": [
+            {
+              "full_sentence": "I played soccer yesterday.",
+              "cloze_text": "I {played|play|playing} soccer yesterday.",
+              "hint": "Action finished in the past.",
+              "translations": { "es": "Jugué al fútbol ayer." }
+            }
+          ]
+        }`;
+
+        // 5. Construcción del Prompt Final
+        const promptText = `
+        ROLE: Expert ${currentTarget} Linguist.
+        TASK: Generate a JSON object strictly following the TypeScript interface below.
         
-        const jsonExample = `
-    {
-      "cloze_text": "Natural sentence in ${target} using idiomatic vocabulary with {correct|distractor1|distractor2} gaps.",
-      "hint": "A subtle linguistic clue. DO NOT give the answer.",
-      "translations": { ${Array.from(transLangs).map(l => `"${l}": "Translation"`).join(', ')} },
-      "full_sentence": "Full sentence without gaps."
-    }`;
+        SETTINGS:
+        - Level: ${currentLevel}
+        - Quantity: ${quantity} items
+        - Grammar Focus: ${graCust || graSel || "General Practice"}
+        - ${contextInstruction}
+        - Format: ${typCust || typSel || "Cloze"}
+        - Gap Configuration: ${gapCount} gap(s) per sentence, ${optionCount} options per gap.
         
-   const promptText = `ACT AS: Senior ${target} Linguist.
-LEVEL: CEFR ${currentLevel}.
-TASK: Create a structured JSON exercise with exactly ${quantity} sentences.
+        ${vocabBlock}
+        ${visualRules}
 
-REQUIREMENTS: 
-${finalTopic}
+        STRICT TYPESCRIPT INTERFACE (JSON OUTPUT MUST MATCH THIS):
+        ${tsInterface}
 
-RULES:
-1. ${languageInstruction}
-2. GAP DENSITY: ${gapInstruction}
-3. ${strictInstruction}
-4. STRICT JSON SYNTAX: 
-   - USE ONLY DOUBLE QUOTES (") for all keys and values. NEVER use single quotes (') for JSON structure.
-   - If text contains an apostrophe (e.g. "can't"), strictly keep the enclosing quotes as double quotes (").
-   - Do NOT use curly/smart quotes (“ or ”). Use straight quotes only.
-5. HTML SAFETY: If you use HTML inside strings (like <s> or <b>), use SINGLE QUOTES for attributes (e.g. <span class='red'>) to avoid breaking the JSON.
-6. ONLY OUTPUT THE RAW JSON. DO NOT SPEAK, ASK QUESTIONS, OR ADD ANY CONVERSATIONAL TEXT BEFORE OR AFTER THE JSON.
-${extraData ? `7. EXTRA INSTRUCTIONS: ${extraData}` : ''}
+        RULES:
+        1. OUTPUT ONLY RAW JSON. No markdown blocks (\`\`\`), no conversational text.
+        2. LANGUAGE: Target language is ${currentTarget}.
+        3. GAPS: Format is "{correct|distractor1|distractor2}".
+        4. DISTRACTORS: Must be grammatically plausible but incorrect.
+        5. SPECIAL CHARS: Escape double quotes inside strings (\\") but NOT apostrophes.
+        ${extraData ? `6. EXTRA: ${extraData}` : ''}
 
-OUTPUT FORMAT: PURE JSON STRING. PROVIDE ONLY THE RAW JSON STRING. DO NOT USE MARKDOWN CODE BLOCKS (\`\`\`json). START DIRECTLY WITH THE CHARACTER "{" AND END WITH "}".
-
-JSON STRUCTURE:
-{
-  "title": "Short descriptive title in ${target}",
-  "lang_code": "${currentTargetLang}",
-  "theory": "Comprehensive educational guide using HTML tags (<b>, <ul>, <li>, <br>). Explain rules, usage contexts, exceptions, and provide examples.",
-  "exercises": [ ${jsonExample} ] 
-}`.trim();
+        EXAMPLE OUTPUT:
+        ${exampleJSON}
         
+        GENERATE JSON NOW:
+        `.trim();
+
         navigator.clipboard.writeText(promptText).then(() => {
-            const btn = document.querySelector('.btn-ai-primary'); const orig = btn.innerText;
-            btn.innerText = "✅ Copied!"; setTimeout(() => btn.innerText = orig, 2000);
+            const btn = document.querySelector('.btn-ai-primary'); 
+            const orig = btn.innerText;
+            btn.innerText = "✅ Copied!"; 
+            setTimeout(() => btn.innerText = orig, 2000);
         }).catch(err => alert("Error copying: " + err));
     }
     
@@ -769,57 +825,72 @@ JSON STRUCTURE:
         let jsonString = "";
         try { jsonString = await navigator.clipboard.readText(); } catch (err) { jsonString = prompt("Paste JSON here:"); }
         if (!jsonString) return;
-        const btn = document.getElementById('btn-paste-json'); const originalContent = btn.innerHTML; 
-        btn.innerHTML = "<span>✅</span> Pasted!"; setTimeout(() => { btn.innerHTML = originalContent; }, 2000);
-        processJsonAndSave(jsonString);
+        
+        const btn = document.getElementById('btn-paste-json'); 
+        const orig = btn.innerHTML;
+        btn.innerHTML = "<span>⚙️</span> Processing...";
+        
+        setTimeout(() => {
+            processJsonAndSave(jsonString);
+            btn.innerHTML = orig;
+        }, 100);
     }
     
-    /* ====== ROBUST JSON PARSER ====== */
-    function processJsonAndSave(jsonString) {
+    /* ====== SURGICAL JSON PARSER ====== */
+    function processJsonAndSave(rawString) {
         try {
-            // 1. Clean Markdown and whitespace
-            let cleanString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+            // 1. Extracción Quirúrgica
+            const firstBrace = rawString.indexOf('{');
+            const lastBrace = rawString.lastIndexOf('}');
 
-            // 2. Find valid JSON boundaries
-            const firstBrace = cleanString.indexOf('{');
-            const lastBrace = cleanString.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1) {
-                cleanString = cleanString.substring(firstBrace, lastBrace + 1);
+            if (firstBrace === -1 || lastBrace === -1) {
+                throw new Error("No Valid JSON object found (missing { or }).");
             }
 
-            // 3. Attempt Parsing
-            let aiData;
-            try {
-                aiData = JSON.parse(cleanString);
-            } catch (e) {
-                // RECOVERY MODE: Try to fix common AI errors
-                console.warn("Standard parse failed. Attempting repair...");
-                try {
-                    // Fix 1: Replace smart quotes
-                    cleanString = cleanString.replace(/[\u201C\u201D\u201E\u201F\u275D\u275E]/g, '"');
-                    // Fix 2: Try to fix single quotes on keys if they exist (dangerous but worth a shot)
-                    // This regex attempts to find {'key': 'val'} pattern
-                    cleanString = cleanString.replace(/'([^']+)'\s*:/g, '"$1":');
-                    aiData = JSON.parse(cleanString);
-                } catch (fatal) {
-                    throw new Error("JSON Repair Failed: " + e.message);
-                }
+            let cleanString = rawString.substring(firstBrace, lastBrace + 1);
+
+            // 2. Limpieza de Caracteres Invisibles y Smart Quotes
+            cleanString = cleanString.replace(/[\u0000-\u001F]+/g, " "); 
+            cleanString = cleanString.replace(/[\u201C\u201D\u201E\u201F\u275D\u275E]/g, '"');
+            
+            // 3. Parseo Seguro
+            let aiData = JSON.parse(cleanString);
+
+            // 4. Normalización
+            let finalData = Array.isArray(aiData) 
+                ? { title: "Exercise Set", lang_code: currentTargetLang, theory: "Generated Practice", exercises: aiData } 
+                : aiData;
+
+            if (!finalData.exercises || !Array.isArray(finalData.exercises)) {
+                throw new Error("JSON format incorrect: Missing 'exercises' array.");
             }
-            
-            let finalData = Array.isArray(aiData) ? { title: "Exercise", lang_code: "en", theory: "Review rules.", exercises: aiData } : aiData;
-            if (!finalData.lang_code) finalData.lang_code = "en";
-            
+
+            // 5. Guardado
             const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-            memory.unshift({ id: Date.now(), title: finalData.title || "Untitled", lang: finalData.lang_code, theory: finalData.theory, date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), data: finalData.exercises });
+            const newItem = { 
+                id: Date.now(), 
+                title: finalData.title || "Untitled", 
+                lang: finalData.lang_code || currentTargetLang, 
+                theory: finalData.theory || "", 
+                date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+                data: finalData.exercises,
+                isHtml: false
+            };
+
+            memory.unshift(newItem);
             localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
+            
             renderAiList();
             
-            setTimeout(() => {
-                const previewBox = document.querySelector('#ai-latest-preview .ai-preview-box');
-                if (previewBox) { previewBox.classList.add('highlight'); setTimeout(() => { previewBox.classList.remove('highlight'); }, 4600); }
-            }, 50);
-        } catch (e) { 
-            alert("❌ AI Generation Error.\nThe AI produced invalid code. Please regenerate.\n\nDetails: " + e.message); 
+            const previewBox = document.querySelector('#ai-latest-preview .ai-preview-box');
+            if (previewBox) { 
+                previewBox.classList.add('highlight'); 
+                setTimeout(() => previewBox.classList.remove('highlight'), 2000); 
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("❌ AI Generation Error.\n\nThe AI produced invalid code. Please regenerate.\n\nDebug: " + e.message);
         }
     }
     
@@ -877,3 +948,4 @@ JSON STRUCTURE:
 </script>
 </body>
 </html>
+```
