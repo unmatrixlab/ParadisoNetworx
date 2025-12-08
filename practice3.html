@@ -1,1 +1,788 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LINGUA NEXUS | v8.5 Visual Stats</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           THEME VARIABLES
+           ========================================================================== */
+        :root {
+            --bg-deep: #09090b; 
+            --bg-card: #18181b; 
+            --bg-hover: #27272a; 
+            --bg-input: #27272a;
+            --txt-main: #f4f4f5;
+            --txt-sec: #a1a1aa;
+            --border: #3f3f46;
+            
+            /* Accents */
+            --c-noun: #38bdf8;    
+            --c-adj: #e879f9;     
+            --c-reg: #4ade80;     
+            --c-irreg:#fbbf24;    
+            --c-func: #818cf8;    
+            --c-mixed: #ffffff; 
+            
+            --primary: #3b82f6; 
+            --success: #10b981; 
+            --danger: #ef4444; 
+            
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        :root.light-mode {
+            --bg-deep: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-hover: #f1f5f9;
+            --bg-input: #e2e8f0;
+            --txt-main: #0f172a;
+            --txt-sec: #64748b;
+            --border: #e2e8f0;
+            
+            --c-noun: #0284c7;
+            --c-adj: #c026d3;
+            --c-reg: #16a34a;
+            --c-irreg:#d97706;
+            --c-func: #4f46e5;
+            --c-mixed: #334155;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body { 
+            background-color: var(--bg-deep); color: var(--txt-main); 
+            font-family: var(--font-ui); margin: 0; height: 100vh; 
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* HEADER */
+        header { 
+            height: 64px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
+            padding: 0 24px; background: var(--bg-deep); 
+            border-bottom: 1px solid var(--border); z-index: 50;
+        }
+        .brand-area { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .brand { font-family: var(--font-head); font-size: 26px; letter-spacing: 1px; color: var(--txt-main); }
+        .back-btn { display: none; color: var(--txt-sec); }
+        body:not(.is-home) .back-btn { display: block; }
+        body:not(.is-home) .brand { display: none; } 
+        .header-actions { display: flex; gap: 20px; }
+        .icon-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; padding: 0; }
+        .icon-btn:hover { color: var(--primary); }
+
+        /* MAIN */
+        main { 
+            flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; 
+            padding: 20px; padding-bottom: calc(20px + var(--safe-bottom)); 
+            max-width: 800px; margin: 0 auto; width: 100%;
+        }
+
+        .view-screen { 
+            display: none; flex-direction: column; width: 100%;
+            animation: fadeIn 0.3s ease;
+        }
+        .view-screen.active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* HOME GRID */
+        .welcome-text { margin-bottom: 30px; text-align: center; }
+        .welcome-text h1 { font-family: var(--font-head); font-size: 48px; margin: 0; line-height: 0.9; }
+        
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 30px; }
+        .stat-pill { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+        .stat-val { font-family: var(--font-code); font-weight: 700; font-size: 24px; display: block; }
+        .stat-lbl { font-size: 10px; font-weight: 600; color: var(--txt-sec); text-transform: uppercase; margin-top: 4px; }
+
+        .grid-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+        .menu-card { 
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; 
+            padding: 24px 20px; display: flex; flex-direction: column; justify-content: space-between;
+            min-height: 140px; cursor: pointer; transition: 0.2s;
+        }
+        .menu-card:active { transform: scale(0.98); }
+        .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 15px; background: rgba(255,255,255,0.05); }
+        .menu-card h3 { margin: 0; font-family: var(--font-head); font-size: 28px; line-height: 1; }
+        .menu-card span { font-size: 12px; color: var(--txt-sec); font-weight: 500; margin-top: 6px; display: block; }
+
+        /* Card Styles */
+        .menu-card[data-type="noun"] { color: var(--c-noun); }
+        .menu-card[data-type="noun"] .card-icon { background: rgba(56, 189, 248, 0.1); color: var(--c-noun); }
+        
+        .menu-card[data-type="adj"] { color: var(--c-adj); }
+        .menu-card[data-type="adj"] .card-icon { background: rgba(232, 121, 249, 0.1); color: var(--c-adj); }
+        
+        .menu-card[data-type="reg"] { color: var(--c-reg); }
+        .menu-card[data-type="reg"] .card-icon { background: rgba(74, 222, 128, 0.1); color: var(--c-reg); }
+        
+        .menu-card[data-type="irreg"] { color: var(--c-irreg); }
+        .menu-card[data-type="irreg"] .card-icon { background: rgba(251, 191, 36, 0.1); color: var(--c-irreg); }
+        
+        .menu-card[data-type="func"] { color: var(--c-func); }
+        .menu-card[data-type="func"] .card-icon { background: rgba(129, 140, 248, 0.1); color: var(--c-func); }
+        
+        .menu-card[data-type="mixed"] { color: var(--c-mixed); border-color: var(--border); }
+        .menu-card[data-type="mixed"] .card-icon { background: rgba(255, 255, 255, 0.1); color: var(--c-mixed); }
+        :root.light-mode .menu-card[data-type="mixed"] .card-icon { background: rgba(0,0,0,0.05); }
+
+        /* DISABLED STATE FOR MENU CARDS */
+        .menu-card.disabled {
+            opacity: 0.3;
+            filter: grayscale(1);
+            pointer-events: none;
+            border-style: dashed;
+        }
+
+        /* GAME UI & CHART */
+        .game-top-bar { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 30px 0; }
+        
+        .stage-pill { display: inline-flex; padding: 6px 14px; border-radius: 100px; font-size: 11px; font-weight: 700; background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-sec); }
+        
+        .mini-chart {
+            width: 48px; height: 48px; border-radius: 50%;
+            background: var(--bg-card); /* Fallback */
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: background 0.3s ease;
+        }
+        .chart-hole {
+            width: 38px; height: 38px; background: var(--bg-deep); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 2;
+        }
+        #chart-pct { font-size: 10px; font-weight: 800; font-family: var(--font-code); color: var(--txt-main); }
+        
+        .word-stage { margin: 10px 0 40px 0; text-align: center; }
+        .main-word { font-size: clamp(36px, 10vw, 64px); font-weight: 800; line-height: 1; color: var(--txt-main); margin: 0; }
+        .input-list { display: flex; flex-direction: column; gap: 16px; }
+        .input-group { position: relative; }
+        .input-tag { position: absolute; top: 14px; left: 16px; font-size: 10px; font-weight: 700; color: var(--txt-sec); opacity: 0.7; pointer-events: none; }
+        .smart-input { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px 16px 14px 16px; font-family: var(--font-code); font-size: 18px; color: var(--txt-main); text-transform: uppercase; }
+        .smart-input:focus { border-color: var(--primary); background: var(--bg-hover); }
+        .input-group.correct .smart-input { border-color: var(--success); color: var(--success); }
+        .input-group.error .smart-input { border-color: var(--danger); color: var(--danger); }
+        .action-btn { width: 100%; padding: 20px; margin-top: 30px; border-radius: 16px; border: none; background: var(--bg-input); color: var(--txt-sec); font-family: var(--font-head); font-size: 24px; cursor: not-allowed; transition: 0.3s; }
+        .action-btn.active { background: var(--primary); color: #fff; cursor: pointer; box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
+
+        /* SETTINGS & LIB */
+        .hint-btn { background: none; border: none; color: var(--primary); font-size: 12px; font-weight: 700; letter-spacing: 1px; cursor: pointer; margin-top: 15px; display: inline-block; opacity: 0.8; }
+        .hint-text { display: none; margin-top: 15px; font-size: 14px; color: var(--txt-sec); font-style: italic; line-height: 1.5; background: var(--bg-input); padding: 15px; border-radius: 12px; }
+        .section-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+        .section-head { font-family: var(--font-head); font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .row-ctrl { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .num-inp { background: var(--bg-input); border: 1px solid var(--border); color: var(--txt-main); border-radius: 8px; padding: 8px; width: 70px; text-align: center; font-family: var(--font-code); }
+        .lib-search { width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 14px; border-radius: 12px; color: var(--txt-main); font-size: 16px; margin-bottom: 15px; }
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; justify-content: flex-start; }
+        .filter-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-sec); padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; transition: 0.2s; flex: 1; min-width: 50px; text-align: center; }
+        .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .lib-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; display: flex; flex-direction: column; }
+        .lib-content { padding: 15px; }
+        .lib-en { font-weight: 700; font-size: 16px; color: var(--txt-main); }
+        .lib-es { font-size: 13px; color: var(--txt-sec); margin-top: 2px; }
+        .prog-track { width: 100%; height: 6px; background: var(--bg-input); position: relative; }
+        .prog-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+        .lvl-0 .prog-fill { background: transparent; }
+        .lvl-1 .prog-fill { background: var(--danger); }
+        .lvl-2 .prog-fill { background: var(--c-irreg); }
+        .lvl-3 .prog-fill { background: var(--primary); }
+        .lvl-4 .prog-fill { background: var(--success); }
+        .lib-badge { position: absolute; right: 15px; top: 15px; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: var(--bg-input); color: var(--txt-sec); }
+        .load-more-btn { width: 100%; padding: 15px; background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-main); border-radius: 12px; margin-top: 10px; cursor: pointer; font-weight: 700; font-size: 12px; letter-spacing: 1px; }
+        .load-more-btn:hover { background: var(--bg-hover); }
+
+    </style>
+</head>
+<body class="is-home">
+
+    <script src="https://paradisonetworx.com/database.js"></script>
+
+    <header>
+        <div class="brand-area" onclick="App.nav('home')">
+            <svg class="back-btn" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+            <div class="brand">LINGUA NEXUS</div>
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn" onclick="Profile.toggleTheme()">
+                <svg id="theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+            <button class="icon-btn" onclick="App.nav('settings')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div id="view-home" class="view-screen active">
+            <div class="welcome-text">
+                <h1>TRAINING HUB</h1>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-pill">
+                    <span class="stat-val" style="color:var(--success)" id="stat-m">0</span>
+                    <span class="stat-lbl">Mastered</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-val" style="color:var(--c-noun)" id="stat-t">0</span>
+                    <span class="stat-lbl">Total Seen</span>
+                </div>
+            </div>
+
+            <div class="grid-menu">
+                <div class="menu-card" data-type="noun" onclick="App.start('nouns')">
+                    <div class="card-icon">N</div>
+                    <div><h3>NOUNS</h3><span>Objects & Things</span></div>
+                </div>
+                <div class="menu-card" data-type="adj" onclick="App.start('adjectives')">
+                    <div class="card-icon">A</div>
+                    <div><h3>ADJECTIVES</h3><span>Descriptions</span></div>
+                </div>
+                <div class="menu-card" data-type="reg" onclick="App.start('verbs_reg')">
+                    <div class="card-icon">R</div>
+                    <div><h3>REGULAR</h3><span>Standard Verbs</span></div>
+                </div>
+                <div class="menu-card" data-type="irreg" onclick="App.start('verbs_irreg')">
+                    <div class="card-icon">I</div>
+                    <div><h3>IRREGULAR</h3><span>Complex Forms</span></div>
+                </div>
+                <div class="menu-card" data-type="func" onclick="App.start('functionals')">
+                    <div class="card-icon">L</div>
+                    <div><h3>LOGIC & SYNTAX</h3><span>Connectors & Structure</span></div>
+                </div>
+                <div class="menu-card" data-type="mixed" onclick="App.start('mixed')">
+                    <div class="card-icon">M</div>
+                    <div><h3>MIXED BAG</h3><span>All Words Shuffle</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view-screen">
+            <div class="section-box">
+                <div class="section-head">SESSION CONTROLS</div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Data Source</span>
+                    <select id="cfg-source" class="num-inp" style="width:140px; text-align:left;" onchange="Profile.saveCfg()">
+                        <option value="official">Official Course</option>
+                        <option value="custom">My Vocabulary</option>
+                    </select>
+                </div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Words per Session</span>
+                    <input type="number" id="cfg-count" class="num-inp" value="10" onchange="Profile.saveCfg()">
+                </div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Time Limit (Min)</span>
+                    <input type="number" id="cfg-time" class="num-inp" value="0" onchange="Profile.saveCfg()">
+                </div>
+                <p style="font-size:11px; color:var(--txt-sec); margin:10px 0 0 0;">Set 0 for infinite time. Session ends when limit reached.</p>
+            </div>
+
+            <div class="section-box">
+                <div class="section-head">DANGER ZONE</div>
+                <div class="row-ctrl">
+                    <span class="row-lbl" style="color:var(--danger)">Reset All Progress</span>
+                    <button onclick="Profile.wipe()" style="background:var(--danger); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">WIPE</button>
+                </div>
+            </div>
+
+            <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.resetRender()">
+            
+            <div class="filter-bar">
+                <button class="filter-btn active" onclick="App.setLibFilter('all', this)">ALL</button>
+                <button class="filter-btn" onclick="App.setLibFilter(0, this)">LVL 0</button>
+                <button class="filter-btn" onclick="App.setLibFilter(1, this)">LVL 1</button>
+                <button class="filter-btn" onclick="App.setLibFilter(2, this)">LVL 2</button>
+                <button class="filter-btn" onclick="App.setLibFilter(3, this)">LVL 3</button>
+                <button class="filter-btn" onclick="App.setLibFilter(4, this)">LVL 4</button>
+            </div>
+
+            <div id="lib-list" style="padding-bottom:20px;"></div>
+            <button id="btn-load-more" class="load-more-btn" onclick="App.renderMore()">LOAD MORE...</button>
+        </div>
+
+        <div id="view-game" class="view-screen">
+            <div class="game-top-bar">
+                <div class="stage-pill" id="game-cat-pill">CATEGORY</div>
+                
+                <div class="mini-chart" id="game-chart">
+                    <div class="chart-hole"><span id="chart-pct">0%</span></div>
+                </div>
+            </div>
+            
+            <div class="word-stage">
+                <h2 class="main-word" id="game-word">...</h2>
+            </div>
+            
+            <div class="input-list" id="game-inputs"></div>
+            
+            <button id="btn-action" class="action-btn" onclick="App.checkOrNext()">CHECK ANSWER</button>
+
+            <div style="text-align:center; margin-top:10px;">
+                <button id="btn-hint" class="hint-btn" onclick="App.getHint()">💡 SHOW DEFINITION HINT</button>
+                <div id="hint-text" class="hint-text"></div>
+            </div>
+        </div>
+    </main>
+
+<script>
+const DB = {
+    data: {},
+    async init() {
+        return new Promise(resolve => {
+            const t = setInterval(() => {
+                if(typeof INTERNAL_VOCAB !== 'undefined') {
+                    this.data = INTERNAL_VOCAB;
+                    clearInterval(t);
+                    resolve();
+                }
+            }, 50);
+        });
+    },
+    getCustomData() {
+        try {
+            const raw = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]');
+            let flat = [];
+            const extract = (items) => {
+                items.forEach(i => {
+                    if(i.isFolder && i.items) extract(i.items);
+                    else if(i.eng) flat.push({ en: i.eng, es: i.esp, cat: 'custom' });
+                });
+            };
+            extract(raw);
+            return flat;
+        } catch(e) { return []; }
+    },
+    get(cat) {
+        if (Profile.cfg.source === 'custom') {
+            return this.getCustomData().map(x => ({...x, cat: 'custom'}));
+        }
+        const keys = { nouns:'NOUNS', adjectives:'ADJECTIVES', verbs_reg:'REGULAR_VERBS', verbs_irreg:'IRREGULAR_VERBS', functionals:'FUNCTION WORDS' };
+        if (cat === 'mixed') {
+            let all = [];
+            Object.keys(keys).forEach(key => {
+                const dbKey = keys[key]; 
+                const items = (this.data[dbKey] || []).map(x => ({...x, cat: key})); 
+                all = all.concat(items);
+            });
+            return all;
+        }
+        const k = keys[cat];
+        return (this.data[k] || []).map(x => ({...x, cat}));
+    },
+    all() {
+        if (Profile.cfg.source === 'custom') return this.getCustomData();
+        let a = [];
+        Object.keys(this.data).forEach(k => a = a.concat(this.data[k]));
+        return a;
+    }
+};
+
+const Profile = {
+    cfg: { count:10, time:0, theme:'dark', prog:{}, source: 'official' },
+    
+    load() {
+        const s = localStorage.getItem('LN_V7');
+        if(s) this.cfg = { ...this.cfg, ...JSON.parse(s) };
+        
+        this.applyDecay();
+        this.applyTheme();
+        
+        const elCount = document.getElementById('cfg-count');
+        const elTime = document.getElementById('cfg-time');
+        const elSrc = document.getElementById('cfg-source');
+        if(elCount) elCount.value = this.cfg.count;
+        if(elTime) elTime.value = this.cfg.time;
+        if(elSrc) elSrc.value = this.cfg.source || 'official';
+        
+        this.calcStats();
+    },
+    
+    saveCfg() {
+        this.cfg.count = parseInt(document.getElementById('cfg-count').value) || 10;
+        this.cfg.time = parseInt(document.getElementById('cfg-time').value) || 0;
+        const srcEl = document.getElementById('cfg-source');
+        if(srcEl) this.cfg.source = srcEl.value;
+        this.save();
+        App.resetRender();
+        App.updateHomeMenu();
+    },
+    
+    save() { localStorage.setItem('LN_V7', JSON.stringify(this.cfg)); },
+    
+    applyTheme() {
+        const doc = document.documentElement;
+        const i = document.getElementById('theme-icon');
+        if(this.cfg.theme === 'light') {
+            doc.classList.add('light-mode');
+            if(i) i.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
+        } else {
+            doc.classList.remove('light-mode');
+            if(i) i.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
+    },
+    
+    toggleTheme() {
+        this.cfg.theme = this.cfg.theme === 'dark' ? 'light' : 'dark';
+        this.applyTheme();
+        this.save();
+    },
+    
+    getData(w) {
+        let val = this.cfg.prog[w];
+        if (val === undefined) return { lvl: 0, date: 0 };
+        if (typeof val === 'number') return { lvl: val, date: 0 }; 
+        return val;
+    },
+
+    setProg(w, ok) {
+        let entry = this.getData(w);
+        let l = entry.lvl;
+
+        if(ok) { 
+            if(l < 4) l++; 
+        } else { 
+            l = Math.max(0, l - 1); 
+        }
+
+        this.cfg.prog[w] = { lvl: l, date: Date.now() };
+        this.save();
+        this.calcStats();
+    },
+    
+    getLvl(w) { return this.getData(w).lvl; },
+    getDate(w) { return this.getData(w).date; },
+    
+    wipe() { if(confirm("Clear all progress?")) { this.cfg.prog={}; this.save(); App.nav('home'); } },
+    
+    calcStats() {
+        const k = Object.keys(this.cfg.prog);
+        const m = k.filter(x => this.getData(x).lvl === 4).length;
+        const elM = document.getElementById('stat-m');
+        const elT = document.getElementById('stat-t');
+        if(elM) elM.innerText = m;
+        if(elT) elT.innerText = k.length;
+    },
+
+    applyDecay() {
+        const NOW = Date.now();
+        const DECAY_TIME = 30 * 24 * 60 * 60 * 1000; 
+        let changed = false;
+
+        Object.keys(this.cfg.prog).forEach(w => {
+            let entry = this.cfg.prog[w];
+            if (typeof entry === 'object' && entry.lvl === 4) {
+                if (NOW - entry.date > DECAY_TIME) {
+                    entry.lvl = 3; 
+                    entry.date = NOW; 
+                    changed = true;
+                }
+            }
+        });
+        if(changed) this.save();
+    }
+};
+
+const App = {
+    q: [], idx: 0, t0: 0, fail: false,
+    filterLvl: 'all',
+    filteredResults: [],
+    renderCount: 50,
+    currentCat: '',
+
+    async boot() { await DB.init(); Profile.load(); this.nav('home'); },
+    
+    nav(v) {
+        document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
+        document.getElementById('view-'+v).classList.add('active');
+        document.body.className = (v === 'home') ? 'is-home' : '';
+        if(v === 'settings') this.resetRender();
+        if(v === 'home') this.updateHomeMenu();
+    },
+
+    updateHomeMenu() {
+        const isCustom = Profile.cfg.source === 'custom';
+        const cards = document.querySelectorAll('.menu-card:not([data-type="mixed"])');
+        cards.forEach(c => {
+            if(isCustom) c.classList.add('disabled');
+            else c.classList.remove('disabled');
+        });
+    },
+
+    start(cat) {
+        if(Profile.cfg.source === 'custom' && cat !== 'mixed') return;
+        this.currentCat = cat;
+
+        let raw = DB.get(cat);
+        
+        raw.sort((a,b) => {
+            const la = Profile.getLvl(a.en);
+            const lb = Profile.getLvl(b.en);
+            
+            const getGroup = (l) => {
+                if(l > 0 && l < 4) return 1;
+                if(l === 0) return 2;
+                return 3;
+            };
+
+            const ga = getGroup(la);
+            const gb = getGroup(lb);
+
+            if(ga !== gb) return ga - gb;
+
+            const dateA = Profile.getDate(a.en);
+            const dateB = Profile.getDate(b.en);
+            return dateA - dateB;
+        });
+        
+        this.q = raw.slice(0, Profile.cfg.count); 
+        if(this.q.length === 0) return alert("No words found in this source.");
+
+        this.idx = 0;
+        this.t0 = Date.now();
+        this.nav('game');
+        
+        const pills = { nouns:'--c-noun', adjectives:'--c-adj', verbs_reg:'--c-reg', verbs_irreg:'--c-irreg', functionals:'--c-func', mixed: '--c-mixed', custom: '--primary' };
+        const p = document.getElementById('game-cat-pill');
+        
+        if(Profile.cfg.source === 'custom') {
+             p.innerText = "MY VOCABULARY";
+             p.style.color = "var(--primary)";
+             p.style.borderColor = "var(--primary)";
+        } else {
+            p.innerText = cat === 'mixed' ? 'MIXED BAG' : cat.toUpperCase();
+            const colorVar = cat === 'mixed' ? pills.mixed : pills[cat];
+            p.style.color = `var(${colorVar})`;
+            p.style.borderColor = `var(${colorVar})`;
+        }
+        
+        this.updateChart();
+        this.play();
+    },
+    
+    updateChart() {
+        const all = DB.get(this.currentCat);
+        const total = all.length;
+        if(total === 0) return;
+
+        const counts = [0,0,0,0,0];
+        all.forEach(w => counts[Profile.getLvl(w.en)]++);
+        
+        const p4 = (counts[4] / total) * 100;
+        const p3 = (counts[3] / total) * 100;
+        const p2 = (counts[2] / total) * 100;
+        const p1 = (counts[1] / total) * 100;
+        // p0 is the rest
+        
+        // Build Conic Gradient (Green -> Blue -> Yellow -> Red -> Grey)
+        const g = `conic-gradient(
+            var(--success) 0% ${p4}%,
+            var(--primary) ${p4}% ${p4+p3}%,
+            var(--c-irreg) ${p4+p3}% ${p4+p3+p2}%,
+            var(--danger) ${p4+p3+p2}% ${p4+p3+p2+p1}%,
+            var(--bg-input) ${p4+p3+p2+p1}% 100%
+        )`;
+        
+        document.getElementById('game-chart').style.background = g;
+        document.getElementById('chart-pct').innerText = Math.round(p4) + '%';
+    },
+
+    play() {
+        if(this.idx >= this.q.length) { alert("Session Complete!"); return this.nav('home'); }
+        if(Profile.cfg.time > 0) {
+            const m = (Date.now() - this.t0)/60000;
+            if(m >= Profile.cfg.time) { alert("Time's Up!"); return this.nav('home'); }
+        }
+
+        document.getElementById('hint-text').style.display = 'none';
+        document.getElementById('hint-text').innerText = '';
+        document.getElementById('btn-hint').innerText = '💡 SHOW DEFINITION HINT';
+        document.getElementById('btn-hint').style.display = 'inline-block';
+
+        const curr = this.q[this.idx];
+        this.fail = false;
+        
+        document.getElementById('game-word').innerText = Array.isArray(curr.es) ? curr.es[0] : curr.es;
+        
+        const con = document.getElementById('game-inputs');
+        con.innerHTML = '';
+        
+        const btn = document.getElementById('btn-action');
+        btn.innerText = "CHECK";
+        btn.classList.remove('active');
+        btn.onclick = () => this.validate();
+
+        if(curr.cat.includes('verbs') && Profile.cfg.source === 'official') {
+            this.mkInp(con, 'Base', curr.en);
+            this.mkInp(con, 'Past', curr.past);
+            this.mkInp(con, 'Participle', curr.part);
+        } else {
+            this.mkInp(con, 'English', curr.en);
+        }
+        
+        setTimeout(() => con.querySelector('input').focus(), 100);
+    },
+
+    mkInp(p, lbl, ans) {
+        const d = document.createElement('div');
+        d.className = 'input-group';
+        d.innerHTML = `<span class="input-tag">${lbl}</span><input class="smart-input" data-ans="${ans}" autocomplete="off">`;
+        const i = d.querySelector('input');
+        i.oninput = () => {
+            const all = [...document.querySelectorAll('.smart-input')];
+            const ready = all.every(x => x.value.trim().length > 0);
+            const btn = document.getElementById('btn-action');
+            if(ready) btn.classList.add('active'); else btn.classList.remove('active');
+        };
+        i.onkeydown = (e) => {
+            if(e.key === 'Enter') {
+                const all = [...document.querySelectorAll('.smart-input')];
+                const ix = all.indexOf(e.target);
+                if(ix < all.length - 1) all[ix+1].focus();
+                else if(document.getElementById('btn-action').classList.contains('active')) this.validate();
+            }
+        };
+        p.appendChild(d);
+    },
+
+    validate() {
+        const inps = document.querySelectorAll('.smart-input');
+        let pass = true;
+        inps.forEach(i => {
+            const row = i.parentElement;
+            row.classList.remove('error', 'correct');
+            if(i.value.trim().toLowerCase() !== i.dataset.ans.toLowerCase()) {
+                pass = false;
+                row.classList.add('error');
+                i.value = '';
+                i.placeholder = i.dataset.ans.toUpperCase();
+            } else {
+                row.classList.add('correct');
+            }
+        });
+
+        const w = this.q[this.idx];
+        if(!pass) {
+            this.fail = true;
+            Profile.setProg(w.en, false);
+        } else {
+            if(!this.fail) Profile.setProg(w.en, true);
+            
+            let tts = w.en;
+            if(w.cat.includes('verbs') && Profile.cfg.source === 'official') tts = `${w.en}, ${w.past}, ${w.part}`;
+            const u = new SpeechSynthesisUtterance(tts);
+            u.lang = 'en-US';
+            window.speechSynthesis.speak(u);
+
+            const btn = document.getElementById('btn-action');
+            btn.innerText = "NEXT";
+            btn.onclick = () => { this.idx++; this.play(); };
+            setTimeout(() => { this.idx++; this.play(); }, 1000); 
+        }
+        // Update chart immediately to show progress
+        this.updateChart();
+    },
+    
+    checkOrNext() {
+        const btn = document.getElementById('btn-action');
+        if(btn.innerText === "NEXT") {
+             this.idx++; this.play();
+        } else {
+            this.validate();
+        }
+    },
+
+    async getHint() {
+        const btn = document.getElementById('btn-hint');
+        const txt = document.getElementById('hint-text');
+        const w = this.q[this.idx].en; 
+
+        btn.innerText = "SEARCHING...";
+        try {
+            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${w}`);
+            const data = await res.json();
+            if(data && data[0] && data[0].meanings && data[0].meanings[0].definitions) {
+                txt.innerText = '"' + data[0].meanings[0].definitions[0].definition + '"';
+                txt.style.display = 'block';
+                btn.style.display = 'none';
+            } else {
+                btn.innerText = "NO DEFINITION FOUND";
+            }
+        } catch(e) {
+            btn.innerText = "OFFLINE / ERROR";
+        }
+    },
+
+    setLibFilter(lvl, btn) {
+        this.filterLvl = lvl;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.resetRender();
+    },
+
+    resetRender() {
+        this.renderCount = 50; 
+        this.calculateFilteredList();
+        this.renderLib();
+    },
+
+    renderMore() {
+        this.renderCount += 50;
+        this.renderLib();
+    },
+
+    calculateFilteredList() {
+        const s = document.getElementById('inp-search').value;
+        const term = s.toLowerCase();
+        
+        this.filteredResults = DB.all().filter(x => {
+            const matchesText = !s || x.en.toLowerCase().includes(term);
+            if(!matchesText) return false;
+            if(this.filterLvl === 'all') return true;
+            return Profile.getLvl(x.en) === this.filterLvl;
+        });
+    },
+
+    renderLib() {
+        const c = document.getElementById('lib-list');
+        c.innerHTML = '';
+        const btnMore = document.getElementById('btn-load-more');
+        if(this.filteredResults.length > this.renderCount) {
+            btnMore.style.display = 'block';
+            btnMore.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount} REMAINING)`;
+        } else {
+            btnMore.style.display = 'none';
+        }
+
+        const frag = document.createDocumentFragment();
+        this.filteredResults.slice(0, this.renderCount).forEach(w => {
+            const l = Profile.getLvl(w.en);
+            const pct = l * 25; 
+            const d = document.createElement('div');
+            d.className = `lib-card lvl-${l}`;
+            d.innerHTML = `
+                <div class="lib-content">
+                    <span class="lib-badge">LVL ${l}</span>
+                    <div class="lib-en">${w.en}</div>
+                    <div class="lib-es">${Array.isArray(w.es)?w.es[0]:w.es}</div>
+                </div>
+                <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+            `;
+            frag.appendChild(d);
+        });
+        c.appendChild(frag);
+    }
+};
+
+window.onload = () => App.boot();
+</script>
+</body>
+</html>
