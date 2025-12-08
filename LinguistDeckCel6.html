@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Polyglot Tutor V33 - Memory Full Edition</title>
+    <title>Polyglot Tutor V32 - Schema Logic Edition</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&display=swap" rel="stylesheet">
 <style>
         :root {
@@ -296,8 +297,7 @@
                                 <option value="Customer Service Scenarios">Customer Service Issues</option>
                             </optgroup>
                         </select>
-                        <input type="text" id="ai-context-custom" class="ai-custom-input" placeholder="Or type custom context..." list="ctx-history-list" oninput="checkCustomOverride('ai-context-custom', 'ai-context-select')">
-                        <datalist id="ctx-history-list"></datalist>
+                        <input type="text" id="ai-context-custom" class="ai-custom-input" placeholder="Or type custom context..." oninput="checkCustomOverride('ai-context-custom', 'ai-context-select')">
                     </div>
 
                     <div class="ai-card-group">
@@ -343,8 +343,7 @@
                                 <option value="Gerunds vs Infinitives">Gerunds vs Infinitives</option>
                             </optgroup>
                         </select>
-                        <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar..." list="gra-history-list" oninput="checkCustomOverride('ai-grammar-custom', 'ai-grammar-select')">
-                        <datalist id="gra-history-list"></datalist>
+                        <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar..." oninput="checkCustomOverride('ai-grammar-custom', 'ai-grammar-select')">
                     </div>
                 </div>
 
@@ -369,8 +368,7 @@
                                 <option value="Reverse Translation (ES->EN)">Reverse Translation (See ES, Pick EN)</option>
                             </optgroup>
                         </select>
-                        <input type="text" id="ai-type-custom" class="ai-custom-input" placeholder="Or type custom format..." list="typ-history-list" oninput="checkCustomOverride('ai-type-custom', 'ai-type-select')">
-                        <datalist id="typ-history-list"></datalist>
+                        <input type="text" id="ai-type-custom" class="ai-custom-input" placeholder="Or type custom format..." oninput="checkCustomOverride('ai-type-custom', 'ai-type-select')">
                     </div>
 
                     <div class="ai-card-group" style="justify-content: space-between;">
@@ -429,12 +427,7 @@
                 </div>
 
                 <div>
-                    <div class="ai-card-label" style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>⚡ Extra Instructions</span>
-                        <select id="extra-history-select" class="ai-select" style="width:200px;" onchange="loadExtraFromHistory(this)">
-                             <option value="" disabled selected>📜 History / Presets...</option>
-                        </select>
-                    </div>
+                    <div class="ai-card-label">⚡ Extra Instructions</div>
                     <textarea id="ai-extra-data" class="ai-custom-input" placeholder="E.g. Use British slang, make it funny..."></textarea>
                 </div>
 
@@ -471,7 +464,6 @@
     const AI_MEM_KEY = 'mdc_ai_exercises';
     const EDITOR_KEY = 'mdc_simple_editor';
     const VOCAB_DB_KEY = 'mdc_vocab_list'; // DB CONNECTION
-    const HISTORY_KEY = 'mdc_input_history'; // NEW: History Storage
     
     let currentTargetLang = 'en'; 
     let currentLevel = 'B1-B2 (Intermediate)';
@@ -487,84 +479,7 @@
         renderAiList(); 
         updateTransFlagsVisibility();
         initCustomDropdowns(); 
-        loadHistory(); // NEW
     });
-
-    /* ====== HISTORY SYSTEM (NEW) ====== */
-    function getHistory() {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY) || '{"context":[], "extra":[], "grammar":[], "type":[]}');
-    }
-
-    function saveToHistory(type, value) {
-        if(!value || value.trim() === "") return;
-        const history = getHistory();
-        // Ensure array exists (backward compatibility)
-        if(!history[type]) history[type] = [];
-        
-        const list = history[type];
-        // Remove duplicate if exists, add to top
-        const idx = list.indexOf(value.trim());
-        if(idx > -1) list.splice(idx, 1);
-        list.unshift(value.trim());
-        // Limit to 20 items
-        if(list.length > 20) list.pop();
-        history[type] = list;
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-        loadHistory(); // Refresh UI
-    }
-
-    function loadHistory() {
-        const history = getHistory();
-        
-        // Helper to fill datalists
-        const fillList = (id, items) => {
-            const list = document.getElementById(id);
-            if(!list) return;
-            list.innerHTML = '';
-            (items || []).forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item;
-                list.appendChild(opt);
-            });
-        };
-
-        // 1. Context Datalist
-        fillList('ctx-history-list', history.context);
-        
-        // 2. Grammar Datalist
-        fillList('gra-history-list', history.grammar);
-        
-        // 3. Type (Format) Datalist
-        fillList('typ-history-list', history.type);
-
-        // 4. Extra Instructions Select
-        const extraSelect = document.getElementById('extra-history-select');
-        // Clear old options but keep first
-        while(extraSelect.options.length > 1) { extraSelect.remove(1); }
-        
-        (history.extra || []).forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item;
-            opt.text = item.length > 40 ? item.substring(0,40) + '...' : item;
-            extraSelect.appendChild(opt);
-        });
-        
-        // Re-init custom dropdowns to catch new options
-        initCustomDropdowns();
-    }
-
-    function loadExtraFromHistory(select) {
-        if(select.value) {
-            document.getElementById('ai-extra-data').value = select.value;
-            select.selectedIndex = 0; // Reset
-            // Refresh custom dropdown UI to show placeholder again
-            const wrapper = select.closest('.custom-select-wrapper');
-            if(wrapper) {
-                const trigger = wrapper.querySelector('.custom-select-trigger span');
-                if(trigger) trigger.innerText = select.options[0].text;
-            }
-        }
-    }
 
     /* ====== DB HELPER ====== */
     function getDbWords(mode, count) {
@@ -586,13 +501,6 @@
 
     /* ====== CUSTOM DROPDOWN LOGIC ====== */
     function initCustomDropdowns() {
-        // Remove existing wrappers to avoid duplication when refreshing history
-        document.querySelectorAll('.custom-select-wrapper').forEach(w => {
-            const select = w.querySelector('select');
-            w.parentNode.insertBefore(select, w);
-            w.remove();
-        });
-
         const selects = document.querySelectorAll('.ai-select');
         selects.forEach(select => {
             const wrapper = document.createElement('div');
@@ -742,81 +650,8 @@
     function toggleTrans(el, lang) { if (transLangs.has(lang)) { transLangs.delete(lang); el.classList.remove('selected'); } else { if (transLangs.size >= 3) return alert("Max 3 translation languages."); transLangs.add(lang); el.classList.add('selected'); } }
     function escapeHtml(text) { if (!text) return ""; return text.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
 
-    /* ====== MODIFIED BACKUP SYSTEM ====== */
-    function exportMemoryBank() { 
-        // Get Exercises
-        const exercises = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-        if(exercises.length === 0) return alert("Memory is empty.");
-        
-        // Get History
-        const history = getHistory();
-        
-        // Combine for export
-        const exportObj = {
-            version: 3,
-            type: 'polyglot_full_backup',
-            exercises: exercises,
-            history: history
-        };
-
-        const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type: 'application/json'}); 
-        const url = URL.createObjectURL(blob); 
-        const a = document.createElement('a'); 
-        a.href = url; 
-        a.download = 'polyglot_full_backup.json'; 
-        document.body.appendChild(a); 
-        a.click(); 
-        document.body.removeChild(a); 
-    }
-
-    function importMemoryBank(input) { 
-        const file = input.files[0]; 
-        if(!file) return; 
-        const reader = new FileReader(); 
-        reader.onload = function(e) { 
-            try { 
-                const importedData = JSON.parse(e.target.result); 
-                
-                // Handle V2/V3 vs Legacy V1
-                if(Array.isArray(importedData)) {
-                    // Legacy V1 Import
-                    const current = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); 
-                    const combined = [...importedData, ...current]; 
-                    localStorage.setItem(AI_MEM_KEY, JSON.stringify(combined)); 
-                    alert("Exercises imported! (Legacy Format)");
-                } else if (importedData.type === 'polyglot_full_backup' || importedData.exercises) {
-                    // V2/V3 Import
-                    const currentEx = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
-                    const combinedEx = [...(importedData.exercises || []), ...currentEx];
-                    localStorage.setItem(AI_MEM_KEY, JSON.stringify(combinedEx));
-                    
-                    if(importedData.history) {
-                         const currentHist = getHistory();
-                         // Helper merge
-                         const mergeArr = (a, b) => [...new Set([...(a || []), ...(b || [])])].slice(0,30);
-                         
-                         const mergedHist = { 
-                             context: mergeArr(importedData.history.context, currentHist.context),
-                             extra: mergeArr(importedData.history.extra, currentHist.extra),
-                             grammar: mergeArr(importedData.history.grammar, currentHist.grammar),
-                             type: mergeArr(importedData.history.type, currentHist.type)
-                         };
-                         localStorage.setItem(HISTORY_KEY, JSON.stringify(mergedHist));
-                         loadHistory(); // Update UI
-                    }
-                    alert("Full Backup (Exercises + Full History) Imported!");
-                } else {
-                    throw new Error("Unknown format");
-                }
-                
-                renderAiList(); 
-            } catch(err) { 
-                alert("Error importing: " + err.message); 
-            } 
-        }; 
-        reader.readAsText(file); 
-    }
-
+    function exportMemoryBank() { const data = localStorage.getItem(AI_MEM_KEY); if(!data || data === '[]') return alert("Memory is empty."); const blob = new Blob([data], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'polyglot_memory_full.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+    function importMemoryBank(input) { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const importedData = JSON.parse(e.target.result); if(!Array.isArray(importedData)) throw new Error("Invalid format"); const current = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const combined = [...importedData, ...current]; localStorage.setItem(AI_MEM_KEY, JSON.stringify(combined)); renderAiList(); alert("Import Successful!"); } catch(err) { alert("Error importing: " + err.message); } }; reader.readAsText(file); }
     function renameMemoryItem(id) { let memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const idx = memory.findIndex(i => i.id === id); if(idx > -1) { const newTitle = prompt("New Title:", memory[idx].title); if(newTitle) { memory[idx].title = newTitle; localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory)); renderAiList(); } } }
     function exportSingleItem(id) { const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); const item = memory.find(x => x.id === id); if(!item) return; const data = JSON.stringify([item], null, 2); const blob = new Blob([data], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const safeName = (item.title || 'exercise').replace(/[^a-z0-9]/gi, '_').toLowerCase(); a.download = `${safeName}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); }
     function deleteMemoryItem(id) { if(confirm("Delete?")) { let memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]'); memory = memory.filter(item => item.id !== id); localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory)); renderAiList(); } }
@@ -862,6 +697,7 @@
         listContainer.innerHTML = listHtml; 
     }
     
+/* REEMPLAZA TU FUNCIÓN copyProfessorPrompt ACTUAL POR ESTA */
     function copyProfessorPrompt() {
         // 1. Recolección de datos
         const ctxSel = document.getElementById('ai-context-select').value;
@@ -869,6 +705,8 @@
         const typSel = document.getElementById('ai-type-select').value;
         const gapCount = document.getElementById('ai-gap-count').value;
         
+        // --- CORRECCIÓN 1: Forzar lógica de opciones ---
+        // Si el usuario elige True/False, ignoramos el selector de opciones y forzamos 2.
         let finalOptionCount = document.getElementById('ai-option-count').value;
         const fullTypeCheck = (typSel || "").toLowerCase();
         if (fullTypeCheck.includes("true") || fullTypeCheck.includes("reading")) {
@@ -881,13 +719,6 @@
         const extraData = document.getElementById('ai-extra-data').value.trim();
         const quantity = document.getElementById('ai-sentence-count').value || 6;
         const currentTarget = LANG_NAMES[currentTargetLang]; 
-
-        // === NEW: SAVE HISTORY (ALL 4 FIELDS) ===
-        saveToHistory('context', ctxCust);
-        saveToHistory('grammar', graCust); // NEW
-        saveToHistory('type', typCust);    // NEW
-        saveToHistory('extra', extraData);
-        // ========================================
 
         // 2. Construcción del Contexto
         let contextInstruction = ctxCust ? `Custom Topic: "${ctxCust}"` : (ctxSel ? `Topic: "${ctxSel}"` : "General Daily Life");
@@ -909,7 +740,7 @@
             - If a word doesn't fit the grammar topic perfectly, ignore it. Grammar accuracy is priority #1.`;
         }
 
-        // --- LÓGICA DINÁMICA DE REGLAS ---
+        // --- LÓGICA DINÁMICA DE REGLAS (Refinada y Corregida) ---
         const fullType = (typSel + " " + typCust).toLowerCase();
 
         let isReordering = fullType.includes("reordering");
@@ -1002,7 +833,6 @@
         - ${contextInstruction}
         - Format: ${typCust || typSel || "Cloze"}.
         - Gap Config: ${gapCount} gap(s), ${finalOptionCount} options.
-        ${extraData ? `- EXTRA INSTRUCTIONS: ${extraData}` : ''}
         
         ${vocabBlock}
         ${visualRules}
