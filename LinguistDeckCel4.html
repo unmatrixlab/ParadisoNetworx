@@ -728,30 +728,41 @@ function copyProfessorPrompt() {
             IMPORTANT: Use them ONLY if they fit the Grammar constraints naturally. If a word forces an awkward sentence, DISCARD IT. Grammar flow is priority #1.`;
         }
 
-        // Reglas visuales especiales (Find and Fix)
+        // Reglas visuales por defecto
         let visualRules = "";
-        if ((typCust && typCust.includes("Fix")) || (typSel && typSel.includes("Fix"))) {
-            visualRules = "CRITICAL VISUAL RULE: Place the <s>crossed out mistake</s> IMMEDIATELY BEFORE the gap. Do NOT put HTML tags inside the curly braces {}. Example: 'He <s>goed</s> {went|gone} to school.'";
-        }
 
         // --- LÓGICA DINÁMICA DE REGLAS ---
         let isReordering = (typSel && typSel.includes("Reordering")) || (typCust && typCust.includes("Reordering"));
         let isTranslation = (typSel && typSel.includes("Translation")) || (typCust && typCust.includes("Translation"));
+        let isFix = (typSel && typSel.includes("Fix")) || (typCust && typCust.includes("Fix"));
+        let isOddOneOut = (typSel && typSel.includes("Odd")) || (typCust && typCust.includes("Odd"));
         
-        // Reglas por defecto
+        // Reglas por defecto (Cloze / Standard)
         let gapRule = '3. GAPS: Format is "{correct|distractor1|distractor2}".';
         let distractorRule = "4. DISTRACTORS: Must be grammatically plausible but incorrect. NEVER use synonyms of the correct answer as distractors.";
 
-        // Reglas para Reordering
+        // 1. Reglas para Find and Fix
+        if (isFix) {
+             visualRules = "CRITICAL VISUAL RULE: Place the <s>crossed out mistake</s> IMMEDIATELY BEFORE the gap. Do NOT put HTML tags inside the curly braces {}. Example: 'He <s>goed</s> {went|gone} to school.'";
+        }
+
+        // 2. Reglas para Reordering
         if (isReordering) {
             gapRule = '3. GAPS: For "Sentence Reordering", DO NOT hide the whole sentence. Hide only a SHORT CRITICAL SEGMENT (3-5 words max) where word order is tricky. Keep options short for mobile UI.';
             distractorRule = '4. DISTRACTORS: For "Reordering", distractors must use the SAME words as the correct answer but scrambled into incorrect order.';
         }
         
-        // Reglas para Reverse Translation
+        // 3. Reglas para Reverse Translation
         if (isTranslation) {
              gapRule = '3. GAPS: For "Reverse Translation", the `cloze_text` must show the SPANISH sentence (wrapped in <b> tags), followed by a <br> tag, and then the gap containing the English translations. Example: "<b>Hola mundo</b><br>{Hello world|Hi earth|Hello moon}".';
              distractorRule = '4. DISTRACTORS: Distractors must be incorrect translations (wrong grammar, wrong words, or false friends).';
+        }
+
+        // 4. Reglas para Odd One Out (Lógica)
+        if (isOddOneOut) {
+             gapRule = '3. GAPS: For "Odd One Out", the gap must contain 3 words that belong to the same category/logic and 1 word that does NOT belong (the intruder). The "Correct Answer" (first position) is the INTRUDER. Format: "{Intruder|Member1|Member2|Member3}".';
+             distractorRule = '4. DISTRACTORS: Distractors must be valid members of the logical group. Only the correct answer is logically different. Example: "{Car|Apple|Banana|Orange}" (Car is correct because it is not a fruit).';
+             visualRules = "CRITICAL: The sentence acts as a category header. Example: 'Which word is not a fruit?' -> '{Car|Apple|Banana}'.";
         }
         // ---------------------------------
 
