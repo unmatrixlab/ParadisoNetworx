@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | v9.0 Dictation Mode</title>
+    <title>LINGUA NEXUS | v9.5 Queue Monitor</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -20,11 +20,11 @@
             --border: #3f3f46;
             
             /* Accents */
-            --c-noun: #38bdf8;    
-            --c-adj: #e879f9;     
-            --c-reg: #4ade80;     
-            --c-irreg:#fbbf24;    
-            --c-func: #818cf8;    
+            --c-noun: #38bdf8;     
+            --c-adj: #e879f9;      
+            --c-reg: #4ade80;      
+            --c-irreg:#fbbf24;     
+            --c-func: #818cf8;     
             --c-mixed: #ffffff; 
             
             --primary: #3b82f6; 
@@ -209,6 +209,24 @@
         .load-more-btn { width: 100%; padding: 15px; background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-main); border-radius: 12px; margin-top: 10px; cursor: pointer; font-weight: 700; font-size: 12px; letter-spacing: 1px; }
         .load-more-btn:hover { background: var(--bg-hover); }
 
+        /* ====================
+           NUEVOS ESTILOS QUEUE
+           ==================== */
+        .queue-grid { display: grid; gap: 8px; }
+        .queue-item { 
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-deep); border: 1px solid var(--border);
+            padding: 10px 14px; border-radius: 8px; font-size: 14px;
+        }
+        .queue-tag {
+            font-size: 10px; font-weight: 800; text-transform: uppercase;
+            padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px;
+        }
+        .tag-new { background: var(--c-noun); color: #fff; } 
+        .tag-learning { background: var(--c-irreg); color: #000; } 
+        .tag-review { background: var(--danger); color: #fff; } 
+        .tag-master { background: var(--success); color: #fff; } 
+
     </style>
 </head>
 <body class="is-home">
@@ -303,7 +321,14 @@
                     <button onclick="Profile.wipe()" style="background:var(--danger); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">WIPE</button>
                 </div>
             </div>
-
+            
+            <div class="section-box" style="border-color: var(--primary);">
+                <div class="section-head" style="color:var(--primary)">UP NEXT IN QUEUE</div>
+                <p style="font-size:12px; color:var(--txt-sec); margin-bottom:15px; margin-top:0;">
+                    These words are prioritized by the algorithm for your next session.
+                </p>
+                <div id="study-queue-list" class="queue-grid"></div>
+            </div>
             <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.resetRender()">
             
             <div class="filter-bar">
@@ -427,6 +452,7 @@ const Profile = {
         if(srcEl) this.cfg.source = srcEl.value;
         this.save();
         App.resetRender();
+        App.renderQueue(); // Update queue when settings change
         App.updateHomeMenu();
     },
     
@@ -519,7 +545,10 @@ const App = {
         document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
         document.getElementById('view-'+v).classList.add('active');
         document.body.className = (v === 'home') ? 'is-home' : '';
-        if(v === 'settings') this.resetRender();
+        if(v === 'settings') {
+            this.renderQueue(); // Update queue view
+            this.resetRender(); // Update full list view
+        }
         if(v === 'home') this.updateHomeMenu();
     },
 
@@ -538,7 +567,6 @@ const App = {
         if(this.audioMode) btn.classList.add('active');
         else btn.classList.remove('active');
 
-        // Refresh current word if game is active
         if(document.getElementById('view-game').classList.contains('active')) {
             const curr = this.q[this.idx];
             const wEl = document.getElementById('game-word');
@@ -554,16 +582,14 @@ const App = {
         }
     },
 
-    start(cat) {
-        if(Profile.cfg.source === 'custom' && cat !== 'mixed') return;
-        this.currentCat = cat;
-
+    // --- CENTRAL SORTING LOGIC ---
+    getSortedData(cat) {
         let raw = DB.get(cat);
-        
-        raw.sort((a,b) => {
+        return raw.sort((a,b) => {
             const la = Profile.getLvl(a.en);
             const lb = Profile.getLvl(b.en);
             
+            // Priority: 1 (Learning/Review), 2 (New), 3 (Mastered)
             const getGroup = (l) => {
                 if(l > 0 && l < 4) return 1;
                 if(l === 0) return 2;
@@ -579,8 +605,54 @@ const App = {
             const dateB = Profile.getDate(b.en);
             return dateA - dateB;
         });
+    },
+
+    // --- NEW: RENDER THE STUDY QUEUE ---
+    renderQueue() {
+        // Use 'mixed' to show a general projection based on current settings
+        const sorted = this.getSortedData('mixed'); 
+        const nextBatch = sorted.slice(0, 10);
         
-        this.q = raw.slice(0, Profile.cfg.count); 
+        const container = document.getElementById('study-queue-list');
+        if(!container) return;
+        container.innerHTML = '';
+
+        if(nextBatch.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--txt-sec)">No words available.</div>';
+            return;
+        }
+
+        nextBatch.forEach(w => {
+            const lvl = Profile.getLvl(w.en);
+            let tagClass = 'tag-new';
+            let tagText = 'NEW';
+
+            if(lvl === 0) { tagClass = 'tag-new'; tagText = 'NEW'; }
+            else if(lvl === 4) { tagClass = 'tag-master'; tagText = 'MASTER'; }
+            else if(lvl === 1) { tagClass = 'tag-review'; tagText = 'REVIEW'; }
+            else { tagClass = 'tag-learning'; tagText = 'LEARNING'; }
+
+            const div = document.createElement('div');
+            div.className = 'queue-item';
+            div.innerHTML = `
+                <div>
+                    <span style="font-weight:700; color:var(--txt-main)">${w.en}</span>
+                    <span style="font-size:11px; color:var(--txt-sec); margin-left:8px;">${Array.isArray(w.es)?w.es[0]:w.es}</span>
+                </div>
+                <div class="queue-tag ${tagClass}">${tagText} (L${lvl})</div>
+            `;
+            container.appendChild(div);
+        });
+    },
+
+    start(cat) {
+        if(Profile.cfg.source === 'custom' && cat !== 'mixed') return;
+        this.currentCat = cat;
+
+        // Use the centralized sorting logic
+        const sorted = this.getSortedData(cat);
+        
+        this.q = sorted.slice(0, Profile.cfg.count); 
         if(this.q.length === 0) return alert("No words found in this source.");
 
         this.idx = 0;
@@ -735,7 +807,6 @@ const App = {
         } else {
             if(!this.fail) Profile.setProg(w.en, true);
             
-            // Speak if not already in audio mode (or speak again for reinforcement)
             if(!this.audioMode) {
                 this.speak(w);
             }
