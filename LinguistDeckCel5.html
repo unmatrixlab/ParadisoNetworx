@@ -697,13 +697,22 @@
         listContainer.innerHTML = listHtml; 
     }
     
-function copyProfessorPrompt() {
+/* REEMPLAZA TU FUNCIÓN copyProfessorPrompt ACTUAL POR ESTA */
+    function copyProfessorPrompt() {
         // 1. Recolección de datos
         const ctxSel = document.getElementById('ai-context-select').value;
         const graSel = document.getElementById('ai-grammar-select').value;
         const typSel = document.getElementById('ai-type-select').value;
         const gapCount = document.getElementById('ai-gap-count').value;
-        const optionCount = document.getElementById('ai-option-count').value; 
+        
+        // --- CORRECCIÓN 1: Forzar lógica de opciones ---
+        // Si el usuario elige True/False, ignoramos el selector de opciones y forzamos 2.
+        let finalOptionCount = document.getElementById('ai-option-count').value;
+        const fullTypeCheck = (typSel || "").toLowerCase();
+        if (fullTypeCheck.includes("true") || fullTypeCheck.includes("reading")) {
+            finalOptionCount = 2;
+        }
+
         const ctxCust = document.getElementById('ai-context-custom').value.trim();
         const graCust = document.getElementById('ai-grammar-custom').value.trim();
         const typCust = document.getElementById('ai-type-custom').value.trim();
@@ -714,6 +723,7 @@ function copyProfessorPrompt() {
         // 2. Construcción del Contexto
         let contextInstruction = ctxCust ? `Custom Topic: "${ctxCust}"` : (ctxSel ? `Topic: "${ctxSel}"` : "General Daily Life");
         
+        // Lógica de Vocabulario (Database)
         let dbWords = [];
         if (ctxSel && ctxSel.startsWith('vb_')) {
             let mode = ctxSel.replace('vb_', '');
@@ -730,51 +740,67 @@ function copyProfessorPrompt() {
             - If a word doesn't fit the grammar topic perfectly, ignore it. Grammar accuracy is priority #1.`;
         }
 
-        // Reglas visuales por defecto
-        let visualRules = "VISUALS: Clean text. No markdown in the content strings.";
-
-        // --- LÓGICA DINÁMICA DE REGLAS (Lógica Refinada) ---
-        // Normalizamos strings para evitar errores de mayúsculas/minúsculas
+        // --- LÓGICA DINÁMICA DE REGLAS (Refinada y Corregida) ---
         const fullType = (typSel + " " + typCust).toLowerCase();
 
         let isReordering = fullType.includes("reordering");
         let isTranslation = fullType.includes("translation") || fullType.includes("reverse");
         let isFix = fullType.includes("fix") || fullType.includes("mistake");
         let isOddOneOut = fullType.includes("odd");
-        
-        // Reglas por defecto (Cloze / Standard)
+        let isVocabMatch = fullType.includes("matching");
+        let isTrueFalse = fullType.includes("true");
+
+        // Reglas Base
         let gapRule = '3. GAPS: Format is "{correct|distractor1|distractor2}". The correct answer must ALWAYS be the first option inside the brackets.';
         let distractorRule = "4. DISTRACTORS: Must be grammatically plausible but incorrect. NEVER use synonyms of the correct answer as distractors.";
         let sentenceRule = "5. FULL_SENTENCE: Must be the grammatically perfect, corrected version of the sentence (used for Text-to-Speech audio).";
+        let visualRules = "VISUALS: Clean text. No markdown in the content strings.";
+        
+        // Ejemplo dinámico para la interfaz TypeScript (para no confundir a la IA)
+        let clozeExample = '"She {went|goes} to school."'; 
 
-        // 1. Reglas para Find and Fix
+        // 1. Reglas Find and Fix
         if (isFix) {
              visualRules = "CRITICAL VISUAL RULE: Place the `<s>crossed out mistake</s>` html tags IMMEDIATELY BEFORE the opening `{` bracket. Do NOT put the `<s>` tags inside the `{...}` gap structure.";
              distractorRule = "4. DISTRACTORS: Options should be corrections of the mistake.";
+             clozeExample = '"He <s>goed</s> {went|gone} to school."';
         }
 
-        // 2. Reglas para Reordering
+        // 2. Reglas Reordering
         if (isReordering) {
             gapRule = '3. GAPS: For "Sentence Reordering", hide a CRITICAL SEGMENT (3-5 words) where word order is tricky.';
             distractorRule = '4. DISTRACTORS: Must be the SAME words as the answer but scrambled (incorrect order).';
         }
         
-        // 3. Reglas para Reverse Translation
+        // 3. Reglas Reverse Translation
         if (isTranslation) {
-             gapRule = '3. GAPS: The `cloze_text` must show the SOURCE language sentence (wrapped in <b> tags), a <br>, then the gap with Target language options. Ex: "<b>Hola</b><br>{Hello|Hi}".';
+             gapRule = '3. GAPS: The `cloze_text` must show the SOURCE language sentence (wrapped in <b> tags), a <br>, then the gap with Target language options.';
              distractorRule = '4. DISTRACTORS: False friends or literal incorrect translations.';
+             clozeExample = '"<b>Hola mundo</b><br>{Hello world|Hi earth}"';
         }
 
-        // 4. Reglas para Odd One Out (Lógica)
+        // 4. Reglas Odd One Out
         if (isOddOneOut) {
              gapRule = '3. GAPS: The gap contains 4 words. The "Correct" one (first pos) is the INTRUDER (the one that does not fit). Format: "{Intruder|Member1|Member2|Member3}".';
              visualRules = "CRITICAL: The sentence prompt (e.g., 'Which is not a fruit?') acts as the header.";
              sentenceRule = "5. FULL_SENTENCE: For Odd One Out, this field should simply read the correct word followed by a short explanation (e.g., 'Car. Because it is not a fruit').";
+             clozeExample = '"Which is odd? {Car|Apple|Banana|Grape}"';
         }
-        // ---------------------------------
 
-        // 3. Definición de Estructura (TypeScript Interface) - MEJORADA
-        // Se añade explícitamente el array de lenguajes seleccionados para evitar confusión
+        // 5. Reglas Vocabulary Matching
+        if (isVocabMatch) {
+            visualRules = "CRITICAL CONTENT RULE: The sentence MUST be a definition or description. The gap is the word being defined. Example: 'A place where you sleep is a {bedroom|kitchen}'.";
+            clozeExample = '"A domestic feline is a {cat|dog|bird}."';
+        }
+
+        // 6. Reglas True/False
+        if (isTrueFalse) {
+            gapRule = '3. GAPS: Format is "{True|False}" or "{False|True}". Only 2 options.';
+            distractorRule = '4. DISTRACTORS: The opposite of the correct answer.';
+            clozeExample = '"The sun is cold. {False|True}"';
+        }
+
+        // Construcción de la Interfaz TypeScript Dinámica
         const activeTransLangs = Array.from(transLangs);
         const transTypeDefinition = activeTransLangs.length > 0 
             ? activeTransLangs.map(l => `${l}: string; // Translation in ${LANG_NAMES[l] || l}`).join('\n              ')
@@ -786,8 +812,8 @@ function copyProfessorPrompt() {
           lang_code: "${currentTargetLang}";
           theory: string; // Brief grammar explanation (HTML allowed: <b>, <ul>).
           exercises: Array<{
-            full_sentence: string; // ${isOddOneOut ? "The Answer + Explanation" : "The perfect sentence for Audio"}
-            cloze_text: string; // The HTML string with gap syntax: "She {went|goes} to..."
+            full_sentence: string; 
+            cloze_text: string; // Format specific syntax. Example: ${clozeExample}
             hint: string; // Short clue in English (max 5 words)
             translations: {
               ${transTypeDefinition}
@@ -795,7 +821,7 @@ function copyProfessorPrompt() {
           }>;
         }`;
 
-        // 5. Construcción del Prompt Final
+        // Construcción del Prompt Final
         const promptText = `
         ROLE: Expert ${currentTarget} Linguist & JSON Generator.
         TASK: Generate a strictly valid JSON object.
@@ -806,7 +832,7 @@ function copyProfessorPrompt() {
         - Grammar Focus: ${graCust || graSel || "General Practice"}.
         - ${contextInstruction}
         - Format: ${typCust || typSel || "Cloze"}.
-        - Gap Config: ${gapCount} gap(s), ${optionCount} options.
+        - Gap Config: ${gapCount} gap(s), ${finalOptionCount} options.
         
         ${vocabBlock}
         ${visualRules}
@@ -849,10 +875,9 @@ function copyProfessorPrompt() {
     }
     
     /* ====== SURGICAL JSON PARSER ====== */
- function processJsonAndSave(rawString) {
+function processJsonAndSave(rawString) {
         try {
             // 1. Limpieza y Normalización
-            // A veces la IA devuelve markdown tipo ```json ... ```
             let cleanString = rawString.trim();
             
             // Si hay bloques de código markdown, intentamos extraer lo que hay dentro
