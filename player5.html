@@ -3,15 +3,27 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fixed Timing)</title>
+    <title>MDC Studio Player (Fixed Video Layout)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; }
+        
+        /* === CAMBIO 1: Body sin scroll general === */
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; /* Evita que la página entera haga scroll */
+        }
+        
         #mdc-header { display: none !important; }
         
-        /* === SETUP SCREEN === */
+        /* === SETUP SCREEN (Pantalla de carga) === */
         #setup-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f9fafb; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 40px 20px; overflow-y: auto; }
         .setup-container { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
         @media (max-width: 800px) { .setup-container { grid-template-columns: 1fr; } }
@@ -22,22 +34,18 @@
         .text-input { width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: monospace; transition: 0.2s; }
         .text-input:focus { border-color: var(--primary); outline: none; }
         
-        /* FILE UPLOAD BUTTONS */
         .file-upload-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; color: var(--text-sec); font-weight: 600; cursor: pointer; position: relative; font-size: 14px; transition: 0.2s; background: #f8fafc; }
         .file-upload-btn:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
         .file-upload-btn.loaded { border-color: #10b981; color: #065f46; background: #d1fae5; border-style: solid; }
         
         .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
         .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
-        
         input[type="file"] { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; top:0; left:0; }
         
         .start-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
         .start-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
-
         .backup-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
 
-        /* LISTA HISTORIAL Y BIBLIOTECA */
         .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .history-item { display: flex; align-items: center; padding: 12px; background: #f3f4f6; border-radius: 10px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
         .history-item:hover { background: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
@@ -48,57 +56,69 @@
         .h-btn-del { padding: 5px 8px; font-size: 12px; color: #ef4444; background: transparent; border: none; cursor: pointer; opacity: 0.5; }
         .h-btn-del:hover { opacity: 1; background: #fee2e2; border-radius: 4px; }
         .empty-history { text-align: center; color: #9ca3af; font-size: 14px; padding: 20px; font-style: italic; }
-
-        /* ESTILO PARA LA BIBLIOTECA */
         .library-section { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
         .library-label { display: block; font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .subtle-link { position: absolute; top: 20px; right: 20px; text-decoration: none; color: #d1d5db; font-size: 11px; font-weight: 600; padding: 6px 12px; border-radius: 20px; border: 1px solid transparent; transition: all 0.3s ease; display: flex; align-items: center; gap: 5px; }
+        .subtle-link:hover { color: var(--primary); border-color: #e0e7ff; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
 
-        /* === ESTILO DEL BOTÓN DELICADO === */
-        .subtle-link {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            text-decoration: none;
-            color: #d1d5db; /* Gris muy claro por defecto */
-            font-size: 11px;
-            font-weight: 600;
-            padding: 6px 12px;
-            border-radius: 20px;
-            border: 1px solid transparent;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .subtle-link:hover {
-            color: var(--primary);
-            border-color: #e0e7ff;
-            background: white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        /* === CAMBIO 2: PLAYER UI (Layout Flexbox) === */
+        #player-ui { 
+            display: none; 
+            width: 100%; 
+            height: 100%; 
+            position: fixed; 
+            top: 0; 
+            left: 0;
+            background: var(--bg-body);
+            z-index: 100;
         }
 
-        /* === PLAYER UI === */
-        #player-ui { display: none; width: 100%; }
-        .page-max-width { max-width: 1000px; margin: 0 auto; width: 100%; position: relative; }
-        .video-wrapper { position: fixed; top: 0; width: 100%; background: #000; z-index: 500; box-shadow: var(--shadow); }
+        .page-max-width { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            width: 100%; 
+            height: 100%; /* Altura completa */
+            display: flex; /* Flexbox vertical */
+            flex-direction: column; 
+            position: relative; 
+        }
+
+        /* Video bloqueado arriba (no sticky, sino bloque flex) */
+        .video-wrapper { 
+            position: relative; 
+            width: 100%; 
+            background: #000; 
+            z-index: 500; 
+            box-shadow: var(--shadow); 
+            flex-shrink: 0; /* No encoger el video */
+        }
+        
         .video-inner { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; background: #000; }
         .video-inner iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; z-index: 1; }
         
-        #video-cover {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            z-index: 10; cursor: pointer; display: flex; align-items: center; justify-content: center;
-            background-color: #000;
-        }
-        #video-cover::after {
-            content: '▶'; font-size: 60px; color: white;
-            filter: drop-shadow(0 2px 10px rgba(0,0,0,0.7));
-            opacity: 0.9; transition: 0.2s;
-        }
+        #video-cover { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; z-index: 10; cursor: pointer; display: flex; align-items: center; justify-content: center; background-color: #000; }
+        #video-cover::after { content: '▶'; font-size: 60px; color: white; filter: drop-shadow(0 2px 10px rgba(0,0,0,0.7)); opacity: 0.9; transition: 0.2s; }
         #video-cover:hover::after { transform: scale(1.1); opacity: 1; color: var(--primary); }
 
-        .dialogue-container { padding: 20px 15px 140px 15px; max-width: 600px; margin: 0 auto; }
-        
+        /* === CAMBIO 3: Caja de Diálogos (Scroll Independiente) === */
+        .dialogue-container { 
+            padding: 20px 15px 140px 15px; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            width: 100%;
+            flex: 1; /* Ocupa el espacio restante */
+            overflow-y: auto; /* Scroll AQUI, no en body */
+            position: relative; /* Para cálculos de offset */
+            scroll-behavior: smooth;
+        }
+
+        /* Barra de scroll bonita */
+        .dialogue-container::-webkit-scrollbar { width: 6px; }
+        .dialogue-container::-webkit-scrollbar-track { background: transparent; }
+        .dialogue-container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        .dialogue-container::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
         .line { background: var(--card-bg); border-radius: var(--radius); padding: 12px; margin-bottom: 16px; box-shadow: var(--shadow); border-left: 4px solid transparent; transition: 0.2s; }
         .line.active { border-left-color: var(--primary); background-color: #eef2ff; transform: scale(1.02); }
         .line-content { display: flex; gap: 10px; align-items: flex-start; }
@@ -144,6 +164,7 @@
         .slider-label { font-size: 12px; text-align: center; color: #d1d5db; margin-bottom: 5px; }
         input[type=range] { width: 100%; cursor: pointer; }
         @keyframes slideUp { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        
         #home-btn { position: fixed; top: 15px; left: 15px; z-index: 600; background: rgba(0,0,0,0.5); color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 700; backdrop-filter: blur(4px); }
     </style>
 </head>
@@ -208,6 +229,7 @@
                     <div id="player"></div>
                 </div>
             </div>
+            
             <div class="dialogue-container" id="dialogue-root"></div>
         </div>
         
@@ -266,7 +288,6 @@
         const list = document.getElementById('library-list');
         list.innerHTML = '<div class="empty-history" style="color:#4f46e5;">⏳ Buscando videos...</div>';
         
-        // Verificamos si la URL sigue siendo el placeholder
         if(LIBRARY_URL.includes('TuUsuario/TuRepositorio')) {
             list.innerHTML = '<div class="empty-history" style="color:#9ca3af;">(Configura la URL de GitHub en el código)</div>';
             return;
@@ -277,12 +298,9 @@
             if (!response.ok) throw new Error("Error de conexión");
             REMOTE_LIBRARY = await response.json();
             
-            // COMPROBAR SI HAY ESTRUCTURA DE SEGURIDAD (PIN)
             if (REMOTE_LIBRARY.pin && REMOTE_LIBRARY.videos) {
-                // Si viene protegido, usamos el array interno
                 REMOTE_LIBRARY = REMOTE_LIBRARY.videos;
             } else if (!Array.isArray(REMOTE_LIBRARY)) {
-                // Si no es array y no tiene estructura conocida
                 REMOTE_LIBRARY = [];
             }
 
@@ -389,7 +407,7 @@
         });
         
         document.getElementById('setup-screen').style.display = 'none';
-        document.getElementById('player-ui').style.display = 'block';
+        document.getElementById('player-ui').style.display = 'flex'; // Usamos Flex
         
         const cover = document.getElementById('video-cover');
         cover.style.backgroundImage = `url('https://img.youtube.com/vi/${id}/maxresdefault.jpg')`;
@@ -606,12 +624,26 @@
         }
     }
     
+    // === FUNCION DE SCROLL CORREGIDA PARA CAJA INDEPENDIENTE ===
     function scrollToActiveElement(el) {
         if (!autoScroll) return;
-        const rect = el.getBoundingClientRect();
-        const offset = window.pageYOffset + (rect.top + rect.height / 2) - (window.innerHeight / 2) - 40 + currentVerticalOffset;
-        window.scrollTo({ top: offset, behavior: "smooth" });
+        
+        // Obtenemos el contenedor que hace scroll
+        const container = document.querySelector('.dialogue-container');
+        
+        if (container && el) {
+            // Calculamos la posición dentro del contenedor
+            // offsetTop en este contexto es relativo al padre posicionado (dialogue-container)
+            // Calculamos: Posición elemento - Mitad Contenedor + Mitad Elemento + Ajuste Manual
+            const target = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2) + currentVerticalOffset;
+            
+            container.scrollTo({
+                top: target,
+                behavior: "smooth"
+            });
+        }
     }
+    // ==========================================================
 
     function renderSubtitles() {
         const root = document.getElementById('dialogue-root');
@@ -639,7 +671,6 @@
         STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
     }
 
-    // === AGREGADO: FUNCION FALTANTE DE UPDATE TIMING ===
     function updateTimingSettings() {
         const startVal = document.getElementById('input-time-offset').value;
         const endVal = document.getElementById('input-end-padding').value;
@@ -648,7 +679,6 @@
         const settings = { offset: timeOffset, padding: endPadding };
         localStorage.setItem(PREF_TIMING, JSON.stringify(settings));
     }
-    // ===================================================
 
     function loadTimingPrefs() {
         const saved = localStorage.getItem(PREF_TIMING);
@@ -814,7 +844,7 @@
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
- function saveLineToVocab(btn) {
+    function saveLineToVocab(btn) {
         const line = btn.closest('.line'); 
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
@@ -823,13 +853,10 @@
         const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
         
-        // --- FUNCIÓN HELPER PARA DETECTAR DUPLICADOS ---
         const isDuplicate = (textToCheck) => {
             const cleanCheck = sanitizeText(textToCheck).toLowerCase();
             for (let item of items) {
-                // Revisar items sueltos
                 if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === cleanCheck) return true;
-                // Revisar dentro de carpetas
                 if (item.isFolder && item.items) {
                     for (let sub of item.items) {
                         if (sub.eng && sanitizeText(sub.eng).toLowerCase() === cleanCheck) return true;
@@ -838,7 +865,6 @@
             }
             return false;
         };
-        // ----------------------------------------------
         
         if (selectedEng.length > 0) {
             let translation = ""; 
@@ -848,15 +874,11 @@
             
             selectedEng.forEach(span => { 
                 const cleanEng = sanitizeText(span.innerText);
-                
-                // AQUÍ ESTÁ EL CAMBIO: Verificamos si existe antes de agregar
                 if (isDuplicate(cleanEng)) {
                     console.log(`Palabra "${cleanEng}" ignorada (ya existe).`);
-                    return; // Saltamos esta palabra
+                    return; 
                 }
-
                 const cleanEsp = sanitizeText(translation);
-                
                 itemsToAdd.push({ 
                     eng: cleanEng, 
                     esp: cleanEsp, 
@@ -869,7 +891,6 @@
             const rawEng = line.querySelector('.english').innerText;
             const cleanEng = sanitizeText(rawEng);
 
-            // AQUÍ ESTÁ EL CAMBIO
             if (!isDuplicate(cleanEng)) {
                 const rawEsp = line.querySelector('.spanish').innerText;
                 const cleanEsp = sanitizeText(rawEsp);
@@ -888,7 +909,6 @@
         }
         
         if (itemsToAdd.length === 0) {
-            // Animación visual de "Ya existe" (opcional: cambia el color a amarillo momentáneo)
             const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; 
             setTimeout(() => { btn.innerHTML = originalText; }, 1000);
             return;
@@ -908,7 +928,6 @@
         
         localStorage.setItem(vocabKey, JSON.stringify(items));
         
-        // Animación de Éxito
         const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
         setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
     }
