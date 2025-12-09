@@ -1,1 +1,993 @@
-//hhh
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LINGUA NEXUS | Arcade Mode</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           TUS ESTILOS ORIGINALES (MANTENIDOS)
+           ========================================================================== */
+        :root {
+            --bg-deep: #09090b; 
+            --bg-card: #18181b; 
+            --bg-hover: #27272a; 
+            --bg-input: #27272a;
+            --txt-main: #f4f4f5;
+            --txt-sec: #a1a1aa;
+            --border: #3f3f46;
+            
+            /* Accents */
+            --c-noun: #38bdf8;      
+            --c-adj: #e879f9;       
+            --c-reg: #4ade80;       
+            --c-irreg:#fbbf24;      
+            --c-func: #818cf8;      
+            --c-mixed: #ffffff; 
+            
+            --primary: #3b82f6; 
+            --success: #10b981; 
+            --danger: #ef4444; 
+            
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        :root.light-mode {
+            --bg-deep: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-hover: #f1f5f9;
+            --bg-input: #e2e8f0;
+            --txt-main: #0f172a;
+            --txt-sec: #64748b;
+            --border: #e2e8f0;
+            
+            --c-noun: #0284c7;
+            --c-adj: #c026d3;
+            --c-reg: #16a34a;
+            --c-irreg:#d97706;
+            --c-func: #4f46e5;
+            --c-mixed: #334155;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
+        
+        body { 
+            background-color: var(--bg-deep); color: var(--txt-main); 
+            font-family: var(--font-ui); margin: 0; height: 100vh; 
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* HEADER & NAVIGATION */
+        header { 
+            height: 64px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
+            padding: 0 24px; background: var(--bg-deep); 
+            border-bottom: 1px solid var(--border); z-index: 50;
+        }
+        .brand-area { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .brand { font-family: var(--font-head); font-size: 26px; letter-spacing: 1px; color: var(--txt-main); }
+        .back-btn { display: none; color: var(--txt-sec); }
+        body:not(.is-home) .back-btn { display: block; }
+        body:not(.is-home) .brand { display: none; } 
+        .header-actions { display: flex; gap: 20px; }
+        .icon-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; padding: 0; transition: 0.2s; }
+        .icon-btn:hover { color: var(--primary); }
+        .icon-btn.active { color: var(--primary); transform: scale(1.1); opacity: 1; }
+
+        /* MAIN LAYOUT */
+        main { 
+            flex: 1; position: relative; overflow: hidden; /* Importante para el juego */
+            width: 100%;
+        }
+
+        .view-screen { 
+            display: none; flex-direction: column; width: 100%; height: 100%;
+            overflow-y: auto; overflow-x: hidden;
+            padding: 20px; padding-bottom: calc(20px + var(--safe-bottom));
+            max-width: 800px; margin: 0 auto; 
+        }
+        .view-screen.active { display: flex; }
+
+        /* HOME STYLES (Conservados) */
+        .welcome-text { margin-bottom: 30px; text-align: center; }
+        .welcome-text h1 { font-family: var(--font-head); font-size: 48px; margin: 0; line-height: 0.9; }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 30px; }
+        .stat-pill { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+        .stat-val { font-family: var(--font-code); font-weight: 700; font-size: 24px; display: block; }
+        .stat-lbl { font-size: 10px; font-weight: 600; color: var(--txt-sec); text-transform: uppercase; margin-top: 4px; }
+        .grid-menu { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+        .menu-card { 
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; 
+            padding: 24px 20px; display: flex; flex-direction: column; justify-content: space-between;
+            min-height: 140px; cursor: pointer; transition: 0.2s;
+        }
+        .menu-card:active { transform: scale(0.98); }
+        .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 15px; background: rgba(255,255,255,0.05); }
+        .menu-card h3 { margin: 0; font-family: var(--font-head); font-size: 28px; line-height: 1; }
+        .menu-card span { font-size: 12px; color: var(--txt-sec); font-weight: 500; margin-top: 6px; display: block; }
+
+        /* Colores Menu */
+        .menu-card[data-type="noun"] { color: var(--c-noun); }
+        .menu-card[data-type="noun"] .card-icon { background: rgba(56, 189, 248, 0.1); color: var(--c-noun); }
+        .menu-card[data-type="adj"] { color: var(--c-adj); }
+        .menu-card[data-type="adj"] .card-icon { background: rgba(232, 121, 249, 0.1); color: var(--c-adj); }
+        .menu-card[data-type="reg"] { color: var(--c-reg); }
+        .menu-card[data-type="reg"] .card-icon { background: rgba(74, 222, 128, 0.1); color: var(--c-reg); }
+        .menu-card[data-type="irreg"] { color: var(--c-irreg); }
+        .menu-card[data-type="irreg"] .card-icon { background: rgba(251, 191, 36, 0.1); color: var(--c-irreg); }
+        .menu-card[data-type="func"] { color: var(--c-func); }
+        .menu-card[data-type="func"] .card-icon { background: rgba(129, 140, 248, 0.1); color: var(--c-func); }
+        .menu-card[data-type="mixed"] { color: var(--c-mixed); border-color: var(--border); }
+        .menu-card[data-type="mixed"] .card-icon { background: rgba(255, 255, 255, 0.1); color: var(--c-mixed); }
+        :root.light-mode .menu-card[data-type="mixed"] .card-icon { background: rgba(0,0,0,0.05); }
+        .menu-card.disabled { opacity: 0.3; filter: grayscale(1); pointer-events: none; border-style: dashed; }
+
+        /* SETTINGS & LIB STYLES (Conservados) */
+        .section-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 20px; }
+        .section-head { font-family: var(--font-head); font-size: 20px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .row-ctrl { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .num-inp { background: var(--bg-input); border: 1px solid var(--border); color: var(--txt-main); border-radius: 8px; padding: 8px; width: 70px; text-align: center; font-family: var(--font-code); }
+        .lib-search { width: 100%; background: var(--bg-card); border: 1px solid var(--border); padding: 14px; border-radius: 12px; color: var(--txt-main); font-size: 16px; margin-bottom: 15px; }
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        .filter-btn { background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-sec); padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex: 1; min-width: 50px; text-align: center; }
+        .filter-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .lib-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; display: flex; flex-direction: column; }
+        .lib-content { padding: 15px; }
+        .lib-en { font-weight: 700; font-size: 16px; color: var(--txt-main); }
+        .lib-es { font-size: 13px; color: var(--txt-sec); margin-top: 2px; }
+        .prog-track { width: 100%; height: 6px; background: var(--bg-input); position: relative; }
+        .prog-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+        .lvl-0 .prog-fill { background: transparent; }
+        .lvl-1 .prog-fill { background: var(--danger); }
+        .lvl-2 .prog-fill { background: var(--c-irreg); }
+        .lvl-3 .prog-fill { background: var(--primary); }
+        .lvl-4 .prog-fill { background: var(--success); }
+        .lib-badge { position: absolute; right: 15px; top: 15px; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; background: var(--bg-input); color: var(--txt-sec); }
+        .load-more-btn { width: 100%; padding: 15px; background: var(--bg-card); border: 1px solid var(--border); color: var(--txt-main); border-radius: 12px; margin-top: 10px; cursor: pointer; font-weight: 700; font-size: 12px; letter-spacing: 1px; }
+
+        /* QUEUE STYLES */
+        .queue-grid { display: grid; gap: 8px; }
+        .queue-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-deep); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+        .queue-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.5px; }
+        .tag-new { background: var(--c-noun); color: #fff; } 
+        .tag-learning { background: var(--c-irreg); color: #000; } 
+        .tag-review { background: var(--danger); color: #fff; } 
+        .tag-master { background: var(--success); color: #fff; } 
+
+        /* ==========================================================================
+           NUEVOS ESTILOS ARCADE (MOTOR DE JUEGO)
+           ========================================================================== */
+        #view-game {
+            padding: 0; 
+            overflow: hidden; 
+            position: relative;
+        }
+
+        /* CAPA DEL JUEGO */
+        #game-arena {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; overflow: hidden; touch-action: none;
+        }
+
+        /* HUD (Heads Up Display) */
+        .hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        
+        .hud-top {
+            padding: 15px 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(9,9,11,0.9), transparent);
+        }
+
+        /* Barra de Vida */
+        .life-bar-box {
+            width: 120px; height: 10px; background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 5px; overflow: hidden;
+        }
+        .life-fill {
+            height: 100%; background: var(--success); width: 100%; transition: width 0.3s, background 0.3s;
+        }
+        .score-box {
+            font-family: var(--font-code); font-weight: 700; color: var(--primary); font-size: 20px;
+            text-shadow: 0 0 10px rgba(59,130,246,0.5);
+        }
+
+        /* CONTROLES ABAJO */
+        .hud-bottom {
+            padding: 20px; padding-bottom: calc(20px + var(--safe-bottom));
+            pointer-events: auto; /* Para poder clickear */
+            background: linear-gradient(to top, var(--bg-deep) 60%, transparent);
+        }
+
+        /* Botones de Respuesta (Misiles) */
+        .answers-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+        }
+        .ans-btn {
+            background: var(--bg-card); border: 1px solid var(--border);
+            color: var(--txt-main); padding: 20px 10px; border-radius: 12px;
+            font-size: 16px; font-weight: 600; text-align: center;
+            cursor: pointer; transition: 0.1s; position: relative; overflow: hidden;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+        }
+        .ans-btn:active { transform: translateY(4px); box-shadow: none; }
+        .ans-btn.correct-flash { background: var(--success) !important; color: white; border-color: var(--success); }
+        .ans-btn.error-flash { background: var(--danger) !important; color: white; border-color: var(--danger); shake: 0.5s; }
+
+        /* ENTIDADES DEL JUEGO */
+        .falling-word {
+            position: absolute; 
+            padding: 10px 18px; 
+            background: var(--bg-card); border: 2px solid var(--txt-sec); 
+            border-radius: 50px; color: var(--txt-main);
+            font-family: var(--font-head); font-size: 24px; letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            transform: translate(-50%, -50%); /* Centrado en su X,Y */
+            white-space: nowrap;
+            z-index: 15;
+        }
+        .falling-word.target-locked { border-color: var(--primary); box-shadow: 0 0 20px var(--primary); }
+
+        /* Colores por tipo (dinámicos) */
+        .falling-word[data-cat="nouns"] { border-color: var(--c-noun); color: var(--c-noun); }
+        .falling-word[data-cat="adjectives"] { border-color: var(--c-adj); color: var(--c-adj); }
+        .falling-word[data-cat="verbs_reg"] { border-color: var(--c-reg); color: var(--c-reg); }
+        .falling-word[data-cat="verbs_irreg"] { border-color: var(--c-irreg); color: var(--c-irreg); }
+        .falling-word[data-cat="functionals"] { border-color: var(--c-func); color: var(--c-func); }
+
+        /* PARTICULAS */
+        .particle {
+            position: absolute; width: 6px; height: 6px; border-radius: 50%;
+            pointer-events: none; z-index: 14;
+        }
+
+        /* RAYO LASER */
+        .laser-beam {
+            position: absolute; width: 4px; background: var(--primary);
+            transform-origin: bottom center; pointer-events: none; z-index: 12;
+            opacity: 0.8; box-shadow: 0 0 10px var(--primary);
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); } 25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); }
+        }
+        .shake-screen { animation: shake 0.3s; }
+
+    </style>
+</head>
+<body class="is-home">
+
+    <script src="https://paradisonetworx.com/database.js"></script>
+
+    <header>
+        <div class="brand-area" onclick="Game.stop(); App.nav('home')">
+            <svg class="back-btn" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"></path></svg>
+            <div class="brand">LINGUA NEXUS</div>
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn" onclick="Profile.toggleTheme()">
+                <svg id="theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+            <button id="btn-settings-nav" class="icon-btn" onclick="Game.stop(); App.nav('settings')">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div id="view-home" class="view-screen active">
+            <div class="welcome-text">
+                <h1>TRAINING HUB</h1>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-pill">
+                    <span class="stat-val" style="color:var(--success)" id="stat-m">0</span>
+                    <span class="stat-lbl">Mastered</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="stat-val" style="color:var(--c-noun)" id="stat-t">0</span>
+                    <span class="stat-lbl">Total Seen</span>
+                </div>
+            </div>
+
+            <div class="grid-menu">
+                <div class="menu-card" data-type="noun" onclick="App.start('nouns')">
+                    <div class="card-icon">N</div>
+                    <div><h3>NOUNS</h3><span>Objects & Things</span></div>
+                </div>
+                <div class="menu-card" data-type="adj" onclick="App.start('adjectives')">
+                    <div class="card-icon">A</div>
+                    <div><h3>ADJECTIVES</h3><span>Descriptions</span></div>
+                </div>
+                <div class="menu-card" data-type="reg" onclick="App.start('verbs_reg')">
+                    <div class="card-icon">R</div>
+                    <div><h3>REGULAR</h3><span>Standard Verbs</span></div>
+                </div>
+                <div class="menu-card" data-type="irreg" onclick="App.start('verbs_irreg')">
+                    <div class="card-icon">I</div>
+                    <div><h3>IRREGULAR</h3><span>Complex Forms</span></div>
+                </div>
+                <div class="menu-card" data-type="func" onclick="App.start('functionals')">
+                    <div class="card-icon">L</div>
+                    <div><h3>LOGIC & SYNTAX</h3><span>Connectors & Structure</span></div>
+                </div>
+                <div class="menu-card" data-type="mixed" onclick="App.start('mixed')">
+                    <div class="card-icon">M</div>
+                    <div><h3>MIXED BAG</h3><span>All Words Shuffle</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view-screen">
+            <div class="section-box">
+                <div class="section-head">SESSION CONTROLS</div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Data Source</span>
+                    <select id="cfg-source" class="num-inp" style="width:140px; text-align:left;" onchange="Profile.saveCfg()">
+                        <option value="official">Official Course</option>
+                        <option value="custom">My Vocabulary</option>
+                    </select>
+                </div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Words per Session</span>
+                    <input type="number" id="cfg-count" class="num-inp" value="10" onchange="Profile.saveCfg()">
+                </div>
+                <div class="row-ctrl">
+                    <span class="row-lbl">Game Speed</span>
+                    <select id="cfg-speed" class="num-inp" onchange="Profile.saveCfg()">
+                        <option value="1">Slow</option>
+                        <option value="2">Normal</option>
+                        <option value="3">Fast</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="section-box">
+                <div class="section-head">DANGER ZONE</div>
+                <div class="row-ctrl">
+                    <span class="row-lbl" style="color:var(--danger)">Reset All Progress</span>
+                    <button onclick="Profile.wipe()" style="background:var(--danger); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">WIPE</button>
+                </div>
+            </div>
+            
+            <div class="section-box" style="border-color: var(--primary);">
+                <div class="section-head" style="color:var(--primary)">UP NEXT IN QUEUE</div>
+                <div id="study-queue-list" class="queue-grid"></div>
+            </div>
+
+            <input type="text" id="inp-search" class="lib-search" placeholder="Search Database..." onkeyup="App.resetRender()">
+            
+            <div class="filter-bar">
+                <button class="filter-btn active" onclick="App.setLibFilter('all', this)">ALL</button>
+                <button class="filter-btn" onclick="App.setLibFilter(0, this)">LVL 0</button>
+                <button class="filter-btn" onclick="App.setLibFilter(1, this)">LVL 1</button>
+                <button class="filter-btn" onclick="App.setLibFilter(2, this)">LVL 2</button>
+                <button class="filter-btn" onclick="App.setLibFilter(3, this)">LVL 3</button>
+                <button class="filter-btn" onclick="App.setLibFilter(4, this)">LVL 4</button>
+            </div>
+
+            <div id="lib-list" style="padding-bottom:20px;"></div>
+            <button id="btn-load-more" class="load-more-btn" onclick="App.renderMore()">LOAD MORE...</button>
+        </div>
+
+        <div id="view-game" class="view-screen">
+            <div id="game-arena"></div> <div class="hud-layer">
+                <div class="hud-top">
+                    <div class="life-bar-box"><div id="hud-life" class="life-fill"></div></div>
+                    <div class="score-box" id="hud-score">0</div>
+                </div>
+
+                <div class="hud-bottom">
+                    <div class="answers-grid" id="control-dock">
+                        <button class="ans-btn">Option A</button>
+                        <button class="ans-btn">Option B</button>
+                        <button class="ans-btn">Option C</button>
+                        <button class="ans-btn">Option D</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script>
+/* ==========================================================================
+   DB & PROFILE (EXACTAMENTE IGUALES PARA MANTENER LA DATA)
+   ========================================================================== */
+const DB = {
+    data: {},
+    async init() {
+        return new Promise(resolve => {
+            const t = setInterval(() => {
+                if(typeof INTERNAL_VOCAB !== 'undefined') {
+                    this.data = INTERNAL_VOCAB;
+                    clearInterval(t);
+                    resolve();
+                }
+            }, 50);
+        });
+    },
+    getCustomData() {
+        try {
+            const raw = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]');
+            let flat = [];
+            const extract = (items) => {
+                items.forEach(i => {
+                    if(i.isFolder && i.items) extract(i.items);
+                    else if(i.eng) flat.push({ en: i.eng, es: i.esp, cat: 'custom' });
+                });
+            };
+            extract(raw);
+            return flat;
+        } catch(e) { return []; }
+    },
+    get(cat) {
+        if (Profile.cfg.source === 'custom') {
+            return this.getCustomData().map(x => ({...x, cat: 'custom'}));
+        }
+        const keys = { nouns:'NOUNS', adjectives:'ADJECTIVES', verbs_reg:'REGULAR_VERBS', verbs_irreg:'IRREGULAR_VERBS', functionals:'FUNCTION WORDS' };
+        if (cat === 'mixed') {
+            let all = [];
+            Object.keys(keys).forEach(key => {
+                const dbKey = keys[key]; 
+                const items = (this.data[dbKey] || []).map(x => ({...x, cat: key})); 
+                all = all.concat(items);
+            });
+            return all;
+        }
+        const k = keys[cat];
+        return (this.data[k] || []).map(x => ({...x, cat}));
+    },
+    all() {
+        if (Profile.cfg.source === 'custom') return this.getCustomData();
+        let a = [];
+        Object.keys(this.data).forEach(k => a = a.concat(this.data[k]));
+        return a;
+    }
+};
+
+const Profile = {
+    cfg: { count:10, time:0, theme:'dark', prog:{}, source: 'official', speed: 2 },
+    
+    load() {
+        const s = localStorage.getItem('LN_V7');
+        if(s) this.cfg = { ...this.cfg, ...JSON.parse(s) };
+        
+        this.applyDecay();
+        this.applyTheme();
+        
+        const elCount = document.getElementById('cfg-count');
+        const elSrc = document.getElementById('cfg-source');
+        const elSpd = document.getElementById('cfg-speed');
+        if(elCount) elCount.value = this.cfg.count;
+        if(elSrc) elSrc.value = this.cfg.source || 'official';
+        if(elSpd) elSpd.value = this.cfg.speed || 2;
+        
+        this.calcStats();
+    },
+    
+    saveCfg() {
+        this.cfg.count = parseInt(document.getElementById('cfg-count').value) || 10;
+        this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 2;
+        const srcEl = document.getElementById('cfg-source');
+        if(srcEl) this.cfg.source = srcEl.value;
+        this.save();
+        App.resetRender();
+        App.renderQueue(); 
+        App.updateHomeMenu();
+    },
+    
+    save() { localStorage.setItem('LN_V7', JSON.stringify(this.cfg)); },
+    
+    applyTheme() {
+        const doc = document.documentElement;
+        const i = document.getElementById('theme-icon');
+        if(this.cfg.theme === 'light') {
+            doc.classList.add('light-mode');
+            if(i) i.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
+        } else {
+            doc.classList.remove('light-mode');
+            if(i) i.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
+    },
+    
+    toggleTheme() {
+        this.cfg.theme = this.cfg.theme === 'dark' ? 'light' : 'dark';
+        this.applyTheme();
+        this.save();
+    },
+    
+    getData(w) {
+        let val = this.cfg.prog[w];
+        if (val === undefined) return { lvl: 0, date: 0 };
+        if (typeof val === 'number') return { lvl: val, date: 0 }; 
+        return val;
+    },
+
+    setProg(w, ok) {
+        let entry = this.getData(w);
+        let l = entry.lvl;
+
+        if(ok) { 
+            if(l < 4) l++; 
+        } else { 
+            l = Math.max(0, l - 1); 
+        }
+
+        this.cfg.prog[w] = { lvl: l, date: Date.now() };
+        this.save();
+        this.calcStats();
+    },
+    
+    getLvl(w) { return this.getData(w).lvl; },
+    getDate(w) { return this.getData(w).date; },
+    
+    wipe() { if(confirm("Clear all progress?")) { this.cfg.prog={}; this.save(); App.nav('home'); } },
+    
+    calcStats() {
+        const k = Object.keys(this.cfg.prog);
+        const m = k.filter(x => this.getData(x).lvl === 4).length;
+        const elM = document.getElementById('stat-m');
+        const elT = document.getElementById('stat-t');
+        if(elM) elM.innerText = m;
+        if(elT) elT.innerText = k.length;
+    },
+
+    applyDecay() {
+        const NOW = Date.now();
+        const DECAY_TIME = 30 * 24 * 60 * 60 * 1000; 
+        let changed = false;
+
+        Object.keys(this.cfg.prog).forEach(w => {
+            let entry = this.cfg.prog[w];
+            if (typeof entry === 'object' && entry.lvl === 4) {
+                if (NOW - entry.date > DECAY_TIME) {
+                    entry.lvl = 3; 
+                    entry.date = NOW; 
+                    changed = true;
+                }
+            }
+        });
+        if(changed) this.save();
+    }
+};
+
+/* ==========================================================================
+   APP CONTROLLER (MODIFICADO PARA MANEJAR EL JUEGO)
+   ========================================================================== */
+const App = {
+    // Variables de UI generales
+    filterLvl: 'all',
+    filteredResults: [],
+    renderCount: 50,
+
+    async boot() { await DB.init(); Profile.load(); this.nav('home'); },
+    
+    nav(v) {
+        document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
+        document.getElementById('view-'+v).classList.add('active');
+        document.body.className = (v === 'home') ? 'is-home' : '';
+        
+        const btnSet = document.getElementById('btn-settings-nav');
+        if(v === 'settings') {
+            btnSet.classList.add('active');
+            this.renderQueue(); 
+            this.resetRender(); 
+        } else {
+            btnSet.classList.remove('active');
+        }
+        if(v === 'home') this.updateHomeMenu();
+    },
+
+    updateHomeMenu() {
+        const isCustom = Profile.cfg.source === 'custom';
+        const cards = document.querySelectorAll('.menu-card:not([data-type="mixed"])');
+        cards.forEach(c => {
+            if(isCustom) c.classList.add('disabled');
+            else c.classList.remove('disabled');
+        });
+    },
+
+    // --- ALGORITMO DE ORDENAMIENTO (IMPORTANTE PARA EL APRENDIZAJE) ---
+    getSortedData(cat) {
+        let raw = DB.get(cat);
+        // Shuffle simple
+        for (let i = raw.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [raw[i], raw[j]] = [raw[j], raw[i]];
+        }
+        // Ordenar por prioridad de aprendizaje
+        return raw.sort((a,b) => {
+            const la = Profile.getLvl(a.en);
+            const lb = Profile.getLvl(b.en);
+            
+            const getGroup = (l) => {
+                if(l > 0 && l < 4) return 1; // Prioridad Alta (Repaso)
+                if(l === 0) return 2;        // Prioridad Media (Nuevas)
+                return 3;                    // Prioridad Baja (Master)
+            };
+
+            const ga = getGroup(la);
+            const gb = getGroup(lb);
+            if(ga !== gb) return ga - gb;
+            return Profile.getDate(a.en) - Profile.getDate(b.en);
+        });
+    },
+
+    // --- RENDER DE LA COLA EN SETTINGS ---
+    renderQueue() {
+        const sorted = this.getSortedData('mixed'); 
+        const sessionLimit = Profile.cfg.count;
+        const nextBatch = sorted.slice(0, sessionLimit);
+        
+        const container = document.getElementById('study-queue-list');
+        if(!container) return;
+        container.innerHTML = '';
+
+        if(nextBatch.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--txt-sec)">No words available.</div>';
+            return;
+        }
+
+        const countInfo = document.createElement('div');
+        countInfo.style.cssText = "font-size:11px; color:var(--primary); margin-bottom:10px; font-weight:700;";
+        countInfo.innerText = `NEXT ${nextBatch.length} TARGETS:`;
+        container.appendChild(countInfo);
+
+        nextBatch.forEach(w => {
+            const lvl = Profile.getLvl(w.en);
+            let tagClass = 'tag-new'; let tagText = 'NEW';
+            if(lvl === 4) { tagClass = 'tag-master'; tagText = 'MASTER'; }
+            else if(lvl > 0) { tagClass = 'tag-review'; tagText = 'REVIEW'; }
+
+            const div = document.createElement('div');
+            div.className = 'queue-item';
+            div.innerHTML = `
+                <div><span style="font-weight:700; color:var(--txt-main)">${w.en}</span></div>
+                <div class="queue-tag ${tagClass}">${tagText} (L${lvl})</div>
+            `;
+            container.appendChild(div);
+        });
+    },
+
+    // --- INICIO DEL JUEGO ---
+    start(cat) {
+        if(Profile.cfg.source === 'custom' && cat !== 'mixed') return;
+        
+        const sorted = this.getSortedData(cat);
+        const queue = sorted.slice(0, Profile.cfg.count); 
+        
+        if(queue.length === 0) return alert("No words found.");
+
+        this.nav('game');
+        Game.init(queue, cat); // Iniciamos el MOTOR
+    },
+
+    // --- FUNCIONES DE LIBRERIA (BUSCADOR) ---
+    setLibFilter(lvl, btn) {
+        this.filterLvl = lvl;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.resetRender();
+    },
+    resetRender() { this.renderCount = 50; this.calculateFilteredList(); this.renderLib(); },
+    renderMore() { this.renderCount += 50; this.renderLib(); },
+    calculateFilteredList() {
+        const s = document.getElementById('inp-search').value;
+        const term = s.toLowerCase();
+        this.filteredResults = DB.all().filter(x => {
+            const matchesText = !s || x.en.toLowerCase().includes(term);
+            if(!matchesText) return false;
+            if(this.filterLvl === 'all') return true;
+            return Profile.getLvl(x.en) === this.filterLvl;
+        });
+    },
+    renderLib() {
+        const c = document.getElementById('lib-list');
+        c.innerHTML = '';
+        const btnMore = document.getElementById('btn-load-more');
+        if(this.filteredResults.length > this.renderCount) {
+            btnMore.style.display = 'block';
+            btnMore.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount} REMAINING)`;
+        } else {
+            btnMore.style.display = 'none';
+        }
+        const frag = document.createDocumentFragment();
+        this.filteredResults.slice(0, this.renderCount).forEach(w => {
+            const l = Profile.getLvl(w.en);
+            const pct = l * 25; 
+            const d = document.createElement('div');
+            d.className = `lib-card lvl-${l}`;
+            d.innerHTML = `
+                <div class="lib-content">
+                    <span class="lib-badge">LVL ${l}</span>
+                    <div class="lib-en">${w.en}</div>
+                    <div class="lib-es">${Array.isArray(w.es)?w.es[0]:w.es}</div>
+                </div>
+                <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+            `;
+            frag.appendChild(d);
+        });
+        c.appendChild(frag);
+    }
+};
+
+/* ==========================================================================
+   GAME ENGINE (NUEVO MOTOR "ARCADE")
+   ========================================================================== */
+const Game = {
+    queue: [],
+    backupPool: [], // Copia para sacar opciones incorrectas
+    currentIdx: 0,
+    activeWord: null, // El objeto DOM que cae
+    timer: null,
+    frameReq: null,
+    score: 0,
+    lives: 100,
+    speedFactor: 1,
+
+    init(queue, cat) {
+        this.queue = queue;
+        this.backupPool = DB.get(cat).length > 4 ? DB.get(cat) : DB.all(); // Pool para respuestas falsas
+        this.currentIdx = 0;
+        this.score = 0;
+        this.lives = 100;
+        
+        // Ajustar velocidad según settings
+        const spdCfg = Profile.cfg.speed || 2;
+        this.speedFactor = spdCfg === 1 ? 0.6 : (spdCfg === 3 ? 1.5 : 1.0);
+
+        // Limpieza
+        document.getElementById('game-arena').innerHTML = '';
+        this.updateHUD();
+        
+        // Arrancar
+        this.spawnNext();
+        this.loop();
+    },
+
+    stop() {
+        cancelAnimationFrame(this.frameReq);
+        if(this.activeWord && this.activeWord.el) this.activeWord.el.remove();
+        this.activeWord = null;
+    },
+
+    spawnNext() {
+        if(this.currentIdx >= this.queue.length) {
+            alert(`MISSION COMPLETE! Score: ${this.score}`);
+            this.stop();
+            App.nav('home');
+            return;
+        }
+
+        const wData = this.queue[this.currentIdx];
+        const arena = document.getElementById('game-arena');
+        
+        // Crear Elemento DOM
+        const el = document.createElement('div');
+        el.className = 'falling-word';
+        el.innerText = wData.en;
+        el.dataset.cat = wData.cat; // Para el color
+        
+        // Posición aleatoria en X (evitando bordes)
+        const xPos = 10 + Math.random() * 80; 
+        el.style.left = xPos + '%';
+        el.style.top = '-60px'; // Empezar arriba fuera de pantalla
+
+        arena.appendChild(el);
+
+        this.activeWord = {
+            data: wData,
+            el: el,
+            y: -60,
+            speed: (0.5 + (Math.random() * 0.5)) * this.speedFactor
+        };
+
+        this.generateOptions(wData);
+    },
+
+    generateOptions(correctWord) {
+        const dock = document.getElementById('control-dock');
+        dock.innerHTML = '';
+
+        // Buscar 3 distractores
+        let opts = [correctWord];
+        let attempts = 0;
+        while(opts.length < 4 && attempts < 100) {
+            const rnd = this.backupPool[Math.floor(Math.random() * this.backupPool.length)];
+            if(!opts.find(x => x.en === rnd.en)) opts.push(rnd);
+            attempts++;
+        }
+        // Shuffle opciones
+        opts.sort(() => Math.random() - 0.5);
+
+        // Render Botones
+        opts.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'ans-btn';
+            
+            // Mostrar la traducción (Si es array toma la primera)
+            let txt = Array.isArray(opt.es) ? opt.es[0] : opt.es;
+            // Si son verbos y estamos en modo oficial, dar pistas
+            if(opt.cat.includes('verbs') && Profile.cfg.source === 'official') {
+                // Opcional: mostrar (Comer)
+            }
+            
+            btn.innerText = txt;
+            
+            btn.onclick = (e) => this.checkAnswer(opt, correctWord, btn, e);
+            dock.appendChild(btn);
+        });
+    },
+
+    checkAnswer(selected, correct, btnEl, event) {
+        if(!this.activeWord) return;
+
+        // Crear efecto de disparo (Laser) desde el botón hasta la palabra
+        this.createLaser(btnEl, this.activeWord.el);
+
+        if(selected.en === correct.en) {
+            // CORRECTO
+            btnEl.classList.add('correct-flash');
+            this.explode(this.activeWord.el);
+            
+            // LOGICA DE PROGRESO (AQUÍ ESTÁ LA CLAVE)
+            Profile.setProg(correct.en, true);
+            this.score += 100;
+            
+            // Siguiente palabra
+            this.activeWord = null;
+            this.currentIdx++;
+            setTimeout(() => this.spawnNext(), 600); // Pequeña pausa para ver explosión
+
+        } else {
+            // INCORRECTO
+            btnEl.classList.add('error-flash');
+            this.shakeScreen();
+            this.lives -= 10;
+            if(this.lives <= 0) this.gameOver();
+            else this.updateHUD();
+            
+            // Penalizar
+            Profile.setProg(correct.en, false);
+        }
+    },
+
+    loop() {
+        if(this.activeWord) {
+            // Mover hacia abajo
+            this.activeWord.y += this.activeWord.speed;
+            this.activeWord.el.style.top = this.activeWord.y + 'px';
+
+            // Detectar colisión con el suelo (HUD top del dock)
+            const limit = document.getElementById('game-arena').offsetHeight - 20; 
+            
+            if(this.activeWord.y > limit) {
+                // IMPACTO (Fallo por tiempo)
+                this.shakeScreen();
+                this.lives -= 20;
+                this.updateHUD();
+                
+                // Penalizar en base de datos
+                Profile.setProg(this.activeWord.data.en, false);
+
+                // Destruir palabra y seguir
+                this.activeWord.el.remove();
+                this.activeWord = null;
+                
+                if(this.lives > 0) {
+                    this.currentIdx++;
+                    this.spawnNext();
+                } else {
+                    this.gameOver();
+                }
+            }
+        }
+        
+        if(this.lives > 0) this.frameReq = requestAnimationFrame(() => this.loop());
+    },
+
+    updateHUD() {
+        const bar = document.getElementById('hud-life');
+        bar.style.width = Math.max(0, this.lives) + '%';
+        if(this.lives < 30) bar.style.backgroundColor = 'var(--danger)';
+        else bar.style.backgroundColor = 'var(--success)';
+        
+        document.getElementById('hud-score').innerText = this.score;
+    },
+
+    gameOver() {
+        this.stop();
+        alert("GAME OVER! Keep trying.");
+        App.nav('home');
+    },
+
+    // --- EFECTOS VISUALES (FX) ---
+    explode(el) {
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const color = window.getComputedStyle(el).color;
+
+        el.remove(); // Desaparece la palabra
+
+        // Crear particulas
+        for(let i=0; i<12; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.style.backgroundColor = color;
+            p.style.left = centerX + 'px';
+            p.style.top = centerY + 'px';
+            document.body.appendChild(p);
+
+            // Animación simple con JS
+            const angle = Math.random() * Math.PI * 2;
+            const velocity = 2 + Math.random() * 4;
+            const vx = Math.cos(angle) * velocity;
+            const vy = Math.sin(angle) * velocity;
+
+            let life = 1.0;
+            const anim = () => {
+                life -= 0.05;
+                if(life <= 0) { p.remove(); return; }
+                const currX = parseFloat(p.style.left);
+                const currY = parseFloat(p.style.top);
+                p.style.left = (currX + vx) + 'px';
+                p.style.top = (currY + vy) + 'px';
+                p.style.opacity = life;
+                p.style.transform = `scale(${life})`;
+                requestAnimationFrame(anim);
+            };
+            requestAnimationFrame(anim);
+        }
+    },
+
+    createLaser(fromEl, toEl) {
+        const rect1 = fromEl.getBoundingClientRect();
+        const rect2 = toEl.getBoundingClientRect();
+        
+        const x1 = rect1.left + rect1.width/2;
+        const y1 = rect1.top;
+        const x2 = rect2.left + rect2.width/2;
+        const y2 = rect2.top + rect2.height/2;
+
+        const laser = document.createElement('div');
+        laser.className = 'laser-beam';
+        
+        const dist = Math.hypot(x2-x1, y2-y1);
+        const angle = Math.atan2(y2-y1, x2-x1) * 180 / Math.PI;
+
+        laser.style.height = '4px';
+        laser.style.width = dist + 'px';
+        laser.style.left = x1 + 'px';
+        laser.style.top = y1 + 'px';
+        laser.style.transform = `rotate(${angle}deg)`;
+        laser.style.transformOrigin = '0 50%'; // Rotar desde el inicio
+
+        document.body.appendChild(laser);
+
+        // Desvanecer laser rápido
+        setTimeout(() => laser.style.opacity = '0', 50);
+        setTimeout(() => laser.remove(), 200);
+    },
+
+    shakeScreen() {
+        const b = document.body;
+        b.classList.add('shake-screen');
+        setTimeout(() => b.classList.remove('shake-screen'), 300);
+    }
+};
+
+window.onload = () => App.boot();
+</script>
+</body>
+</html>
