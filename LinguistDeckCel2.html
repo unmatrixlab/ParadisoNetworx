@@ -206,7 +206,53 @@
         .exercise-row s { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--danger); background-color: rgba(255, 59, 48, 0.1); padding: 2px 6px; border-radius: 6px; margin-right: 8px; font-weight: 600; display: inline-block; }
         .exercise-row s::before { content: "✖"; font-size: 0.7em; margin-right: 4px; vertical-align: text-top; opacity: 0.6; }
         .cloze-gap-container { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 4px; }
-    </style>
+   
+
+/* --- NUEVOS ESTILOS PARA INTERACTIVIDAD --- */
+.interactive-word {
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    display: inline-block; /* Mantiene la palabra unida */
+}
+.interactive-word:hover {
+    background-color: rgba(0, 122, 255, 0.1);
+    color: var(--primary);
+}
+.interactive-word.word-added {
+    color: var(--primary);
+    font-weight: 700;
+    border-bottom-color: var(--primary);
+}
+
+/* Botón de copiar pequeño */
+.btn-copy-text {
+    background: transparent;
+    border: 1px solid #d1d1d6;
+    color: #666;
+    border-radius: 6px;
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    margin-left: auto; /* Empuja a la derecha */
+}
+.btn-copy-text:hover {
+    background: #e5e5ea;
+    color: #000;
+}
+.btn-copy-text.copied {
+    border-color: var(--success);
+    color: var(--success);
+}
+
+
+
+</style>
 </head>
 <body>
 
@@ -959,29 +1005,146 @@ function processJsonAndSave(rawString) {
             alert("❌ AI Generation Error.\n\nThe AI produced text mixed with code or invalid JSON.\n\nDetails: " + e.message + "\n\nTip: Try verifying the JSON manually if needed.");
         }
     }
+
+
+    /* ====== LOGICA DE INTERACTIVIDAD Y COPIADO ====== */
+
+    // 1. Función para agregar palabra al tocarla
+    window.quickAddWord = function(wordRaw, element) {
+        // Limpiamos la palabra de puntuación (puntos, comas, signos)
+        const cleanWord = wordRaw.replace(/[^\w\u00C0-\u017F\-']/g, ""); 
+        
+        if (!cleanWord) return;
+
+        // Lógica idéntica a tu Vocabulary Builder
+        const VOCAB_KEY = 'mdc_vocab_list';
+        const items = localStorage.getItem(VOCAB_KEY) ? JSON.parse(localStorage.getItem(VOCAB_KEY)) : [];
+
+        // Evitar duplicados exactos (opcional, pero recomendado)
+        const existe = items.some(i => !i.isFolder && i.eng.toLowerCase() === cleanWord.toLowerCase());
+        
+        if (!existe) {
+            const nuevoItem = { 
+                id: Date.now(), 
+                isFolder: false, 
+                eng: cleanWord, 
+                esp: "", // Se guarda sin traducción para que la busques luego
+                isHighlighted: false 
+            };
+            items.unshift(nuevoItem);
+            localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
+        }
+
+        // Feedback Visual (Azul)
+        element.classList.add('word-added');
+        if (navigator.vibrate) navigator.vibrate(50);
+    };
+
+    // 2. Función para procesar texto y volverlo clickable
+    function makeInteractable(text) {
+        // Dividimos por espacios para aislar palabras
+        return text.split(' ').map(word => {
+            // Escapamos comillas para evitar errores en el HTML
+            const safeWord = word.replace(/'/g, "\\'"); 
+            return `<span class="interactive-word" onclick="window.quickAddWord('${safeWord}', this)">${word}</span>`;
+        }).join(' ');
+    }
+
+    // 3. Función para copiar texto de Teoría o Hints
+    window.copyDivText = function(elementId, btnElement) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        // Obtenemos el texto puro sin HTML
+        const textToCopy = el.innerText;
+        
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            // Feedback en el botón
+            const original = btnElement.innerHTML;
+            btnElement.innerHTML = "✓";
+            btnElement.classList.add('copied');
+            setTimeout(() => {
+                btnElement.innerHTML = "📋";
+                btnElement.classList.remove('copied');
+            }, 1500);
+        });
+    };
     
-    function insertExerciseFromMem(id) {
+ function insertExerciseFromMem(id) {
         const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
         const item = memory.find(x => x.id === id); if (!item) return;
         
-        const insertTime = Date.now(); const theoryId = `theory-${id}-${insertTime}`; const targetLang = item.lang || 'en';
-        let htmlBlock = `<div class="exercise-box" contenteditable="false"><div class="exercise-header"><span>✍️ ${item.title}</span><div style="display:flex; align-items:center;"><button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button><button class="btn-reset-block" contenteditable="false" onclick="window.resetExerciseBlock(this)" title="Reset">↺</button><button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete">🗑️</button></div></div><div class="theory-box" id="${theoryId}">${item.theory || "No theory."}</div>`;
+        const insertTime = Date.now(); 
+        const theoryId = `theory-${id}-${insertTime}`; 
+        const targetLang = item.lang || 'en';
+
+        // HEADER & THEORY CON BOTON COPIAR
+        let htmlBlock = `
+        <div class="exercise-box" contenteditable="false">
+            <div class="exercise-header">
+                <span>✍️ ${item.title}</span>
+                <div style="display:flex; align-items:center;">
+                    <button class="btn-theory" onclick="document.getElementById('${theoryId}').style.display = document.getElementById('${theoryId}').style.display === 'block' ? 'none' : 'block'">📘 Theory</button>
+                    <button class="btn-reset-block" contenteditable="false" onclick="window.resetExerciseBlock(this)" title="Reset">↺</button>
+                    <button class="btn-del-block" contenteditable="false" onclick="if(confirm('Delete block?')) { this.closest('.exercise-box').remove(); window.saveNote(); }" title="Delete">🗑️</button>
+                </div>
+            </div>
+            <div class="theory-box" id="${theoryId}">
+                <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
+                    <button class="btn-copy-text" onclick="window.copyDivText('${theoryId}-content', this)" title="Copy Theory">📋</button>
+                </div>
+                <div id="${theoryId}-content">${item.theory || "No theory."}</div>
+            </div>`;
+
+        // LOOP DE EJERCICIOS
         item.data.forEach((ex, index) => {
-            const uId = `ex-${id}-${index}-${insertTime}`; const hId = `hint-${id}-${index}-${insertTime}`; const tId = `trans-${id}-${index}-${insertTime}`;
+            const uId = `ex-${id}-${index}-${insertTime}`; 
+            const hId = `hint-${id}-${index}-${insertTime}`; 
+            const tId = `trans-${id}-${index}-${insertTime}`;
+            
             let exerciseContent = "";
+
             if (ex.cloze_text) {
-                let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
-                    const parts = content.split('|'); const correctAns = parts[0].trim(); const shuffled = [...parts].sort(() => Math.random() - 0.5);
-                    let optsHtml = `<option value="" disabled selected>...</option>`;
-                    shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`; });
-                    return `<span class="cloze-gap-container"><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`;
+                // LOGICA DE PARTIR TEXTO: Separamos los Gaps {...} del Texto Normal
+                // Usamos split con regex capturador para mantener los gaps en el array
+                const parts = ex.cloze_text.split(/(\{.*?\})/g);
+                
+                let interactiveHtml = "";
+                
+                parts.forEach(part => {
+                    if (part.startsWith('{') && part.endsWith('}')) {
+                        // ES UN GAP: Procesar como Select
+                        const content = part.slice(1, -1); // quitar { y }
+                        const optsArr = content.split('|'); 
+                        const correctAns = optsArr[0].trim(); 
+                        const shuffled = [...optsArr].sort(() => Math.random() - 0.5);
+                        
+                        let optsHtml = `<option value="" disabled selected>...</option>`;
+                        shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`; });
+                        
+                        interactiveHtml += `<span class="cloze-gap-container"><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`;
+                    } else {
+                        // ES TEXTO NORMAL: Hacer interactiva cada palabra
+                        interactiveHtml += makeInteractable(part);
+                    }
                 });
-                exerciseContent = `<span><b>${index + 1}.</b> ${parsedHtml}</span>`;
+
+                exerciseContent = `<span><b>${index + 1}.</b> ${interactiveHtml}</span>`;
+
             } else {
-                let optsHtml = `<option value="" disabled selected>...</option>`; const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
+                // LOGICA ANTIGUA (para legacy items)
+                let optsHtml = `<option value="" disabled selected>...</option>`; 
+                const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
                 shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt)}">${opt}</option>`; });
-                exerciseContent = `<span><b>${index + 1}.</b> ${ex.pre || ''}</span><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(ex.answer)}')">${optsHtml}</select><span>${ex.post || ''}</span>`;
+                
+                // Hacemos interactivo el 'pre' y el 'post' texto
+                const preText = makeInteractable(ex.pre || '');
+                const postText = makeInteractable(ex.post || '');
+
+                exerciseContent = `<span><b>${index + 1}.</b> ${preText}</span><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(ex.answer)}')">${optsHtml}</select><span>${postText}</span>`;
             }
+
+            // TRADUCCIONES
             let transContent = "";
             if (ex.translations) {
                 for (const [key, val] of Object.entries(ex.translations)) {
@@ -989,8 +1152,29 @@ function processJsonAndSave(rawString) {
                     transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${val}</span></div>`;
                 }
             } else { transContent = "No translation"; }
-            htmlBlock += `<div class="exercise-row" id="${uId}">${exerciseContent}<div style="display:inline-flex; gap:5px; margin-left:10px;"><button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${escapeHtml(ex.full_sentence)}', '${targetLang}')">🔊</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button><button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button></div><div class="hint-box" id="${hId}">💡 ${ex.hint}</div><div class="trans-box" id="${tId}">${transContent}</div></div>`;
+
+            // ARMADO FINAL DE LA FILA CON HINT QUE TIENE COPIAR
+            htmlBlock += `
+            <div class="exercise-row" id="${uId}">
+                ${exerciseContent}
+                <div style="display:inline-flex; gap:5px; margin-left:10px;">
+                    <button class="ex-btn-icon" contenteditable="false" onclick="window.speakText('${escapeHtml(ex.full_sentence)}', '${targetLang}')">🔊</button>
+                    <button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${tId}').style.display = document.getElementById('${tId}').style.display === 'block' ? 'none' : 'block'">🌐</button>
+                    <button class="ex-btn-icon" contenteditable="false" onclick="document.getElementById('${hId}').style.display = document.getElementById('${hId}').style.display === 'block' ? 'none' : 'block'">❓</button>
+                </div>
+                
+                <div class="hint-box" id="${hId}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>💡 Tip</span>
+                        <button class="btn-copy-text" onclick="window.copyDivText('${hId}-txt', this)" title="Copy Hint">📋</button>
+                    </div>
+                    <div id="${hId}-txt">${ex.hint}</div>
+                </div>
+                
+                <div class="trans-box" id="${tId}">${transContent}</div>
+            </div>`;
         });
+        
         htmlBlock += '</div><p><br></p>';
         editorArea.insertAdjacentHTML('beforeend', htmlBlock);
         setTimeout(() => { editorArea.scrollTop = editorArea.scrollHeight; window.saveNote(); }, 50);
