@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | V19 Ultimate Polish</title>
+    <title>LINGUA NEXUS | V20 Dynamic Cycle</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -487,21 +487,18 @@ const App = {
     }
 };
 
-// ==================== GAME ENGINE V19 (INFINITE STREAM FIX) ====================
+// ==================== GAME ENGINE V20 (DYNAMIC CYCLE) ====================
 const Game = {
     canvas: null, ctx: null, queue: [], pool: [], idx: 0,
     width: 0, height: 0, loopId: null, lastTime: 0,
     activeWord: null, particles: [], stars: [], laser: null, ghosts: [], shockwaves: [], clouds: [],
     score: 0, startTime: 0, timeLimit: 0, themeColor: '#fff',
     flashIntensity: 0, combo: 0, gridOffset: 0, showingGhost: false,
-    category: '', sessionSeen: new Set(), // NUEVO: Para rastrear palabras vistas
+    category: '',
 
     init(queue, cat, colorVar) {
-        this.queue = queue;
-        this.category = cat; // Guardamos la categoría
-        this.sessionSeen = new Set(); // Reiniciamos la memoria de la sesión
-        // Marcamos las palabras iniciales como "vistas" para que no se repitan si recargamos pronto
-        this.queue.forEach(w => this.sessionSeen.add(w.en));
+        this.queue = queue; // Initial Hand (e.g., 5 words)
+        this.category = cat; 
 
         const allData = DB.get(cat);
         this.pool = allData.length > 4 ? allData : DB.all();
@@ -553,42 +550,22 @@ const Game = {
     spawn() {
         if (this.showingGhost) return;
 
-        // --- LÓGICA DE FLUJO CONTINUO (INFINITE STREAM) ---
+        // --- CYCLE LOGIC: LOOP THE QUEUE ---
         if (this.idx >= this.queue.length) {
-            // Si hay límite de tiempo, buscamos MÁS palabras
-            if (this.timeLimit > 0) {
-                // 1. Obtenemos toda la lista ordenada por prioridad
-                const allSorted = App.getSortedData(this.category);
-                
-                // 2. Filtramos las que ya hemos jugado en esta sesión
-                let candidates = allSorted.filter(w => !this.sessionSeen.has(w.en));
-                
-                // 3. Si ya jugamos TODAS las disponibles, reiniciamos la memoria para volver a empezar
-                if (candidates.length === 0) {
-                    this.sessionSeen.clear();
-                    candidates = allSorted;
-                }
-
-                // 4. Tomamos el siguiente lote (ej. 5 palabras)
-                const count = Profile.cfg.count;
-                const nextBatch = candidates.slice(0, count);
-                
-                // 5. Cargamos el nuevo lote
-                this.queue = nextBatch;
-                this.idx = 0;
-                
-                // 6. Registramos las nuevas como vistas
-                this.queue.forEach(w => this.sessionSeen.add(w.en));
-
-                // 7. Actualizamos la Dona Visual
-                App.updateChart(this.category);
-
-            } else {
-                // Si NO hay límite de tiempo (Time = 0), el juego termina al acabar la lista
-                alert("SESSION COMPLETE!");
+            // Loop back to start of the current hand
+            this.idx = 0; 
+            
+            // Check for end of game conditions
+            if (this.timeLimit === 0 && this.queue.every(w => Profile.getLvl(w.en) === 4)) {
+                // If NO time limit and ALL words are mastered -> End Game
+                alert("SESSION COMPLETE! ALL WORDS MASTERED.");
                 this.stop();
                 App.nav('home');
                 return;
+            }
+            if (this.timeLimit > 0 && (Date.now() - this.startTime) > this.timeLimit) {
+                 // Logic handled in loop, but double check here
+                 return; 
             }
         }
 
@@ -648,6 +625,34 @@ const Game = {
         this.shockwaves.push({ x: x, y: y, radius: 10, alpha: 1.0, color: color });
     },
 
+    // --- NEW LOGIC: REMOVE MASTERED, ADD FRESH ---
+    replaceMasteredWord(oldWordEn) {
+        // 1. Find index of mastered word
+        const indexToRemove = this.queue.findIndex(w => w.en === oldWordEn);
+        if (indexToRemove === -1) return;
+
+        // 2. Remove it
+        this.queue.splice(indexToRemove, 1);
+        
+        // 3. Find a fresh word from DB
+        const allSorted = App.getSortedData(this.category);
+        // Filter out words currently in the hand
+        const candidates = allSorted.filter(w => !this.queue.find(qw => qw.en === w.en));
+        
+        if (candidates.length > 0) {
+            // Add the top candidate (highest priority)
+            this.queue.push(candidates[0]);
+        }
+        
+        // Adjust index if necessary (if we removed a word before current idx)
+        if (indexToRemove < this.idx) {
+            this.idx--;
+        } else if (indexToRemove === this.idx) {
+            // If we removed the word we just played, we don't need to increment idx later
+            this.idx--; // Compensate for the upcoming idx++
+        }
+    },
+
     fire(sel, cor, btn) {
         if (!this.activeWord) return;
         const rect = btn.getBoundingClientRect(); const canRect = this.canvas.getBoundingClientRect();
@@ -670,9 +675,17 @@ const Game = {
             this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
             
             Profile.setProg(cor.en, true);
-            App.updateChart(); // Update chart on success
             
-            this.activeWord = null; this.idx++;
+            // --- CORE CHANGE: CHECK IF MASTERED ---
+            const newLvl = Profile.getLvl(cor.en);
+            if (newLvl === 4) {
+                this.replaceMasteredWord(cor.en);
+            }
+            
+            App.updateChart(this.category); // Visual update
+            
+            this.activeWord = null; 
+            this.idx++; // Move to next slot in rotation
             if (!this.showingGhost) setTimeout(() => this.spawn(), 500);
         } else {
             btn.classList.add('error-flash');
@@ -695,10 +708,12 @@ const Game = {
         this.spawnGhost(this.activeWord.x, this.activeWord.y, this.activeWord.data.es);
         
         Profile.setProg(this.activeWord.data.en, false);
-        App.updateChart(); // Update chart on fail
+        App.updateChart(this.category);
         
         this.createExplosion(this.activeWord.x, this.activeWord.y, '#555');
-        this.activeWord = null; this.idx++; this.combo = 0;
+        this.activeWord = null; 
+        this.idx++; // Rotate to next word
+        this.combo = 0;
     },
 
     speak(txt) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt); u.lang = 'en-US'; u.rate = 1.1; window.speechSynthesis.speak(u); },
