@@ -800,7 +800,10 @@ const Game = {
         ctx.globalAlpha = 1.0; ctx.shadowBlur = 0; l.time += 0.05;
     },
 
-    loop(now) {
+   loop(now) {
+        // Si el juego se detuvo (por salir al menú), no seguimos dibujando
+        if (!this.activeWord && this.queue.length === 0) return; 
+
         const dt = (now - this.lastTime) / 16; this.lastTime = now;
         this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
         
@@ -871,19 +874,19 @@ const Game = {
             }
         }
 
-        // --- 4. EFFECTS (SLOWER) ---
+        // --- 4. EFFECTS ---
         if (this.laser) {
             this.ctx.globalCompositeOperation = 'lighter';
             this.drawWebLaser(this.ctx, this.laser);
-            this.laser.life -= 0.005; // MUCH SLOWER FADE
+            this.laser.life -= 0.005; 
             if (this.laser.life <= 0) this.laser = null;
             this.ctx.globalCompositeOperation = 'source-over';
         }
 
         for (let i = this.particles.length - 1; i >= 0; i--) {
             let p = this.particles[i]; p.x += p.vx; p.y += p.vy;
-            p.life -= 0.005; // MUCH SLOWER FADE
-            if (this.mode !== 'orbit' && this.mode !== 'butterfly') p.vy += 0.05; // Slower gravity
+            p.life -= 0.005; 
+            if (this.mode !== 'orbit' && this.mode !== 'butterfly') p.vy += 0.05; 
             if (p.life <= 0) this.particles.splice(i, 1);
             else {
                 this.ctx.globalCompositeOperation = 'lighter';
@@ -894,8 +897,7 @@ const Game = {
         this.ctx.globalAlpha = 1.0;
 
         for (let i = this.shockwaves.length - 1; i >= 0; i--) {
-            let s = this.shockwaves[i]; s.radius += 3; // Slower expansion
-            s.alpha -= 0.02; // Slower fade
+            let s = this.shockwaves[i]; s.radius += 3; s.alpha -= 0.02; 
             if (s.alpha <= 0) this.shockwaves.splice(i, 1);
             else {
                 this.ctx.strokeStyle = s.color; this.ctx.lineWidth = 3; this.ctx.globalAlpha = s.alpha;
@@ -906,16 +908,16 @@ const Game = {
 
         if (this.flashIntensity > 0) {
             this.ctx.fillStyle = this.themeColor; this.ctx.globalAlpha = this.flashIntensity; this.ctx.fillRect(0, 0, this.width, this.height);
-            this.ctx.globalAlpha = 1; this.flashIntensity -= 0.02; // Slower flash fade
+            this.ctx.globalAlpha = 1; this.flashIntensity -= 0.02; 
         }
 
-        // --- 5. UI GHOSTS (SEMÁFORO) ---
+        // --- 5. UI GHOSTS ---
         for (let i = this.ghosts.length - 1; i >= 0; i--) {
             let g = this.ghosts[i]; g.y += g.vy; g.life -= 0.003;
             if (g.life <= 0) {
                 this.ghosts.splice(i, 1);
                 this.showingGhost = false;
-                if (!this.activeWord) this.spawn(); // Trigger next word immediately
+                if (!this.activeWord) this.spawn(); 
             }
             else {
                 this.ctx.save();
@@ -933,11 +935,22 @@ const Game = {
             this.ctx.strokeText(`x${this.combo} COMBO!`, this.width - 70, 40); this.ctx.fillText(`x${this.combo} COMBO!`, this.width - 70, 40);
         }
 
+        // --- CRITICAL FIX: TIME'S UP LOOP ---
         if (this.timeLimit > 0) {
             const left = this.timeLimit - (Date.now() - this.startTime);
-            if (left <= 0) { this.stop(); alert("TIME'S UP!"); App.nav('home'); }
-            else { const m = Math.floor(left / 60000); const s = Math.floor((left % 60000) / 1000); document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; }
+            if (left <= 0) { 
+                this.stop(); 
+                alert("TIME'S UP!"); 
+                App.nav('home'); 
+                return; // <--- ESTO ES LO QUE FALTABA (Detiene el loop completamente)
+            }
+            else { 
+                const m = Math.floor(left / 60000); 
+                const s = Math.floor((left % 60000) / 1000); 
+                document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; 
+            }
         }
+
         this.loopId = requestAnimationFrame(t => this.loop(t));
     }
 };
