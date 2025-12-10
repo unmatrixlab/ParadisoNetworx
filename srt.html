@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Download YouTube Subtitles</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;max-width:800px;margin:24px auto;padding:16px;color:#111}
+    label{display:block;margin-top:12px;font-weight:600}
+    input[type=text], select{width:100%;padding:8px;margin-top:6px;border:1px solid #ddd;border-radius:6px}
+    button{margin-top:12px;padding:10px 14px;border-radius:8px;border:0;background:#0366d6;color:#fff;cursor:pointer}
+    button.secondary{background:#10b981}
+    .row{display:flex;gap:8px}
+    .small{font-size:13px;color:#555}
+    .notice{background:#fffbea;border:1px solid #ffe8a1;padding:10px;border-radius:8px;margin-top:12px}
+    pre{background:#f6f8fa;padding:10px;border-radius:6px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h2>YouTube Subtitles Downloader</h2>
+  <p class="small">Pega la URL del video de YouTube y obtén las pistas de subtítulos. Si falla por CORS, activa 'Use CORS proxy'.</p>
+
+  <label>Video URL or ID
+    <input id="video-url" type="text" placeholder="https://www.youtube.com/watch?v=VIDEOID or VIDEOID">
+  </label>
+
+  <label class="row" style="align-items:center">
+    <button id="get-tracks">Get tracks</button>
+    <label style="margin:0;display:flex;align-items:center;gap:8px;font-weight:400">
+      <input id="use-proxy" type="checkbox" /> Use CORS proxy
+    </label>
+  </label>
+
+  <label>Available tracks
+    <select id="tracks" size="6" style="height:140px"></select>
+  </label>
+
+  <div class="row">
+    <button id="download-vtt">Download VTT</button>
+    <button id="download-srt" class="secondary">Download SRT</button>
+    <button id="download-txt" class="secondary">Download TXT</button>
+  </div>
+
+  <div class="notice" id="status">Status: idle</div>
+
+  <script>
+  (function(){
+    const elUrl = document.getElementById('video-url');
+    const btnGet = document.getElementById('get-tracks');
+    const selectTracks = document.getElementById('tracks');
+    const status = document.getElementById('status');
+    const useProxy = document.getElementById('use-proxy');
+    const btnVtt = document.getElementById('download-vtt');
+    const btnSrt = document.getElementById('download-srt');
+    const btnTxt = document.getElementById('download-txt');
+
+    // default CORS proxy that returns raw content
+    const DEFAULT_PROXY = 'https://api.allorigins.win/raw?url=';
+
+    function setStatus(text, isError){
+      status.textContent = 'Status: ' + text;
+      status.style.borderColor = isError ? '#fca5a5' : '#ffe8a1';
+      status.style.background = isError ? '#fff1f2' : '#fffbea';
+    }
+
+    function extractVideoID(input){
+      if(!input) return null;
+      input = input.trim();
+      // direct ID 11 chars typical
+      const idMatch = input.match(/[A-Za-z0-9_-]{11}/);
+      if(idMatch) return idMatch[0];
+      // full URL parsing
+      try {
+        const u = new URL(input);
+        if(u.hostname.includes('youtu')) {
+          if(u.searchParams.has('v')) return u.searchParams.get('v');
+          // short youtu.be
+          const p = u.pathname.split('/');
+          if(p.length>1 && p[1]) return p[1];
+        }
+      } catch(e){}
+      // fallback: return raw input
+      return input;
+    }
+
+    async function fetchText(url, useProxyFlag){
+      const finalUrl = useProxyFlag ? DEFAULT_PROXY + encodeURIComponent(url) : url;
+      const res = await fetch(finalUrl);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.text();
+    }
+
+    function parseTrackList(xmlText){
+      // xml contains <track> elements with attributes: id, name, lang_code, lang_original, lang_translated, vss_id, kind
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, 'application/xml');
+      const tracks = Array.from(xml.querySelectorAll('track')).map(t => {
+        return {
+          name: t.getAttribute('name') || '',
+          lang_code: t.getAttribute('lang_code') || '',
+          lang_original: t.getAttribute('lang_original') || '',
+          lang_translated: t.getAttribute('lang_translated') || '',
+          vss_id: t.getAttribute('vss_id') || '',
+          kind: t.getAttribute('kind') || ''
+        };
+      });
+      return tracks;
+    }
+
+    function populateTracks(tracks){
+      selectTracks.innerHTML = '';
+      if(tracks.length === 0){
+        const opt = document.createElement('option');
+        opt.textContent = 'No tracks found';
+        selectTracks.appendChild(opt);
+        return;
+      }
+      tracks.forEach((t,idx) => {
+        const opt = document.createElement('option');
+        opt.value = JSON.stringify(t);
+        opt.textContent = `${t.lang_translated || t.lang_code} ${t.kind ? '• auto' : ''} ${t.name ? '— ' + t.name : ''}`;
+        selectTracks.appendChild(opt);
+      });
+    }
+
+    function buildTimedTextUrl(videoId, track){
+      // track: {lang_code, name, vss_id, kind}
+      // prefer using youtube api endpoint:
+      // https://www.youtube.com/api/timedtext?lang=LANG&v=VIDEOID&name=TRACKNAME
+      const base = 'https://www.youtube.com/api/timedtext';
+      const params = new URLSearchParams();
+      if(track.lang_code) params.set('lang', track.lang_code);
+      if(track.name) params.set('name', track.name);
+      // for auto-generated sometimes vss_id or kind is required
+      if(track.vss_id) params.set('vss_id', track.vss_id);
+      params.set('v', videoId);
+      // ask for vtt format
+      params.set('fmt', 'vtt');
+      return base + '?' + params.toString();
+    }
+
+    function xmlToPlainText(xmlText){
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(xmlText, 'application/xml');
+      const texts = Array.from(xml.querySelectorAll('text')).map(t => {
+        const txt = t.textContent || '';
+        // decode HTML entities
+        return txt.replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+      });
+      return texts.join('\n');
+    }
+
+    function vttToSrt(vtt){
+      // simple conversion: remove WEBVTT header and convert cues to srt numbering
+      const lines = vtt.split(/\r?\n/);
+      const cues = [];
+      let buffer = [];
+      for(let i=0;i<lines.length;i++){
+        const L = lines[i];
+        if(L.trim() === '' && buffer.length>0){
+          cues.push(buffer.join('\n'));
+          buffer = [];
+        } else {
+          buffer.push(L);
+        }
+      }
+      if(buffer.length>0) cues.push(buffer.join('\n'));
+      // remove any header chunk that contains WEBVTT
+      const filtered = cues.filter(chunk => !/^WEBVTT/.test(chunk));
+      // transform cues to srt format
+      const srtParts = filtered.map((chunk, idx) => {
+        // find timecode line (contains -->)
+        const linesChunk = chunk.split(/\r?\n/).filter(Boolean);
+        const timeLineIdx = linesChunk.findIndex(l => l.includes('-->'));
+        if(timeLineIdx===-1) return ''; // skip
+        const timeLine = linesChunk[timeLineIdx].replace('.',',');
+        const textLines = linesChunk.slice(timeLineIdx+1).join('\n');
+        return `${idx+1}\n${timeLine}\n${textLines}\n`;
+      }).filter(Boolean);
+      return srtParts.join('\n');
+    }
+
+    async function tryGetTrackList(videoId){
+      setStatus('Fetching track list...');
+      // tracks list endpoint
+      const listUrl = `https://www.youtube.com/api/timedtext?type=list&v=${encodeURIComponent(videoId)}`;
+      try {
+        const text = await fetchText(listUrl, useProxy.checked);
+        const tracks = parseTrackList(text);
+        setStatus('Tracks loaded: ' + tracks.length);
+        return tracks;
+      } catch(err){
+        // try the alternate video.google domain
+        try {
+          const alt = `https://video.google.com/timedtext?type=list&v=${encodeURIComponent(videoId)}`;
+          const text2 = await fetchText(alt, useProxy.checked);
+          const tracks2 = parseTrackList(text2);
+          setStatus('Tracks loaded (alt): ' + tracks2.length);
+          return tracks2;
+        } catch(err2){
+          setStatus('Could not fetch tracks: ' + err.message, true);
+          throw err;
+        }
+      }
+    }
+
+    btnGet.addEventListener('click', async () => {
+      const id = extractVideoID(elUrl.value);
+      if(!id){ setStatus('Invalid video id/url', true); return; }
+      try {
+        const tracks = await tryGetTrackList(id);
+        populateTracks(tracks);
+      } catch(e){
+        console.error(e);
+      }
+    });
+
+    async function fetchSelectedTimedText(format){ // format: 'vtt'|'srt'|'txt'
+      const id = extractVideoID(elUrl.value);
+      if(!id) throw new Error('Invalid video id/url');
+      const opt = selectTracks.selectedOptions[0];
+      if(!opt) throw new Error('No track selected');
+      const track = JSON.parse(opt.value);
+      const url = buildTimedTextUrl(id, track);
+      setStatus('Fetching timedtext...');
+      const text = await fetchText(url, useProxy.checked);
+      if(format === 'vtt') return {content: text, filename: `${id}_${track.lang_code || 'sub'}.vtt`};
+      if(format === 'txt') {
+        // if returned xml (YouTube sometimes returns xml <transcript><text>), try parse
+        if(text.trim().startsWith('<')) {
+          const plain = xmlToPlainText(text);
+          return {content: plain, filename: `${id}_${track.lang_code || 'sub'}.txt`};
+        } else {
+          // maybe vtt already
+          const plain = text.replace(/WEBVTT.*\n?/i,'').replace(/\d{2}:\d{2}:\d{2}\.\d{3}/g,'').replace(/^\s+$/mg,'').trim();
+          return {content: plain, filename: `${id}_${track.lang_code || 'sub'}.txt`};
+        }
+      }
+      if(format === 'srt') {
+        // If YouTube returned XML captions, convert to plain then make simple srt. If returned vtt, convert.
+        let content = text;
+        if(text.trim().startsWith('<')) {
+          // xml -> plain text with timestamps not available -> produce simple srt without timings
+          const plain = xmlToPlainText(text);
+          const srt = plain.split('\n').map((line,i)=> `${i+1}\n00:00:00,000 --> 00:00:10,000\n${line}\n`).join('\n');
+          return {content: srt, filename: `${id}_${track.lang_code || 'sub'}.srt`};
+        } else {
+          // assume VTT -> convert
+          const srt = vttToSrt(text);
+          return {content: srt, filename: `${id}_${track.lang_code || 'sub'}.srt`};
+        }
+      }
+      throw new Error('Unsupported format');
+    }
+
+    function downloadFile(content, filename){
+      const blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 500);
+    }
+
+    btnVtt.addEventListener('click', async ()=> {
+      try {
+        setStatus('Downloading VTT...');
+        const res = await fetchSelectedTimedText('vtt');
+        downloadFile(res.content, res.filename);
+        setStatus('VTT downloaded');
+      } catch(err){
+        setStatus('Error: ' + err.message, true);
+        console.error(err);
+      }
+    });
+
+    btnTxt.addEventListener('click', async ()=> {
+      try {
+        setStatus('Downloading TXT...');
+        const res = await fetchSelectedTimedText('txt');
+        downloadFile(res.content, res.filename);
+        setStatus('TXT downloaded');
+      } catch(err){
+        setStatus('Error: ' + err.message, true);
+        console.error(err);
+      }
+    });
+
+    btnSrt.addEventListener('click', async ()=> {
+      try {
+        setStatus('Downloading SRT...');
+        const res = await fetchSelectedTimedText('srt');
+        downloadFile(res.content, res.filename);
+        setStatus('SRT downloaded');
+      } catch(err){
+        setStatus('Error: ' + err.message, true);
+        console.error(err);
+      }
+    });
+
+    // small helper: if user pastes a url, try auto-fill id
+    elUrl.addEventListener('paste', (e)=>{
+      setTimeout(()=> {
+        const id = extractVideoID(elUrl.value);
+        if(id && id.length>=8) {
+          setStatus('Detected id: ' + id);
+        }
+      },50);
+    });
+
+    setStatus('Ready');
+  })();
+  </script>
+</body>
+</html>
