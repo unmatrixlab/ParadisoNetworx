@@ -653,24 +653,39 @@ function onPlayerStateChange(event) {
         }
     }
 
-    function checkTime() {
+  function checkTime() {
         if (!player || !player.getCurrentTime) return;
+        
         const currentTime = player.getCurrentTime();
+        
+        // Guardar progreso general cada 5 segundos
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
-        if (isSegmentPlaying && currentTime >= segmentEndTime) {
-            if (isLooping) {
-                const activeBtn = document.querySelector('.playBtn[data-state="playing"]');
-                if(activeBtn) {
-                    const line = activeBtn.closest('.line');
-                    const start = parseFloat(line.dataset.start) - timeOffset;
-                    player.seekTo(Math.max(0, start), true);
-                    return;
+        // --- LÓGICA DE DETECCIÓN DE FIN DE SEGMENTO CORREGIDA ---
+        if (isSegmentPlaying) {
+            // Si llegamos al final del segmento (más el padding opcional)
+            if (currentTime >= segmentEndTime) {
+                
+                if (isLooping) {
+                    // Lógica de bucle
+                    const activeBtn = document.querySelector('.playBtn[data-state="playing"]');
+                    if(activeBtn) {
+                        const line = activeBtn.closest('.line');
+                        const start = parseFloat(line.dataset.start) - timeOffset;
+                        player.seekTo(Math.max(0, start), true);
+                        return;
+                    }
                 }
+                
+                // PAUSA DEFINITIVA
+                player.pauseVideo(); 
+                isSegmentPlaying = false; 
+                resetButtons(); 
+                scrollEnabled = true; 
             }
-            player.pauseVideo(); isSegmentPlaying = false; resetButtons(); scrollEnabled = true; 
-            return;
         }
+        // ---------------------------------------------------------
+
         if (scrollEnabled) highlightCurrentLine(currentTime);
     }
 
