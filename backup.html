@@ -3,366 +3,327 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC System Dashboard</title>
+    <title>MDC Cloud Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
     <style>
         :root {
-            --bg-body: #f2f2f7;
-            --card-bg: #ffffff;
-            --primary: #007AFF;
-            --danger: #FF3B30;
-            --success: #34C759;
-            --text-main: #1c1c1e;
-            --text-sec: #8e8e93;
-            --border: #e5e5ea;
+            --bg-body: #f2f2f7; --card-bg: #ffffff; --primary: #007AFF; --danger: #FF3B30;
+            --success: #34C759; --warning: #FF9500; --text-main: #1c1c1e; --text-sec: #8e8e93; --border: #e5e5ea;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg-body);
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
+        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); margin: 0; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
         .container { max-width: 600px; width: 100%; }
-
-        .header {
-            margin-bottom: 30px;
-            text-align: center;
-        }
+        .header { margin-bottom: 20px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
-        .header p { margin: 5px 0 0; color: var(--text-sec); font-size: 14px; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: #e5e5ea; color: #888; }
+        .status-badge.online { background: #d1fae5; color: var(--success); }
+        .status-badge.error { background: #fee2e2; color: var(--danger); }
 
-        /* CARDS */
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-            margin-bottom: 20px;
-        }
-
-        .card-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid var(--border);
-            font-size: 13px;
-            font-weight: 600;
-            text-transform: uppercase;
-            color: var(--text-sec);
-            background: rgba(255,255,255,0.5);
-        }
-
-        .data-row {
-            padding: 16px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border);
-        }
+        .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; }
+        .card-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); background: rgba(255,255,255,0.5); display: flex; justify-content: space-between; align-items: center;}
+        .data-row { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .data-row:last-child { border-bottom: none; }
-
         .data-label { font-weight: 500; font-size: 16px; display: flex; align-items: center; gap: 10px; }
         .data-value { color: var(--text-sec); font-size: 15px; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        .dot-green { background: var(--success); box-shadow: 0 0 5px var(--success); }
-        .dot-gray { background: #d1d1d6; }
-
-        /* BUTTONS */
-        .action-group { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
         
-        .btn {
-            width: 100%;
-            padding: 16px;
-            border-radius: 12px;
-            border: none;
-            font-size: 17px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: transform 0.1s, opacity 0.2s;
-        }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-size: 17px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; margin-bottom: 10px; }
         .btn:active { transform: scale(0.98); opacity: 0.8; }
+        
+        /* CLOUD BUTTONS */
+        .btn-cloud-save { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
+        .btn-cloud-load { background: white; color: var(--primary); border: 2px solid var(--primary); }
+        .btn-file { background: transparent; color: var(--text-sec); border: 1px solid var(--border); font-size: 14px; padding: 10px; }
 
-        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(0,122,255,0.3); }
-        .btn-secondary { background: white; color: var(--primary); border: 1px solid var(--primary); }
-        .btn-danger { background: white; color: var(--danger); border: 1px solid var(--danger); margin-top: 10px; font-size: 14px; padding: 12px;}
-
-        /* STORAGE METER */
-        .storage-meter {
-            height: 6px;
-            background: #f2f2f7;
-            border-radius: 3px;
-            margin-top: 8px;
-            overflow: hidden;
-        }
-        .storage-fill {
-            height: 100%;
-            background: var(--success);
-            width: 0%;
-            transition: width 0.5s ease;
-        }
-
-        input[type="file"] { display: none; }
-
-        .app-icon {
-            width: 30px; height: 30px; 
-            border-radius: 6px; 
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: bold; font-size: 14px;
-        }
+        .app-icon { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }
+        .last-sync { text-align: center; font-size: 12px; color: var(--text-sec); margin-top: -10px; margin-bottom: 20px; font-style: italic; }
+        
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e5e5ea; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-msg" style="font-weight:600; color:var(--primary);">Processing...</div>
+    </div>
+
     <div class="container">
         <div class="header">
-            <h1>MDC System Dashboard</h1>
-            <p>Control Center & Backup Utility</p>
+            <h1>MDC Cloud Sync</h1>
+            <span id="connection-status" class="status-badge">Connecting...</span>
         </div>
 
         <div class="card">
-            <div class="card-header">System Status</div>
-            
-            <div class="data-row">
-                <div class="data-label">
-                    <div class="app-icon" style="background: #4f46e5;">DB</div>
-                    Vocabulary DB
-                </div>
-                <div class="data-value" id="stat-vocab">Checking...</div>
+            <div class="card-header">
+                <span>☁️ CLOUD SYNC</span>
+                <span style="font-size:10px;">FIREBASE</span>
             </div>
-
-            <div class="data-row">
-                <div class="data-label">
-                    <div class="app-icon" style="background: #ef4444;">PL</div>
-                    Studio Player History
-                </div>
-                <div class="data-value" id="stat-player">Checking...</div>
-            </div>
-
-            <div class="data-row">
-                <div class="data-label">
-                    <div class="app-icon" style="background: #007AFF;">AI</div>
-                    AI Exercises
-                </div>
-                <div class="data-value" id="stat-ai">Checking...</div>
-            </div>
-
-            <div class="data-row">
-                <div class="data-label">
-                    <div class="app-icon" style="background: #10b981;">LN</div>
-                    Lingua Nexus Progress
-                </div>
-                <div class="data-value" id="stat-game">Checking...</div>
-            </div>
-
-            <div class="data-row" style="display:block;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                    <span class="data-label" style="font-size:13px; color:var(--text-sec);">TOTAL STORAGE USED</span>
-                    <span class="data-value" id="stat-total-size">0 KB</span>
-                </div>
-                <div class="storage-meter"><div class="storage-fill" id="storage-bar"></div></div>
+            <div style="padding: 20px;">
+                <button class="btn btn-cloud-save" onclick="saveToCloud()">
+                    ⬆️ SUBIR A LA NUBE (SAVE)
+                </button>
+                <button class="btn btn-cloud-load" onclick="loadFromCloud()">
+                    ⬇️ BAJAR DE LA NUBE (RESTORE)
+                </button>
+                <div class="last-sync" id="last-sync-time">Nunca sincronizado en este dispositivo</div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">Data Management</div>
-            <div class="action-group">
-                <button class="btn btn-primary" onclick="backupSystem()">
-                    <span>☁️</span> Backup Full Ecosystem
-                </button>
-                
-                <button class="btn btn-secondary" onclick="document.getElementById('restore-input').click()">
-                    <span>Pb</span> Restore from Backup
-                </button>
-                <input type="file" id="restore-input" accept=".json" onchange="restoreSystem(this)">
+            <div class="card-header">Local Data Status</div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #4f46e5;">DB</div>Vocabulario</div>
+                <div class="data-value" id="stat-vocab">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Player History</div>
+                <div class="data-value" id="stat-player">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #007AFF;">AI</div>AI Exercises</div>
+                <div class="data-value" id="stat-ai">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #10b981;">LN</div>Game Progress</div>
+                <div class="data-value" id="stat-game">...</div>
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-header">Respaldo Manual (Archivo)</div>
+            <div style="padding: 15px; display:flex; gap:10px;">
+                <button class="btn btn-file" onclick="backupToFile()">💾 Guardar .JSON</button>
+                <button class="btn btn-file" onclick="document.getElementById('restore-input').click()">📂 Cargar .JSON</button>
+                <input type="file" id="restore-input" accept=".json" onchange="restoreFromFile(this)">
+            </div>
+        </div>
+        
         <div style="text-align: center; margin-top: 20px;">
-            <button class="btn btn-danger" onclick="wipeSystem()">
-                ⚠️ Factory Reset (Delete All Data)
+            <button class="btn" style="background:transparent; color:var(--danger); border:1px solid var(--border); width:auto; padding:10px 20px; font-size:14px;" onclick="wipeSystem()">
+                ⚠️ Borrar Datos Locales
             </button>
-            <p style="font-size: 11px; color: var(--text-sec); margin-top: 10px;">
-                This will delete localStorage for: mdc_*, LN_*
-            </p>
         </div>
     </div>
 
     <script>
-        // === CONFIGURATION ===
-        // Prefijos que definen tu ecosistema
-        const PREFIXES = ['mdc_', 'LN_'];
-
-        // Nombres de claves específicas para mostrar estadísticas
-        const KEYS = {
-            vocab: 'mdc_vocab_list',
-            history: 'mdc_studio_history',
-            ai: 'mdc_ai_exercises',
-            game: 'LN_V8_HYBRID'
+        // ======================================================
+        // ⚙️ CONFIGURACIÓN DE FIREBASE (YA CONFIGURADA)
+        // ======================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAxXKLpXk4sa3TVN2pCustVkpxV_uMZjr8",
+            authDomain: "nexushub-6bfc4.firebaseapp.com",
+            databaseURL: "https://nexushub-6bfc4-default-rtdb.firebaseio.com",
+            projectId: "nexushub-6bfc4",
+            storageBucket: "nexushub-6bfc4.firebasestorage.app",
+            messagingSenderId: "426532214270",
+            appId: "1:426532214270:web:6816040ca1aba8e8655caf",
+            measurementId: "G-NZZ1PLEH0"
         };
 
-        // === INITIALIZATION ===
+        // ======================================================
+
+        // Inicializar Firebase
+        let db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            document.getElementById('connection-status').innerText = "Wait...";
+            
+            // Verificar conexión simple
+            const connectedRef = firebase.database().ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                if (snap.val() === true) {
+                    document.getElementById('connection-status').innerText = "🟢 Online";
+                    document.getElementById('connection-status').classList.add('online');
+                } else {
+                    document.getElementById('connection-status').innerText = "⚪ Offline";
+                    document.getElementById('connection-status').classList.remove('online');
+                }
+            });
+
+        } catch (e) {
+            console.error(e);
+            document.getElementById('connection-status').innerText = "❌ Config Error";
+            document.getElementById('connection-status').classList.add('error');
+            alert("⚠️ Error configurando Firebase. Revisa la consola.");
+        }
+
+        const PREFIXES = ['mdc_', 'LN_'];
+        const KEYS = { vocab: 'mdc_vocab_list', history: 'mdc_studio_history', ai: 'mdc_ai_exercises', game: 'LN_V8_HYBRID' };
+
         document.addEventListener('DOMContentLoaded', () => {
             refreshStats();
+            const last = localStorage.getItem('mdc_last_sync');
+            if(last) document.getElementById('last-sync-time').innerText = "Última sync local: " + last;
         });
 
-        // === STATISTICS LOGIC ===
-        function refreshStats() {
-            // 1. Vocab Count
-            const vocabRaw = localStorage.getItem(KEYS.vocab);
-            const vocabCount = vocabRaw ? JSON.parse(vocabRaw).length : 0;
-            updateRow('stat-vocab', vocabCount > 0, `${vocabCount} items`);
+        // --- FUNCIONES DE NUBE ---
 
-            // 2. Player History
-            const histRaw = localStorage.getItem(KEYS.history);
-            const histCount = histRaw ? JSON.parse(histRaw).length : 0;
-            updateRow('stat-player', histCount > 0, `${histCount} videos`);
-
-            // 3. AI Exercises
-            const aiRaw = localStorage.getItem(KEYS.ai);
-            const aiCount = aiRaw ? JSON.parse(aiRaw).length : 0;
-            updateRow('stat-ai', aiCount > 0, `${aiCount} sets`);
-
-            // 4. Lingua Nexus
-            const gameRaw = localStorage.getItem(KEYS.game);
-            let gameLabel = "No Data";
-            let hasGame = false;
-            if (gameRaw) {
-                const gameData = JSON.parse(gameRaw);
-                const banned = gameData.banned ? gameData.banned.length : 0;
-                const mastered = gameData.prog ? Object.keys(gameData.prog).filter(k => gameData.prog[k].lvl === 4).length : 0;
-                gameLabel = `M: ${mastered} | Banned: ${banned}`;
-                hasGame = true;
-            }
-            updateRow('stat-game', hasGame, gameLabel);
-
-            // 5. Total Size Calculation
-            let totalBytes = 0;
-            let ecosystemBytes = 0;
-            
-            for (let key in localStorage) {
-                if (!localStorage.hasOwnProperty(key)) continue;
-                const size = (localStorage[key].length + key.length) * 2; // aprox bytes
-                totalBytes += size;
-                if (PREFIXES.some(p => key.startsWith(p))) {
-                    ecosystemBytes += size;
-                }
-            }
-
-            const kb = (ecosystemBytes / 1024).toFixed(2);
-            document.getElementById('stat-total-size').innerText = `${kb} KB`;
-            
-            // Visual bar (Assuming 5MB limit typical for browsers, visual scale just for effect)
-            const pct = Math.min(100, (ecosystemBytes / (1024 * 1024 * 5)) * 100 * 50); // Scale up for visibility
-            document.getElementById('storage-bar').style.width = Math.max(1, pct) + '%';
+        function showLoading(msg) {
+            document.getElementById('loading-msg').innerText = msg;
+            document.getElementById('loading-overlay').style.display = 'flex';
+        }
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
         }
 
-        function updateRow(id, isActive, text) {
-            const el = document.getElementById(id);
-            el.innerHTML = text;
-            el.style.color = isActive ? 'var(--text-main)' : 'var(--text-sec)';
-            if(isActive) el.innerHTML += ' <span class="status-dot dot-green"></span>';
-            else el.innerHTML += ' <span class="status-dot dot-gray"></span>';
-        }
+        async function saveToCloud() {
+            if(!db) return alert("Firebase no configurado.");
+            showLoading("Subiendo a la nube...");
 
-        // === BACKUP FUNCTION ===
-        function backupSystem() {
-            const backup = {};
+            // 1. Recolectar datos locales
+            const payload = {};
             let count = 0;
-
-            // Iterar sobre todo localStorage y filtrar
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (PREFIXES.some(p => key.startsWith(p))) {
-                    backup[key] = localStorage.getItem(key);
+                    try {
+                        // Intentamos parsear para guardar JSON limpio en la BD, si no, string
+                        const val = localStorage.getItem(key);
+                        payload[key] = JSON.parse(val); 
+                    } catch(e) {
+                        payload[key] = localStorage.getItem(key);
+                    }
                     count++;
                 }
             }
 
-            if (count === 0) {
-                alert("No MDC/LN data found to backup.");
-                return;
-            }
+            if(count === 0) { hideLoading(); return alert("No hay datos locales para guardar."); }
 
-            // Crear y descargar archivo
-            const dateStr = new Date().toISOString().slice(0, 10);
-            const fileName = `MDC_Full_Backup_${dateStr}.json`;
-            const blob = new Blob([JSON.stringify(backup, null, 2)], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            // 2. Enviar a Firebase
+            try {
+                const timestamp = new Date().toLocaleString();
+                await db.ref('my_backup').set({
+                    data: payload,
+                    last_updated: timestamp,
+                    device_agent: navigator.userAgent
+                });
+                
+                localStorage.setItem('mdc_last_sync', timestamp);
+                document.getElementById('last-sync-time').innerText = "Última sync local: " + timestamp;
+                hideLoading();
+                alert("✅ ¡Guardado Exitoso!\nTus datos están seguros en la nube.");
+            } catch (error) {
+                hideLoading();
+                alert("❌ Error al subir: " + error.message + "\n\n(Revisa si pusiste las reglas en 'true' en la consola de Firebase)");
+            }
         }
 
-        // === RESTORE FUNCTION ===
-        function restoreSystem(input) {
+        async function loadFromCloud() {
+            if(!db) return alert("Firebase no configurado.");
+            if(!confirm("¿Estás seguro?\nEsto SOBRESCRIBIRÁ tus datos actuales con los de la nube.")) return;
+
+            showLoading("Descargando datos...");
+
+            try {
+                const snapshot = await db.ref('my_backup').once('value');
+                const val = snapshot.val();
+
+                if (!val || !val.data) {
+                    hideLoading();
+                    return alert("⚠️ No se encontraron datos en la nube.");
+                }
+
+                const cloudData = val.data;
+                let restoredCount = 0;
+
+                // Restaurar
+                Object.keys(cloudData).forEach(key => {
+                    const content = cloudData[key];
+                    // Si es objeto, stringify para localStorage
+                    if (typeof content === 'object') {
+                        localStorage.setItem(key, JSON.stringify(content));
+                    } else {
+                        localStorage.setItem(key, content);
+                    }
+                    restoredCount++;
+                });
+
+                const timestamp = new Date().toLocaleString();
+                localStorage.setItem('mdc_last_sync', timestamp + " (Download)");
+                document.getElementById('last-sync-time').innerText = "Datos bajados: " + timestamp;
+                
+                refreshStats();
+                hideLoading();
+                alert(`✅ ¡Restauración completa!\nSe actualizaron ${restoredCount} elementos.\nFecha nube: ${val.last_updated}`);
+
+            } catch (error) {
+                hideLoading();
+                alert("❌ Error al bajar: " + error.message);
+            }
+        }
+
+        // --- FUNCIONES LOCALES (FILE) ---
+        function backupToFile() {
+            const backup = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (PREFIXES.some(p => key.startsWith(p))) backup[key] = localStorage.getItem(key);
+            }
+            const blob = new Blob([JSON.stringify(backup)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MDC_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        function restoreFromFile(input) {
             const file = input.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    let restoredCount = 0;
-
-                    // Validación básica
-                    const keys = Object.keys(data);
-                    const validKeys = keys.filter(k => PREFIXES.some(p => k.startsWith(p)));
-
-                    if (validKeys.length === 0) {
-                        alert("Error: This JSON does not contain valid MDC system data.");
-                        return;
-                    }
-
-                    if (!confirm(`Found ${validKeys.length} items. This will OVERWRITE current data. Continue?`)) {
-                        input.value = '';
-                        return;
-                    }
-
-                    validKeys.forEach(key => {
-                        localStorage.setItem(key, data[key]);
-                        restoredCount++;
+                    Object.keys(data).forEach(key => {
+                        if (PREFIXES.some(p => key.startsWith(p))) localStorage.setItem(key, data[key]);
                     });
-
-                    alert(`Success! Restored ${restoredCount} system items.`);
+                    alert("Datos restaurados desde archivo.");
                     refreshStats();
-                } catch (err) {
-                    alert("Error parsing backup file: " + err);
-                }
-                input.value = '';
+                } catch (err) { alert("Archivo inválido."); }
             };
             reader.readAsText(file);
         }
 
-        // === WIPE FUNCTION ===
+        // --- ESTADÍSTICAS ---
+        function refreshStats() {
+            const getLen = (k) => { const s=localStorage.getItem(k); return s?JSON.parse(s).length:0; };
+            updateRow('stat-vocab', getLen(KEYS.vocab) + " items", getLen(KEYS.vocab)>0);
+            updateRow('stat-player', getLen(KEYS.history) + " videos", getLen(KEYS.history)>0);
+            updateRow('stat-ai', getLen(KEYS.ai) + " sets", getLen(KEYS.ai)>0);
+            
+            const gameRaw = localStorage.getItem(KEYS.game);
+            let gLabel = "No data";
+            if(gameRaw) {
+                const g = JSON.parse(gameRaw);
+                const mastered = g.prog ? Object.keys(g.prog).filter(k=>g.prog[k].lvl===4).length : 0;
+                gLabel = `Mastered: ${mastered}`;
+            }
+            updateRow('stat-game', gLabel, !!gameRaw);
+        }
+
+        function updateRow(id, text, active) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.style.color = active ? 'var(--text-main)' : 'var(--text-sec)';
+        }
+
         function wipeSystem() {
-            if (confirm("Are you sure? This will DELETE ALL progress, vocabulary, and settings for ALL MDC apps.")) {
-                if (confirm("Really? There is no undo.")) {
-                    const keysToRemove = [];
-                    for (let i = 0; i < localStorage.length; i++) {
-                        const key = localStorage.key(i);
-                        if (PREFIXES.some(p => key.startsWith(p))) {
-                            keysToRemove.push(key);
-                        }
-                    }
-                    
-                    keysToRemove.forEach(k => localStorage.removeItem(k));
-                    alert("System wiped clean.");
-                    refreshStats();
+            if(confirm("¿BORRAR TODO? Esto eliminará los datos locales de tu navegador. Si no subiste a la nube, se perderán.")) {
+                const toRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (PREFIXES.some(p => key.startsWith(p))) toRemove.push(key);
                 }
+                toRemove.forEach(k => localStorage.removeItem(k));
+                refreshStats();
+                alert("Sistema limpio.");
             }
         }
     </script>
