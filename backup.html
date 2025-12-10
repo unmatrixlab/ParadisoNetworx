@@ -10,22 +10,67 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <style>
+        /* =========================================
+           1. SISTEMA DE COLOR (Variables Dinámicas)
+           ========================================= */
         :root {
-            --bg-body: #f2f2f7; --card-bg: #ffffff; --primary: #007AFF; --danger: #FF3B30;
-            --success: #34C759; --warning: #FF9500; --text-main: #1c1c1e; --text-sec: #8e8e93; --border: #e5e5ea;
+            /* MODO CLARO (Default) */
+            --bg-body: #f2f2f7; 
+            --card-bg: #ffffff; 
+            --primary: #007AFF; 
+            --danger: #FF3B30;
+            --success: #34C759; 
+            --warning: #FF9500; 
+            --text-main: #1c1c1e; 
+            --text-sec: #8e8e93; 
+            --border: #e5e5ea;
+            
+            /* Fondos específicos para badges */
+            --bg-badge-neutral: #e5e5ea;
+            --bg-badge-success: #d1fae5;
+            --bg-badge-danger: #fee2e2;
+            --card-header-bg: rgba(255,255,255,0.5);
         }
+
+        /* MODO OSCURO (Activado por Nexus Hub) */
+        body.dark-mode {
+            --bg-body: #000000; 
+            --card-bg: #1c1c1e; 
+            --text-main: #f4f4f5; 
+            --text-sec: #a1a1aa; 
+            --border: #2c2c2e;
+            
+            /* Ajustamos los badges para que no brillen en la oscuridad */
+            --bg-badge-neutral: #2c2c2e;
+            --bg-badge-success: rgba(52, 199, 89, 0.2);
+            --bg-badge-danger: rgba(255, 59, 48, 0.2);
+            --card-header-bg: rgba(255,255,255,0.05);
+        }
+
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); margin: 0; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg-body); 
+            color: var(--text-main); 
+            margin: 0; padding: 20px; 
+            min-height: 100vh; 
+            display: flex; flex-direction: column; align-items: center; 
+            transition: background 0.3s, color 0.3s; /* Transición suave */
+        }
+
         .container { max-width: 600px; width: 100%; }
         .header { margin-bottom: 20px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: #e5e5ea; color: #888; transition: 0.3s; }
-        .status-badge.online { background: #d1fae5; color: var(--success); }
-        .status-badge.sync-needed { background: #fee2e2; color: var(--danger); }
-        .status-badge.synced { background: #d1fae5; color: var(--success); }
+        
+        /* Badges usando variables */
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: var(--bg-badge-neutral); color: var(--text-sec); transition: 0.3s; }
+        .status-badge.online { background: var(--bg-badge-success); color: var(--success); }
+        .status-badge.sync-needed { background: var(--bg-badge-danger); color: var(--danger); }
+        .status-badge.synced { background: var(--bg-badge-success); color: var(--success); }
 
-        .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; }
-        .card-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); background: rgba(255,255,255,0.5); display: flex; justify-content: space-between; align-items: center;}
+        .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; transition: background 0.3s; border: 1px solid var(--border); }
+        .card-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); background: var(--card-header-bg); display: flex; justify-content: space-between; align-items: center;}
         
         .data-row { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .data-row:last-child { border-bottom: none; }
@@ -37,19 +82,21 @@
         
         /* CLOUD BUTTONS */
         .btn-cloud-save { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
-        .btn-cloud-load { background: white; color: var(--danger); border: 2px solid var(--border); }
-        .btn-cloud-mix { background: white; color: var(--success); border: 2px solid var(--success); }
+        
+        /* Ajuste botones en Dark Mode */
+        .btn-cloud-load { background: var(--card-bg); color: var(--danger); border: 2px solid var(--border); }
+        .btn-cloud-mix { background: var(--card-bg); color: var(--success); border: 2px solid var(--success); }
 
         /* FIXED FILE BUTTONS LAYOUT */
         .file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
-        .btn-file { background: #f9fafb; color: var(--text-main); border: 1px solid #d1d5db; font-size: 14px; padding: 12px; margin-bottom: 0; border-radius: 8px; }
-        .btn-file:hover { background: #f3f4f6; border-color: #9ca3af; }
+        .btn-file { background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border); font-size: 14px; padding: 12px; margin-bottom: 0; border-radius: 8px; }
+        .btn-file:hover { border-color: var(--text-sec); }
 
         .app-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
-        .sync-info { text-align: center; font-size: 12px; color: var(--text-sec); margin: 15px; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .sync-info { text-align: center; font-size: 12px; color: var(--text-sec); margin: 15px; padding: 10px; background: var(--bg-body); border-radius: 8px; border: 1px solid var(--border); }
         
-        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e5e5ea; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* Utility for hidden input */
@@ -60,7 +107,7 @@
 
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <div id="loading-msg" style="font-weight:600; color:var(--primary);">Processing...</div>
+        <div id="loading-msg" style="font-weight:600; color: white;">Processing...</div>
     </div>
 
     <div class="container">
@@ -173,6 +220,19 @@
         });
 
         // ======================================================
+        // 🌑 NEXUS HUB THEME LISTENER
+        // ======================================================
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'THEME_CHANGE') {
+                if (event.data.theme === 'dark') {
+                    document.body.classList.add('dark-mode');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                }
+            }
+        });
+
+        // ======================================================
         // 🧠 AUTOMATIZACIÓN Y LÓGICA DE MEZCLA
         // ======================================================
 
@@ -263,9 +323,6 @@
                     });
                     localStorage.setItem(KEYS.history, JSON.stringify(localHist));
                 }
-
-                // C. OTROS DATOS (Preferencias, etc): Aquí gana la nube si queremos actualizar configuración
-                // Para este ejemplo, solo mezclamos Arrays. Lo demás lo dejamos local para no romper configs.
 
                 hideLoading();
                 alert(`✅ Mezcla completada.\n\nSe agregaron ${changesCount} elementos nuevos de la nube que no tenías aquí.`);
