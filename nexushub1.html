@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS HUB | Unified</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           1. ESTÉTICA MODERNA (Glassmorphism & Stability)
+           ========================================================================== */
+        :root {
+            /* DARK MODE (Base Profunda) */
+            --bg-deep: #000000; /* Negro puro para OLEDs */
+            --bg-glass: rgba(20, 20, 23, 0.85); /* Efecto vidrio */
+            --bg-card: #121214;
+            --border: #27272a;
+            --txt-main: #ededed;
+            --txt-sec: #71717a;
+            
+            /* Acentos Neón sutiles */
+            --glow-1: rgba(56, 189, 248, 0.15); 
+            --c-1: #38bdf8; --c-2: #e879f9; --c-3: #4ade80; --c-4: #fbbf24; --c-5: #818cf8;
+
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+            --header-h: 64px;
+        }
+
+        :root.light-mode {
+            --bg-deep: #f2f4f6;
+            --bg-glass: rgba(255, 255, 255, 0.9);
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+            --txt-main: #0f172a;
+            --txt-sec: #64748b;
+            --glow-1: rgba(2, 132, 199, 0.05);
+            --c-1: #0284c7; --c-2: #c026d3; --c-3: #16a34a; --c-4: #d97706; --c-5: #4f46e5;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body { 
+            background-color: var(--bg-deep); 
+            color: var(--txt-main); 
+            font-family: var(--font-ui); 
+            margin: 0; 
+            height: 100vh; 
+            overflow: hidden; /* El scroll ocurre en Main, no en Body */
+            display: flex; flex-direction: column;
+        }
+
+        /* HEADER STICKY & GLASS */
+        header { 
+            height: var(--header-h);
+            flex-shrink: 0; 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: var(--safe-top) 24px 0 24px; /* Respetar Notch */
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px); /* Efecto Blur Apple-like */
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+            position: sticky; top: 0; /* Estabilidad */
+        }
+
+        .hub-brand { 
+            font-family: var(--font-head); font-size: 28px; letter-spacing: 1.5px; 
+            background: linear-gradient(90deg, var(--txt-main), var(--txt-sec));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .theme-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; padding: 8px; border-radius: 50%; transition: 0.3s; }
+        .theme-btn:active { background: var(--border); color: var(--txt-main); }
+        
+        main { 
+            flex: 1; overflow-y: auto; overflow-x: hidden; 
+            padding: 20px 0; 
+            padding-bottom: calc(40px + var(--safe-bottom)); 
+            width: 100%; max-width: 800px; margin: 0 auto;
+            /* Scroll suave */
+            scroll-behavior: smooth;
+        }
+
+        /* CARD DESIGN */
+        .acc-item {
+            margin: 0 16px 16px 16px; 
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+
+        /* Efecto Glow sutil en hover/active */
+        .acc-item::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--active-color); opacity: 0; transition: 0.3s;
+        }
+        .acc-item.active::before { opacity: 1; }
+
+        .acc-header {
+            padding: 20px 24px; 
+            display: flex; justify-content: space-between; align-items: center;
+            background: transparent; 
+            cursor: grab; user-select: none;
+        }
+        .acc-header:active { cursor: grabbing; background: var(--glow-1); }
+
+        .acc-title { 
+            font-family: var(--font-head); font-size: 24px; letter-spacing: 0.5px; margin: 0; 
+            display: flex; align-items: center; gap: 10px; 
+        }
+        
+        .acc-tag { 
+            font-family: var(--font-ui); font-size: 9px; font-weight: 800; 
+            padding: 3px 8px; border-radius: 4px; 
+            background: var(--border); color: var(--txt-sec);
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .acc-controls { display: flex; align-items: center; gap: 12px; }
+        .acc-icon { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: var(--txt-sec); }
+
+        /* IFRAME & CONTENT */
+        .acc-content {
+            display: flex; flex-direction: column;
+            height: 0; overflow: hidden;
+            transition: height 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            background: var(--bg-deep); /* IMPORTANTE: Fondo oscuro por defecto */
+            will-change: height;
+        }
+
+        /* Filtro para suavizar el contraste si la app interna es blanca */
+        iframe { 
+            width: 100%; flex: 1; border: none; display: block; 
+            background: #fff; /* Fallback */
+            transition: opacity 0.3s;
+        }
+        
+        /* Loading state visual */
+        .iframe-loading iframe { opacity: 0; }
+        
+        /* HANDLE BAR */
+        .resize-handle {
+            height: 20px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            cursor: row-resize;
+            display: flex; justify-content: center; align-items: center;
+            touch-action: none;
+        }
+        .resize-bar {
+            width: 36px; height: 4px; background: var(--txt-sec); 
+            border-radius: 10px; opacity: 0.3; transition: 0.3s;
+        }
+        .resize-handle:active .resize-bar { opacity: 0.8; width: 50px; background: var(--active-color); }
+
+        /* FULLSCREEN */
+        .acc-content:fullscreen { 
+            background: var(--bg-deep); 
+            display: flex; flex-direction: column;
+        }
+        
+        /* Colores */
+        .color-1 { --active-color: var(--c-1); color: var(--c-1); }
+        .color-2 { --active-color: var(--c-2); color: var(--c-2); }
+        .color-3 { --active-color: var(--c-3); color: var(--c-3); }
+        .color-4 { --active-color: var(--c-4); color: var(--c-4); }
+        .color-5 { --active-color: var(--c-5); color: var(--c-5); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="hub-brand">NEXUS HOST</div>
+        <button class="theme-btn" onclick="toggleHubTheme()" aria-label="Toggle Theme">
+            <svg id="hub-theme-icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+    </header>
+
+    <main id="accordion-list"></main>
+
+<script>
+    // === CONFIGURACIÓN ===
+    const defaultData = [
+        { id: '1', title: 'PLAYER DECK', tag: 'CORE', url: 'https://paradisonetworx.com/player8', color: 'color-1' },
+        { id: '2', title: 'VOCABULARY', tag: 'STUDY', url: 'https://paradisonetworx.com/voc1', color: 'color-2' },
+        { id: '3', title: 'CREATOR', tag: 'ADMIN', url: 'https://paradisonetworx.com/LinguistDeckCel2.html', color: 'color-3' },
+        { id: '4', title: 'ARCADE', tag: 'GAME', url: 'https://paradisonetworx.com/gamefull3.html', color: 'color-4' },
+        { id: '5', title: 'SYSTEM', tag: 'DATA', url: 'https://paradisonetworx.com/backup', color: 'color-5' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTheme();
+        renderItems();
+        initSortable();
+    });
+
+    function renderItems() {
+        const container = document.getElementById('accordion-list');
+        const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
+        let dataToRender = [...defaultData];
+        if (savedOrder) dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
+
+        container.innerHTML = dataToRender.map(item => `
+            <div class="acc-item ${item.color}" data-id="${item.id}">
+                <div class="acc-header" onclick="toggleAcc('${item.id}')">
+                    <div class="acc-title-group">
+                        <h2 class="acc-title">${item.title} <span class="acc-tag">${item.tag}</span></h2>
+                    </div>
+                    <div class="acc-controls">
+                        <button class="theme-btn" style="padding:4px" onclick="event.stopPropagation(); toggleFS('content-${item.id}')">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                        </button>
+                        <svg class="acc-icon" id="icon-${item.id}" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                    </div>
+                </div>
+                <div class="acc-content iframe-loading" id="content-${item.id}">
+                    <iframe id="iframe-${item.id}" data-src="${item.url}" onload="iframeLoaded('${item.id}')"></iframe>
+                    <div class="resize-handle" onmousedown="startResize(event, '${item.id}')" ontouchstart="startResize(event, '${item.id}')">
+                        <div class="resize-bar"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // === OPTIMIZACIÓN DE CARGA ===
+    function toggleAcc(id) {
+        const item = document.querySelector(`.acc-item[data-id="${id}"]`);
+        const content = document.getElementById(`content-${id}`);
+        const iframe = document.getElementById(`iframe-${id}`);
+        const icon = document.getElementById(`icon-${id}`);
+        const isOpen = item.classList.contains('active');
+
+        // Cerrar otros
+        document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.acc-content').forEach(el => el.style.height = '0px');
+        document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
+
+        if (!isOpen) {
+            item.classList.add('active');
+            content.style.height = "650px"; // Altura inicial
+            icon.style.transform = 'rotate(180deg)';
+            
+            // Lazy Load del iframe: Solo carga la URL cuando se abre el acordeón
+            if (!iframe.src) {
+                iframe.src = iframe.getAttribute('data-src');
+            }
+
+            setTimeout(() => {
+                const yOffset = -70; // Offset para el header sticky
+                const y = item.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                window.scrollTo({top: y, behavior: 'smooth'});
+            }, 300);
+        }
+    }
+
+    // Al cargar el iframe, quitamos la opacidad 0 para evitar el flash blanco
+    function iframeLoaded(id) {
+        const content = document.getElementById(`content-${id}`);
+        content.classList.remove('iframe-loading');
+        // Intentar comunicar el tema a la app hija (Opcional, requiere soporte en la app hija)
+        const iframe = document.getElementById(`iframe-${id}`);
+        const isDark = !document.documentElement.classList.contains('light-mode');
+        try {
+            iframe.contentWindow.postMessage({ type: 'THEME_CHANGE', theme: isDark ? 'dark' : 'light' }, '*');
+        } catch(e) {}
+    }
+
+    // === GESTIÓN DE TEMA ===
+    function loadTheme() {
+        const saved = localStorage.getItem('nexus_theme');
+        const icon = document.getElementById('hub-theme-icon');
+        if (saved === 'light') {
+            document.documentElement.classList.add('light-mode');
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>'; // Luna para ir a oscuro
+        } else {
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>'; // Sol para ir a claro
+        }
+    }
+
+    function toggleHubTheme() {
+        const doc = document.documentElement;
+        const icon = document.getElementById('hub-theme-icon');
+        const isLight = doc.classList.contains('light-mode');
+        
+        if (isLight) {
+            doc.classList.remove('light-mode');
+            localStorage.setItem('nexus_theme', 'dark');
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
+        } else {
+            doc.classList.add('light-mode');
+            localStorage.setItem('nexus_theme', 'light');
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
+        
+        // Notificar a todos los iframes abiertos del cambio
+        document.querySelectorAll('iframe').forEach(iframe => {
+            try {
+                iframe.contentWindow.postMessage({ 
+                    type: 'THEME_CHANGE', 
+                    theme: isLight ? 'dark' : 'light' 
+                }, '*');
+            } catch(e) {}
+        });
+    }
+
+    // === RESIZE & SORTABLE (Mantenidos igual, son funcionales) ===
+    let startY, startHeight, currentContent;
+    function startResize(e, id) {
+        if(e.type === 'mousedown') e.preventDefault();
+        currentContent = document.getElementById(`content-${id}`);
+        currentContent.classList.add('resizing'); 
+        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        startHeight = parseInt(document.defaultView.getComputedStyle(currentContent).height, 10);
+        if (e.type.includes('mouse')) {
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        } else {
+            document.documentElement.addEventListener('touchmove', doDrag, { passive: false });
+            document.documentElement.addEventListener('touchend', stopDrag, false);
+        }
+    }
+    function doDrag(e) {
+        if(e.type === 'touchmove') e.preventDefault();
+        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        const newHeight = startHeight + (clientY - startY);
+        if (newHeight > 100) currentContent.style.height = newHeight + 'px';
+    }
+    function stopDrag(e) {
+        if(currentContent) currentContent.classList.remove('resizing');
+        document.documentElement.removeEventListener('mousemove', doDrag, false);
+        document.documentElement.removeEventListener('mouseup', stopDrag, false);
+        document.documentElement.removeEventListener('touchmove', doDrag);
+        document.documentElement.removeEventListener('touchend', stopDrag);
+    }
+    function initSortable() {
+        new Sortable(document.getElementById('accordion-list'), {
+            animation: 300, handle: '.acc-header', delay: 100, delayOnTouchOnly: true,
+            onEnd: function (evt) {
+                const order = this.toArray();
+                localStorage.setItem('nexus_order', JSON.stringify(order));
+            }
+        });
+    }
+    function toggleFS(id) {
+        const elem = document.getElementById(id);
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+</script>
+</body>
+</html>
