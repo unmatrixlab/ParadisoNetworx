@@ -44,7 +44,7 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 20px 0 280px 0; /* Increased padding for slightly taller panel */
+            padding: 20px 0 300px 0; /* More padding for taller panel */
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
@@ -247,7 +247,7 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
 
         .gen-input {
@@ -270,11 +270,12 @@
             color: #aaa;
         }
 
-        /* --- MODE & ALG SWITCH ROW --- */
-        .config-row {
+        /* --- SWITCH ROW --- */
+        .switch-row {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-start;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
         .mode-switch {
@@ -288,6 +289,7 @@
             color: #aaa;
             font-weight: 600;
             text-transform: uppercase;
+            transition: color 0.3s;
         }
 
         /* Styled Toggle */
@@ -314,13 +316,13 @@
         }
         .toggle-checkbox:checked + .toggle-btn { background: var(--neon-gen); }
         .toggle-checkbox:checked + .toggle-btn::after { transform: translateX(20px); }
-        .toggle-checkbox:checked ~ .switch-label { color: var(--neon-gen); }
+        .toggle-checkbox:checked ~ .switch-label { color: #fff; }
 
-        /* --- ALGORITHM SELECTOR --- */
-        .alg-selector {
+        /* --- ALG ROW --- */
+        .alg-row {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 15px;
         }
 
         .alg-label {
@@ -332,7 +334,7 @@
 
         .alg-options {
             display: flex;
-            gap: 4px;
+            gap: 5px;
         }
 
         .alg-option input { display: none; }
@@ -341,9 +343,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 24px;
-            height: 24px;
-            font-size: 11px;
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
             font-weight: bold;
             border: 1px solid #444;
             border-radius: 4px;
@@ -357,10 +359,25 @@
             border-color: var(--neon-gen);
             color: #000;
             background: var(--neon-gen);
-            box-shadow: 0 0 8px rgba(0, 242, 234, 0.4);
+            box-shadow: 0 0 10px rgba(0, 242, 234, 0.4);
         }
 
-        .gen-controls { display: flex; gap: 8px; }
+        /* DYNAMIC DESCRIPTION TEXT */
+        .alg-desc {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--neon-gen);
+            text-transform: uppercase;
+            padding: 4px 8px;
+            background: rgba(0, 242, 234, 0.1);
+            border-radius: 4px;
+            min-width: 80px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
 
         .gen-btn {
             flex: 1;
@@ -407,30 +424,30 @@
         <div class="status-toast" id="toast">Action Completed</div>
         <div class="gen-container">
             
-            <div class="config-row">
+            <div class="switch-row">
                 <div class="mode-switch">
-                    <input type="checkbox" id="openTopicSwitch" class="toggle-checkbox">
+                    <input type="checkbox" id="openTopicSwitch" class="toggle-checkbox" onchange="updateAlgDescription()">
                     <label for="openTopicSwitch" class="toggle-btn"></label>
-                    <span class="switch-label">Open Topic</span>
+                    <span class="switch-label">Open Topic Mode</span>
                 </div>
+            </div>
 
-                <div class="alg-selector">
-                    <span class="alg-label">ALG:</span>
-                    <div class="alg-options">
-                        <label class="alg-option">
-                            <input type="radio" name="algorithm" value="1" checked>
-                            <span class="alg-box">1</span>
-                        </label>
-                        <label class="alg-option">
-                            <input type="radio" name="algorithm" value="2">
-                            <span class="alg-box">2</span>
-                        </label>
-                        <label class="alg-option">
-                            <input type="radio" name="algorithm" value="3">
-                            <span class="alg-box">3</span>
-                        </label>
-                    </div>
+            <div class="alg-row">
+                <div class="alg-options">
+                    <label class="alg-option">
+                        <input type="radio" name="algorithm" value="1" checked onchange="updateAlgDescription()">
+                        <span class="alg-box">1</span>
+                    </label>
+                    <label class="alg-option">
+                        <input type="radio" name="algorithm" value="2" onchange="updateAlgDescription()">
+                        <span class="alg-box">2</span>
+                    </label>
+                    <label class="alg-option">
+                        <input type="radio" name="algorithm" value="3" onchange="updateAlgDescription()">
+                        <span class="alg-box">3</span>
+                    </label>
                 </div>
+                <div id="alg-desc-text" class="alg-desc">COMPACT</div>
             </div>
 
             <input type="text" id="topicInput" class="gen-input" placeholder="Topic (e.g. Past Simple / Roman History)...">
@@ -465,11 +482,21 @@
             
             // Determine Tag based on OpenTopic + Alg
             let tagLabel = "AI-GEN";
+            let tagName = "";
+
             if (deck.isOpenTopic) {
-                tagLabel = `OPEN-ALG${deck.alg || '1'}`;
+                if(deck.alg == "1") tagName = "COMPACT";
+                else if(deck.alg == "2") tagName = "RESEARCH";
+                else if(deck.alg == "3") tagName = "WORKSHOP";
+                else tagName = "OPEN";
             } else {
-                tagLabel = `ENG-ALG${deck.alg || '1'}`;
+                if(deck.alg == "1") tagName = "GRAMMAR";
+                else if(deck.alg == "2") tagName = "ROLEPLAY";
+                else if(deck.alg == "3") tagName = "DRILL";
+                else tagName = "ENGLISH";
             }
+            
+            tagLabel = tagName;
 
             card.innerHTML = `
                 <div class="card-header" onclick="toggleCard('${deck.id}')">
@@ -513,6 +540,38 @@
         setTimeout(() => toast.style.opacity = '0', 2000);
     }
 
+    // --- NEW: DYNAMIC DESCRIPTION UPDATE ---
+    function updateAlgDescription() {
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
+        const alg = document.querySelector('input[name="algorithm"]:checked').value;
+        const descLabel = document.getElementById('alg-desc-text');
+        
+        let text = "";
+
+        if (isOpenTopic) {
+            // OPEN TOPIC DESCRIPTIONS
+            if (alg === "1") text = "COMPACT";      // Standard/Concise
+            else if (alg === "2") text = "RESEARCH"; // Deep/Academic
+            else if (alg === "3") text = "WORKSHOP"; // Action/Checklist
+        } else {
+            // ENGLISH DESCRIPTIONS
+            if (alg === "1") text = "GRAMMAR";       // Academic
+            else if (alg === "2") text = "ROLEPLAY";   // Conversation
+            else if (alg === "3") text = "DRILL";      // Vocabulary/Strict
+        }
+        
+        // Simple fade effect
+        descLabel.style.opacity = 0;
+        setTimeout(() => {
+            descLabel.textContent = text;
+            descLabel.style.opacity = 1;
+        }, 100);
+    }
+
+    // Initialize on load
+    updateAlgDescription();
+
+
     function copyPrompt() {
         const topic = document.getElementById('topicInput').value;
         const extra = document.getElementById('extraInput').value; 
@@ -528,14 +587,10 @@
 
         let promptText = "";
 
-        // ===========================================
-        // PROMPT MATRIX (3 OPEN x 3 ENGLISH)
-        // ===========================================
-
         if (isOpenTopic) {
             // === OPEN TOPIC MODES ===
             if (alg === "1") {
-                // ALG 1: COMPACT APP (Standard)
+                // ALG 1: COMPACT APP
                 promptText = `Act as a Subject Matter Expert and Senior Web Developer. 
 Create a "Definitive Interactive Guide" in a single HTML file about: "${topic}".${customInstructions}
 
@@ -546,22 +601,20 @@ CONTENT:
 2. STRUCTURE: Intro, Core Concepts, Practical Examples, Conclusion.
 
 DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
-1. USE STANDARD HYPHENS: Use standard hyphens (ASCII 45) for CSS variables.
+1. USE STANDARD HYPHENS for CSS variables.
 2. LAYOUT: Clean single-column mobile flow.
 3. STYLE: Minimalist Dark Mode (#050505) with Cyan Accents (#00f2ea).
-4. Do not use heavy glassmorphism code, use simple transparency.
 
 INTERACTIVITY:
 1. QUIZ: 3 Questions with simple JS validation.
-2. ACCORDIONS: Use <details> for large text sections to save space.
+2. ACCORDIONS: Use <details> for large text sections.
 
 TECHNICAL:
 - SINGLE FILE: HTML+CSS+JS combined.
-- MINIMIZE CODE: Use concise CSS classes. 
 - RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
 
             } else if (alg === "2") {
-                // ALG 2: SOCRATIC / DEEP DIVE (Theoretical)
+                // ALG 2: RESEARCH / DEEP DIVE
                 promptText = `Act as a Professor and Senior Web Developer. 
 Create a "Deep Dive Research App" in a single HTML file about: "${topic}".${customInstructions}
 
@@ -572,20 +625,19 @@ CONTENT:
 2. STRUCTURE: Abstract, Historical Context, Deep Theory, Modern Applications.
 
 DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
-1. USE STANDARD HYPHENS for CSS variables.
-2. STYLE: Elegant Dark Mode (#050505) with Gold Accents (#ffd700) for a premium feel.
-3. Typography: Serif headers for academic feel.
+1. USE STANDARD HYPHENS.
+2. STYLE: Elegant Dark Mode (#050505) with Gold Accents (#ffd700). Serif headers.
 
 INTERACTIVITY:
 1. FOOTNOTES: Clickable footnotes or simple modal for definitions.
-2. QUIZ: 3 conceptual questions (not simple facts).
+2. QUIZ: 3 conceptual questions.
 
 TECHNICAL:
 - SINGLE FILE: HTML+CSS+JS combined.
 - RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
 
             } else {
-                // ALG 3: WORKSHOP / GAMIFIED (Interactive)
+                // ALG 3: WORKSHOP / ACTION
                 promptText = `Act as a Corporate Trainer and Web Developer. 
 Create a "Workshop Toolkit App" in a single HTML file about: "${topic}".${customInstructions}
 
@@ -596,13 +648,12 @@ CONTENT:
 2. STRUCTURE: The Goal, The Tools, Step-by-Step Guide, Troubleshooting.
 
 DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
-1. USE STANDARD HYPHENS for CSS variables.
+1. USE STANDARD HYPHENS.
 2. STYLE: High Contrast Dark Mode (#000) with Neon Green Accents (#39ff14).
-3. UI: Large buttons, checkable lists.
 
 INTERACTIVITY:
 1. CHECKLIST: Interactive HTML checkboxes for steps.
-2. QUIZ: 3 Scenario-based questions ("What would you do if...").
+2. QUIZ: 3 Scenario-based questions.
 
 TECHNICAL:
 - SINGLE FILE: HTML+CSS+JS combined.
@@ -612,7 +663,7 @@ TECHNICAL:
         } else {
             // === ENGLISH LEARNING MODES ===
             if (alg === "1") {
-                // ALG 1: ACADEMIC / GRAMMAR (Standard)
+                // ALG 1: GRAMMAR
                 promptText = `Act as a Linguistics Professor and Senior Web Developer. 
 Create a "Masterclass Interactive App" in a single HTML file about: "${topic}".${customInstructions}
 
@@ -623,11 +674,11 @@ CONTENT:
 2. STRUCTURE: Intro, Rules, Common Mistakes, Pro Examples.
 
 DESIGN & CSS:
-1. USE STANDARD HYPHENS (ASCII 45) for variables.
+1. USE STANDARD HYPHENS.
 2. STYLE: Minimalist Dark Mode (#050505) with Cyan Accents (#00f2ea).
 
 INTERACTIVITY:
-1. TTS: 'Play' buttons for examples (window.speechSynthesis).
+1. TTS: 'Play' buttons for examples.
 2. QUIZ: 3 Questions.
 3. ACCORDIONS: Use <details>.
 
@@ -636,14 +687,14 @@ TECHNICAL:
 - RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
 
             } else if (alg === "2") {
-                // ALG 2: CONVERSATION / SLANG (Roleplay)
+                // ALG 2: ROLEPLAY
                 promptText = `Act as a Native English Coach and Web Developer. 
 Create a "Real-World Conversation App" in a single HTML file about: "${topic}".${customInstructions}
 
 OBJECTIVE: Focus on speaking, slang, and natural flow.
 
 CONTENT:
-1. FOCUS: Dialogues, street phrases, formal vs informal comparisons.
+1. FOCUS: Dialogues, street phrases, formal vs informal.
 2. STRUCTURE: Scenario Setup, The Dialogue (Script), Slang Breakdown, Roleplay tips.
 
 DESIGN & CSS:
@@ -652,14 +703,14 @@ DESIGN & CSS:
 
 INTERACTIVITY:
 1. TTS: 'Read Dialogue' button.
-2. ROLEPLAY: Hide/Show parts of the dialogue to practice.
+2. ROLEPLAY: Hide/Show parts of the dialogue.
 
 TECHNICAL:
 - SINGLE FILE: HTML+CSS+JS combined.
 - RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
 
             } else {
-                // ALG 3: DRILL SERGEANT / VOCAB (Repetition)
+                // ALG 3: DRILL / VOCAB
                 promptText = `Act as a Strict English Tutor and Web Developer. 
 Create a "Rapid Fire Drill App" in a single HTML file about: "${topic}".${customInstructions}
 
@@ -684,7 +735,7 @@ TECHNICAL:
         }
 
         navigator.clipboard.writeText(promptText)
-            .then(() => showToast(isOpenTopic ? `Open (Alg ${alg}) Copied` : `English (Alg ${alg}) Copied`))
+            .then(() => showToast(isOpenTopic ? `Open (${alg}) Copied` : `English (${alg}) Copied`))
             .catch(() => showToast('Copy failed'));
     }
 
@@ -710,7 +761,7 @@ TECHNICAL:
                 code: code, 
                 date: new Date().toISOString(),
                 isOpenTopic: isOpenTopic,
-                alg: alg // Save the algorithm used
+                alg: alg 
             };
 
             userDecks.push(newDeck);
@@ -725,7 +776,6 @@ TECHNICAL:
             
             showToast('Deck Created!');
             
-            // Cleanup
             document.getElementById('topicInput').value = ''; 
             document.getElementById('extraInput').value = '';
 
