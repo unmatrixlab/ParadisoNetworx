@@ -44,7 +44,7 @@
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 20px 0 220px 0; /* Más espacio abajo para el panel doble */
+            padding: 20px 0 250px 0; /* Más espacio abajo para el panel extendido */
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
@@ -80,7 +80,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 15px; /* Separación corregida */
+            gap: 15px; 
             cursor: pointer;
             background: transparent;
             transition: background 0.3s ease;
@@ -234,7 +234,7 @@
             z-index: 5000;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
             pointer-events: auto; 
         }
@@ -269,6 +269,48 @@
             background: rgba(255,255,255,0.02);
             color: #aaa;
         }
+
+        /* --- SWITCH DE MODO --- */
+        .mode-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+        
+        .switch-label {
+            font-size: 12px;
+            color: #aaa;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* El Toggle Estilizado */
+        .toggle-checkbox { display: none; }
+        .toggle-btn {
+            width: 40px;
+            height: 20px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .toggle-btn::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-checkbox:checked + .toggle-btn { background: var(--neon-gen); }
+        .toggle-checkbox:checked + .toggle-btn::after { transform: translateX(20px); }
+        .toggle-checkbox:checked ~ .switch-label { color: var(--neon-gen); }
+
 
         .gen-controls { display: flex; gap: 8px; }
 
@@ -316,9 +358,16 @@
     <div class="generator-panel">
         <div class="status-toast" id="toast">Acción Completada</div>
         <div class="gen-container">
-            <input type="text" id="topicInput" class="gen-input" placeholder="Tópico (ej. Past Simple)...">
             
-            <input type="text" id="extraInput" class="gen-input gen-input-extra" placeholder="Instrucciones extra (Opcional, ej: 'Usa ejemplos de comida')...">
+            <div class="mode-switch">
+                <input type="checkbox" id="openTopicSwitch" class="toggle-checkbox">
+                <label for="openTopicSwitch" class="toggle-btn"></label>
+                <span class="switch-label">Modo Abierto / Open Topic</span>
+            </div>
+
+            <input type="text" id="topicInput" class="gen-input" placeholder="Tópico (ej. Past Simple / Historia Roma)...">
+            
+            <input type="text" id="extraInput" class="gen-input gen-input-extra" placeholder="Instrucciones extra (Opcional)...">
             
             <div class="gen-controls">
                 <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copiar Prompt</button>
@@ -346,11 +395,14 @@
             card.className = 'card';
             card.setAttribute('data-id', deck.id);
             
+            // Verificamos si es un deck abierto o de inglés para ajustar etiqueta (Opcional)
+            const tagLabel = deck.isOpenTopic ? "OPEN-AI" : "AI-GEN";
+
             card.innerHTML = `
                 <div class="card-header" onclick="toggleCard('${deck.id}')">
                     <div class="title-group">
                         <h2 class="card-title">${deck.title}</h2>
-                        <span class="card-tag">AI-GEN</span>
+                        <span class="card-tag">${tagLabel}</span>
                     </div>
                     <div class="card-actions">
                         <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
@@ -391,6 +443,7 @@
     function copyPrompt() {
         const topic = document.getElementById('topicInput').value;
         const extra = document.getElementById('extraInput').value; 
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
 
         if (!topic) { showToast('¡Escribe un tópico!'); return; }
 
@@ -399,43 +452,65 @@
             customInstructions = `\nInstrucciones adicionales del usuario: "${extra}"`;
         }
 
-        // EL SUPER PROMPT V2 (FIXED LAYOUT & DEEP CONTENT)
-        const promptText = `Actúa como un Catedrático de Lingüística Inglesa y Desarrollador Frontend Senior. 
-Genera una "Masterclass Interactiva Completa" en un solo archivo HTML sobre: "${topic}".${customInstructions}
+        let promptText = "";
 
-OBJETIVO: Crear un recurso educativo profundo, exhaustivo y detallado, con una interfaz móvil de lujo (Glassmorphism).
+        if (isOpenTopic) {
+            // === PROMPT MODO ABIERTO (Cualquier Tema) ===
+            promptText = `Actúa como un Experto en la materia solicitada y Desarrollador Frontend Senior. 
+Genera una "Guía Interactiva Definitiva" en un solo archivo HTML sobre el tema: "${topic}".${customInstructions}
 
-REQUISITOS DE CONTENIDO (PROFUNDIDAD ACADÉMICA):
-1. NO RESUMAS. Quiero una explicación detallada.
-2. ESTRUCTURA OBLIGATORIA DEL CONTENIDO:
-   - Introducción: Definición clara.
-   - Deep Dive (La Teoría Fuerte): Explicación gramatical extensa.
-   - Reglas y Patrones: Tablas o listas detalladas.
-   - Errores Comunes: Qué no hacer.
-   - Ejemplos Reales: Frases complejas.
+OBJETIVO: Explicar este tema a profundidad con una interfaz móvil premium (Glassmorphism).
 
-DISEÑO UI/UX (ESTRICTO - NO FLOATING ELEMENTS):
-1. LAYOUT: Usa un flujo estándar (Standard Flow). NO uses 'position: absolute' ni 'position: fixed' para el contenido del cuerpo. El scroll debe ser natural.
-2. ACORDEONES (<details>): Usa la etiqueta HTML <details> y <summary> para crear secciones desplegables. El contenido dentro del acordeón debe estar en bloque (block) y empujar el contenido hacia abajo, NADA FLOTANTE.
-3. Estilo: Fondo #050505. Tarjetas semitransparentes (background: rgba(255,255,255,0.05)).
-4. Tipografía: Inter o system-ui.
+CONTENIDO (Profundidad):
+1. NO RESUMAS. Explica el tema extensamente.
+2. ESTRUCTURA: Introducción, Fundamentos Teóricos, Detalles Técnicos/Históricos/Científicos (según aplique), Curiosidades y Conclusión.
+3. ADAPTACIÓN: Si es código, muestra bloques de código. Si es historia, usa cronologías. Si es ciencia, explica el proceso.
+
+DISEÑO UI/UX (ESTRICTO):
+1. LAYOUT: Flujo estándar (No floating).
+2. ACORDEONES: Usa <details> y <summary> para organizar la información extensa.
+3. Estilo: Fondo #050505, Acentos Cian (#00f2ea).
 
 INTERACTIVIDAD:
-1. TTS PRO: Botones de audio al lado de CADA ejemplo. (Usa window.speechSynthesis buscando voces 'en-US' o 'en-GB').
-2. QUIZ FINAL: 5 preguntas con Feedback visual inmediato (Verde/Rojo).
+1. QUIZ FINAL: 5 preguntas de comprensión sobre el texto.
 
 REQUISITOS TÉCNICOS:
-- Todo en un solo archivo HTML.
-- CSS: Usa box-sizing: border-box globalmente.
-- Dame SOLO el código HTML final.`;
+- Solo un archivo HTML. CSS moderno.
+- Dame SOLO el código.`;
+
+        } else {
+            // === PROMPT MODO INGLÉS (Catedrático) ===
+            promptText = `Actúa como un Catedrático de Lingüística Inglesa y Desarrollador Frontend Senior. 
+Genera una "Masterclass Interactiva Completa" en un solo archivo HTML sobre: "${topic}".${customInstructions}
+
+OBJETIVO: Recurso educativo profundo de inglés con interfaz móvil premium.
+
+CONTENIDO (Profundidad Académica):
+1. NO RESUMAS. Explica detalladamente.
+2. ESTRUCTURA: Introducción, Deep Dive (Teoría), Reglas/Patrones, Errores Comunes, Ejemplos Reales.
+
+DISEÑO UI/UX (ESTRICTO):
+1. LAYOUT: Flujo estándar (No floating).
+2. ACORDEONES: Usa <details> y <summary>.
+3. Estilo: Fondo #050505, Acentos Cian (#00f2ea).
+
+INTERACTIVIDAD:
+1. TTS PRO: Botones de audio (window.speechSynthesis) en CADA ejemplo en inglés (voces en-US/en-GB).
+2. QUIZ FINAL: 5 preguntas.
+
+REQUISITOS TÉCNICOS:
+- Solo un archivo HTML. CSS moderno.
+- Dame SOLO el código.`;
+        }
 
         navigator.clipboard.writeText(promptText)
-            .then(() => showToast('Prompt Copiado'))
+            .then(() => showToast(isOpenTopic ? 'Prompt Abierto Copiado' : 'Prompt Inglés Copiado'))
             .catch(() => showToast('Error al copiar'));
     }
 
     async function pasteAndCreate() {
         const topicInput = document.getElementById('topicInput');
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
         
         let title = topicInput.value.trim();
         if (!title) { title = "Untitled Deck"; }
@@ -452,7 +527,8 @@ REQUISITOS TÉCNICOS:
                 id: 'deck_' + Date.now(),
                 title: title,
                 code: code, 
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
+                isOpenTopic: isOpenTopic // Guardamos el tipo de deck
             };
 
             userDecks.push(newDeck);
