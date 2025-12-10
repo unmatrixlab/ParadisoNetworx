@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head> 
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS | Creator Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* =========================================
+           1. ESTILOS DE LA INTERFAZ PRINCIPAL (APP)
+           ========================================= */
+        :root {
+            --bg-body: #050505;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --neon-gen: #00f2ea;
+            --neon-del: #ff4444;
+            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body { background-color: var(--bg-body); color: #fff; font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body.locked .scroll-container { overflow: hidden; pointer-events: none; }
+        
+        .scroll-container { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 0 300px 0; width: 100%; max-width: 600px; margin: 0 auto; position: relative; }
+        #deck-list { display: flex; flex-direction: column; gap: 12px; min-height: 50px; }
+
+        .card { background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%); border: 1px solid var(--glass-border); border-left: 3px solid var(--neon-gen); border-radius: 8px; margin: 0 16px; overflow: hidden; position: relative; transition: transform 0.2s ease, background 0.3s ease; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); user-select: none; }
+        .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: pointer; background: transparent; transition: background 0.3s ease; position: relative; z-index: 2; }
+        .title-group { display: flex; align-items: center; gap: 15px; overflow: hidden; flex: 1; min-width: 0; }
+        .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 1.5px; color: #ccc; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .card-tag { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px; border-radius: 2px; background: rgba(0, 242, 234, 0.1); color: var(--neon-gen); border: 1px solid rgba(0, 242, 234, 0.2); flex-shrink: 0; }
+        .card-actions { display: flex; align-items: center; gap: 15px; flex-shrink: 0; }
+        .btn-delete-card { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 68, 68, 0.1); color: var(--neon-del); border: 1px solid rgba(255, 68, 68, 0.3); font-size: 12px; cursor: pointer; transition: all 0.2s; }
+        .btn-delete-card:hover { background: var(--neon-del); color: #fff; }
+        .card-icon { color: #444; transition: transform 0.4s var(--ease-snap), color 0.3s; }
+        
+        .card-content { display: none; background: #000; width: 100%; flex: 1; position: relative; overflow: hidden; }
+        iframe { width: 100%; height: 100%; border: none; display: block; background: #050505; }
+
+        /* ACTIVE STATE */
+        .card.active { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; z-index: 9999; margin: 0; border-radius: 0; border: none; background: #000; display: flex; flex-direction: column; pointer-events: auto; animation: expandCard 0.35s var(--ease-snap) forwards; }
+        @keyframes expandCard { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card.active .card-header { background: rgba(20,20,20,0.98); border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        .card.active .card-title { color: #fff; }
+        .card.active .card-icon { color: #fff; transform: rotate(180deg); }
+        .card.active .card-content { display: flex; flex-direction: column; animation: fadeInContent 0.5s ease 0.2s forwards; opacity: 0; }
+        .card.active .btn-delete-card { display: none; }
+        @keyframes fadeInContent { to { opacity: 1; } }
+        .sortable-ghost { opacity: 0.2; border: 1px dashed var(--neon-gen); }
+
+        /* GENERATOR PANEL */
+        .generator-panel { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 1px solid var(--glass-border); padding: 15px; z-index: 5000; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); pointer-events: auto; }
+        body.locked .generator-panel { display: none; }
+        .gen-container { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 12px; }
+        .gen-input { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 12px; font-size: 14px; font-family: 'Inter', sans-serif; border-radius: 6px; width: 100%; transition: border 0.3s; }
+        .gen-input:focus { border-color: var(--neon-gen); }
+        .gen-input-extra { font-size: 12px; padding: 10px; background: rgba(255,255,255,0.02); color: #aaa; }
+
+        /* SWITCH & ALG CONTROLS */
+        .switch-row { display: flex; justify-content: flex-start; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .mode-switch { display: flex; align-items: center; gap: 10px; }
+        .switch-label { font-size: 12px; color: #aaa; font-weight: 600; text-transform: uppercase; transition: color 0.3s; }
+        .toggle-checkbox { display: none; }
+        .toggle-btn { width: 40px; height: 20px; background: #333; border-radius: 20px; position: relative; cursor: pointer; transition: background 0.3s; }
+        .toggle-btn::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform 0.3s; }
+        .toggle-checkbox:checked + .toggle-btn { background: var(--neon-gen); }
+        .toggle-checkbox:checked + .toggle-btn::after { transform: translateX(20px); }
+        .toggle-checkbox:checked ~ .switch-label { color: #fff; }
+
+        .alg-row { display: flex; align-items: center; gap: 15px; }
+        .alg-options { display: flex; gap: 5px; }
+        .alg-option input { display: none; }
+        .alg-box { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; font-size: 12px; font-weight: bold; border: 1px solid #444; border-radius: 4px; color: #666; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.02); }
+        .alg-option input:checked + .alg-box { border-color: var(--neon-gen); color: #000; background: var(--neon-gen); box-shadow: 0 0 10px rgba(0, 242, 234, 0.4); }
+        .alg-desc { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--neon-gen); text-transform: uppercase; padding: 4px 8px; background: rgba(0, 242, 234, 0.1); border-radius: 4px; min-width: 80px; text-align: center; transition: all 0.2s; }
+
+        .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
+        .gen-btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-family: 'Inter', sans-serif; font-weight: 600; text-transform: uppercase; font-size: 11px; cursor: pointer; letter-spacing: 0.5px; }
+        .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
+        .btn-paste { background: var(--neon-gen); color: #000; box-shadow: 0 0 10px rgba(0, 242, 234, 0.3); }
+        .status-toast { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #000; border: 1px solid var(--neon-gen); color: var(--neon-gen); padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+    </style>
+</head>
+<body>
+
+    <div class="scroll-container">
+        <div id="deck-list"></div>
+    </div>
+
+    <div class="generator-panel">
+        <div class="status-toast" id="toast">Action Completed</div>
+        <div class="gen-container">
+            <div class="switch-row">
+                <div class="mode-switch">
+                    <input type="checkbox" id="openTopicSwitch" class="toggle-checkbox" onchange="updateAlgDescription()">
+                    <label for="openTopicSwitch" class="toggle-btn"></label>
+                    <span class="switch-label">Open Topic Mode</span>
+                </div>
+            </div>
+            <div class="alg-row">
+                <div class="alg-options">
+                    <label class="alg-option"><input type="radio" name="algorithm" value="1" checked onchange="updateAlgDescription()"><span class="alg-box">1</span></label>
+                    <label class="alg-option"><input type="radio" name="algorithm" value="2" onchange="updateAlgDescription()"><span class="alg-box">2</span></label>
+                    <label class="alg-option"><input type="radio" name="algorithm" value="3" onchange="updateAlgDescription()"><span class="alg-box">3</span></label>
+                </div>
+                <div id="alg-desc-text" class="alg-desc">COMPACT</div>
+            </div>
+            <input type="text" id="topicInput" class="gen-input" placeholder="Topic (e.g. Past Simple / Roman History)...">
+            <input type="text" id="extraInput" class="gen-input gen-input-extra" placeholder="Extra instructions (Optional)...">
+            <div class="gen-controls">
+                <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy Prompt</button>
+                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste & Create Deck</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ============================================
+    // 0. CORE STYLES & INJECTION LOGIC (THE MAGIC)
+    // ============================================
+    const CORE_STYLES = `
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        :root { 
+            --bg: #050505; --text: #e0e0e0; --text-muted: #888; 
+            --accent: #00f2ea; --accent-glow: rgba(0,242,234,0.15);
+            --danger: #ff4444; --success: #00ff88; --gold: #ffd700;
+            --glass: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.1);
+        }
+        body { background-color: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; padding: 20px; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+        
+        /* TYPOGRAPHY */
+        h1, h2, h3 { color: #fff; margin-top: 1.5em; margin-bottom: 0.5em; font-weight: 800; letter-spacing: -0.5px; }
+        h1 { font-size: 2rem; text-align: center; color: var(--accent); text-shadow: 0 0 20px var(--accent-glow); margin-top: 0; }
+        p { margin-bottom: 1rem; color: #ccc; }
+        strong { color: #fff; }
+        
+        /* UTILITY CLASSES (User Fallbacks) */
+        .card, div[class*="box"], div[class*="container"] { 
+            background: var(--glass); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; 
+        }
+        .highlight { color: var(--accent); font-weight: bold; }
+        
+        /* INTERACTIVE ELEMENTS */
+        button, .btn { 
+            background: transparent; border: 1px solid var(--accent); color: var(--accent); 
+            padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; 
+            width: 100%; margin-top: 10px; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px; font-size: 0.9rem;
+        }
+        button:hover, .btn:hover { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent-glow); }
+        
+        input[type="text"], input[type="number"] {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: white; padding: 10px; border-radius: 6px; width: 100%;
+        }
+
+        /* DETAILS / ACCORDION */
+        details { background: rgba(0,0,0,0.3); border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border); overflow: hidden; }
+        summary { padding: 15px; cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+        summary:after { content: '+'; color: var(--accent); font-size: 1.2em; }
+        details[open] summary:after { content: '-'; }
+        details[open] summary { border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+        .details-content, details p { padding: 15px; margin: 0; font-size: 0.95em; color: var(--text-muted); }
+
+        /* QUIZ SPECIFIC */
+        .quiz-option { display: block; padding: 12px; margin-bottom: 8px; background: rgba(255,255,255,0.03); border-radius: 6px; cursor: pointer; border: 1px solid transparent; transition: border 0.2s; }
+        .quiz-option:hover { border-color: var(--accent); }
+        input[type="radio"] { margin-right: 10px; accent-color: var(--accent); }
+        
+        /* TABLE STYLES (If AI generates tables) */
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--accent); font-size: 0.8rem; text-transform: uppercase; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+    
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 1. Give generic card styling to any div that looks like a container but has weird classes
+            const divs = document.querySelectorAll('div');
+            divs.forEach(div => {
+                if (div.classList.length > 0 && !div.classList.contains('card') && !div.id) {
+                    // Check if it has significant text, likely a content box
+                    if(div.innerText.length > 50) {
+                        div.style.background = "rgba(255,255,255,0.03)";
+                        div.style.border = "1px solid rgba(255,255,255,0.1)";
+                        div.style.borderRadius = "12px";
+                        div.style.padding = "15px";
+                        div.style.marginBottom = "15px";
+                    }
+                }
+            });
+            // 2. Ensure all buttons look like our buttons
+            const btns = document.querySelectorAll('button');
+            btns.forEach(btn => {
+                if(!btn.classList.contains('btn')) btn.classList.add('btn');
+            });
+        });
+    <\/script>
+    `;
+
+    // === 1. DATA MANAGEMENT ===
+    let userDecks = JSON.parse(localStorage.getItem('nexus_ai_decks')) || [];
+    function saveDecks() { localStorage.setItem('nexus_ai_decks', JSON.stringify(userDecks)); }
+
+    // === 2. RENDERING ===
+    const deckList = document.getElementById('deck-list');
+    function renderDecks() {
+        deckList.innerHTML = ''; 
+        userDecks.forEach(deck => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.setAttribute('data-id', deck.id);
+            let tagName = "AI-GEN";
+            if (deck.isOpenTopic) {
+                if(deck.alg == "1") tagName = "COMPACT";
+                else if(deck.alg == "2") tagName = "RESEARCH";
+                else if(deck.alg == "3") tagName = "WORKSHOP";
+                else tagName = "OPEN";
+            } else {
+                if(deck.alg == "1") tagName = "GRAMMAR";
+                else if(deck.alg == "2") tagName = "ROLEPLAY";
+                else if(deck.alg == "3") tagName = "DRILL";
+                else tagName = "ENGLISH";
+            }
+            card.innerHTML = `
+                <div class="card-header" onclick="toggleCard('${deck.id}')">
+                    <div class="title-group"><h2 class="card-title">${deck.title}</h2><span class="card-tag">${tagName}</span></div>
+                    <div class="card-actions">
+                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
+                        <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                    </div>
+                </div>
+                <div class="card-content" id="content-${deck.id}"></div>
+            `;
+            deckList.appendChild(card);
+        });
+    }
+    new Sortable(deckList, { animation: 300, handle: '.card-header', delay: 200, delayOnTouchOnly: true, ghostClass: 'sortable-ghost', onEnd: function (evt) { const newOrderIds = Array.from(deckList.children).map(c => c.getAttribute('data-id')); userDecks.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id)); saveDecks(); }});
+
+    // === 3. LOGIC ===
+    function showToast(msg) { const toast = document.getElementById('toast'); toast.textContent = msg; toast.style.opacity = '1'; setTimeout(() => toast.style.opacity = '0', 2000); }
+    function updateAlgDescription() {
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
+        const alg = document.querySelector('input[name="algorithm"]:checked').value;
+        const descLabel = document.getElementById('alg-desc-text');
+        let text = "";
+        if (isOpenTopic) {
+            if (alg === "1") text = "COMPACT"; else if (alg === "2") text = "RESEARCH"; else if (alg === "3") text = "WORKSHOP";
+        } else {
+            if (alg === "1") text = "GRAMMAR"; else if (alg === "2") text = "ROLEPLAY"; else if (alg === "3") text = "DRILL";
+        }
+        descLabel.style.opacity = 0; setTimeout(() => { descLabel.textContent = text; descLabel.style.opacity = 1; }, 100);
+    }
+    updateAlgDescription();
+
+    function copyPrompt() {
+        const topic = document.getElementById('topicInput').value;
+        const extra = document.getElementById('extraInput').value; 
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
+        const alg = document.querySelector('input[name="algorithm"]:checked').value;
+        if (!topic) { showToast('Please enter a topic!'); return; }
+        let customInstructions = extra ? `\nExtra instructions: "${extra}"` : "";
+        let promptText = "";
+
+        // ============================================
+        // PROMPTS UPDATED: NO CSS GENERATION REQUESTED
+        // ============================================
+        const NO_CSS_INSTRUCTION = `
+CRITICAL TECH SPECS:
+- RETURN HTML BODY ONLY + SCRIPT.
+- **DO NOT WRITE CSS.** Styling is pre-injected.
+- USE THESE CLASSES ONLY: <div class="card"> for boxes, <button> for interactions, <details> for toggles.
+`;
+
+        if (isOpenTopic) {
+            if (alg === "1") {
+                promptText = `Act as Subject Matter Expert. Create a "Concise Guide" about: "${topic}".${customInstructions}
+OBJECTIVE: Short, high-impact learning.
+CONTENT: Intro, Key Concepts, Examples.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: 3 Questions (JS validation).`;
+            } else if (alg === "2") {
+                promptText = `Act as Professor. Create a "Deep Dive" about: "${topic}".${customInstructions}
+OBJECTIVE: Academic depth.
+CONTENT: History, Theory, Analysis.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: Footnotes + 3 Conceptual Questions.`;
+            } else {
+                promptText = `Act as Trainer. Create a "Workshop Toolkit" about: "${topic}".${customInstructions}
+OBJECTIVE: Actionable steps.
+CONTENT: Checklist, Steps, Troubleshooting.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: HTML Checkboxes + 3 Scenario Questions.`;
+            }
+        } else {
+            if (alg === "1") {
+                promptText = `Act as Linguist. Create "Grammar Masterclass" about: "${topic}".${customInstructions}
+OBJECTIVE: Rules & nuances.
+CONTENT: Rules, Exceptions, Mistakes.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: Play Audio Buttons (TTS) + 3 Questions.`;
+            } else if (alg === "2") {
+                promptText = `Act as Coach. Create "Real Conv. Guide" about: "${topic}".${customInstructions}
+OBJECTIVE: Slang & Flow.
+CONTENT: Dialogue Script, Slang analysis.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: Play Dialogue Button + Roleplay toggle.`;
+            } else {
+                promptText = `Act as Tutor. Create "Drill Set" about: "${topic}".${customInstructions}
+OBJECTIVE: Memorization.
+CONTENT: Vocab Lists, Speed Tables.
+${NO_CSS_INSTRUCTION}
+INTERACTIVITY: 5 Rapid-fire Questions.`;
+            }
+        }
+        navigator.clipboard.writeText(promptText).then(() => showToast('Prompt Copied (No-CSS Mode)')).catch(() => showToast('Copy failed'));
+    }
+
+    async function pasteAndCreate() {
+        const topicInput = document.getElementById('topicInput');
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
+        const alg = document.querySelector('input[name="algorithm"]:checked').value;
+        let title = topicInput.value.trim() || "Untitled Deck";
+
+        try {
+            const code = await navigator.clipboard.readText();
+            if (!code || code.trim().length < 10) { showToast('Invalid Clipboard'); return; }
+            const newDeck = { id: 'deck_' + Date.now(), title: title, code: code, date: new Date().toISOString(), isOpenTopic: isOpenTopic, alg: alg };
+            userDecks.push(newDeck);
+            saveDecks(); renderDecks();
+            setTimeout(() => { document.querySelector('.scroll-container').scrollTo({ top: document.querySelector('.scroll-container').scrollHeight, behavior: 'smooth' }); }, 100);
+            showToast('Deck Created!');
+            document.getElementById('topicInput').value = ''; document.getElementById('extraInput').value = '';
+        } catch (err) { console.error(err); showToast('Permission denied'); }
+    }
+
+    function deleteDeck(e, id) { e.stopPropagation(); if(!confirm("Delete this Deck?")) return; userDecks = userDecks.filter(d => d.id !== id); saveDecks(); renderDecks(); }
+
+    function toggleCard(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
+        const contentDiv = document.getElementById(`content-${id}`);
+        const isActive = card.classList.contains('active');
+
+        if (isActive) {
+            card.classList.remove('active'); document.body.classList.remove('locked');
+            setTimeout(() => { contentDiv.innerHTML = ''; }, 300); return;
+        }
+        document.querySelectorAll('.card.active').forEach(c => { c.classList.remove('active'); c.querySelector('.card-content').innerHTML = ''; });
+        card.classList.add('active'); document.body.classList.add('locked');
+
+        const deckData = userDecks.find(d => d.id === id);
+        if (deckData) {
+            const iframe = document.createElement('iframe');
+            iframe.allow = "autoplay; fullscreen; microphone";
+            contentDiv.appendChild(iframe);
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            // === INJECTION POINT ===
+            // 1. CORE_STYLES (Our CSS) + 2. deckData.code (AI HTML/JS)
+            doc.write(CORE_STYLES + deckData.code);
+            doc.close();
+        }
+    }
+    renderDecks();
+</script>
+</body>
+</html>
