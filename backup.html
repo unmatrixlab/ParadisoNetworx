@@ -111,9 +111,9 @@
         </div>
     </div>
 
-    <script>
+   <script>
         // ======================================================
-        // ⚙️ CONFIGURACIÓN DE FIREBASE (YA CONFIGURADA)
+        // ⚙️ TUS CLAVES DE FIREBASE (Ya configuradas)
         // ======================================================
         const firebaseConfig = {
             apiKey: "AIzaSyAxXKLpXk4sa3TVN2pCustVkpxV_uMZjr8",
@@ -123,103 +123,127 @@
             storageBucket: "nexushub-6bfc4.firebasestorage.app",
             messagingSenderId: "426532214270",
             appId: "1:426532214270:web:6816040ca1aba8e8655caf",
-            measurementId: "G-NZZ1PLEH0"
+            measurementId: "G-NZZ1PLEH0V"
         };
-
-        // ======================================================
 
         // Inicializar Firebase
         let db;
         try {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
-            document.getElementById('connection-status').innerText = "Wait...";
             
-            // Verificar conexión simple
             const connectedRef = firebase.database().ref(".info/connected");
             connectedRef.on("value", (snap) => {
+                const badge = document.getElementById('connection-status');
                 if (snap.val() === true) {
-                    document.getElementById('connection-status').innerText = "🟢 Online";
-                    document.getElementById('connection-status').classList.add('online');
+                    badge.innerText = "🟢 Conectado";
+                    badge.className = "status-badge online";
+                    checkCloudVersion(); // Revisar si hay versión más nueva al conectar
                 } else {
-                    document.getElementById('connection-status').innerText = "⚪ Offline";
-                    document.getElementById('connection-status').classList.remove('online');
+                    badge.innerText = "⚪ Desconectado";
+                    badge.className = "status-badge";
                 }
             });
 
         } catch (e) {
-            console.error(e);
-            document.getElementById('connection-status').innerText = "❌ Config Error";
-            document.getElementById('connection-status').classList.add('error');
-            alert("⚠️ Error configurando Firebase. Revisa la consola.");
+            alert("Error configurando Firebase: " + e.message);
         }
 
         const PREFIXES = ['mdc_', 'LN_'];
+        // Claves principales para estadísticas
         const KEYS = { vocab: 'mdc_vocab_list', history: 'mdc_studio_history', ai: 'mdc_ai_exercises', game: 'LN_V8_HYBRID' };
 
         document.addEventListener('DOMContentLoaded', () => {
             refreshStats();
-            const last = localStorage.getItem('mdc_last_sync');
-            if(last) document.getElementById('last-sync-time').innerText = "Última sync local: " + last;
+            const last = localStorage.getItem('mdc_last_sync_date');
+            if(last) document.getElementById('last-sync-time').innerText = "Tu última copia local: " + last;
         });
 
-        // --- FUNCIONES DE NUBE ---
+        // --- LÓGICA INTELIGENTE DE NUBE ---
 
         function showLoading(msg) {
             document.getElementById('loading-msg').innerText = msg;
             document.getElementById('loading-overlay').style.display = 'flex';
         }
-        function hideLoading() {
-            document.getElementById('loading-overlay').style.display = 'none';
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+
+        // Compara fechas para avisarte si vas a sobrescribir algo nuevo con algo viejo
+        async function checkCloudVersion() {
+            try {
+                const snap = await db.ref('my_backup/meta').once('value');
+                const meta = snap.val();
+                if(meta && meta.timestamp) {
+                    const localTime = parseInt(localStorage.getItem('mdc_last_sync_ts') || '0');
+                    const cloudTime = meta.timestamp;
+                    
+                    const btnLoad = document.querySelector('.btn-cloud-load');
+                    
+                    if(cloudTime > localTime) {
+                        btnLoad.innerHTML = "⬇️ BAJAR DE LA NUBE (Hay versión más nueva 🔥)";
+                        btnLoad.style.borderColor = "#34C759";
+                        btnLoad.style.color = "#34C759";
+                    } else {
+                        btnLoad.innerHTML = "⬇️ BAJAR DE LA NUBE (Restore)";
+                        btnLoad.style.borderColor = "";
+                        btnLoad.style.color = "";
+                    }
+                }
+            } catch(e) { console.log("Check version skipped"); }
         }
 
         async function saveToCloud() {
-            if(!db) return alert("Firebase no configurado.");
-            showLoading("Subiendo a la nube...");
+            if(!db) return alert("Error de conexión.");
+            showLoading("Subiendo...");
 
-            // 1. Recolectar datos locales
             const payload = {};
             let count = 0;
+            // Recolectar datos
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (PREFIXES.some(p => key.startsWith(p))) {
-                    try {
-                        // Intentamos parsear para guardar JSON limpio en la BD, si no, string
-                        const val = localStorage.getItem(key);
-                        payload[key] = JSON.parse(val); 
-                    } catch(e) {
-                        payload[key] = localStorage.getItem(key);
-                    }
+                    const val = localStorage.getItem(key);
+                    try { payload[key] = JSON.parse(val); } catch(e) { payload[key] = val; }
                     count++;
                 }
             }
 
-            if(count === 0) { hideLoading(); return alert("No hay datos locales para guardar."); }
+            if(count === 0) { hideLoading(); return alert("No hay datos para guardar."); }
 
-            // 2. Enviar a Firebase
             try {
-                const timestamp = new Date().toLocaleString();
+                const now = Date.now();
+                const dateStr = new Date().toLocaleString();
+                
+                // Guardamos en dos nodos: 'data' (pesado) y 'meta' (ligero para chequear fechas)
                 await db.ref('my_backup').set({
                     data: payload,
-                    last_updated: timestamp,
-                    device_agent: navigator.userAgent
+                    meta: {
+                        timestamp: now,
+                        date_str: dateStr,
+                        device: navigator.userAgent
+                    }
                 });
                 
-                localStorage.setItem('mdc_last_sync', timestamp);
-                document.getElementById('last-sync-time').innerText = "Última sync local: " + timestamp;
+                // Actualizamos marcas de tiempo locales
+                localStorage.setItem('mdc_last_sync_date', dateStr);
+                localStorage.setItem('mdc_last_sync_ts', now);
+                
+                document.getElementById('last-sync-time').innerText = "Sincronizado: " + dateStr;
                 hideLoading();
-                alert("✅ ¡Guardado Exitoso!\nTus datos están seguros en la nube.");
+                // Feedback visual breve
+                alert("✅ Guardado en la nube correctamente.");
             } catch (error) {
                 hideLoading();
-                alert("❌ Error al subir: " + error.message + "\n\n(Revisa si pusiste las reglas en 'true' en la consola de Firebase)");
+                alert("❌ Error: " + error.message);
             }
         }
 
         async function loadFromCloud() {
-            if(!db) return alert("Firebase no configurado.");
-            if(!confirm("¿Estás seguro?\nEsto SOBRESCRIBIRÁ tus datos actuales con los de la nube.")) return;
+            if(!db) return alert("Error de conexión.");
+            
+            // Confirmación de seguridad
+            if(!confirm("⚠️ CUIDADO: Esto BORRARÁ los datos actuales de este dispositivo y pondrá los de la nube.\n\n¿Seguro que quieres reemplazar todo?")) return;
 
-            showLoading("Descargando datos...");
+            showLoading("Descargando...");
 
             try {
                 const snapshot = await db.ref('my_backup').once('value');
@@ -227,16 +251,25 @@
 
                 if (!val || !val.data) {
                     hideLoading();
-                    return alert("⚠️ No se encontraron datos en la nube.");
+                    return alert("⚠️ No hay copia de seguridad en la nube.");
                 }
 
                 const cloudData = val.data;
-                let restoredCount = 0;
+                const cloudMeta = val.meta || {};
 
-                // Restaurar
+                // 1. LIMPIEZA QUIRÚRGICA: Borramos solo las claves del ecosistema antes de escribir
+                // Esto asegura que si borraste una clave en la nube, se borre aquí también.
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (PREFIXES.some(p => key.startsWith(p))) keysToRemove.push(key);
+                }
+                keysToRemove.forEach(k => localStorage.removeItem(k));
+
+                // 2. RESTAURACIÓN (Reemplazo total)
+                let restoredCount = 0;
                 Object.keys(cloudData).forEach(key => {
                     const content = cloudData[key];
-                    // Si es objeto, stringify para localStorage
                     if (typeof content === 'object') {
                         localStorage.setItem(key, JSON.stringify(content));
                     } else {
@@ -245,13 +278,17 @@
                     restoredCount++;
                 });
 
-                const timestamp = new Date().toLocaleString();
-                localStorage.setItem('mdc_last_sync', timestamp + " (Download)");
-                document.getElementById('last-sync-time').innerText = "Datos bajados: " + timestamp;
-                
-                refreshStats();
+                // 3. Actualizar fecha local para que coincida con la nube
+                localStorage.setItem('mdc_last_sync_date', cloudMeta.date_str || new Date().toLocaleString());
+                localStorage.setItem('mdc_last_sync_ts', cloudMeta.timestamp || Date.now());
+
                 hideLoading();
-                alert(`✅ ¡Restauración completa!\nSe actualizaron ${restoredCount} elementos.\nFecha nube: ${val.last_updated}`);
+                
+                // 4. AUTO-RELOAD CRÍTICO
+                // Esto evita el problema de la "Memoria Zombie". Al recargar, obligamos a todas
+                // las pestañas a leer los datos nuevos.
+                alert(`✅ ¡Restauración completa!\n\nSe descargaron ${restoredCount} elementos del ${cloudMeta.date_str}.\n\nLa página se recargará para aplicar cambios.`);
+                window.location.reload(); 
 
             } catch (error) {
                 hideLoading();
@@ -259,7 +296,7 @@
             }
         }
 
-        // --- FUNCIONES LOCALES (FILE) ---
+        // --- BACKUP MANUAL (ARCHIVO) ---
         function backupToFile() {
             const backup = {};
             for (let i = 0; i < localStorage.length; i++) {
@@ -268,8 +305,7 @@
             }
             const blob = new Blob([JSON.stringify(backup)], {type: "application/json"});
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
+            const a = document.createElement('a'); a.href = url;
             a.download = `MDC_Backup_${new Date().toISOString().slice(0,10)}.json`;
             a.click();
         }
@@ -284,28 +320,20 @@
                     Object.keys(data).forEach(key => {
                         if (PREFIXES.some(p => key.startsWith(p))) localStorage.setItem(key, data[key]);
                     });
-                    alert("Datos restaurados desde archivo.");
-                    refreshStats();
+                    alert("Datos restaurados. Recargando...");
+                    window.location.reload();
                 } catch (err) { alert("Archivo inválido."); }
             };
             reader.readAsText(file);
         }
 
-        // --- ESTADÍSTICAS ---
         function refreshStats() {
             const getLen = (k) => { const s=localStorage.getItem(k); return s?JSON.parse(s).length:0; };
             updateRow('stat-vocab', getLen(KEYS.vocab) + " items", getLen(KEYS.vocab)>0);
             updateRow('stat-player', getLen(KEYS.history) + " videos", getLen(KEYS.history)>0);
             updateRow('stat-ai', getLen(KEYS.ai) + " sets", getLen(KEYS.ai)>0);
-            
             const gameRaw = localStorage.getItem(KEYS.game);
-            let gLabel = "No data";
-            if(gameRaw) {
-                const g = JSON.parse(gameRaw);
-                const mastered = g.prog ? Object.keys(g.prog).filter(k=>g.prog[k].lvl===4).length : 0;
-                gLabel = `Mastered: ${mastered}`;
-            }
-            updateRow('stat-game', gLabel, !!gameRaw);
+            updateRow('stat-game', gameRaw ? "Activo" : "No Data", !!gameRaw);
         }
 
         function updateRow(id, text, active) {
@@ -315,15 +343,14 @@
         }
 
         function wipeSystem() {
-            if(confirm("¿BORRAR TODO? Esto eliminará los datos locales de tu navegador. Si no subiste a la nube, se perderán.")) {
+            if(confirm("¿BORRAR TODO? Esto es irreversible.")) {
                 const toRemove = [];
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
                     if (PREFIXES.some(p => key.startsWith(p))) toRemove.push(key);
                 }
                 toRemove.forEach(k => localStorage.removeItem(k));
-                refreshStats();
-                alert("Sistema limpio.");
+                window.location.reload();
             }
         }
     </script>
