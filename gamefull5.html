@@ -624,7 +624,6 @@ const Game = {
         if(idx<this.idx)this.idx--; else if(idx===this.idx)this.idx--;
     },
 fire(sel,cor,btn) {
-        // Evitamos disparar si ya hay un láser en vuelo o estamos en fase de ban
         if(!this.activeWord || this.banningPhase || this.laser) return;
 
         const rect=btn.getBoundingClientRect(), cRect=this.canvas.getBoundingClientRect();
@@ -634,9 +633,6 @@ fire(sel,cor,btn) {
         const fem=['flower','heart','butterfly'].includes(this.mode);
         const isCorrect = sel.en === cor.en;
         
-        // LÓGICA DE COLOR Y DIRECCIÓN
-        // Si es correcto: Verde/Rosa. Inicio: Botón. Fin: Enemigo.
-        // Si es error: Rojo. Inicio: Enemigo. Fin: Botón.
         let color, start, end;
         
         if (isCorrect) {
@@ -646,12 +642,11 @@ fire(sel,cor,btn) {
             btn.classList.add('correct-flash'); 
         } else {
             color = fem ? '#fda4af' : '#ef4444';
-            start = { x: this.activeWord.x, y: this.activeWord.y }; // Sale del enemigo
-            end = { x: ox, y: oy }; // Va al botón
+            start = { x: this.activeWord.x, y: this.activeWord.y }; 
+            end = { x: ox, y: oy }; 
             btn.classList.add('error-flash');
         }
 
-        // CREAMOS EL LÁSER CON LA LÓGICA DE "IMPACTO RETRASADO"
         this.laser = {
             x1: start.x, y1: start.y,
             x2: end.x, y2: end.y,
@@ -659,16 +654,17 @@ fire(sel,cor,btn) {
             color: color,
             time: 0,
             progress: 0,
-            speed: 0.15, // Ajusta la velocidad aquí
+            speed: 0.15, 
             
-            // ESTO SE EJECUTARÁ CUANDO EL RAYO LLEGUE (definido en el Loop)
             onHit: () => {
                 if(isCorrect){
+                    // ACIERTO: Explota el enemigo
                     if(App.audioMode) this.speak(cor.en);
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
                     this.flashIntensity = 0.3; 
                     this.combo++; 
                     this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
+                    
                     const newLvl = Profile.setProg(cor.en, true); 
                     if(newLvl === 4) this.replaceMasteredWord(cor.en);
                     App.updateChart(this.queue); 
@@ -676,8 +672,12 @@ fire(sel,cor,btn) {
                     this.idx++; 
                     if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                 } else {
-                    // El rayo te golpeó a TI (al botón)
+                    // ERROR: Explota el botón (TU POSICIÓN)
                     this.screenShake(); 
+                    
+                    // --- NUEVA LÍNEA: Explosión en las coordenadas finales del rayo (el botón) ---
+                    this.createExplosion(this.laser.x2, this.laser.y2, color); 
+                    
                     this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
                     this.combo = 0;
                 }
