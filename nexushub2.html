@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS HUB | Gesture</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* ==========================================================================
+           1. ESTÉTICA (Variables y Reset)
+           ========================================================================== */
+        :root {
+            /* DARK MODE (Default) */
+            --bg-deep: #09090b; 
+            --bg-card: #18181b; 
+            --bg-hover: #27272a; 
+            --border: #3f3f46;
+            --txt-main: #f4f4f5;
+            --txt-sec: #a1a1aa;
+            
+            /* Accents */
+            --c-1: #38bdf8; --c-2: #e879f9; --c-3: #4ade80; --c-4: #fbbf24; --c-5: #818cf8;
+            --c-6: #ff5733; 
+            
+            --font-head: 'Bebas Neue', sans-serif;
+            --font-ui: 'Inter', sans-serif;
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+
+        :root.light-mode {
+            --bg-deep: #f8fafc; --bg-card: #ffffff; --bg-hover: #f1f5f9; --border: #e2e8f0;
+            --txt-main: #0f172a; --txt-sec: #64748b;
+            --c-1: #0284c7; --c-2: #c026d3; --c-3: #16a34a; --c-4: #d97706; --c-5: #4f46e5;
+            --c-6: #c2410c;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body { 
+            background-color: var(--bg-deep); color: var(--txt-main); 
+            font-family: var(--font-ui); margin: 0; height: 100vh; 
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* --- MENÚ DE ESQUINA (NUEVO) --- */
+        .corner-menu {
+            position: fixed;
+            top: 0; left: 0;
+            width: 60px; height: 60px; /* Tamaño inicial pequeño */
+            background: var(--bg-card);
+            border-bottom-right-radius: 100%; /* El efecto de cuarto de círculo */
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+            z-index: 9999; /* Siempre encima de todo */
+            overflow: hidden;
+            transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1), 
+                        height 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            /* Importante para el arrastre */
+            touch-action: none; 
+            cursor: grab;
+        }
+
+        /* Icono de "agarrar" visible siempre */
+        .corner-handle-icon {
+            position: absolute;
+            top: 15px; left: 15px;
+            color: var(--txt-sec);
+            pointer-events: none; /* Dejar pasar el touch al padre */
+        }
+
+        /* Contenido oculto que aparece al abrir */
+        .menu-options {
+            opacity: 0;
+            position: absolute;
+            top: 20px; left: 20px;
+            width: 150px;
+            transition: opacity 0.2s;
+            pointer-events: none; /* Desactivado cuando cerrado */
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        /* Estado Abierto */
+        .corner-menu.open {
+            width: 220px; height: 220px; /* Tamaño grande al abrir */
+            cursor: default;
+        }
+        .corner-menu.open .menu-options {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .corner-menu.open .corner-handle-icon {
+            opacity: 0;
+        }
+
+        /* Estilos internos del menú */
+        .menu-brand { font-family: var(--font-head); font-size: 24px; color: var(--txt-main); margin-bottom: 10px; }
+        .menu-btn {
+            background: var(--bg-hover); border: 1px solid var(--border);
+            color: var(--txt-main); padding: 10px; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .menu-btn:active { transform: scale(0.95); }
+
+        /* --- FIN MENU NUEVO --- */
+        
+        main { 
+            flex: 1; overflow-y: auto; overflow-x: hidden; 
+            padding: 20px 0; 
+            padding-bottom: calc(40px + var(--safe-bottom)); 
+            max-width: 900px; margin: 0 auto; width: 100%;
+            /* Padding top extra para no chocar con la esquina */
+            padding-top: 40px; 
+        }
+
+        .acc-item {
+            margin: 0 20px 15px 20px; 
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            overflow: hidden;
+            transition: margin 0.3s, border-radius 0.3s, border 0.3s;
+        }
+
+        /* Drag & Drop Visuals */
+        .sortable-ghost { opacity: 0.4; background: var(--bg-hover); border: 1px dashed var(--txt-sec); }
+        .sortable-drag { cursor: grabbing; opacity: 1; background: var(--bg-card); box-shadow: 0 10px 20px rgba(0,0,0,0.5); transform: scale(1.02); }
+
+        .acc-item.active {
+            margin-left: 0; margin-right: 0; border-radius: 0;
+            border-left: none; border-right: none;
+            border-color: var(--active-color);
+        }
+
+        .acc-header {
+            padding: 24px; 
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-card); transition: background 0.2s; user-select: none;
+            cursor: grab; 
+        }
+        .acc-header:active { cursor: grabbing; }
+        .acc-header:hover { background: var(--bg-hover); }
+
+        .acc-title-group { display: flex; align-items: center; gap: 12px; }
+        .acc-title { font-family: var(--font-head); font-size: 28px; line-height: 1; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .acc-tag { font-family: var(--font-ui); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); letter-spacing: 1px; }
+        
+        .acc-controls { display: flex; align-items: center; gap: 15px; }
+        .acc-icon { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--txt-sec); }
+
+        .fs-btn {
+            background: none; border: none; color: var(--txt-sec); cursor: pointer;
+            padding: 5px; opacity: 0; transition: 0.2s; pointer-events: none;
+        }
+        .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
+        .acc-item:hover .fs-btn, .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; }
+
+        .acc-content {
+            display: flex; 
+            flex-direction: column;
+            height: 0; 
+            overflow: hidden;
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            background: var(--bg-deep);
+            border-top: 1px solid transparent;
+            will-change: height;
+        }
+        
+        .acc-item.active .acc-content { border-top-color: var(--border); }
+        
+        iframe { 
+            width: 100%; 
+            flex: 1; 
+            border: none; 
+            display: block; 
+            pointer-events: auto; 
+        }
+        .resizing iframe { pointer-events: none; }
+
+        .resize-handle {
+            height: 24px;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            cursor: row-resize; 
+            display: flex; justify-content: center; align-items: center;
+            flex-shrink: 0; 
+            touch-action: none; 
+            transition: background 0.2s;
+        }
+        .resize-handle:hover, .resize-handle:active { background: var(--bg-hover); }
+        
+        .resize-bar {
+            width: 40px; height: 4px; background-color: var(--txt-sec);
+            border-radius: 2px; opacity: 0.5;
+        }
+
+        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh !important; padding: 0; margin: 0; }
+        .acc-content:fullscreen iframe { height: 100%; }
+        .acc-content:fullscreen .resize-handle { display: none; }
+
+        .color-1 { --active-color: var(--c-1); color: var(--c-1); }
+        .color-2 { --active-color: var(--c-2); color: var(--c-2); }
+        .color-3 { --active-color: var(--c-3); color: var(--c-3); }
+        .color-4 { --active-color: var(--c-4); color: var(--c-4); }
+        .color-5 { --active-color: var(--c-5); color: var(--c-5); }
+        .color-6 { --active-color: var(--c-6); color: var(--c-6); }
+
+    </style>
+</head>
+<body>
+
+    <div class="corner-menu" id="cornerMenu">
+        <div class="corner-handle-icon">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h18M3 12h18M3 21h18"></path></svg>
+        </div>
+        
+        <div class="menu-options">
+            <div class="menu-brand">NEXUS</div>
+            
+            <button class="menu-btn" onclick="toggleHubTheme()">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                Switch Theme
+            </button>
+            
+            <button class="menu-btn" onclick="toggleMenu(false)">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+                Close Menu
+            </button>
+        </div>
+    </div>
+
+    <main id="accordion-list"></main>
+
+<script>
+    // === DATOS DE CONFIGURACIÓN ===
+    const defaultData = [
+        { id: '1', title: 'PLAYER DECK', tag: 'APP',  url: 'https://paradisonetworx.com/player4', color: 'color-1' },
+        { id: '2', title: 'VOCABULARY DECK',  tag: 'APP', url: 'https://paradisonetworx.com/voc1', color: 'color-2' },
+        { id: '3', title: 'EXERCISE CREATORE',tag: 'LIST', url: 'https://paradisonetworx.com/LinguistDeckCel.html', color: 'color-3' },
+        { id: '4', title: 'VOCABULARY PRACTICE',tag: 'LIST', url: 'https://paradisonetworx.com/practice3.html', color: 'color-4' }
+    ];
+
+    const chevronIcon = `<path d="M6 9l6 6 6-6"></path>`;
+
+    // === INICIALIZACIÓN ===
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTheme();
+        renderItems();
+        initSortable();
+        initCornerMenu(); // Iniciamos el menú
+    });
+
+    // === LÓGICA DEL MENÚ DE ESQUINA (GESTOS) ===
+    function initCornerMenu() {
+        const menu = document.getElementById('cornerMenu');
+        let startX, startY;
+        let isDragging = false;
+        
+        // Touch Start
+        menu.addEventListener('touchstart', (e) => {
+            if(menu.classList.contains('open')) return; // Si ya está abierto, no draggear
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            menu.style.transition = 'none'; // Quitar transición para respuesta inmediata
+        }, {passive: false});
+
+        // Touch Move
+        menu.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault(); // Evitar scroll
+            const currentX = e.touches[0].clientX;
+            const currentY = e.touches[0].clientY;
+            
+            // Usamos la distancia máxima del dedo desde la esquina 0,0
+            const size = Math.max(currentX, currentY);
+            
+            // Límites visuales mientras arrastras
+            if(size > 60 && size < 300) {
+                menu.style.width = size + 'px';
+                menu.style.height = size + 'px';
+            }
+        }, {passive: false});
+
+        // Touch End
+        menu.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            menu.style.transition = 'width 0.3s cubic-bezier(0.25, 1, 0.5, 1), height 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+            
+            // Obtenemos el tamaño final al soltar
+            const finalSize = parseInt(menu.style.width);
+            
+            // Si arrastró más de 120px, abrimos. Si no, cerramos.
+            if (finalSize > 120) {
+                toggleMenu(true);
+            } else {
+                toggleMenu(false);
+            }
+        });
+        
+        // Clic simple para abrir si no quieres arrastrar
+        menu.addEventListener('click', (e) => {
+             // Solo si se hace clic en la zona pequeña (no en los botones internos)
+             if(!menu.classList.contains('open') && !isDragging) {
+                 toggleMenu(true);
+             }
+        });
+    }
+
+    function toggleMenu(forceOpen) {
+        const menu = document.getElementById('cornerMenu');
+        if(forceOpen) {
+            menu.classList.add('open');
+            menu.style.width = ''; // Limpiar estilos inline para que el CSS tome control
+            menu.style.height = '';
+        } else {
+            menu.classList.remove('open');
+            menu.style.width = ''; // Volver al tamaño del CSS (60px)
+            menu.style.height = '';
+        }
+    }
+
+
+    // === 1. GENERACIÓN DINÁMICA & RENDERIZADO ===
+    function renderItems() {
+        const container = document.getElementById('accordion-list');
+        const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
+        let dataToRender = [...defaultData];
+
+        if (savedOrder && savedOrder.length > 0) {
+            dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
+        }
+
+        container.innerHTML = dataToRender.map(item => `
+            <div class="acc-item ${item.color}" data-id="${item.id}">
+                <div class="acc-header" onclick="toggleAcc('${item.id}')">
+                    <div class="acc-title-group">
+                        <h2 class="acc-title">${item.title} <span class="acc-tag">${item.tag}</span></h2>
+                    </div>
+                    <div class="acc-controls">
+                        <button class="fs-btn" onclick="event.stopPropagation(); toggleFS('content-${item.id}')" title="Fullscreen">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                        </button>
+                        <svg class="acc-icon" id="icon-${item.id}" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${chevronIcon}</svg>
+                    </div>
+                </div>
+                <div class="acc-content" id="content-${item.id}">
+                    <iframe src="${item.url}" loading="lazy"></iframe>
+                    <div class="resize-handle" onmousedown="startResize(event, '${item.id}')" ontouchstart="startResize(event, '${item.id}')">
+                        <div class="resize-bar"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // === 2. SORTABLE ===
+    function initSortable() {
+        const el = document.getElementById('accordion-list');
+        new Sortable(el, {
+            animation: 300,
+            handle: '.acc-header',
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            delay: 100,
+            delayOnTouchOnly: true,
+            onEnd: function (evt) {
+                const sortable = this;
+                const order = sortable.toArray();
+                localStorage.setItem('nexus_order', JSON.stringify(order));
+            }
+        });
+    }
+
+    // === 3. LÓGICA ACORDEÓN ===
+    function toggleAcc(id) {
+        const item = document.querySelector(`.acc-item[data-id="${id}"]`);
+        const content = document.getElementById(`content-${id}`);
+        const icon = document.getElementById(`icon-${id}`);
+        
+        const isOpen = item.classList.contains('active');
+
+        document.querySelectorAll('.acc-content').forEach(el => {
+            el.style.height = '0px'; 
+            el.classList.remove('resizing'); 
+        });
+        document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
+        document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
+
+        if (!isOpen) {
+            item.classList.add('active');
+            content.style.height = "650px"; 
+            icon.style.transform = 'rotate(180deg)';
+            
+            setTimeout(() => {
+                item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+            }, 300);
+        }
+    }
+
+    // === 4. LÓGICA DE REDIMENSIONAMIENTO ===
+    let startY, startHeight, currentContent;
+
+    function startResize(e, id) {
+        if(e.type === 'mousedown') { e.preventDefault(); }
+        
+        currentContent = document.getElementById(`content-${id}`);
+        currentContent.classList.add('resizing'); 
+        
+        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        startHeight = parseInt(document.defaultView.getComputedStyle(currentContent).height, 10);
+
+        if (e.type.includes('mouse')) {
+            document.documentElement.addEventListener('mousemove', doDrag, false);
+            document.documentElement.addEventListener('mouseup', stopDrag, false);
+        } else {
+            document.documentElement.addEventListener('touchmove', doDrag, { passive: false });
+            document.documentElement.addEventListener('touchend', stopDrag, false);
+        }
+    }
+
+    function doDrag(e) {
+        if(e.type === 'touchmove') { e.preventDefault(); }
+
+        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        const newHeight = startHeight + (clientY - startY);
+
+        if (newHeight > 100) {
+            currentContent.style.height = newHeight + 'px';
+        }
+    }
+
+    function stopDrag(e) {
+        if(currentContent) {
+            currentContent.classList.remove('resizing'); 
+        }
+        document.documentElement.removeEventListener('mousemove', doDrag, false);
+        document.documentElement.removeEventListener('mouseup', stopDrag, false);
+        document.documentElement.removeEventListener('touchmove', doDrag);
+        document.documentElement.removeEventListener('touchend', stopDrag);
+    }
+
+    // === TEMA ===
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('nexus_theme');
+        if (savedTheme === 'light') {
+            document.documentElement.classList.add('light-mode');
+        }
+    }
+
+    function toggleHubTheme() {
+        const doc = document.documentElement;
+        let newTheme = 'dark';
+        if (doc.classList.contains('light-mode')) {
+            doc.classList.remove('light-mode');
+        } else {
+            doc.classList.add('light-mode');
+            newTheme = 'light';
+        }
+        localStorage.setItem('nexus_theme', newTheme);
+    }
+
+    // Fullscreen
+    function toggleFS(id) {
+        const elem = document.getElementById(id);
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+        }
+    }
+</script>
+
+</body>
+</html>
