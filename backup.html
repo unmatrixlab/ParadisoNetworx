@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC Cloud Dashboard</title>
+    <title>MDC Cloud Dashboard v2</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -19,31 +19,41 @@
         .container { max-width: 600px; width: 100%; }
         .header { margin-bottom: 20px; text-align: center; }
         .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: #e5e5ea; color: #888; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: #e5e5ea; color: #888; transition: 0.3s; }
         .status-badge.online { background: #d1fae5; color: var(--success); }
-        .status-badge.error { background: #fee2e2; color: var(--danger); }
+        .status-badge.sync-needed { background: #fee2e2; color: var(--danger); }
+        .status-badge.synced { background: #d1fae5; color: var(--success); }
 
         .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; }
         .card-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); background: rgba(255,255,255,0.5); display: flex; justify-content: space-between; align-items: center;}
+        
         .data-row { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .data-row:last-child { border-bottom: none; }
-        .data-label { font-weight: 500; font-size: 16px; display: flex; align-items: center; gap: 10px; }
-        .data-value { color: var(--text-sec); font-size: 15px; }
+        .data-label { font-weight: 500; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+        .data-value { color: var(--text-sec); font-size: 14px; font-family: monospace; }
         
-        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-size: 17px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; margin-bottom: 10px; }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; margin-bottom: 10px; }
         .btn:active { transform: scale(0.98); opacity: 0.8; }
         
         /* CLOUD BUTTONS */
         .btn-cloud-save { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
-        .btn-cloud-load { background: white; color: var(--primary); border: 2px solid var(--primary); }
-        .btn-file { background: transparent; color: var(--text-sec); border: 1px solid var(--border); font-size: 14px; padding: 10px; }
+        .btn-cloud-load { background: white; color: var(--danger); border: 2px solid var(--border); }
+        .btn-cloud-mix { background: white; color: var(--success); border: 2px solid var(--success); }
 
-        .app-icon { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }
-        .last-sync { text-align: center; font-size: 12px; color: var(--text-sec); margin-top: -10px; margin-bottom: 20px; font-style: italic; }
+        /* FIXED FILE BUTTONS LAYOUT */
+        .file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
+        .btn-file { background: #f9fafb; color: var(--text-main); border: 1px solid #d1d5db; font-size: 14px; padding: 12px; margin-bottom: 0; border-radius: 8px; }
+        .btn-file:hover { background: #f3f4f6; border-color: #9ca3af; }
+
+        .app-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
+        .sync-info { text-align: center; font-size: 12px; color: var(--text-sec); margin: 15px; padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
         
         #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
         .spinner { width: 40px; height: 40px; border: 4px solid #e5e5ea; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Utility for hidden input */
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
@@ -55,66 +65,73 @@
 
     <div class="container">
         <div class="header">
-            <h1>MDC Cloud Sync</h1>
-            <span id="connection-status" class="status-badge">Connecting...</span>
+            <h1>MDC Sync Center</h1>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:5px;">
+                <span id="connection-status" class="status-badge">Conectando...</span>
+                <span id="sync-health" class="status-badge" style="display:none;">Checking...</span>
+            </div>
         </div>
 
         <div class="card">
             <div class="card-header">
-                <span>☁️ CLOUD SYNC</span>
-                <span style="font-size:10px;">FIREBASE</span>
+                <span>☁️ CLOUD ACTIONS</span>
+                <span style="font-size:10px;">FIREBASE REALTIME</span>
             </div>
             <div style="padding: 20px;">
                 <button class="btn btn-cloud-save" onclick="saveToCloud()">
-                    ⬆️ SUBIR A LA NUBE (SAVE)
+                    ⬆️ SUBIR TODO (Overwrite Cloud)
                 </button>
-                <button class="btn btn-cloud-load" onclick="loadFromCloud()">
-                    ⬇️ BAJAR DE LA NUBE (RESTORE)
-                </button>
-                <div class="last-sync" id="last-sync-time">Nunca sincronizado en este dispositivo</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-cloud-mix" onclick="mixFromCloud()" style="margin-bottom:0;">
+                        🔄 MEZCLAR<br><span style="font-size:10px; font-weight:400;">(Merge Data)</span>
+                    </button>
+                    <button class="btn btn-cloud-load" onclick="loadFromCloud()" style="margin-bottom:0;">
+                        ⚠️ REEMPLAZAR<br><span style="font-size:10px; font-weight:400;">(Wipe Local)</span>
+                    </button>
+                </div>
+
+                <div class="sync-info">
+                    <div id="cloud-date">☁️ Nube: Verificando...</div>
+                    <div id="local-date">📱 Local: Verificando...</div>
+                </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">Local Data Status</div>
+            <div class="card-header">Estadísticas Locales</div>
             <div class="data-row">
                 <div class="data-label"><div class="app-icon" style="background: #4f46e5;">DB</div>Vocabulario</div>
                 <div class="data-value" id="stat-vocab">...</div>
             </div>
             <div class="data-row">
-                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Player History</div>
+                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Historial</div>
                 <div class="data-value" id="stat-player">...</div>
             </div>
             <div class="data-row">
-                <div class="data-label"><div class="app-icon" style="background: #007AFF;">AI</div>AI Exercises</div>
+                <div class="data-label"><div class="app-icon" style="background: #007AFF;">AI</div>Ejercicios AI</div>
                 <div class="data-value" id="stat-ai">...</div>
-            </div>
-            <div class="data-row">
-                <div class="data-label"><div class="app-icon" style="background: #10b981;">LN</div>Game Progress</div>
-                <div class="data-value" id="stat-game">...</div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">Respaldo Manual (Archivo)</div>
-            <div style="padding: 15px; display:flex; gap:10px;">
-                <button class="btn btn-file" onclick="backupToFile()">💾 Guardar .JSON</button>
-                <button class="btn btn-file" onclick="document.getElementById('restore-input').click()">📂 Cargar .JSON</button>
-                <input type="file" id="restore-input" accept=".json" onchange="restoreFromFile(this)">
+            <div class="card-header">Respaldo Físico (.JSON)</div>
+            <div class="file-actions">
+                <button class="btn btn-file" onclick="backupToFile()">💾 Guardar Archivo</button>
+                <button class="btn btn-file" onclick="document.getElementById('restore-input').click()">📂 Cargar Archivo</button>
             </div>
+            <input type="file" id="restore-input" accept=".json" onchange="restoreFromFile(this)">
         </div>
         
         <div style="text-align: center; margin-top: 20px;">
-            <button class="btn" style="background:transparent; color:var(--danger); border:1px solid var(--border); width:auto; padding:10px 20px; font-size:14px;" onclick="wipeSystem()">
-                ⚠️ Borrar Datos Locales
+            <button class="btn" style="background:transparent; color:var(--text-sec); border:1px solid var(--border); width:auto; padding:10px 20px; font-size:13px;" onclick="wipeSystem()">
+                🗑️ Limpiar Datos Locales
             </button>
         </div>
     </div>
 
    <script>
-        // ======================================================
-        // ⚙️ TUS CLAVES DE FIREBASE (Ya configuradas)
-        // ======================================================
+        // CONFIGURACIÓN FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyAxXKLpXk4sa3TVN2pCustVkpxV_uMZjr8",
             authDomain: "nexushub-6bfc4.firebaseapp.com",
@@ -126,139 +143,193 @@
             measurementId: "G-NZZ1PLEH0V"
         };
 
-        // Inicializar Firebase
         let db;
+        // Prefijos que gestionamos
+        const PREFIXES = ['mdc_', 'LN_'];
+        const KEYS = { vocab: 'mdc_vocab_list', history: 'mdc_studio_history', ai: 'mdc_ai_exercises', game: 'LN_V8_HYBRID' };
+
         try {
             firebase.initializeApp(firebaseConfig);
             db = firebase.database();
             
+            // Monitor de conexión
             const connectedRef = firebase.database().ref(".info/connected");
             connectedRef.on("value", (snap) => {
                 const badge = document.getElementById('connection-status');
                 if (snap.val() === true) {
-                    badge.innerText = "🟢 Conectado";
+                    badge.innerText = "🟢 Online";
                     badge.className = "status-badge online";
-                    checkCloudVersion(); // Revisar si hay versión más nueva al conectar
+                    autoCheckStatus(); // Automatización: Chequear fechas al conectar
                 } else {
-                    badge.innerText = "⚪ Desconectado";
+                    badge.innerText = "⚪ Offline";
                     badge.className = "status-badge";
                 }
             });
-
-        } catch (e) {
-            alert("Error configurando Firebase: " + e.message);
-        }
-
-        const PREFIXES = ['mdc_', 'LN_'];
-        // Claves principales para estadísticas
-        const KEYS = { vocab: 'mdc_vocab_list', history: 'mdc_studio_history', ai: 'mdc_ai_exercises', game: 'LN_V8_HYBRID' };
+        } catch (e) { alert("Error Firebase: " + e.message); }
 
         document.addEventListener('DOMContentLoaded', () => {
             refreshStats();
-            const last = localStorage.getItem('mdc_last_sync_date');
-            if(last) document.getElementById('last-sync-time').innerText = "Tu última copia local: " + last;
+            updateDateDisplay();
         });
 
-        // --- LÓGICA INTELIGENTE DE NUBE ---
+        // ======================================================
+        // 🧠 AUTOMATIZACIÓN Y LÓGICA DE MEZCLA
+        // ======================================================
 
-        function showLoading(msg) {
-            document.getElementById('loading-msg').innerText = msg;
-            document.getElementById('loading-overlay').style.display = 'flex';
-        }
-        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
-
-        // Compara fechas para avisarte si vas a sobrescribir algo nuevo con algo viejo
-        async function checkCloudVersion() {
+        // 1. COMPARADOR DE FECHAS (Semáforo)
+        async function autoCheckStatus() {
             try {
                 const snap = await db.ref('my_backup/meta').once('value');
-                const meta = snap.val();
-                if(meta && meta.timestamp) {
-                    const localTime = parseInt(localStorage.getItem('mdc_last_sync_ts') || '0');
-                    const cloudTime = meta.timestamp;
-                    
-                    const btnLoad = document.querySelector('.btn-cloud-load');
-                    
-                    if(cloudTime > localTime) {
-                        btnLoad.innerHTML = "⬇️ BAJAR DE LA NUBE (Hay versión más nueva 🔥)";
-                        btnLoad.style.borderColor = "#34C759";
-                        btnLoad.style.color = "#34C759";
-                    } else {
-                        btnLoad.innerHTML = "⬇️ BAJAR DE LA NUBE (Restore)";
-                        btnLoad.style.borderColor = "";
-                        btnLoad.style.color = "";
-                    }
+                const cloudMeta = snap.val();
+                
+                const localTS = parseInt(localStorage.getItem('mdc_last_sync_ts') || '0');
+                const cloudTS = cloudMeta ? (cloudMeta.timestamp || 0) : 0;
+                
+                const healthBadge = document.getElementById('sync-health');
+                healthBadge.style.display = 'inline-block';
+
+                // Mostrar fecha nube en UI
+                if(cloudMeta && cloudMeta.date_str) {
+                    document.getElementById('cloud-date').innerText = "☁️ Nube: " + cloudMeta.date_str;
+                } else {
+                    document.getElementById('cloud-date').innerText = "☁️ Nube: Vacía";
                 }
-            } catch(e) { console.log("Check version skipped"); }
+
+                if (cloudTS > localTS) {
+                    healthBadge.innerText = "📥 Nube más nueva";
+                    healthBadge.className = "status-badge sync-needed"; // Rojo/Alerta
+                } else if (localTS > cloudTS) {
+                    healthBadge.innerText = "📤 Local más nuevo";
+                    healthBadge.className = "status-badge sync-needed";
+                } else {
+                    healthBadge.innerText = "✅ Sincronizado";
+                    healthBadge.className = "status-badge synced";
+                }
+            } catch(e) { console.log("Auto-check failed"); }
         }
 
-        async function saveToCloud() {
-            if(!db) return alert("Error de conexión.");
-            showLoading("Subiendo...");
+        function updateDateDisplay() {
+            const localStr = localStorage.getItem('mdc_last_sync_date');
+            document.getElementById('local-date').innerText = "📱 Local: " + (localStr || "Nunca");
+        }
 
+        // 2. FUNCIÓN DE MEZCLA (La lógica nueva)
+        async function mixFromCloud() {
+            if(!db) return alert("Sin conexión.");
+            showLoading("Mezclando datos...");
+
+            try {
+                const snapshot = await db.ref('my_backup').once('value');
+                const val = snapshot.val();
+                if (!val || !val.data) throw new Error("La nube está vacía.");
+
+                const cloudData = val.data;
+                let changesCount = 0;
+
+                // --- LÓGICA DE MEZCLA INTELIGENTE ---
+                
+                // A. VOCABULARIO (Array de objetos): Combinar sin duplicados
+                if(cloudData[KEYS.vocab]) {
+                    const localVocab = JSON.parse(localStorage.getItem(KEYS.vocab) || '[]');
+                    const cloudVocab = JSON.parse(cloudData[KEYS.vocab]); // Puede venir como string o json dependiendo de cómo se guardó
+                    
+                    // Creamos un mapa de IDs existentes para búsqueda rápida
+                    const existingIds = new Set(localVocab.map(item => item.id));
+                    
+                    cloudVocab.forEach(item => {
+                        // Si el ID no existe, lo agregamos
+                        if(!existingIds.has(item.id)) {
+                            localVocab.unshift(item); // Agregamos al principio
+                            existingIds.add(item.id);
+                            changesCount++;
+                        }
+                    });
+                    localStorage.setItem(KEYS.vocab, JSON.stringify(localVocab));
+                }
+
+                // B. HISTORIAL (Array de objetos): Combinar por ID de video
+                if(cloudData[KEYS.history]) {
+                    const localHist = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
+                    const cloudHist = typeof cloudData[KEYS.history] === 'string' ? JSON.parse(cloudData[KEYS.history]) : cloudData[KEYS.history];
+                    
+                    const existingVideoIds = new Set(localHist.map(v => v.id));
+
+                    cloudHist.forEach(video => {
+                        if(!existingVideoIds.has(video.id)) {
+                            localHist.push(video);
+                            existingVideoIds.add(video.id);
+                            changesCount++;
+                        }
+                    });
+                    localStorage.setItem(KEYS.history, JSON.stringify(localHist));
+                }
+
+                // C. OTROS DATOS (Preferencias, etc): Aquí gana la nube si queremos actualizar configuración
+                // Para este ejemplo, solo mezclamos Arrays. Lo demás lo dejamos local para no romper configs.
+
+                hideLoading();
+                alert(`✅ Mezcla completada.\n\nSe agregaron ${changesCount} elementos nuevos de la nube que no tenías aquí.`);
+                window.location.reload();
+
+            } catch (error) {
+                hideLoading();
+                alert("❌ Error mezclando: " + error.message);
+            }
+        }
+
+        // ======================================================
+        // FUNCIONES CORE (Guardar, Reemplazar, Archivo)
+        // ======================================================
+
+        async function saveToCloud() {
+            showLoading("Subiendo...");
             const payload = {};
             let count = 0;
-            // Recolectar datos
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (PREFIXES.some(p => key.startsWith(p))) {
-                    const val = localStorage.getItem(key);
-                    try { payload[key] = JSON.parse(val); } catch(e) { payload[key] = val; }
+                    payload[key] = localStorage.getItem(key);
                     count++;
                 }
             }
 
-            if(count === 0) { hideLoading(); return alert("No hay datos para guardar."); }
+            if(count === 0) { hideLoading(); return alert("No hay datos locales para subir."); }
 
             try {
                 const now = Date.now();
                 const dateStr = new Date().toLocaleString();
                 
-                // Guardamos en dos nodos: 'data' (pesado) y 'meta' (ligero para chequear fechas)
                 await db.ref('my_backup').set({
                     data: payload,
-                    meta: {
-                        timestamp: now,
-                        date_str: dateStr,
-                        device: navigator.userAgent
-                    }
+                    meta: { timestamp: now, date_str: dateStr, device: navigator.userAgent }
                 });
                 
-                // Actualizamos marcas de tiempo locales
+                // Actualizar marcas locales
                 localStorage.setItem('mdc_last_sync_date', dateStr);
                 localStorage.setItem('mdc_last_sync_ts', now);
                 
-                document.getElementById('last-sync-time').innerText = "Sincronizado: " + dateStr;
+                updateDateDisplay();
+                autoCheckStatus(); // Refrescar semáforo
                 hideLoading();
-                // Feedback visual breve
-                alert("✅ Guardado en la nube correctamente.");
+                alert("✅ Subida exitosa.");
             } catch (error) {
-                hideLoading();
-                alert("❌ Error: " + error.message);
+                hideLoading(); alert("❌ Error: " + error.message);
             }
         }
 
         async function loadFromCloud() {
-            if(!db) return alert("Error de conexión.");
+            if(!confirm("⚠️ ¿ESTÁS SEGURO?\n\nLa opción 'REEMPLAZAR' borrará todo lo que tienes en este dispositivo y pondrá lo de la nube.\n\nSi quieres combinar, usa el botón 'MEZCLAR'.")) return;
             
-            // Confirmación de seguridad
-            if(!confirm("⚠️ CUIDADO: Esto BORRARÁ los datos actuales de este dispositivo y pondrá los de la nube.\n\n¿Seguro que quieres reemplazar todo?")) return;
-
             showLoading("Descargando...");
-
             try {
                 const snapshot = await db.ref('my_backup').once('value');
                 const val = snapshot.val();
-
-                if (!val || !val.data) {
-                    hideLoading();
-                    return alert("⚠️ No hay copia de seguridad en la nube.");
-                }
+                if (!val || !val.data) throw new Error("No hay backup en la nube.");
 
                 const cloudData = val.data;
                 const cloudMeta = val.meta || {};
 
-                // 1. LIMPIEZA QUIRÚRGICA: Borramos solo las claves del ecosistema antes de escribir
-                // Esto asegura que si borraste una clave en la nube, se borre aquí también.
+                // Borrar locales
                 const keysToRemove = [];
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
@@ -266,37 +337,24 @@
                 }
                 keysToRemove.forEach(k => localStorage.removeItem(k));
 
-                // 2. RESTAURACIÓN (Reemplazo total)
-                let restoredCount = 0;
+                // Escribir nuevos
                 Object.keys(cloudData).forEach(key => {
-                    const content = cloudData[key];
-                    if (typeof content === 'object') {
-                        localStorage.setItem(key, JSON.stringify(content));
-                    } else {
-                        localStorage.setItem(key, content);
-                    }
-                    restoredCount++;
+                    localStorage.setItem(key, cloudData[key]);
                 });
 
-                // 3. Actualizar fecha local para que coincida con la nube
+                // Sincronizar fecha
                 localStorage.setItem('mdc_last_sync_date', cloudMeta.date_str || new Date().toLocaleString());
                 localStorage.setItem('mdc_last_sync_ts', cloudMeta.timestamp || Date.now());
 
                 hideLoading();
-                
-                // 4. AUTO-RELOAD CRÍTICO
-                // Esto evita el problema de la "Memoria Zombie". Al recargar, obligamos a todas
-                // las pestañas a leer los datos nuevos.
-                alert(`✅ ¡Restauración completa!\n\nSe descargaron ${restoredCount} elementos del ${cloudMeta.date_str}.\n\nLa página se recargará para aplicar cambios.`);
-                window.location.reload(); 
-
+                alert("✅ Datos reemplazados correctamente.");
+                window.location.reload();
             } catch (error) {
-                hideLoading();
-                alert("❌ Error al bajar: " + error.message);
+                hideLoading(); alert("❌ Error: " + error.message);
             }
         }
 
-        // --- BACKUP MANUAL (ARCHIVO) ---
+        // --- BACKUP ARCHIVO ---
         function backupToFile() {
             const backup = {};
             for (let i = 0; i < localStorage.length; i++) {
@@ -320,20 +378,25 @@
                     Object.keys(data).forEach(key => {
                         if (PREFIXES.some(p => key.startsWith(p))) localStorage.setItem(key, data[key]);
                     });
-                    alert("Datos restaurados. Recargando...");
+                    alert("✅ Archivo cargado.");
                     window.location.reload();
                 } catch (err) { alert("Archivo inválido."); }
             };
             reader.readAsText(file);
         }
 
+        // UTILS
+        function showLoading(msg) { document.getElementById('loading-msg').innerText = msg; document.getElementById('loading-overlay').style.display = 'flex'; }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+        
         function refreshStats() {
-            const getLen = (k) => { const s=localStorage.getItem(k); return s?JSON.parse(s).length:0; };
+            const getLen = (k) => { 
+                const s=localStorage.getItem(k); 
+                try { return s ? JSON.parse(s).length : 0; } catch(e){ return 0; }
+            };
             updateRow('stat-vocab', getLen(KEYS.vocab) + " items", getLen(KEYS.vocab)>0);
             updateRow('stat-player', getLen(KEYS.history) + " videos", getLen(KEYS.history)>0);
             updateRow('stat-ai', getLen(KEYS.ai) + " sets", getLen(KEYS.ai)>0);
-            const gameRaw = localStorage.getItem(KEYS.game);
-            updateRow('stat-game', gameRaw ? "Activo" : "No Data", !!gameRaw);
         }
 
         function updateRow(id, text, active) {
@@ -343,7 +406,7 @@
         }
 
         function wipeSystem() {
-            if(confirm("¿BORRAR TODO? Esto es irreversible.")) {
+            if(confirm("¿Borrar todos los datos locales?")) {
                 const toRemove = [];
                 for (let i = 0; i < localStorage.length; i++) {
                     const key = localStorage.key(i);
@@ -353,6 +416,6 @@
                 window.location.reload();
             }
         }
-    </script>
+   </script>
 </body>
 </html>
