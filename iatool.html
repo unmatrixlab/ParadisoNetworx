@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS | Creator Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* =========================================
+           1. CORE VARIABLES & SETUP
+           ========================================= */
+        :root {
+            --bg-body: #050505;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --neon-gen: #00f2ea; /* Color distintivo para IA (Cian) */
+            --neon-del: #ff4444; /* Color eliminar */
+            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+
+        body {
+            background-color: var(--bg-body);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* El scroll lo maneja el contenedor de lista */
+        }
+
+        /* Clase para bloquear scroll cuando una carta está abierta */
+        body.locked .scroll-container { overflow: hidden; pointer-events: none; }
+
+        /* =========================================
+           2. CONTENEDOR PRINCIPAL (SCROLLABLE)
+           ========================================= */
+        .scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 0 160px 0; /* Padding bottom extra para espacio del generador */
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Lista donde van las cartas creadas */
+        #deck-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 50px; /* Para que sortable funcione si está vacío */
+        }
+
+        /* =========================================
+           3. TARJETAS GENERADAS (AI DECKS)
+           ========================================= */
+        .card {
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--neon-gen); /* Borde Cian distintivo */
+            border-radius: 8px;
+            margin: 0 16px;
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.2s ease, background 0.3s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            user-select: none;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: transparent;
+            transition: background 0.3s ease;
+        }
+
+        .title-group { display: flex; align-items: center; gap: 15px; overflow: hidden; }
+
+        .card-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 24px;
+            letter-spacing: 1.5px;
+            color: #ccc; 
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-tag {
+            font-family: 'Inter', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 2px;
+            background: rgba(0, 242, 234, 0.1);
+            color: var(--neon-gen);
+            border: 1px solid rgba(0, 242, 234, 0.2);
+            flex-shrink: 0;
+        }
+
+        .card-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Botón Eliminar (X) */
+        .btn-delete-card {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--neon-del);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-delete-card:hover {
+            background: var(--neon-del);
+            color: #fff;
+        }
+
+        /* Icono flecha */
+        .card-icon {
+            color: #444;
+            transition: transform 0.4s var(--ease-snap), color 0.3s;
+        }
+
+        /* Contenido de la carta */
+        .card-content {
+            display: none;
+            background: #000;
+            width: 100%;
+            height: 100%;
+        }
+
+        iframe { width: 100%; height: 100%; border: none; }
+
+        /* =========================================
+           4. ESTADO ACTIVO (FULLSCREEN)
+           ========================================= */
+        .card.active {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100dvh;
+            z-index: 9999;
+            margin: 0;
+            border-radius: 0;
+            border: none;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            animation: expandCard 0.35s var(--ease-snap) forwards;
+        }
+
+        @keyframes expandCard {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .card.active .card-header {
+            background: rgba(10,10,10,0.95);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .card.active .card-title { color: #fff; }
+        .card.active .card-icon { color: #fff; transform: rotate(180deg); }
+        .card.active .card-content { display: block; animation: fadeInContent 0.5s ease 0.2s forwards; opacity: 0; flex: 1; }
+        .card.active .btn-delete-card { display: none; /* Ocultar borrar cuando está abierta */ }
+
+        @keyframes fadeInContent { to { opacity: 1; } }
+
+        /* Sortable Ghost */
+        .sortable-ghost { opacity: 0.2; border: 1px dashed var(--neon-gen); }
+
+        /* =========================================
+           5. GENERADOR (FIXED BOTTOM PANEL)
+           ========================================= */
+        .generator-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-top: 1px solid var(--glass-border);
+            padding: 15px;
+            z-index: 5000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+        }
+
+        .gen-container {
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .gen-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: #fff;
+            padding: 12px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            border-radius: 6px;
+            width: 100%;
+        }
+        .gen-input:focus { border-color: var(--neon-gen); }
+
+        .gen-controls { display: flex; gap: 8px; }
+
+        .gen-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
+        .btn-paste { background: var(--neon-gen); color: #000; box-shadow: 0 0 10px rgba(0, 242, 234, 0.3); }
+
+        .status-toast {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            border: 1px solid var(--neon-gen);
+            color: var(--neon-gen);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="scroll-container">
+        <div id="deck-list">
+            </div>
+    </div>
+
+    <div class="generator-panel">
+        <div class="status-toast" id="toast">Acción Completada</div>
+        <div class="gen-container">
+            <input type="text" id="topicInput" class="gen-input" placeholder="Nuevo Tópico (ej. Present Perfect)...">
+            <div class="gen-controls">
+                <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copiar Prompt</button>
+                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Pegar y Crear Deck</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // === 1. GESTIÓN DE DATOS (PERSISTENCIA) ===
+    let userDecks = JSON.parse(localStorage.getItem('nexus_ai_decks')) || [];
+
+    function saveDecks() {
+        localStorage.setItem('nexus_ai_decks', JSON.stringify(userDecks));
+    }
+
+    // === 2. RENDERIZADO ===
+    const deckList = document.getElementById('deck-list');
+
+    function renderDecks() {
+        deckList.innerHTML = ''; // Limpiar
+        userDecks.forEach(deck => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.setAttribute('data-id', deck.id);
+            
+            card.innerHTML = `
+                <div class="card-header" onclick="toggleCard('${deck.id}')">
+                    <div class="title-group">
+                        <h2 class="card-title">${deck.title}</h2>
+                        <span class="card-tag">AI-GEN</span>
+                    </div>
+                    <div class="card-actions">
+                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
+                        <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M6 9l6 6 6-6"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="card-content" id="content-${deck.id}">
+                    </div>
+            `;
+            deckList.appendChild(card);
+        });
+    }
+
+    // Inicializar Sortable (Arrastrar y soltar)
+    new Sortable(deckList, {
+        animation: 300,
+        handle: '.card-header',
+        delay: 200,
+        delayOnTouchOnly: true,
+        ghostClass: 'sortable-ghost',
+        onEnd: function (evt) {
+            // Reordenar el array userDecks basado en el nuevo DOM
+            const newOrderIds = Array.from(deckList.children).map(c => c.getAttribute('data-id'));
+            
+            // Reordenar el array de objetos
+            userDecks.sort((a, b) => {
+                return newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id);
+            });
+            
+            saveDecks();
+        }
+    });
+
+    // === 3. LÓGICA DEL GENERADOR ===
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => toast.style.opacity = '0', 2000);
+    }
+
+    function copyPrompt() {
+        const topic = document.getElementById('topicInput').value;
+        if (!topic) { showToast('¡Escribe un tópico!'); return; }
+
+        const promptText = `Actúa como un profesor profesional de inglés y desarrollador web experto. Crea un archivo HTML único, didáctico y paso a paso sobre el tema: "${topic}". 
+Requisitos obligatorios:
+1. Diseño moderno y limpio, usando colores oscuros suaves y tipografías legibles.
+2. Explicaciones claras del tema gramatical.
+3. Ejemplos prácticos.
+4. INTEGRACIÓN DE MOTOR TTS (Text-to-Speech): Agrega botones al lado de cada ejemplo en inglés que, al presionarlos, usen la Web Speech API (window.speechSynthesis) para leer el texto en voz alta con acento nativo.
+5. El código debe ser un solo archivo HTML autocontenido (CSS y JS incluidos).
+6. Estructura tipo acordeón o tarjetas para las secciones.
+Dame solo el código HTML.`;
+
+        navigator.clipboard.writeText(promptText)
+            .then(() => showToast('Prompt Copiado'))
+            .catch(() => showToast('Error al copiar'));
+    }
+
+    async function pasteAndCreate() {
+        const topicInput = document.getElementById('topicInput');
+        const title = topicInput.value || "Untitled Deck";
+
+        try {
+            const code = await navigator.clipboard.readText();
+            
+            if (!code || code.trim().length < 10) {
+                showToast('Portapapeles vacío o inválido');
+                return;
+            }
+
+            // Crear nuevo objeto Deck
+            const newDeck = {
+                id: 'deck_' + Date.now(),
+                title: title,
+                code: code, // Guardamos el HTML crudo
+                date: new Date().toISOString()
+            };
+
+            // Añadir al final de la lista (o principio, según prefieras)
+            // El usuario pidió "entre el anterior y el generador", o sea, push al array
+            userDecks.push(newDeck);
+            
+            saveDecks();
+            renderDecks();
+            
+            topicInput.value = ''; // Limpiar input
+            
+            // Scroll al final para ver el nuevo
+            document.querySelector('.scroll-container').scrollTop = deckList.scrollHeight;
+            showToast('¡Deck Creado!');
+
+        } catch (err) {
+            console.error(err);
+            showToast('Permiso de pegado denegado');
+        }
+    }
+
+    function deleteDeck(e, id) {
+        e.stopPropagation(); // Evitar abrir la carta
+        if(!confirm("¿Eliminar este Deck permanentemente?")) return;
+
+        userDecks = userDecks.filter(d => d.id !== id);
+        saveDecks();
+        renderDecks();
+    }
+
+    // === 4. LÓGICA DE APERTURA (FULL SCREEN) ===
+    function toggleCard(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
+        const contentDiv = document.getElementById(`content-${id}`);
+        const isActive = card.classList.contains('active');
+
+        // Cerrar si ya está activa
+        if (isActive) {
+            card.classList.remove('active');
+            document.body.classList.remove('locked');
+            contentDiv.innerHTML = ''; // Limpiar iframe para memoria
+            return;
+        }
+
+        // Cerrar otras activas
+        document.querySelectorAll('.card.active').forEach(c => {
+            c.classList.remove('active');
+            c.querySelector('.card-content').innerHTML = ''; 
+        });
+
+        // Activar actual
+        card.classList.add('active');
+        document.body.classList.add('locked');
+
+        // Inyectar el código HTML guardado en un iframe
+        const deckData = userDecks.find(d => d.id === id);
+        if (deckData) {
+            const iframe = document.createElement('iframe');
+            contentDiv.appendChild(iframe);
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(deckData.code);
+            doc.close();
+        }
+    }
+
+    // Cargar al inicio
+    renderDecks();
+
+</script>
+</body>
+</html>
