@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NEXUS | Stealth</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        /* =========================================
+           1. CORE RESET & VARIABLES
+           ========================================= */
+        :root {
+            --bg-body: #000000;          /* Negro Absoluto */
+            --glass-base: rgba(20, 20, 20, 0.7); 
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-highlight: rgba(255, 255, 255, 0.03);
+            
+            --txt-primary: #ffffff;
+            --txt-dim: #525252;
+            
+            /* Colores Neón para el Glow */
+            --neon-1: #0ea5e9; --neon-2: #d946ef; --neon-3: #22c55e; --neon-4: #f59e0b; --neon-5: #6366f1;
+
+            --ease-fluid: cubic-bezier(0.25, 0.8, 0.25, 1); /* Movimiento ultra suave */
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--txt-primary);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow-y: auto; /* Scroll nativo del body */
+            overflow-x: hidden;
+            /* Padding para que los items no toquen los bordes inicialmente */
+            padding: 20px 0; 
+        }
+
+        /* =========================================
+           2. ITEMS (GLASS CARDS)
+           ========================================= */
+        .nexus-list {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Espacio entre tarjetas cerradas */
+            padding-bottom: 50px;
+        }
+
+        .card {
+            background: var(--glass-base);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            margin: 0 16px; /* Márgenes laterales */
+            overflow: hidden;
+            position: relative;
+            transition: 
+                margin 0.4s var(--ease-fluid),
+                border-radius 0.4s var(--ease-fluid),
+                border-color 0.4s ease,
+                box-shadow 0.4s ease;
+            
+            /* Efecto Vidrio (Blur) */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* --- ESTADO ACTIVO (Maximizado) --- */
+        .card.active {
+            margin: 0;           /* 0 márgenes = Ancho completo */
+            border-radius: 0;    /* Bordes cuadrados */
+            border-left: none;
+            border-right: none;
+            border-color: var(--accent-color); /* El borde toma el color del neón */
+            box-shadow: 0 0 30px rgba(0,0,0,0.5); /* Sombra profunda para elevarlo */
+            z-index: 10;
+        }
+
+        /* =========================================
+           3. HEADER DE LA TARJETA
+           ========================================= */
+        .card-header {
+            padding: 22px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.02), transparent);
+            user-select: none;
+        }
+        
+        /* Efecto Hover sutil en escritorio */
+        @media(hover: hover) {
+            .card-header:hover { background: var(--glass-highlight); }
+        }
+
+        .title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .card-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 26px;
+            letter-spacing: 1px;
+            color: #888; /* Apagado por defecto */
+            margin: 0;
+            transition: color 0.3s ease, text-shadow 0.3s ease;
+        }
+
+        .card-tag {
+            font-family: 'Inter', sans-serif;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.05);
+            color: #555;
+            transition: color 0.3s ease, background 0.3s ease;
+        }
+
+        /* ILUMINACIÓN AL ACTIVAR */
+        .card.active .card-title {
+            color: #fff;
+            text-shadow: 0 0 15px var(--accent-color); /* GLOW EFFECT */
+        }
+        .card.active .card-tag {
+            color: var(--accent-color);
+            background: rgba(0,0,0,0.3);
+        }
+
+        .card-icon {
+            color: #444;
+            transition: transform 0.4s var(--ease-fluid), color 0.3s;
+        }
+        .card.active .card-icon {
+            color: #fff;
+            transform: rotate(180deg);
+        }
+
+        /* =========================================
+           4. CONTENIDO & IFRAME
+           ========================================= */
+        .card-content {
+            height: 0;
+            overflow: hidden;
+            background: #000; /* Fondo negro puro para el contenido */
+            display: flex;
+            flex-direction: column;
+            transition: height 0.5s var(--ease-fluid);
+            will-change: height;
+        }
+
+        iframe {
+            flex: 1;
+            width: 100%;
+            border: none;
+            display: block;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .card.active iframe { opacity: 1; }
+
+        /* MANIJA DE REDIMENSIÓN */
+        .resize-grip {
+            height: 24px;
+            background: #0a0a0a;
+            border-top: 1px solid #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: row-resize;
+            touch-action: none;
+        }
+        .resize-bar {
+            width: 40px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            transition: background 0.2s;
+        }
+        .resize-grip:active .resize-bar { background: var(--accent-color); }
+
+        /* Helpers de colores dinámicos */
+        .neon-1 { --accent-color: var(--neon-1); }
+        .neon-2 { --accent-color: var(--neon-2); }
+        .neon-3 { --accent-color: var(--neon-3); }
+        .neon-4 { --accent-color: var(--neon-4); }
+        .neon-5 { --accent-color: var(--neon-5); }
+
+    </style>
+</head>
+<body>
+
+    <div id="nexus-container" class="nexus-list">
+        </div>
+
+<script>
+    // === 1. DATA (LOS 5 LINKS SAGRADOS) ===
+    const appData = [
+        { id: '1', title: 'PLAYER DECK', tag: 'CORE',  url: 'https://paradisonetworx.com/player8', theme: 'neon-1' },
+        { id: '2', title: 'VOCABULARY',  tag: 'STUDY', url: 'https://paradisonetworx.com/voc1',    theme: 'neon-2' },
+        { id: '3', title: 'CREATOR',     tag: 'ADMIN', url: 'https://paradisonetworx.com/LinguistDeckCel2.html', theme: 'neon-3' },
+        { id: '4', title: 'ARCADE',      tag: 'GAME',  url: 'https://paradisonetworx.com/gamefull3.html',      theme: 'neon-4' },
+        { id: '5', title: 'SYSTEM',      tag: 'DATA',  url: 'https://paradisonetworx.com/backup',  theme: 'neon-5' }
+    ];
+
+    // === 2. RENDERIZADO LIMPIO ===
+    function renderApp() {
+        const container = document.getElementById('nexus-container');
+        // Recuperar orden si existe
+        const savedOrder = JSON.parse(localStorage.getItem('nexus_sort_v2'));
+        if (savedOrder) {
+            appData.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
+        }
+
+        container.innerHTML = appData.map(item => `
+            <div class="card ${item.theme}" data-id="${item.id}">
+                <div class="card-header" onclick="toggleCard('${item.id}')">
+                    <div class="title-group">
+                        <h2 class="card-title">${item.title}</h2>
+                        <span class="card-tag">${item.tag}</span>
+                    </div>
+                    <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M6 9l6 6 6-6"></path>
+                    </svg>
+                </div>
+                <div class="card-content" id="content-${item.id}">
+                    <iframe data-src="${item.url}" loading="lazy"></iframe>
+                    <div class="resize-grip" 
+                         onmousedown="startResize(event, '${item.id}')" 
+                         ontouchstart="startResize(event, '${item.id}')">
+                        <div class="resize-bar"></div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Iniciar Sortable JS (Arrastrar para ordenar)
+        new Sortable(container, {
+            animation: 350,
+            handle: '.card-header',
+            delay: 150, // Pequeño delay para no confundir con click en móviles
+            delayOnTouchOnly: true,
+            onEnd: () => {
+                const order = Array.from(container.children).map(c => c.dataset.id);
+                localStorage.setItem('nexus_sort_v2', JSON.stringify(order));
+            }
+        });
+    }
+
+    // === 3. LÓGICA DE ACORDEÓN (MAXIMIZAR ESPACIO) ===
+    function toggleCard(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
+        const content = document.getElementById(`content-${id}`);
+        const iframe = content.querySelector('iframe');
+        const isActive = card.classList.contains('active');
+
+        // 1. Resetear TODOS (Cerrar otros)
+        document.querySelectorAll('.card').forEach(c => {
+            c.classList.remove('active');
+            c.querySelector('.card-content').style.height = '0px';
+        });
+
+        // 2. Si no estaba activo, abrir este
+        if (!isActive) {
+            card.classList.add('active');
+            
+            // Altura inicial robusta
+            const viewportHeight = window.innerHeight;
+            content.style.height = (viewportHeight * 0.75) + 'px'; // 75% de la pantalla por defecto
+
+            // Lazy Load real: Asignar src solo al abrir
+            if (!iframe.src) iframe.src = iframe.getAttribute('data-src');
+
+            // Scroll suave para alinear arriba
+            setTimeout(() => {
+                card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+        }
+    }
+
+    // === 4. LÓGICA DE REDIMENSIÓN (Robustez Táctil) ===
+    let startY, startH, activeContent;
+
+    function startResize(e, id) {
+        // Evitar selección de texto
+        if (e.type === 'mousedown') e.preventDefault();
+        
+        activeContent = document.getElementById(`content-${id}`);
+        // Desactivar eventos del iframe para que no capture el mouse/dedo
+        activeContent.querySelector('iframe').style.pointerEvents = 'none';
+        
+        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        startH = parseInt(window.getComputedStyle(activeContent).height, 10);
+
+        if (e.type.includes('mouse')) {
+            window.addEventListener('mousemove', onDrag);
+            window.addEventListener('mouseup', endDrag);
+        } else {
+            window.addEventListener('touchmove', onDrag, { passive: false });
+            window.addEventListener('touchend', endDrag);
+        }
+    }
+
+    function onDrag(e) {
+        if(e.type === 'touchmove') e.preventDefault(); // Evitar scroll de página
+        const currentY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+        const diff = currentY - startY;
+        const newH = startH + diff;
+        
+        // Mínimo 100px, Máximo altura pantalla - 60px (header)
+        if (newH > 100) {
+            activeContent.style.height = newH + 'px';
+        }
+    }
+
+    function endDrag() {
+        if (activeContent) {
+            // Reactivar iframe
+            activeContent.querySelector('iframe').style.pointerEvents = 'auto';
+        }
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('mouseup', endDrag);
+        window.removeEventListener('touchmove', onDrag);
+        window.removeEventListener('touchend', endDrag);
+    }
+
+    // Iniciar
+    renderApp();
+
+</script>
+</body>
+</html>
