@@ -813,54 +813,81 @@ const Game = {
         if(c.length > 0) this.queue.push(c[0]);
         if(idx < this.idx) this.idx--; else if(idx === this.idx) this.idx--;
     },
-    fire(sel, cor, btn) {
-        if(!this.activeWord || this.banningPhase || this.laser) return;
-        const targetWordRef = this.activeWord;
-        const rect = btn.getBoundingClientRect(), cRect = this.canvas.getBoundingClientRect();
-        let ox = (rect.left + rect.width / 2) - cRect.left, oy = this.height;
-        if(['orbit', 'butterfly'].includes(this.mode)) { ox = this.width / 2; oy = this.height / 2; }
-        
-        const fem = ['flower', 'heart', 'butterfly'].includes(this.mode);
-        const isCorrect = sel.en === cor.en;
-        let color, start, end;
-        
-        if (isCorrect) {
-            color = fem ? '#86efac' : '#10b981';
-            start = { x: ox, y: oy };
-            end = { x: targetWordRef.x, y: targetWordRef.y };
-            btn.classList.add('correct-flash'); 
-        } else {
-            color = fem ? '#fda4af' : '#ef4444';
-            end = { x: ox, y: oy }; 
-            start = { x: targetWordRef.x, y: targetWordRef.y };
-            btn.classList.add('error-flash');
-        }
+  // BUSCA ESTO DENTRO DE: const Game = { ... }
+// Y REEMPLÁZALO POR ESTA VERSIÓN:
 
-        this.laser = {
-            x1: start.x, y1: start.y, x2: end.x, y2: end.y, life: 1.0, color: color, time: 0, progress: 0, speed: 0.08, 
-            onHit: () => {
-                if(!this.activeWord || this.activeWord !== targetWordRef || !this.isPlaying) return;
-                if(isCorrect) {
-                    if(App.audioMode) this.speak(cor.en);
-                    this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
-                    this.flashIntensity = 0.3; this.combo++; 
-                    this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
+fire(sel, cor, btn) {
+    // Si no hay palabra, o estamos en animación de rayo, o ya hay disparo, no hacer nada
+    if(!this.activeWord || this.banningPhase || this.laser) return;
+
+    const targetWordRef = this.activeWord;
+    const rect = btn.getBoundingClientRect(), cRect = this.canvas.getBoundingClientRect();
+    let ox = (rect.left + rect.width / 2) - cRect.left, oy = this.height;
+    if(['orbit', 'butterfly'].includes(this.mode)) { ox = this.width / 2; oy = this.height / 2; }
+    
+    const fem = ['flower', 'heart', 'butterfly'].includes(this.mode);
+    const isCorrect = sel.en === cor.en;
+    let color, start, end;
+    
+    if (isCorrect) {
+        color = fem ? '#86efac' : '#10b981';
+        start = { x: ox, y: oy };
+        end = { x: targetWordRef.x, y: targetWordRef.y };
+        btn.classList.add('correct-flash'); 
+    } else {
+        color = fem ? '#fda4af' : '#ef4444';
+        end = { x: ox, y: oy }; 
+        start = { x: targetWordRef.x, y: targetWordRef.y };
+        btn.classList.add('error-flash');
+    }
+
+    this.laser = {
+        x1: start.x, y1: start.y, x2: end.x, y2: end.y, life: 1.0, color: color, time: 0, progress: 0, speed: 0.08, 
+        onHit: () => {
+            // Protección anti-crash
+            if(!this.activeWord || this.activeWord !== targetWordRef || !this.isPlaying) return;
+
+            if(isCorrect) {
+                // 1. Efectos visuales de acierto
+                if(App.audioMode) this.speak(cor.en);
+                this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
+                this.flashIntensity = 0.3; this.combo++; 
+                this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
+                
+                // 2. Guardar progreso
+                const newLvl = Profile.setProg(cor.en, true); 
+                App.updateChart(this.queue); 
+
+                // === AQUI ESTA LA MAGIA NUEVA ===
+                if(newLvl >= 4) {
+                    // CASO MAESTRO: Activar animación de "Abducción" (Rayo)
+                    this.banningPhase = true; // Esto activa el dibujo del rayo en el Loop
                     
-                    const newLvl = Profile.setProg(cor.en, true); 
-                    if(newLvl >= 4) this.replaceMasteredWord(cor.en);
-                    App.updateChart(this.queue); 
-                    
-                    this.activeWord = null; this.idx++; 
-                    if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
+                    setTimeout(() => {
+                        this.replaceMasteredWord(cor.en); // Cambiar palabra de fondo
+                        this.banningPhase = false;        // Apagar rayo
+                        this.activeWord = null;           // Limpiar palabra vieja
+                        this.idx++;                       // Avanzar índice
+                        this.spawn();                     // Lanzar la nueva
+                    }, 800); // 800ms de animación
                 } else {
-                    this.screenShake(); 
-                    this.createExplosion(this.laser.x2, this.laser.y2, color); 
-                    if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
-                    this.combo = 0;
+                    // CASO NORMAL (Nivel 1, 2, 3): Explosión y siguiente
+                    this.activeWord = null; 
+                    this.idx++; 
+                    if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                 }
+                // ================================
+
+            } else {
+                // Fallo
+                this.screenShake(); 
+                this.createExplosion(this.laser.x2, this.laser.y2, color); 
+                if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
+                this.combo = 0;
             }
-        };
-    },
+        }
+    };
+},
     fail() {
         if(App.audioMode) this.speak(this.activeWord.data.en); this.screenShake(); this.spawnGhost(this.activeWord.x, this.activeWord.y, this.activeWord.data.es);
         Profile.setProg(this.activeWord.data.en, false); App.updateChart(this.queue); this.createExplosion(this.activeWord.x, this.activeWord.y, '#555');
