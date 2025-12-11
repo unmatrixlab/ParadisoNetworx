@@ -868,68 +868,51 @@ fire(sel,cor,btn) {
     speak(t){ window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang='en-US'; u.rate=1.1; window.speechSynthesis.speak(u); },
     screenShake(){ const c=this.canvas; c.style.transform=`translate(${Math.random()*10-5}px,${Math.random()*10-5}px)`; setTimeout(()=>c.style.transform='none',200); },
    // === REEMPLAZA TU FUNCIÓN drawWebLaser ACTUAL POR ESTA ===
-    drawWebLaser(ctx, l) {
-        const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1); // Distancia total
-        const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); // Ángulo principal
-
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = l.color;
-
-        // LÓGICA DE PROGRESO (Igual que antes)
-        if (l.progress < 1) {
+ drawWebLaser(ctx, l) { 
+        const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1);
+        const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); 
+        
+        ctx.shadowBlur = 20; 
+        ctx.shadowColor = l.color; 
+        
+        // LÓGICA DE PROGRESO DEL RAYO
+        if(l.progress < 1) {
             l.progress += l.speed;
-            if (l.progress > 1) l.progress = 1;
+            if(l.progress > 1) l.progress = 1;
         }
 
-        // Función interna de dibujo con distorsión "Serpiente de Energía"
-        const ds = (w, o, freqOffset, ampMult, lag) => {
+        // Añadimos el parámetro 'lag' (retraso) a la función interna
+        const ds = (w, o, f, m, lag) => {
+            // Calculamos hasta dónde dibujar basado en el progreso y el retraso de este hilo
             let currentDist = d * (l.progress * lag);
-            if (currentDist > d) currentDist = d;
+            if(currentDist > d) currentDist = d; // Tope máximo
 
             ctx.beginPath();
             ctx.strokeStyle = l.color;
             ctx.lineWidth = w;
             ctx.globalAlpha = l.life * o;
-
-            // Recorremos la línea punto por punto (cada 4px)
-            for (let i = 0; i <= currentDist; i += 4) {
-                // 1. Posición base en línea recta
-                let baseX = l.x1 + Math.cos(a) * i;
-                let baseY = l.y1 + Math.sin(a) * i;
-
-                // 2. MAGIA MATEMÁTICA: Cálculo de la curva
-                // 't' va de 0.0 (inicio) a 1.0 (final del recorrido total)
-                let t = i / d; 
+            
+            // Iteramos solo hasta currentDist en lugar de 'd'
+            // Esto crea el efecto de que el rayo viaja hacia el objetivo
+            for(let i = 0; i <= currentDist; i += 8) {
+                const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life;
+                // Cálculo de posición con vibración eléctrica
+                const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
+                const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
                 
-                // 'envelope' asegura que la onda sea 0 al inicio y al final, y ancha en el centro
-                let envelope = Math.sin(t * Math.PI); 
-
-                // 'wave' es la oscilación. Sumamos l.time para que se mueva como electricidad
-                // Frecuencia rápida (0.1) y amplitud amplia (40px)
-                let wave = Math.sin(i * 0.08 - l.time * 8 + freqOffset) * (40 * envelope * ampMult);
-
-                // 3. Aplicar la onda PERPENDICULARMENTE al ángulo principal
-                // Restamos sen(a) a X y sumamos cos(a) a Y para movernos de lado
-                let finalX = baseX - Math.sin(a) * wave;
-                let finalY = baseY + Math.cos(a) * wave;
-
-                if (i === 0) ctx.moveTo(finalX, finalY);
-                else ctx.lineTo(finalX, finalY);
+                if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             }
             ctx.stroke();
-        };
-
-        // LLAMADAS MULTICAPA (Ahora con distintas frecuencias para crear caos)
-        // Núcleo: Grueso, rápido, onda principal
-        ds(5, 0.8, 0, 1.0, 1.0);      
-        // Hilo 2: Más fino, onda desfasada (freqOffset 2.0), un poco más lento
-        ds(3, 1.0, 2.0, 0.7, 0.85);   
-        // Hilo 3: Muy fino, onda opuesta (freqOffset 4.0), más retraso
-        ds(2, 1.0, 4.0, 1.2, 0.70);   
-
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-        l.time += 0.05;
+        }; 
+        
+        // LLAMADAS CON DISTINTOS 'LAGS' PARA EL EFECTO ESCALONADO
+        ds(6, 0.6, 0, 1.0, 1.0);       // Núcleo: Va adelante (100% velocidad)
+        ds(3, 1.0, 0.02, 1.2, 0.85);   // Hilo 1: Un poco atrás (85% velocidad)
+        ds(3, 1.0, -0.02, 0.8, 0.70);  // Hilo 2: Más atrás (70% velocidad)
+        
+        ctx.globalAlpha = 1; 
+        ctx.shadowBlur = 0; 
+        l.time += 0.05; 
     },
     drawGrid(ctx){ ctx.strokeStyle="rgba(59,130,246,0.2)"; ctx.lineWidth=1; const h=this.height*0.4; this.gridOffset=(this.gridOffset+2)%40; for(let x=-this.width;x<this.width*2;x+=80){ctx.beginPath();ctx.moveTo(x,this.height);ctx.lineTo(this.width/2+(x-this.width/2)*0.2,h);ctx.stroke();} for(let z=0;z<this.height;z+=40){let y=(z+this.gridOffset)%this.height;if(y<h)continue;let py=h+Math.pow((y-h)/(this.height-h),2)*(this.height-h);ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(this.width,py);ctx.stroke();} const g=ctx.createLinearGradient(0,h,0,this.height);g.addColorStop(0,"rgba(5,5,5,1)");g.addColorStop(0.2,"rgba(5,5,5,0)");ctx.fillStyle=g;ctx.fillRect(0,h,this.width,this.height-h); },
     drawBanBeam(ctx, target) {
