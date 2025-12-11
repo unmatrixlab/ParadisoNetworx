@@ -3,144 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | Studio V6</title>
+    <title>NEXUS | Studio V3</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
         /* =========================================
-           CORE & VARIABLES
+           1. ESTILOS VISUALES (CORE)
            ========================================= */
         :root {
             --bg-body: #050505;
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.08);
             --neon-gen: #00f2ea;
             --neon-del: #ff4444;
-            --neon-save: #39ff14;
+            --neon-edit: #ffd700;
+            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
         body { background-color: var(--bg-body); color: #fff; font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body.locked .scroll-container { overflow: hidden; pointer-events: none; }
+
+        /* CONTENEDOR PRINCIPAL */
+        .scroll-container { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 0 450px 0; width: 100%; max-width: 600px; margin: 0 auto; position: relative; }
+        #deck-list { display: flex; flex-direction: column; gap: 12px; min-height: 50px; }
+
+        /* TARJETAS (ACORDEÓN) */
+        .card { background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%); border: 1px solid var(--glass-border); border-left: 3px solid var(--neon-gen); border-radius: 8px; margin: 0 16px; position: relative; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: pointer; transition: background 0.3s; z-index: 2; position: relative; }
+        .title-group { display: flex; align-items: center; gap: 15px; overflow: hidden; flex: 1; }
+        .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 1.5px; color: #ccc; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* SCROLL CONTAINER */
-        .scroll-container { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 0 450px 0; width: 100%; max-width: 600px; margin: 0 auto; }
-        #deck-list { display: flex; flex-direction: column; gap: 12px; min-height: 50px; padding: 0 15px; }
-
-        /* CARDS */
-        .card { 
-            background: #111; 
-            border: 1px solid var(--glass-border); 
-            border-left: 3px solid var(--neon-gen); 
-            border-radius: 8px; 
-            position: relative; 
-            overflow: hidden;
-            transition: 0.2s;
+        .card-tag { 
+            font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase; 
+            padding: 3px 8px; border-radius: 2px; background: rgba(0, 242, 234, 0.1); 
+            color: var(--neon-gen); border: 1px solid rgba(0, 242, 234, 0.2); flex-shrink: 0; 
         }
+        /* Tag especial para texto */
+        .card-tag.text-mode { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); background: rgba(255, 215, 0, 0.1); }
 
-        /* HEADER LAYOUT - CLARAMENTE DEFINIDO */
-        .card-header { 
-            padding: 15px; 
-            display: flex; 
-            align-items: center; 
-            gap: 12px; 
-            background: #151515;
-            user-select: none;
-        }
+        .card-actions { display: flex; gap: 10px; flex-shrink: 0; }
+        .btn-delete-card { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255, 68, 68, 0.1); color: var(--neon-del); border: 1px solid rgba(255, 68, 68, 0.3); cursor: pointer; }
+        .btn-delete-card:hover { background: var(--neon-del); color: #fff; }
 
-        /* 1. DRAG HANDLE (Izquierda) */
-        .drag-handle {
-            color: #555;
-            cursor: grab;
-            padding: 5px;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .drag-handle:hover { color: #fff; }
-        .drag-handle svg { width: 18px; height: 18px; }
-
-        /* 2. TITLE (Centro - Click para abrir) */
-        .title-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            cursor: pointer;
-            overflow: hidden;
-        }
-        .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; color: #ddd; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-tag { font-size: 9px; font-weight: 700; color: var(--neon-gen); text-transform: uppercase; }
-
-        /* 3. ACTIONS (Derecha) */
-        .action-group { display: flex; gap: 8px; }
-        .icon-btn { 
-            width: 30px; height: 30px; 
-            display: flex; align-items: center; justify-content: center; 
-            border-radius: 4px; border: 1px solid #333; background: #222; color: #888; 
-            cursor: pointer; transition: 0.2s;
-        }
-        .btn-rename:hover { color: #ffd700; border-color: #ffd700; }
-        .btn-delete:hover { color: #fff; background: var(--neon-del); border-color: var(--neon-del); }
-
-        /* ACTIVE STATE (OPEN) */
-        .card.active { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; z-index: 9999; margin: 0; border-radius: 0; border: none; background: #000; display: flex; flex-direction: column; }
-        .card.active .card-header { background: #111; border-bottom: 1px solid #333; flex-shrink: 0; }
-        .card.active .drag-handle, .card.active .btn-delete { display: none; } /* Hide clutter when open */
+        /* ESTADO ACTIVO (EXPANDIDO) */
+        .card.active { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; z-index: 9999; margin: 0; border: none; background: #000; display: flex; flex-direction: column; animation: expandCard 0.3s var(--ease-snap) forwards; }
+        @keyframes expandCard { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .card.active .card-header { background: rgba(20,20,20,0.98); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card.active .card-title { color: #fff; }
+        .card.active .btn-delete-card { display: none; }
         
-        /* CLOSE BUTTON (Only visible when active) */
-        .btn-close { display: none; background: #333; color: #fff; font-weight: bold; font-size: 12px; padding: 0 12px; border-radius: 4px; border: 1px solid #555; height: 30px; }
-        .card.active .btn-close { display: flex; align-items: center; }
+        .card-content { display: none; background: #000; flex: 1; position: relative; }
+        .card.active .card-content { display: flex; animation: fadeIn 0.5s ease 0.2s forwards; opacity: 0; }
+        @keyframes fadeIn { to { opacity: 1; } }
+        iframe { width: 100%; height: 100%; border: none; background: #fff; display: block; }
 
-        /* TOOLBAR (Solo visible si activas edicion) */
-        .editor-bar {
-            display: none; /* Hidden by default */
-            background: #222;
-            padding: 8px;
-            gap: 10px;
-            overflow-x: auto;
-            border-bottom: 1px solid #444;
-            flex-shrink: 0;
-            align-items: center;
-        }
-        .editor-bar.visible { display: flex; }
-
-        .edit-tool { background: #333; color: #ccc; border: 1px solid #444; padding: 5px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; white-space: nowrap; }
-        .edit-tool:hover { background: #444; color: #fff; }
-        .tool-save { background: rgba(57, 255, 20, 0.15); color: var(--neon-save); border-color: var(--neon-save); margin-left: auto; font-weight: bold; }
-
-        /* IFRAME AREA */
-        .iframe-wrapper { flex: 1; position: relative; background: #fff; overflow: hidden; }
-        iframe { width: 100%; height: 100%; border: none; display: block; background: #fff; }
-
-        /* EDIT TOGGLE (Floating inside active card) */
-        .edit-toggle-btn {
-            background: var(--neon-gen); color: #000; font-weight: bold;
-            padding: 5px 10px; border-radius: 4px; font-size: 11px;
-            cursor: pointer; border: none; display: none; margin-left: 10px;
-        }
-        .card.active .edit-toggle-btn { display: block; }
-
-        /* GENERATOR PANEL */
-        .generator-panel { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); border-top: 1px solid var(--glass-border); padding: 15px; z-index: 5000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
+        /* GENERADOR (PANEL INFERIOR) */
+        .generator-panel { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 1px solid var(--glass-border); padding: 15px; z-index: 5000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
         .gen-container { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 10px; }
 
-        /* CONTROLS */
-        .row-label { font-size: 9px; color: #666; text-transform: uppercase; font-weight: 700; margin-bottom: 5px; }
-        .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+        /* PREVIEW WINDOW */
+        .prompt-preview-window { position: absolute; bottom: 100%; left: 0; width: 100%; max-height: 0; background: rgba(0,0,0,0.9); border: 1px solid var(--neon-gen); border-bottom: none; border-radius: 8px 8px 0 0; color: #ccc; font-family: monospace; font-size: 11px; opacity: 0; pointer-events: none; overflow: hidden; transition: 0.3s; }
+        .prompt-preview-window.visible { max-height: 200px; opacity: 1; padding: 15px; margin-bottom: 15px; pointer-events: auto; overflow-y: auto; }
+        .preview-header { color: var(--neon-gen); font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; }
+
+        /* CHIPS (Selector Tags) */
+        .row-label { font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 1px; }
+        .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
         .chip { padding: 6px 12px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid #333; color: #888; font-size: 11px; font-weight: 600; cursor: pointer; text-transform: uppercase; transition: 0.2s; user-select: none; }
-        .chip.active { background: rgba(0, 242, 234, 0.15); border-color: var(--neon-gen); color: var(--neon-gen); }
-        
+        .chip:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .chip.active-mode { background: rgba(0, 242, 234, 0.15); border-color: var(--neon-gen); color: var(--neon-gen); box-shadow: 0 0 8px rgba(0, 242, 234, 0.2); }
+        .chip.active-format { background: rgba(255, 215, 0, 0.15); border-color: var(--neon-edit); color: var(--neon-edit); box-shadow: 0 0 8px rgba(255, 215, 0, 0.2); }
+
+        /* FADER */
+        .fader-container { width: 100%; padding: 5px 0; }
+        input[type=range].fader { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range].fader:focus { outline: none; }
+        input[type=range].fader::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #333; border-radius: 2px; }
+        input[type=range].fader::-webkit-slider-thumb { height: 16px; width: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--neon-gen); cursor: pointer; -webkit-appearance: none; margin-top: -6px; transition: 0.1s; }
+
         .gen-input { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 10px; font-size: 14px; border-radius: 6px; width: 100%; }
+        .gen-input:focus { border-color: var(--neon-gen); }
         .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
         .gen-btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 600; text-transform: uppercase; font-size: 11px; cursor: pointer; }
-        .btn-copy { background: #333; color: #fff; }
-        .btn-paste { background: var(--neon-gen); color: #000; }
-        
+        .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
+        .btn-paste { background: var(--neon-gen); color: #000; box-shadow: 0 0 10px rgba(0, 242, 234, 0.3); }
         .status-toast { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: #000; border: 1px solid var(--neon-gen); color: var(--neon-gen); padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 6000; }
-        
-        /* FADER */
-        input[type=range].fader { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type=range].fader::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--neon-gen); margin-top: -6px; }
-        input[type=range].fader::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #333; border-radius: 2px; }
     </style>
 </head>
 <body>
@@ -152,273 +101,313 @@
     <div class="generator-panel">
         <div class="status-toast" id="toast">Action Completed</div>
         <div class="gen-container">
+            
+            <div class="prompt-preview-window" id="previewWindow">
+                <div class="preview-header">
+                    <span>Prompt Matrix</span>
+                    <span id="matrixInfo"></span>
+                </div>
+                <div id="previewText" style="white-space: pre-wrap;">Type to generate...</div>
+            </div>
+
             <div>
-                <div class="row-label">1. IDENTITY</div>
+                <div class="row-label">1. IDENTITY (Who)</div>
                 <div class="chip-row" id="modeContainer"></div>
             </div>
+
             <div>
-                <div class="row-label">2. OUTPUT</div>
+                <div class="row-label">2. OUTPUT FORMAT (How)</div>
                 <div class="chip-row" id="formatContainer"></div>
             </div>
-            <div>
-                 <div class="row-label">3. DEPTH</div>
-                <input type="range" min="1" max="5" value="3" class="fader" id="detailFader">
+
+            <div class="fader-container">
+                <input type="range" min="1" max="5" value="3" class="fader" id="detailFader" oninput="updatePrompt()">
             </div>
-            <input type="text" id="topicInput" class="gen-input" placeholder="Topic..." >
-            <input type="text" id="extraInput" class="gen-input" style="font-size:12px; color:#aaa;" placeholder="Extra details...">
+
+            <input type="text" id="topicInput" class="gen-input" placeholder="Topic..." oninput="updatePrompt()">
+            <input type="text" id="extraInput" class="gen-input" style="font-size: 12px; color: #aaa;" placeholder="Extra details..." oninput="updatePrompt()">
+            
             <div class="gen-controls">
-                <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy</button>
-                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste</button>
+                <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy Prompt</button>
+                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste (Code or Text)</button>
             </div>
         </div>
     </div>
 
 <script>
-    // CONFIG
+    // =================================================================
+    // 1. CONFIGURACIÓN MATRIX (Totalmente editable)
+    // =================================================================
+    
+    // MODOS (La "Personalidad" de la IA)
     const MODES = [
-        { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk style.' },
-        { id: 'art', label: 'ART', role: 'Act as a Designer.', style: 'Gallery style.' },
-        { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Textbook style.' }
+        { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy.' },
+        { id: 'art', label: 'ART', role: 'Act as a Curator/Designer.', style: 'Minimalist Gallery style.', goal: 'Visual aesthetics.' },
+        { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Clean Textbook style.', goal: 'Education.' }
     ];
+
+    // FORMATOS (Cómo entrega el resultado)
     const FORMATS = [
-        { id: 'html', label: 'HTML APP', instruction: 'Return HTML file.' },
-        { id: 'text', label: 'TEXT NOTE', instruction: 'Return Markdown.' }
+        { id: 'html', label: 'HTML APP', instruction: 'Return a single interactive HTML file with CSS/JS embedded. NO markdown wrappers.' },
+        { id: 'code', label: 'PYTHON/JS', instruction: 'Return raw code script (Python or JS). Use comments for explanation.' },
+        { id: 'text', label: 'TEXT GUIDE', instruction: 'Return a comprehensive text guide in Markdown format.' }
     ];
 
-    let userDecks = JSON.parse(localStorage.getItem('nexus_studio_v6')) || [];
-    let activeMode = MODES[0].id;
-    let activeFormat = FORMATS[0].id;
-    let activeIframe = null;
-    let activeDeckId = null;
+    // NIVELES DE PROFUNDIDAD (Fader)
+    const FADER_LEVELS = [
+        "- Level 1: Basic Definition and Summary.",
+        "- Level 2: Add Context, History, or Parameters.",
+        "- Level 3: Add Interaction (Logic loops or Accordions).",
+        "- Level 4: Add Troubleshooting, Edge-cases, or Quiz.",
+        "- Level 5: Full production-ready structure with error handling."
+    ];
 
-    // INIT
-    function init() {
-        const mC = document.getElementById('modeContainer');
+    // =================================================================
+    // 2. LÓGICA DEL SISTEMA
+    // =================================================================
+
+    // ¡IMPORTANTE! Usamos 'nexus_studio_v3' para limpiar errores de versiones pasadas
+    let userDecks = JSON.parse(localStorage.getItem('nexus_studio_v3')) || [];
+    let activeModeId = MODES[0].id;
+    let activeFormatId = FORMATS[0].id;
+    let generatedPromptText = "";
+
+    function initInterface() {
+        // Renderizar botones de MODO
+        const modeCont = document.getElementById('modeContainer');
         MODES.forEach(m => {
-            const c = document.createElement('div');
-            c.className = `chip ${m.id === activeMode ? 'active' : ''}`;
-            c.textContent = m.label;
-            c.onclick = () => { activeMode = m.id; updateUI(); };
-            mC.appendChild(c);
+            const chip = document.createElement('div');
+            chip.className = `chip ${m.id === activeModeId ? 'active-mode' : ''}`;
+            chip.textContent = m.label;
+            chip.onclick = () => { activeModeId = m.id; renderChips(); updatePrompt(); };
+            modeCont.appendChild(chip);
         });
-        const fC = document.getElementById('formatContainer');
+
+        // Renderizar botones de FORMATO
+        const fmtCont = document.getElementById('formatContainer');
         FORMATS.forEach(f => {
-            const c = document.createElement('div');
-            c.className = `chip ${f.id === activeFormat ? 'active' : ''}`;
-            c.textContent = f.label;
-            c.onclick = () => { activeFormat = f.id; updateUI(); };
-            fC.appendChild(c);
+            const chip = document.createElement('div');
+            chip.className = `chip ${f.id === activeFormatId ? 'active-format' : ''}`;
+            chip.textContent = f.label;
+            chip.onclick = () => { activeFormatId = f.id; renderChips(); updatePrompt(); };
+            fmtCont.appendChild(chip);
         });
-        renderDecks();
+
+        document.getElementById('detailFader').max = FADER_LEVELS.length;
     }
 
-    function updateUI() {
-        document.querySelectorAll('#modeContainer .chip').forEach((c,i) => c.className = `chip ${MODES[i].id === activeMode ? 'active' : ''}`);
-        document.querySelectorAll('#formatContainer .chip').forEach((c,i) => c.className = `chip ${FORMATS[i].id === activeFormat ? 'active' : ''}`);
+    function renderChips() {
+        document.querySelectorAll('#modeContainer .chip').forEach((c, i) => {
+            c.className = `chip ${MODES[i].id === activeModeId ? 'active-mode' : ''}`;
+        });
+        document.querySelectorAll('#formatContainer .chip').forEach((c, i) => {
+            c.className = `chip ${FORMATS[i].id === activeFormatId ? 'active-format' : ''}`;
+        });
     }
 
-    // PROMPT
-    function copyPrompt() {
-        const t = document.getElementById('topicInput').value;
-        const e = document.getElementById('extraInput').value;
-        const l = document.getElementById('detailFader').value;
-        if(!t) return showToast("Topic required");
+    function updatePrompt() {
+        const topic = document.getElementById('topicInput').value.trim();
+        const extra = document.getElementById('extraInput').value.trim();
+        const level = parseInt(document.getElementById('detailFader').value);
+        const previewWindow = document.getElementById('previewWindow');
         
-        const m = MODES.find(x=>x.id===activeMode);
-        const f = FORMATS.find(x=>x.id===activeFormat);
-        
-        const txt = `${m.role} Topic: "${t}". Style: ${m.style}. \nFormat: ${f.instruction}\nComplexity: ${l}/5.\n${e}\nRETURN RAW CODE ONLY.`;
-        navigator.clipboard.writeText(txt).then(()=>showToast("Copied!"));
+        if (topic.length > 0 || extra.length > 0) {
+            previewWindow.classList.add('visible');
+        } else {
+            previewWindow.classList.remove('visible');
+            return;
+        }
+
+        const mode = MODES.find(m => m.id === activeModeId);
+        const format = FORMATS.find(f => f.id === activeFormatId);
+        let depth = FADER_LEVELS.slice(0, level).join("\n");
+
+        generatedPromptText = `${mode.role}
+Topic: "${topic}"
+Goal: ${mode.goal}
+Style: ${mode.style}
+
+REQUIRED OUTPUT: ${format.instruction}
+
+COMPLEXITY (${level}/${FADER_LEVELS.length}):
+${depth}
+
+${extra ? `EXTRA NOTES: "${extra}"` : ""}
+
+IMPORTANT: If HTML, return raw code. If Text, return Markdown.`;
+
+        document.getElementById('previewText').textContent = generatedPromptText;
+        document.getElementById('matrixInfo').textContent = `${mode.label} + ${format.label} [${level}]`;
     }
 
     function showToast(msg) {
-        const t = document.getElementById('toast'); t.textContent = msg; t.style.opacity = '1';
-        setTimeout(()=>t.style.opacity='0', 2000);
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        setTimeout(() => toast.style.opacity = '0', 2000);
     }
 
-    // DECKS
-    function saveDecks() { localStorage.setItem('nexus_studio_v6', JSON.stringify(userDecks)); }
+    function copyPrompt() {
+        if (!generatedPromptText) updatePrompt();
+        if (!document.getElementById('topicInput').value) { showToast('Type a topic'); return; }
+        navigator.clipboard.writeText(generatedPromptText).then(() => showToast('Copied!'));
+    }
+
+    // =================================================================
+    // 3. SISTEMA DE ACORDEÓN (Estricto como pediste)
+    // =================================================================
+    const deckList = document.getElementById('deck-list');
+
+    function saveDecks() { localStorage.setItem('nexus_studio_v3', JSON.stringify(userDecks)); }
 
     function renderDecks() {
-        const list = document.getElementById('deck-list');
-        list.innerHTML = '';
-        userDecks.forEach(d => {
+        deckList.innerHTML = '';
+        userDecks.forEach(deck => {
             const card = document.createElement('div');
             card.className = 'card';
-            card.dataset.id = d.id;
+            card.setAttribute('data-id', deck.id);
             
-            // Layout Header: Handle | Title Area | Actions
+            // Etiqueta inteligente
+            let tagClass = "card-tag";
+            let tagText = deck.formatLabel || "DOC";
+            if (deck.isTextPaste) {
+                tagClass += " text-mode";
+                tagText = "NOTE";
+            }
+            
             card.innerHTML = `
-                <div class="card-header">
-                    <div class="drag-handle" title="Drag to Move">
-                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                <div class="card-header" onclick="toggleCard('${deck.id}')">
+                    <div class="title-group">
+                        <h2 class="card-title">${deck.title}</h2>
+                        <span class="${tagClass}">${tagText}</span>
                     </div>
-
-                    <div class="title-area" onclick="openCard('${d.id}')">
-                        <h3 class="card-title">${d.title}</h3>
-                        <span class="card-tag">${d.tag}</span>
-                    </div>
-
-                    <div class="action-group">
-                        <button class="edit-toggle-btn" onclick="toggleEditMode('${d.id}')">✏️ EDIT TEXT</button>
-                        <button class="btn-close" onclick="closeCard('${d.id}')">CLOSE</button>
-                        <div class="icon-btn btn-rename" onclick="renameDeck('${d.id}')">✎</div>
-                        <div class="icon-btn btn-delete" onclick="deleteDeck('${d.id}')">✕</div>
+                    <div class="card-actions">
+                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
                     </div>
                 </div>
-
-                <div class="editor-bar" id="editor-${d.id}">
-                    <button class="edit-tool" onmousedown="applyCmd('bold')"><b>B</b></button>
-                    <button class="edit-tool" onmousedown="applyCmd('italic')"><i>I</i></button>
-                    <button class="edit-tool" onmousedown="applyCmd('formatBlock','H2')">H2</button>
-                    <button class="edit-tool" onmousedown="applyCmd('formatBlock','P')">P</button>
-                    <div style="border-left:1px solid #555; height:15px; margin:0 5px;"></div>
-                     <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span style="font-size:8px; color:#aaa;">TEXT</span>
-                        <input type="color" onchange="applyCmd('foreColor', this.value)" style="width:20px; height:15px; border:none; padding:0;">
-                    </div>
-                    <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span style="font-size:8px; color:#aaa;">BG</span>
-                        <input type="color" onchange="applyCmd('hiliteColor', this.value)" style="width:20px; height:15px; border:none; padding:0;">
-                    </div>
-                    <button class="edit-tool tool-save" onclick="saveContent('${d.id}')">✓ SAVE</button>
-                </div>
-
-                <div class="iframe-wrapper card-content" id="content-${d.id}"></div>
+                <div class="card-content" id="content-${deck.id}"></div>
             `;
-            list.appendChild(card);
+            deckList.appendChild(card);
         });
     }
 
-    // SORTABLE (Only on handle)
-    new Sortable(document.getElementById('deck-list'), {
-        animation: 200,
-        handle: '.drag-handle', // <--- FIX: Solo arrastra desde los puntitos
-        onEnd: () => {
-            const ids = Array.from(document.getElementById('deck-list').children).map(c => c.dataset.id);
-            userDecks.sort((a,b) => ids.indexOf(a.id) - ids.indexOf(b.id));
-            saveDecks();
-        }
-    });
+    new Sortable(deckList, { animation: 300, handle: '.card-header', onEnd: () => {
+        const newOrder = Array.from(deckList.children).map(c => c.getAttribute('data-id'));
+        userDecks.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+        saveDecks();
+    }});
 
-    // PASTE LOGIC
+    // === LÓGICA DE PEGADO INTELIGENTE (TEXTO vs CÓDIGO) ===
     async function pasteAndCreate() {
-        const t = document.getElementById('topicInput').value || "Untitled";
+        const title = document.getElementById('topicInput').value.trim() || "Untitled";
+        
         try {
-            const txt = await navigator.clipboard.readText();
-            if(!txt.trim()) return showToast("Empty");
+            let content = await navigator.clipboard.readText();
+            if (!content || !content.trim()) { showToast('Clipboard Empty'); return; }
             
-            let code = txt;
-            let tag = FORMATS.find(x=>x.id===activeFormat).label;
+            const trimmed = content.trim();
+            let finalCode = "";
+            let isText = false;
+            let formatLabel = FORMATS.find(f => f.id === activeFormatId).label;
 
-            if(!txt.includes('<!DOCTYPE')) {
-                // Text Note
-                tag = "NOTE";
-                const html = marked.parse(txt);
-                code = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{background:#fff; color:#000; font-family:sans-serif; padding:20px;} h1,h2{border-bottom:2px solid #eee;}</style></head><body>${html}</body></html>`;
+            // DETECCIÓN: ¿Es código HTML completo?
+            if (trimmed.startsWith('<') && trimmed.includes('<!DOCTYPE')) {
+                // Es una App HTML completa, usar tal cual
+                finalCode = content;
+                formatLabel = "APP";
+            } else {
+                // Es Texto o Fragmento de código -> Convertir a visor HTML bonito
+                isText = true;
+                
+                // Usamos Marked.js para convertir Markdown a HTML
+                const htmlBody = marked.parse(content);
+
+                finalCode = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Note</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+    body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 25px; line-height: 1.6; margin:0; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #00f2ea; font-family: 'Bebas Neue', sans-serif; font-size: 32px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    h2, h3 { color: #fff; margin-top: 25px; border-left: 3px solid #ffd700; padding-left: 10px; }
+    strong { color: #00f2ea; }
+    code { background: #1a1a1a; padding: 2px 5px; border-radius: 4px; color: #ff79c6; font-family: monospace; }
+    pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
+    pre code { background: transparent; color: #f8f8f2; padding: 0; }
+    blockquote { border-left: 3px solid #00f2ea; margin: 0; padding-left: 15px; color: #aaa; font-style: italic; }
+    ul, ol { padding-left: 20px; }
+    li { margin-bottom: 5px; }
+    a { color: #00f2ea; text-decoration: none; }
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>${title}</h1>
+        ${htmlBody}
+    </div>
+</body>
+</html>`;
             }
 
-            userDecks.push({ id:'d_'+Date.now(), title:t, code, tag });
+            userDecks.push({ 
+                id: 'd_' + Date.now(), 
+                title: title, 
+                code: finalCode, 
+                formatLabel: formatLabel,
+                isTextPaste: isText 
+            });
+            
             saveDecks();
             renderDecks();
-            showToast("Created!");
-        } catch(e) { showToast("Error"); }
+            
+            // Scroll al fondo
+            setTimeout(() => { document.querySelector('.scroll-container').scrollTo({top: 10000, behavior:'smooth'}); }, 100);
+            showToast(isText ? 'Note Created!' : 'App Created!');
+            
+        } catch (e) { 
+            console.error(e);
+            showToast('Error pasting'); 
+        }
     }
 
-    // ACTIONS
-    function renameDeck(id) {
-        const d = userDecks.find(x=>x.id===id);
-        const n = prompt("Name:", d.title);
-        if(n) { d.title=n; saveDecks(); renderDecks(); }
+    function deleteDeck(e, id) {
+        e.stopPropagation();
+        if(confirm("Delete this?")) { userDecks = userDecks.filter(d => d.id !== id); saveDecks(); renderDecks(); }
     }
 
-    function deleteDeck(id) {
-        if(confirm("Delete?")) { userDecks=userDecks.filter(x=>x.id!==id); saveDecks(); renderDecks(); }
-    }
-
-    // OPEN / CLOSE
-    function openCard(id) {
+    function toggleCard(id) {
         const card = document.querySelector(`.card[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
         
-        // Close others
-        document.querySelectorAll('.active').forEach(closeCardDOM);
-        
-        card.classList.add('active');
-        document.body.classList.add('locked');
-        activeDeckId = id;
-
-        const d = userDecks.find(x=>x.id===id);
-        const ifr = document.createElement('iframe');
-        content.appendChild(ifr);
-        
-        const doc = ifr.contentWindow.document;
-        doc.open();
-        doc.write(d.code);
-        doc.close();
-
-        activeIframe = ifr;
-    }
-
-    function closeCard(id) {
-        // Wrapper for onclick
-        const card = document.querySelector(`.card[data-id="${id}"]`);
-        closeCardDOM(card);
-    }
-
-    function closeCardDOM(card) {
-        if(!card) return;
-        card.classList.remove('active');
-        const c = card.querySelector('.card-content');
-        c.innerHTML = ''; // Destroy iframe
-        document.body.classList.remove('locked');
-        
-        // Hide toolbar
-        const tb = card.querySelector('.editor-bar');
-        if(tb) tb.classList.remove('visible');
-        
-        activeIframe = null;
-        activeDeckId = null;
-    }
-
-    // EDITOR LOGIC
-    function toggleEditMode(id) {
-        const tb = document.getElementById(`editor-${id}`);
-        const isVisible = tb.classList.contains('visible');
-        
-        if(!activeIframe) return;
-
-        if(isVisible) {
-            tb.classList.remove('visible');
-            activeIframe.contentDocument.designMode = "off";
+        if(card.classList.contains('active')) {
+            card.classList.remove('active'); document.body.classList.remove('locked');
+            setTimeout(() => content.innerHTML = '', 300);
         } else {
-            tb.classList.add('visible');
-            activeIframe.contentDocument.designMode = "on";
-            showToast("Editing Enabled");
-        }
-    }
-
-    function applyCmd(cmd, val=null) {
-        if(activeIframe) {
-            activeIframe.contentDocument.execCommand(cmd, false, val);
-        }
-    }
-
-    function saveContent(id) {
-        if(activeIframe) {
-            const html = "<!DOCTYPE html>" + activeIframe.contentDocument.documentElement.outerHTML;
-            const d = userDecks.find(x=>x.id===id);
-            if(d) {
-                d.code = html;
-                saveDecks();
-                showToast("Saved!");
-                // Optional: Disable edit mode after save
-                toggleEditMode(id);
+            // Cerrar otros
+            document.querySelectorAll('.active').forEach(c => { c.classList.remove('active'); c.querySelector('.card-content').innerHTML=''; });
+            
+            // Abrir actual
+            card.classList.add('active'); document.body.classList.add('locked');
+            const deck = userDecks.find(d => d.id === id);
+            if(deck) {
+                const ifr = document.createElement('iframe');
+                content.appendChild(ifr);
+                ifr.contentWindow.document.open();
+                ifr.contentWindow.document.write(deck.code);
+                ifr.contentWindow.document.close();
             }
         }
     }
 
-    init();
+    // INICIAR
+    initInterface();
+    renderDecks();
+
 </script>
 </body>
 </html>
