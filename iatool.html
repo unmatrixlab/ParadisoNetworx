@@ -3,19 +3,20 @@
 <head> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | Knowledge Hub</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>NEXUS | Creator Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
         /* =========================================
-           STYLE: CORE & DARK THEME FOR THE APP
+           1. CORE VARIABLES & SETUP
            ========================================= */
         :root {
-            --bg-body: #0a0a0a;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --neon-gen: #00f2ea;
+            --bg-body: #050505;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --neon-gen: #00f2ea; /* Cyan for AI */
+            --neon-del: #ff4444; /* Red for Delete */
+            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
@@ -36,12 +37,14 @@
             pointer-events: none; 
         }
 
-        /* SCROLL CONTAINER */
+        /* =========================================
+           2. MAIN CONTAINER (SCROLLABLE)
+           ========================================= */
         .scroll-container {
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 20px 0 300px 0;
+            padding: 20px 0 300px 0; /* More padding for taller panel */
             width: 100%;
             max-width: 600px;
             margin: 0 auto;
@@ -55,15 +58,20 @@
             min-height: 50px;
         }
 
-        /* CARD STYLES */
+        /* =========================================
+           3. GENERATED CARDS (AI DECKS)
+           ========================================= */
         .card {
-            background: #111;
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%);
             border: 1px solid var(--glass-border);
-            border-left: 4px solid #333;
+            border-left: 3px solid var(--neon-gen);
             border-radius: 8px;
             margin: 0 16px;
             overflow: hidden; 
             position: relative;
+            transition: transform 0.2s ease, background 0.3s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             user-select: none;
         }
 
@@ -75,6 +83,9 @@
             gap: 15px; 
             cursor: pointer;
             background: transparent;
+            transition: background 0.3s ease;
+            position: relative;
+            z-index: 2; 
         }
 
         .title-group { 
@@ -88,71 +99,68 @@
 
         .card-title {
             font-family: 'Bebas Neue', sans-serif;
-            font-size: 22px;
-            letter-spacing: 1px;
-            color: #eee; 
+            font-size: 24px;
+            letter-spacing: 1.5px;
+            color: #ccc; 
             margin: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis; 
+            max-width: 100%;
         }
 
         .card-tag {
             font-family: 'Inter', sans-serif;
-            font-size: 10px;
-            font-weight: 800;
+            font-size: 9px;
+            font-weight: 700;
             letter-spacing: 1px;
             text-transform: uppercase;
-            padding: 4px 6px;
-            border-radius: 4px;
-            background: #222;
-            color: #aaa;
+            padding: 3px 8px;
+            border-radius: 2px;
+            background: rgba(0, 242, 234, 0.1);
+            color: var(--neon-gen);
+            border: 1px solid rgba(0, 242, 234, 0.2);
             flex-shrink: 0;
         }
 
         .card-actions {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
             flex-shrink: 0;
         }
 
-        .btn-prompt-card {
+        .btn-delete-card {
             width: 24px;
             height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 50%;
-            background: rgba(0, 242, 234, 0.1);
-            color: var(--neon-gen); 
-            border: 1px solid rgba(0, 242, 234, 0.3);
-            font-size: 10px;
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--neon-del);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.2s;
-            font-family: 'Inter', sans-serif;
-            font-weight: bold;
         }
-        .btn-prompt-card:hover {
-            background: var(--neon-gen);
-            color: #000;
-            box-shadow: 0 0 8px var(--neon-gen);
+        .btn-delete-card:hover {
+            background: var(--neon-del);
+            color: #fff;
         }
 
-        .btn-delete-card {
-            color: #555;
-            font-size: 14px;
-            cursor: pointer;
-            padding: 5px;
+        .card-icon {
+            color: #444;
+            transition: transform 0.4s var(--ease-snap), color 0.3s;
         }
-        .btn-delete-card:hover { color: #f44; }
 
         .card-content {
             display: none;
-            background: #fff; 
+            background: #000;
             width: 100%;
             flex: 1; 
             position: relative;
+            overflow: hidden; 
         }
 
         iframe { 
@@ -163,7 +171,9 @@
             background: #fff; 
         }
 
-        /* ACTIVE / FULL SCREEN */
+        /* =========================================
+           4. ACTIVE STATE (FIXED MODE)
+           ========================================= */
         .card.active {
             position: fixed;
             top: 0;
@@ -174,32 +184,59 @@
             margin: 0;
             border-radius: 0;
             border: none;
+            background: #000;
             display: flex;
             flex-direction: column;
+            pointer-events: auto; 
+            animation: expandCard 0.35s var(--ease-snap) forwards;
+        }
+
+        @keyframes expandCard {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .card.active .card-header {
-            background: #111; 
-            border-bottom: 1px solid #333;
+            background: rgba(20,20,20,0.98); 
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             flex-shrink: 0; 
         }
+
+        .card.active .card-title { color: #fff; }
+        .card.active .card-icon { color: #fff; transform: rotate(180deg); }
         
-        .card.active .card-content { display: block; }
+        .card.active .card-content { 
+            display: flex; 
+            flex-direction: column;
+            animation: fadeInContent 0.5s ease 0.2s forwards; 
+            opacity: 0; 
+        }
+
         .card.active .btn-delete-card { display: none; }
 
-        /* GENERATOR PANEL */
+        @keyframes fadeInContent { to { opacity: 1; } }
+
+        .sortable-ghost { opacity: 0.2; border: 1px dashed var(--neon-gen); }
+
+        /* =========================================
+           5. GENERATOR (FIXED BOTTOM PANEL)
+           ========================================= */
         .generator-panel {
             position: fixed;
             bottom: 0;
             left: 0;
             width: 100%;
-            background: #0a0a0a;
-            border-top: 1px solid #333;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-top: 1px solid var(--glass-border);
             padding: 15px;
             z-index: 5000;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+            pointer-events: auto; 
         }
 
         body.locked .generator-panel { display: none; }
@@ -214,86 +251,157 @@
         }
 
         .gen-input {
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
             color: #fff;
             padding: 12px;
             font-size: 14px;
+            font-family: 'Inter', sans-serif;
             border-radius: 6px;
             width: 100%;
+            transition: border 0.3s;
         }
-        .gen-input:focus { border-color: #777; }
+        .gen-input:focus { border-color: var(--neon-gen); }
 
-        .alg-row {
+        .gen-input-extra {
+            font-size: 12px;
+            padding: 10px;
+            background: rgba(255,255,255,0.02);
+            color: #aaa;
+        }
+
+        /* --- UNIFIED SWITCH & ALG ROW (UPDATED) --- */
+        .switch-row {
+            display: flex;
+            justify-content: space-between; /* Switch Left, Algs Right */
+            align-items: center;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .mode-switch {
             display: flex;
             align-items: center;
-            gap: 15px;
-            margin-bottom: 5px;
+            gap: 10px;
+        }
+        
+        .switch-label {
+            font-size: 12px;
+            color: #aaa;
+            font-weight: 600;
+            text-transform: uppercase;
+            transition: color 0.3s;
+            /* Hide text on very small screens if needed to fit everything */
         }
 
-        .alg-options { display: flex; gap: 5px; }
+        /* Styled Toggle */
+        .toggle-checkbox { display: none; }
+        .toggle-btn {
+            width: 40px;
+            height: 20px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+            flex-shrink: 0;
+        }
+        .toggle-btn::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-checkbox:checked + .toggle-btn { background: var(--neon-gen); }
+        .toggle-checkbox:checked + .toggle-btn::after { transform: translateX(20px); }
+        .toggle-checkbox:checked ~ .switch-label { color: #fff; }
+
+        /* --- ALG CONTROLS INLINE --- */
+        .alg-inline-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alg-options {
+            display: flex;
+            gap: 5px;
+        }
+
         .alg-option input { display: none; }
 
         .alg-box {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 35px;
-            height: 35px;
-            font-size: 14px;
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
             font-weight: bold;
-            border: 1px solid #333;
+            border: 1px solid #444;
             border-radius: 4px;
-            color: #555;
+            color: #666;
             cursor: pointer;
-            background: #151515;
+            transition: all 0.2s;
+            background: rgba(255,255,255,0.02);
         }
 
         .alg-option input:checked + .alg-box {
-            border-color: #fff;
+            border-color: var(--neon-gen);
             color: #000;
-            background: #fff;
+            background: var(--neon-gen);
+            box-shadow: 0 0 10px rgba(0, 242, 234, 0.4);
         }
 
+        /* DYNAMIC DESCRIPTION TEXT */
         .alg-desc {
-            font-size: 12px;
-            font-weight: 700;
-            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--neon-gen);
             text-transform: uppercase;
             padding: 4px 8px;
-            background: #222;
+            background: rgba(0, 242, 234, 0.1);
             border-radius: 4px;
             min-width: 80px;
             text-align: center;
+            transition: all 0.2s;
         }
 
-        .gen-controls { display: flex; gap: 8px; }
+        .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
 
         .gen-btn {
             flex: 1;
-            padding: 14px;
+            padding: 12px;
             border: none;
             border-radius: 6px;
+            font-family: 'Inter', sans-serif;
             font-weight: 600;
             text-transform: uppercase;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
+            letter-spacing: 0.5px;
         }
 
-        .btn-copy { background: #222; color: #fff; border: 1px solid #333; }
-        .btn-paste { background: #fff; color: #000; }
+        .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
+        .btn-paste { background: var(--neon-gen); color: #000; box-shadow: 0 0 10px rgba(0, 242, 234, 0.3); }
 
         .status-toast {
             position: absolute;
             top: -40px;
             left: 50%;
             transform: translateX(-50%);
-            background: #fff;
-            color: #000;
-            padding: 6px 12px;
-            border-radius: 4px;
+            background: #000;
+            border: 1px solid var(--neon-gen);
+            color: var(--neon-gen);
+            padding: 8px 16px;
+            border-radius: 20px;
             font-size: 12px;
-            font-weight: bold;
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s;
@@ -304,99 +412,125 @@
 <body>
 
     <div class="scroll-container">
-        <div id="deck-list"></div>
+        <div id="deck-list">
+            </div>
     </div>
 
     <div class="generator-panel">
-        <div class="status-toast" id="toast">Copied</div>
+        <div class="status-toast" id="toast">Action Completed</div>
         <div class="gen-container">
             
-            <div class="alg-row">
-                <div class="alg-options">
-                    <label class="alg-option">
-                        <input type="radio" name="algorithm" value="1" checked onchange="updateAlgDescription()">
-                        <span class="alg-box">1</span>
-                    </label>
-                    <label class="alg-option">
-                        <input type="radio" name="algorithm" value="2" onchange="updateAlgDescription()">
-                        <span class="alg-box">2</span>
-                    </label>
-                    <label class="alg-option">
-                        <input type="radio" name="algorithm" value="3" onchange="updateAlgDescription()">
-                        <span class="alg-box">3</span>
-                    </label>
+            <div class="switch-row">
+                <div class="mode-switch">
+                    <input type="checkbox" id="openTopicSwitch" class="toggle-checkbox" onchange="updateAlgDescription()">
+                    <label for="openTopicSwitch" class="toggle-btn"></label>
+                    <span class="switch-label">Open Topic</span>
                 </div>
-                <div id="alg-desc-text" class="alg-desc">SUMMARY</div>
+
+                <div class="alg-inline-group">
+                    <div class="alg-options">
+                        <label class="alg-option">
+                            <input type="radio" name="algorithm" value="1" checked onchange="updateAlgDescription()">
+                            <span class="alg-box">1</span>
+                        </label>
+                        <label class="alg-option">
+                            <input type="radio" name="algorithm" value="2" onchange="updateAlgDescription()">
+                            <span class="alg-box">2</span>
+                        </label>
+                        <label class="alg-option">
+                            <input type="radio" name="algorithm" value="3" onchange="updateAlgDescription()">
+                            <span class="alg-box">3</span>
+                        </label>
+                    </div>
+                    <div id="alg-desc-text" class="alg-desc">COMPACT</div>
+                </div>
             </div>
 
-            <input type="text" id="topicInput" class="gen-input" placeholder="Topic...">
-            <input type="text" id="extraInput" class="gen-input" style="font-size:12px; padding:10px; color:#aaa;" placeholder="Details (optional)...">
+            <input type="text" id="topicInput" class="gen-input" placeholder="Topic (e.g. Past Simple / Roman History)...">
+            
+            <input type="text" id="extraInput" class="gen-input gen-input-extra" placeholder="Extra instructions (Optional)...">
             
             <div class="gen-controls">
                 <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy Prompt</button>
-                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste ANY Text</button>
+                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste & Create Deck</button>
             </div>
         </div>
     </div>
 
 <script>
-    let userDecks = JSON.parse(localStorage.getItem('nexus_info_decks')) || [];
-    let lastCopiedPrompt = ""; 
+    // === 1. DATA MANAGEMENT (PERSISTENCE) ===
+    let userDecks = JSON.parse(localStorage.getItem('nexus_ai_decks')) || [];
 
     function saveDecks() {
-        localStorage.setItem('nexus_info_decks', JSON.stringify(userDecks));
+        localStorage.setItem('nexus_ai_decks', JSON.stringify(userDecks));
     }
 
+    // === 2. RENDERING ===
     const deckList = document.getElementById('deck-list');
 
     function renderDecks() {
         deckList.innerHTML = ''; 
+        
         userDecks.forEach(deck => {
             const card = document.createElement('div');
             card.className = 'card';
             card.setAttribute('data-id', deck.id);
             
+            // Determine Tag based on OpenTopic + Alg
+            let tagLabel = "AI-GEN";
             let tagName = "";
-            if(deck.alg == "1") tagName = "BASIC";
-            else if(deck.alg == "2") tagName = "LESSON";
-            else if(deck.alg == "3") tagName = "DEEP";
-            
-            // Detect if it was auto-formatted text or pure HTML app
-            if(deck.isTextConverted) {
-                tagName = "TEXT " + tagName;
+
+            if (deck.isOpenTopic) {
+                if(deck.alg == "1") tagName = "COMPACT";
+                else if(deck.alg == "2") tagName = "RESEARCH";
+                else if(deck.alg == "3") tagName = "WORKSHOP";
+                else tagName = "OPEN";
+            } else {
+                if(deck.alg == "1") tagName = "GRAMMAR";
+                else if(deck.alg == "2") tagName = "ROLEPLAY";
+                else if(deck.alg == "3") tagName = "DRILL";
+                else tagName = "ENGLISH";
             }
 
-            const promptBtn = deck.originalPrompt 
-                ? `<div class="btn-prompt-card" onclick="copySavedPrompt(event, '${deck.id}')" title="Copy Original Prompt">P</div>` 
-                : '';
+            // Fallback for TEXT pastes that might not have a perfect alg match
+            if(deck.isTextPaste) tagName = "TEXT NOTE";
+            
+            tagLabel = tagName;
 
             card.innerHTML = `
                 <div class="card-header" onclick="toggleCard('${deck.id}')">
                     <div class="title-group">
                         <h2 class="card-title">${deck.title}</h2>
-                        <span class="card-tag">${tagName}</span>
+                        <span class="card-tag">${tagLabel}</span>
                     </div>
                     <div class="card-actions">
-                        ${promptBtn}
                         <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
+                        <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M6 9l6 6 6-6"></path>
+                        </svg>
                     </div>
                 </div>
-                <div class="card-content" id="content-${deck.id}"></div>
+                <div class="card-content" id="content-${deck.id}">
+                    </div>
             `;
             deckList.appendChild(card);
         });
     }
 
     new Sortable(deckList, {
-        animation: 200,
+        animation: 300,
         handle: '.card-header',
+        delay: 200,
+        delayOnTouchOnly: true,
         ghostClass: 'sortable-ghost',
-        onEnd: function () {
+        onEnd: function (evt) {
             const newOrderIds = Array.from(deckList.children).map(c => c.getAttribute('data-id'));
             userDecks.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
             saveDecks();
         }
     });
+
+    // === 3. GENERATOR LOGIC ===
 
     function showToast(msg) {
         const toast = document.getElementById('toast');
@@ -405,157 +539,293 @@
         setTimeout(() => toast.style.opacity = '0', 2000);
     }
 
+    // --- NEW: DYNAMIC DESCRIPTION UPDATE ---
     function updateAlgDescription() {
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
         const alg = document.querySelector('input[name="algorithm"]:checked').value;
         const descLabel = document.getElementById('alg-desc-text');
+        
         let text = "";
-        if (alg === "1") text = "BASIC INFO";
-        else if (alg === "2") text = "FULL TOPIC";
-        else if (alg === "3") text = "DEEP DIVE";
-        descLabel.textContent = text;
+
+        if (isOpenTopic) {
+            // OPEN TOPIC DESCRIPTIONS
+            if (alg === "1") text = "COMPACT";      // Standard/Concise
+            else if (alg === "2") text = "RESEARCH"; // Deep/Academic
+            else if (alg === "3") text = "WORKSHOP"; // Action/Checklist
+        } else {
+            // ENGLISH DESCRIPTIONS
+            if (alg === "1") text = "GRAMMAR";       // Academic
+            else if (alg === "2") text = "ROLEPLAY";   // Conversation
+            else if (alg === "3") text = "DRILL";      // Vocabulary/Strict
+        }
+        
+        // Simple fade effect
+        descLabel.style.opacity = 0;
+        setTimeout(() => {
+            descLabel.textContent = text;
+            descLabel.style.opacity = 1;
+        }, 100);
     }
+
+    // Initialize on load
     updateAlgDescription();
+
 
     function copyPrompt() {
         const topic = document.getElementById('topicInput').value;
         const extra = document.getElementById('extraInput').value; 
-        const depthLevel = document.querySelector('input[name="algorithm"]:checked').value;
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
+        const alg = document.querySelector('input[name="algorithm"]:checked').value;
 
-        if (!topic) { showToast('Enter Topic'); return; }
+        if (!topic) { showToast('Please enter a topic!'); return; }
 
         let customInstructions = "";
         if (extra) {
-            customInstructions = `\nSPECIFIC FOCUS: "${extra}"`;
+            customInstructions = `\nExtra user instructions: "${extra}"`;
         }
 
         let promptText = "";
 
-        // MODIFICADO: Ya no pedimos estrictamente HTML raw, permitimos Markdown
-        if (depthLevel === "1") {
-            promptText = `Explain: "${topic}".${customInstructions}
-OBJECTIVE: Concise Summary.
-FORMAT: Use simple titles, bullet points and bold text.
-Structure: Definition, Key Rules, Data List.`;
-        } else if (depthLevel === "2") {
-            promptText = `Explain: "${topic}".${customInstructions}
-OBJECTIVE: Educational Lesson.
-FORMAT: Use clear Headings, Subheadings, and bullet points.
-Content: Theory, Examples, Context.`;
-        } else {
-            promptText = `Explain: "${topic}".${customInstructions}
-OBJECTIVE: Deep Monograph.
-FORMAT: Use detailed structure, extensive text, and clear sections.
-Content: History, Nuances, Deep Analysis.`;
-        }
+        if (isOpenTopic) {
+            // === OPEN TOPIC MODES ===
+            if (alg === "1") {
+                promptText = `Act as a Subject Matter Expert and Senior Web Developer. 
+Create a "Definitive Interactive Guide" in a single HTML file about: "${topic}".${customInstructions}
 
-        lastCopiedPrompt = promptText;
+OBJECTIVE: Compact, high-impact mobile learning app.
+
+CONTENT:
+1. STYLE: Concise & Educational. Focus on key concepts and practical application. Avoid filler text.
+2. STRUCTURE: Intro, Core Concepts, Practical Examples, Conclusion.
+
+DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
+1. USE STANDARD HYPHENS for CSS variables.
+2. LAYOUT: Clean single-column mobile flow.
+3. STYLE: Minimalist Dark Mode (#050505) with Cyan Accents (#00f2ea).
+
+INTERACTIVITY:
+1. QUIZ: 3 Questions with simple JS validation.
+2. ACCORDIONS: Use <details> for large text sections.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+
+            } else if (alg === "2") {
+                promptText = `Act as a Professor and Senior Web Developer. 
+Create a "Deep Dive Research App" in a single HTML file about: "${topic}".${customInstructions}
+
+OBJECTIVE: Academic depth, explaining the 'Why' and 'How'.
+
+CONTENT:
+1. STYLE: Analytical and Historical. Explain origins and complex theories.
+2. STRUCTURE: Abstract, Historical Context, Deep Theory, Modern Applications.
+
+DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
+1. USE STANDARD HYPHENS.
+2. STYLE: Elegant Dark Mode (#050505) with Gold Accents (#ffd700). Serif headers.
+
+INTERACTIVITY:
+1. FOOTNOTES: Clickable footnotes or simple modal for definitions.
+2. QUIZ: 3 conceptual questions.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+
+            } else {
+                promptText = `Act as a Corporate Trainer and Web Developer. 
+Create a "Workshop Toolkit App" in a single HTML file about: "${topic}".${customInstructions}
+
+OBJECTIVE: Action-oriented, checklist-based, high interactivity.
+
+CONTENT:
+1. STYLE: Actionable steps, bullet points, checklists. minimal theory.
+2. STRUCTURE: The Goal, The Tools, Step-by-Step Guide, Troubleshooting.
+
+DESIGN & CSS (CRITICAL - TOKEN EFFICIENT):
+1. USE STANDARD HYPHENS.
+2. STYLE: High Contrast Dark Mode (#000) with Neon Green Accents (#39ff14).
+
+INTERACTIVITY:
+1. CHECKLIST: Interactive HTML checkboxes for steps.
+2. QUIZ: 3 Scenario-based questions.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+            }
+
+        } else {
+            // === ENGLISH LEARNING MODES ===
+            if (alg === "1") {
+                promptText = `Act as a Linguistics Professor and Senior Web Developer. 
+Create a "Masterclass Interactive App" in a single HTML file about: "${topic}".${customInstructions}
+
+OBJECTIVE: Premium academic English resource. High density.
+
+CONTENT:
+1. FOCUS: Core rules, critical exceptions, and native nuances.
+2. STRUCTURE: Intro, Rules, Common Mistakes, Pro Examples.
+
+DESIGN & CSS:
+1. USE STANDARD HYPHENS.
+2. STYLE: Minimalist Dark Mode (#050505) with Cyan Accents (#00f2ea).
+
+INTERACTIVITY:
+1. TTS: 'Play' buttons for examples.
+2. QUIZ: 3 Questions.
+3. ACCORDIONS: Use <details>.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+
+            } else if (alg === "2") {
+                promptText = `Act as a Native English Coach and Web Developer. 
+Create a "Real-World Conversation App" in a single HTML file about: "${topic}".${customInstructions}
+
+OBJECTIVE: Focus on speaking, slang, and natural flow.
+
+CONTENT:
+1. FOCUS: Dialogues, street phrases, formal vs informal.
+2. STRUCTURE: Scenario Setup, The Dialogue (Script), Slang Breakdown, Roleplay tips.
+
+DESIGN & CSS:
+1. USE STANDARD HYPHENS.
+2. STYLE: Chat-app aesthetic. Dark mode with message bubbles.
+
+INTERACTIVITY:
+1. TTS: 'Read Dialogue' button.
+2. ROLEPLAY: Hide/Show parts of the dialogue.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+
+            } else {
+                promptText = `Act as a Strict English Tutor and Web Developer. 
+Create a "Rapid Fire Drill App" in a single HTML file about: "${topic}".${customInstructions}
+
+OBJECTIVE: Memorization and correction. High repetition.
+
+CONTENT:
+1. FOCUS: Vocabulary lists, conjugation tables, right vs wrong pairs.
+2. STRUCTURE: The Word List, The Rules, Speed Drills.
+
+DESIGN & CSS:
+1. USE STANDARD HYPHENS.
+2. STYLE: Clean Grid Layout. Dark mode with Orange Accents (#ff9900).
+
+INTERACTIVITY:
+1. FLASHCARDS: Simple flip animation or hide/reveal translation.
+2. QUIZ: 5 Rapid-fire questions.
+
+TECHNICAL:
+- SINGLE FILE: HTML+CSS+JS combined.
+- RETURN RAW CODE ONLY. NO MARKDOWN WRAPPERS.`;
+            }
+        }
 
         navigator.clipboard.writeText(promptText)
-            .then(() => showToast(`Prompt ${depthLevel} Copied`))
-            .catch(() => showToast('Error Copying'));
-    }
-
-    // --- MAGIA: DETECTOR DE FORMATO ---
-    function formatContent(content) {
-        // 1. Detect if it's already an HTML App (contains specific tags)
-        if (content.includes('<!DOCTYPE html>') || content.includes('<html')) {
-            return { code: content, isText: false };
-        }
-
-        // 2. If not, treat as Markdown/Text and wrap in a Beautiful Template
-        const parsedHTML = marked.parse(content);
-
-        // This template makes plain text look like a Premium App
-        const wrapper = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Merriweather:ital,wght@0,300;0,700;1,300&display=swap" rel="stylesheet">
-    <style>
-        body { 
-            background: #050505; color: #ddd; 
-            font-family: 'Inter', sans-serif; 
-            line-height: 1.6; padding: 20px; 
-            max-width: 800px; margin: 0 auto;
-        }
-        h1, h2, h3 { color: #fff; margin-top: 1.5em; margin-bottom: 0.5em; }
-        h1 { font-size: 2em; border-bottom: 2px solid #00f2ea; padding-bottom: 10px; color: #00f2ea; }
-        h2 { font-size: 1.5em; color: #fff; }
-        strong { color: #fff; }
-        code { background: #222; padding: 2px 5px; border-radius: 4px; font-family: monospace; color: #00f2ea; }
-        pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
-        ul, ol { padding-left: 20px; color: #ccc; }
-        li { margin-bottom: 5px; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th, td { border: 1px solid #333; padding: 10px; text-align: left; }
-        th { background: #111; color: #00f2ea; }
-        blockquote { border-left: 3px solid #444; margin: 20px 0; padding-left: 15px; font-style: italic; color: #888; }
-        a { color: #00f2ea; }
-    </style>
-</head>
-<body>
-    ${parsedHTML}
-</body>
-</html>`;
-        
-        return { code: wrapper, isText: true };
+            .then(() => showToast(isOpenTopic ? `Open (${alg}) Copied` : `English (${alg}) Copied`))
+            .catch(() => showToast('Copy failed'));
     }
 
     async function pasteAndCreate() {
         const topicInput = document.getElementById('topicInput');
+        const isOpenTopic = document.getElementById('openTopicSwitch').checked;
         const alg = document.querySelector('input[name="algorithm"]:checked').value;
-        let title = topicInput.value.trim() || "Untitled";
+        
+        let title = topicInput.value.trim();
+        if (!title) { title = "Untitled Deck"; }
 
         try {
-            const rawClipboard = await navigator.clipboard.readText();
-            if (!rawClipboard || rawClipboard.length < 5) { showToast('Clipboard Empty'); return; }
+            let code = await navigator.clipboard.readText();
+            let isTextPaste = false;
+            
+            if (!code || code.trim().length < 1) {
+                showToast('Clipboard Empty');
+                return;
+            }
 
-            // PROCESS CONTENT
-            const formattedData = formatContent(rawClipboard);
+            // === 2) DETECT PLAIN TEXT VS HTML ===
+            // Very simple check: Does it start with an angle bracket or doc definition?
+            const trimmedCode = code.trim();
+            if (!trimmedCode.startsWith('<') && !trimmedCode.includes('<!DOCTYPE')) {
+                // IT IS TEXT! CLEAN AND FORMAT
+                isTextPaste = true;
+                
+                // Sanitize special chars to prevent HTML breakage but allow reading
+                const safeText = code
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+                
+                // Wrap in the Viewer Template
+                code = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Text Note</title>
+<style>
+    body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 25px; line-height: 1.6; margin:0; }
+    .note-container { 
+        white-space: pre-wrap; /* Preserves tabs, newlines, spaces */
+        word-wrap: break-word; /* Prevents overflow */
+        font-size: 16px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    h1 { color: #00f2ea; font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="note-container">
+<h1>${title}</h1>
+${safeText}
+    </div>
+</body>
+</html>`;
+            }
 
             const newDeck = {
-                id: 'd_' + Date.now(),
+                id: 'deck_' + Date.now(),
                 title: title,
-                code: formattedData.code, 
+                code: code, 
+                date: new Date().toISOString(),
+                isOpenTopic: isOpenTopic,
                 alg: alg,
-                isTextConverted: formattedData.isText,
-                originalPrompt: lastCopiedPrompt || "Manual/Unknown"
+                isTextPaste: isTextPaste
             };
 
             userDecks.push(newDeck);
             saveDecks();
             renderDecks();
             
+            // Smooth scroll to bottom
             setTimeout(() => {
-                document.querySelector('.scroll-container').scrollTo({ top: 10000, behavior: 'smooth' });
+                const container = document.querySelector('.scroll-container');
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
             }, 100);
             
-            showToast(formattedData.isText ? 'Text Formatted!' : 'HTML App Saved!');
+            showToast(isTextPaste ? 'Text Note Created!' : 'Deck Created!');
+            
             document.getElementById('topicInput').value = ''; 
             document.getElementById('extraInput').value = '';
+
         } catch (err) {
             console.error(err);
-            showToast('Permission Error');
-        }
-    }
-
-    function copySavedPrompt(e, id) {
-        e.stopPropagation(); 
-        const deck = userDecks.find(d => d.id === id);
-        if (deck && deck.originalPrompt) {
-            navigator.clipboard.writeText(deck.originalPrompt)
-                .then(() => showToast('Original Prompt Copied!'))
-                .catch(() => showToast('Error'));
-        } else {
-            showToast('No Prompt Found');
+            showToast('Permission denied');
         }
     }
 
     function deleteDeck(e, id) {
         e.stopPropagation();
-        if(!confirm("Delete?")) return;
+        if(!confirm("Delete this Deck?")) return;
+
         userDecks = userDecks.filter(d => d.id !== id);
         saveDecks();
         renderDecks();
@@ -564,11 +834,15 @@ Content: History, Nuances, Deep Analysis.`;
     function toggleCard(id) {
         const card = document.querySelector(`.card[data-id="${id}"]`);
         const contentDiv = document.getElementById(`content-${id}`);
-        
-        if (card.classList.contains('active')) {
+        const isActive = card.classList.contains('active');
+
+        if (isActive) {
             card.classList.remove('active');
             document.body.classList.remove('locked');
-            setTimeout(() => contentDiv.innerHTML = '', 300);
+            
+            setTimeout(() => {
+                contentDiv.innerHTML = ''; 
+            }, 300); 
             return;
         }
 
@@ -580,18 +854,21 @@ Content: History, Nuances, Deep Analysis.`;
         card.classList.add('active');
         document.body.classList.add('locked');
 
-        const deck = userDecks.find(d => d.id === id);
-        if (deck) {
+        const deckData = userDecks.find(d => d.id === id);
+        if (deckData) {
             const iframe = document.createElement('iframe');
+            iframe.allow = "autoplay; fullscreen; microphone";
             contentDiv.appendChild(iframe);
+            
             const doc = iframe.contentWindow.document;
             doc.open();
-            doc.write(deck.code);
+            doc.write(deckData.code);
             doc.close();
         }
     }
 
     renderDecks();
+
 </script>
 </body>
 </html>
