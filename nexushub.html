@@ -264,40 +264,47 @@
     }
 
     // === 3. LÓGICA DE APERTURA (MODO FIXED + CONTROL DE LUCES) ===
-    function toggleCard(id) {
-        const card = document.querySelector(`.card[data-id="${id}"]`);
-        const content = document.getElementById(`content-${id}`);
-        const iframe = content.querySelector('iframe');
-        const isActive = card.classList.contains('active');
-        const container = document.getElementById('nexus-container');
+function toggleCard(id) {
+    const card = document.querySelector(`.card[data-id="${id}"]`);
+    const content = document.getElementById(`content-${id}`);
+    const iframe = content.querySelector('iframe');
+    const isActive = card.classList.contains('active');
+    const container = document.getElementById('nexus-container');
 
-        // 1. Si la carta ya está activa, la cerramos
-        if (isActive) {
-            card.classList.remove('active');
-            document.body.classList.remove('locked');
-            
-            // AL CERRAR TODO: Volvemos a encender las luces del auto fantástico
-            container.classList.add('idle-mode');
-            return;
+    // 1. SI VAMOS A CERRAR LA CARTA
+    if (isActive) {
+        // --- NUEVO: ENVIAR ORDEN DE PAUSA AL JUEGO ---
+        if(iframe && iframe.contentWindow) {
+            // Le gritamos al iframe: "FORCE_PAUSE"
+            iframe.contentWindow.postMessage('FORCE_PAUSE', '*');
         }
+        // ---------------------------------------------
 
-        // 2. Si hay otra carta activa, la cerramos primero
-        document.querySelectorAll('.card.active').forEach(c => {
-            c.classList.remove('active');
-        });
-
-        // 3. Activar la carta seleccionada
-        card.classList.add('active');
-        document.body.classList.add('locked');
-
-        // AL ABRIR UNA: Apagamos las luces del auto fantástico para no distraer
-        container.classList.remove('idle-mode');
-
-        // 4. Cargar iframe si no tiene src
-        if (!iframe.src) {
-            iframe.src = iframe.getAttribute('data-src');
-        }
+        card.classList.remove('active');
+        document.body.classList.remove('locked');
+        container.classList.add('idle-mode');
+        return;
     }
+
+    // 2. Si hay otra carta activa, la cerramos primero (y la pausamos también)
+    document.querySelectorAll('.card.active').forEach(c => {
+        const otherIframe = c.querySelector('iframe');
+        if(otherIframe && otherIframe.contentWindow) {
+            otherIframe.contentWindow.postMessage('FORCE_PAUSE', '*');
+        }
+        c.classList.remove('active');
+    });
+
+    // 3. Activar la carta seleccionada
+    card.classList.add('active');
+    document.body.classList.add('locked');
+    container.classList.remove('idle-mode');
+
+    // 4. Cargar iframe si no tiene src
+    if (!iframe.src) {
+        iframe.src = iframe.getAttribute('data-src');
+    }
+}
 
     renderApp();
 
