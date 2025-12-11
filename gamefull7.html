@@ -803,35 +803,81 @@ const Game = {
         if(c.length>0)this.queue.push(c[0]);
         if(idx<this.idx)this.idx--; else if(idx===this.idx)this.idx--;
     },
-    fire(sel,cor,btn) {
+fire(sel, cor, btn) {
+        // 1. Si no hay palabra activa, si estamos baneando, o si ya hay un disparo en curso, salir.
         if(!this.activeWord || this.banningPhase || this.laser) return;
+
+        // Guardamos una REFERENCIA a la palabra a la que disparamos.
+        // Esto sirve para verificar luego si sigue siendo la misma.
+        const targetWordRef = this.activeWord;
+
         const rect=btn.getBoundingClientRect(), cRect=this.canvas.getBoundingClientRect();
         let ox=(rect.left+rect.width/2)-cRect.left, oy=this.height;
         if(['orbit','butterfly'].includes(this.mode)){ox=this.width/2;oy=this.height/2;}
+        
         const fem=['flower','heart','butterfly'].includes(this.mode);
         const isCorrect = sel.en === cor.en;
+        
         let color, start, end;
+        
         if (isCorrect) {
-            color = fem ? '#86efac' : '#10b981'; start = { x: ox, y: oy }; end = { x: this.activeWord.x, y: this.activeWord.y };
+            color = fem ? '#86efac' : '#10b981';
+            start = { x: ox, y: oy };
+            // Usamos la referencia guardada, no this.activeWord directamente por seguridad
+            end = { x: targetWordRef.x, y: targetWordRef.y };
             btn.classList.add('correct-flash'); 
         } else {
-            color = fem ? '#fda4af' : '#ef4444'; start = { x: this.activeWord.x, y: this.activeWord.y }; end = { x: ox, y: oy }; 
+            color = fem ? '#fda4af' : '#ef4444';
+            end = { x: ox, y: oy }; 
+            start = { x: targetWordRef.x, y: targetWordRef.y };
             btn.classList.add('error-flash');
         }
-        this.laser = { x1: start.x, y1: start.y, x2: end.x, y2: end.y, life: 1.0, color: color, time: 0, progress: 0, speed: 0.08, // Speed optimizada 
+
+        this.laser = {
+            x1: start.x, y1: start.y,
+            x2: end.x, y2: end.y,
+            life: 1.0,
+            color: color,
+            time: 0,
+            progress: 0,
+            speed: 0.08, 
+            
             onHit: () => {
+                // === BLINDAJE CRÍTICO ANTI-CONGELAMIENTO ===
+                // Verificamos 3 cosas antes de explotar:
+                // 1. Que this.activeWord aun exista (no haya tocado el piso).
+                // 2. Que la palabra activa sea LA MISMA a la que disparamos (targetWordRef).
+                // 3. Que el juego siga corriendo.
+                if(!this.activeWord || this.activeWord !== targetWordRef || !this.isPlaying) {
+                    // Si la palabra murió mientras el rayo viajaba, no hacemos nada.
+                    return;
+                }
+                // ============================================
+
                 if(isCorrect){
                     if(App.audioMode) this.speak(cor.en);
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
-                    this.flashIntensity = 0.3; this.combo++; 
+                    this.flashIntensity = 0.3; 
+                    this.combo++; 
                     this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
+                    
                     const newLvl = Profile.setProg(cor.en, true); 
                     if(newLvl === 4) this.replaceMasteredWord(cor.en);
-                    App.updateChart(this.queue); this.activeWord = null; this.idx++; 
+                    App.updateChart(this.queue); 
+                    
+                    this.activeWord = null; 
+                    this.idx++; 
                     if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                 } else {
-                    this.screenShake(); this.createExplosion(this.laser.x2, this.laser.y2, color); 
-                    this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); this.combo = 0;
+                    this.screenShake(); 
+                    // Aquí usamos las coordenadas del láser final, es seguro aunque la palabra se mueva
+                    this.createExplosion(this.laser.x2, this.laser.y2, color); 
+                    
+                    // Verificación extra por seguridad al spawnear fantasma
+                    if(this.activeWord) {
+                        this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
+                    }
+                    this.combo = 0;
                 }
             }
         };
