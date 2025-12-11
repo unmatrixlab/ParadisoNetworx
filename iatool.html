@@ -6,6 +6,7 @@
     <title>NEXUS | Knowledge Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
         /* =========================================
@@ -14,6 +15,7 @@
         :root {
             --bg-body: #0a0a0a;
             --glass-border: rgba(255, 255, 255, 0.1);
+            --neon-gen: #00f2ea;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
@@ -111,8 +113,30 @@
         .card-actions {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
             flex-shrink: 0;
+        }
+
+        .btn-prompt-card {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(0, 242, 234, 0.1);
+            color: var(--neon-gen); 
+            border: 1px solid rgba(0, 242, 234, 0.3);
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+            font-weight: bold;
+        }
+        .btn-prompt-card:hover {
+            background: var(--neon-gen);
+            color: #000;
+            box-shadow: 0 0 8px var(--neon-gen);
         }
 
         .btn-delete-card {
@@ -310,13 +334,14 @@
             
             <div class="gen-controls">
                 <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy Prompt</button>
-                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste HTML</button>
+                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste ANY Text</button>
             </div>
         </div>
     </div>
 
 <script>
     let userDecks = JSON.parse(localStorage.getItem('nexus_info_decks')) || [];
+    let lastCopiedPrompt = ""; 
 
     function saveDecks() {
         localStorage.setItem('nexus_info_decks', JSON.stringify(userDecks));
@@ -332,10 +357,19 @@
             card.setAttribute('data-id', deck.id);
             
             let tagName = "";
-            if(deck.alg == "1") tagName = "BASIC INFO";
-            else if(deck.alg == "2") tagName = "FULL TOPIC";
-            else if(deck.alg == "3") tagName = "DEEP DIVE";
+            if(deck.alg == "1") tagName = "BASIC";
+            else if(deck.alg == "2") tagName = "LESSON";
+            else if(deck.alg == "3") tagName = "DEEP";
             
+            // Detect if it was auto-formatted text or pure HTML app
+            if(deck.isTextConverted) {
+                tagName = "TEXT " + tagName;
+            }
+
+            const promptBtn = deck.originalPrompt 
+                ? `<div class="btn-prompt-card" onclick="copySavedPrompt(event, '${deck.id}')" title="Copy Original Prompt">P</div>` 
+                : '';
+
             card.innerHTML = `
                 <div class="card-header" onclick="toggleCard('${deck.id}')">
                     <div class="title-group">
@@ -343,7 +377,8 @@
                         <span class="card-tag">${tagName}</span>
                     </div>
                     <div class="card-actions">
-                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">DELETE</div>
+                        ${promptBtn}
+                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
                     </div>
                 </div>
                 <div class="card-content" id="content-${deck.id}"></div>
@@ -390,56 +425,82 @@
 
         let customInstructions = "";
         if (extra) {
-            customInstructions = `\nSPECIFIC USER REQUEST: "${extra}"`;
+            customInstructions = `\nSPECIFIC FOCUS: "${extra}"`;
         }
 
         let promptText = "";
 
-        // === PROMPTS ABIERTOS Y POSITIVOS ===
-        
+        // MODIFICADO: Ya no pedimos estrictamente HTML raw, permitimos Markdown
         if (depthLevel === "1") {
-            // Nivel 1: RESUMEN / DATOS
-            promptText = `Create a single HTML file about: "${topic}".${customInstructions}
-            
-OBJECTIVE: Provide a concise and factual summary.
-
-CONTENT GUIDE:
-- Focus on defining the core concept clearly.
-- Include a list or table of key facts.
-- Keep the information dense but easy to scan.
-- Use a clean, simple design that you find appropriate for the data.
-- Output raw HTML code only.`;
-
+            promptText = `Explain: "${topic}".${customInstructions}
+OBJECTIVE: Concise Summary.
+FORMAT: Use simple titles, bullet points and bold text.
+Structure: Definition, Key Rules, Data List.`;
         } else if (depthLevel === "2") {
-            // Nivel 2: EXPLICACION ESTANDAR
-            promptText = `Create a single HTML file about: "${topic}".${customInstructions}
-            
-OBJECTIVE: Provide a complete educational article.
-
-CONTENT GUIDE:
-- Explain the topic thoroughly (What, Why, How).
-- Provide clear examples to illustrate the theory.
-- Structure the content with clear headings and logical flow.
-- Use a readable design that encourages learning.
-- Output raw HTML code only.`;
-
+            promptText = `Explain: "${topic}".${customInstructions}
+OBJECTIVE: Educational Lesson.
+FORMAT: Use clear Headings, Subheadings, and bullet points.
+Content: Theory, Examples, Context.`;
         } else {
-            // Nivel 3: INVESTIGACION PROFUNDA
-            promptText = `Create a single HTML file about: "${topic}".${customInstructions}
-            
-OBJECTIVE: Provide an extensive, deep-dive monograph.
-
-CONTENT GUIDE:
-- Prioritize depth and detail. Cover history, nuances, and advanced concepts.
-- Write substantial text. Do not summarize; explain fully.
-- Use a professional, academic layout suitable for long-form reading.
-- Dedicate all resources to maximizing the quality and quantity of information.
-- Output raw HTML code only.`;
+            promptText = `Explain: "${topic}".${customInstructions}
+OBJECTIVE: Deep Monograph.
+FORMAT: Use detailed structure, extensive text, and clear sections.
+Content: History, Nuances, Deep Analysis.`;
         }
+
+        lastCopiedPrompt = promptText;
 
         navigator.clipboard.writeText(promptText)
             .then(() => showToast(`Prompt ${depthLevel} Copied`))
             .catch(() => showToast('Error Copying'));
+    }
+
+    // --- MAGIA: DETECTOR DE FORMATO ---
+    function formatContent(content) {
+        // 1. Detect if it's already an HTML App (contains specific tags)
+        if (content.includes('<!DOCTYPE html>') || content.includes('<html')) {
+            return { code: content, isText: false };
+        }
+
+        // 2. If not, treat as Markdown/Text and wrap in a Beautiful Template
+        const parsedHTML = marked.parse(content);
+
+        // This template makes plain text look like a Premium App
+        const wrapper = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Merriweather:ital,wght@0,300;0,700;1,300&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background: #050505; color: #ddd; 
+            font-family: 'Inter', sans-serif; 
+            line-height: 1.6; padding: 20px; 
+            max-width: 800px; margin: 0 auto;
+        }
+        h1, h2, h3 { color: #fff; margin-top: 1.5em; margin-bottom: 0.5em; }
+        h1 { font-size: 2em; border-bottom: 2px solid #00f2ea; padding-bottom: 10px; color: #00f2ea; }
+        h2 { font-size: 1.5em; color: #fff; }
+        strong { color: #fff; }
+        code { background: #222; padding: 2px 5px; border-radius: 4px; font-family: monospace; color: #00f2ea; }
+        pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
+        ul, ol { padding-left: 20px; color: #ccc; }
+        li { margin-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #333; padding: 10px; text-align: left; }
+        th { background: #111; color: #00f2ea; }
+        blockquote { border-left: 3px solid #444; margin: 20px 0; padding-left: 15px; font-style: italic; color: #888; }
+        a { color: #00f2ea; }
+    </style>
+</head>
+<body>
+    ${parsedHTML}
+</body>
+</html>`;
+        
+        return { code: wrapper, isText: true };
     }
 
     async function pasteAndCreate() {
@@ -448,14 +509,19 @@ CONTENT GUIDE:
         let title = topicInput.value.trim() || "Untitled";
 
         try {
-            const code = await navigator.clipboard.readText();
-            if (!code || code.length < 10) { showToast('Clipboard Empty'); return; }
+            const rawClipboard = await navigator.clipboard.readText();
+            if (!rawClipboard || rawClipboard.length < 5) { showToast('Clipboard Empty'); return; }
+
+            // PROCESS CONTENT
+            const formattedData = formatContent(rawClipboard);
 
             const newDeck = {
                 id: 'd_' + Date.now(),
                 title: title,
-                code: code, 
-                alg: alg 
+                code: formattedData.code, 
+                alg: alg,
+                isTextConverted: formattedData.isText,
+                originalPrompt: lastCopiedPrompt || "Manual/Unknown"
             };
 
             userDecks.push(newDeck);
@@ -466,11 +532,24 @@ CONTENT GUIDE:
                 document.querySelector('.scroll-container').scrollTo({ top: 10000, behavior: 'smooth' });
             }, 100);
             
-            showToast('Saved!');
+            showToast(formattedData.isText ? 'Text Formatted!' : 'HTML App Saved!');
             document.getElementById('topicInput').value = ''; 
             document.getElementById('extraInput').value = '';
         } catch (err) {
+            console.error(err);
             showToast('Permission Error');
+        }
+    }
+
+    function copySavedPrompt(e, id) {
+        e.stopPropagation(); 
+        const deck = userDecks.find(d => d.id === id);
+        if (deck && deck.originalPrompt) {
+            navigator.clipboard.writeText(deck.originalPrompt)
+                .then(() => showToast('Original Prompt Copied!'))
+                .catch(() => showToast('Error'));
+        } else {
+            showToast('No Prompt Found');
         }
     }
 
