@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | Studio V4</title>
+    <title>NEXUS | Studio V5 (Editor)</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
         /* =========================================
-           CORE VARIABLES
+           CORE STYLES
            ========================================= */
         :root {
             --bg-body: #050505;
             --glass-border: rgba(255, 255, 255, 0.08);
             --neon-gen: #00f2ea;
             --neon-del: #ff4444;
-            --neon-edit: #ffd700;
+            --neon-save: #39ff14; /* Green for Save */
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
@@ -36,67 +36,67 @@
         .card-tag { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 3px 6px; border-radius: 2px; background: rgba(0, 242, 234, 0.1); color: var(--neon-gen); border: 1px solid rgba(0, 242, 234, 0.2); flex-shrink: 0; }
         .card-tag.text-mode { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); background: rgba(255, 215, 0, 0.1); }
 
-        /* ACTION BUTTONS */
+        /* HEADER BUTTONS */
         .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
         .circle-btn { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; cursor: pointer; transition: 0.2s; }
-        
-        .btn-rename:hover { background: var(--neon-edit); color: #000; border-color: var(--neon-edit); }
+        .btn-rename:hover { background: #ffd700; color: #000; border-color: #ffd700; }
         .btn-delete:hover { background: var(--neon-del); color: #fff; border-color: var(--neon-del); }
 
-        /* ACTIVE STATE (OPEN) */
+        /* ACTIVE STATE (EDITOR MODE) */
         .card.active { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; z-index: 9999; margin: 0; border: none; background: #000; display: flex; flex-direction: column; }
         .card.active .card-header { background: #111; border-bottom: 1px solid #333; flex-shrink: 0; }
         .card.active .card-title { color: #fff; }
-        .card.active .card-actions { display: none; } /* Hide header actions when open */
+        .card.active .card-actions { display: none; } /* Hide standard actions in editor mode */
 
-        /* EDITOR TOOLBAR (NEW) */
+        /* EDITOR TOOLBAR */
         .editor-toolbar {
-            display: none; /* Hidden by default */
+            display: none;
             background: #1a1a1a;
             border-bottom: 1px solid #333;
-            padding: 10px;
-            gap: 10px;
+            padding: 8px 15px;
+            gap: 15px;
             align-items: center;
-            justify-content: space-between;
             overflow-x: auto;
             flex-shrink: 0;
+            white-space: nowrap;
         }
         .card.active .editor-toolbar { display: flex; }
 
-        .editor-group { display: flex; align-items: center; gap: 8px; }
-        .editor-label { font-size: 10px; color: #666; text-transform: uppercase; font-weight: bold; }
+        .tool-btn {
+            background: rgba(255,255,255,0.1); border: 1px solid #444; color: #ccc;
+            padding: 5px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;
+            font-family: 'Inter', sans-serif;
+        }
+        .tool-btn:hover { background: #333; color: #fff; }
         
-        /* Inputs del editor */
-        .style-select { background: #000; color: #fff; border: 1px solid #444; padding: 4px; font-size: 11px; border-radius: 4px; }
-        input[type="color"] { -webkit-appearance: none; border: none; width: 24px; height: 24px; border-radius: 4px; background: none; cursor: pointer; }
-        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
-        input[type="color"]::-webkit-color-swatch { border: 1px solid #444; border-radius: 4px; }
-        
-        /* CONTENT AREA & IFRAME */
+        .tool-save { background: rgba(57, 255, 20, 0.2); border-color: var(--neon-save); color: var(--neon-save); margin-left: auto; }
+        .tool-save:hover { background: var(--neon-save); color: #000; }
+
+        .color-picker-wrapper { position: relative; width: 24px; height: 24px; overflow: hidden; border-radius: 4px; border: 1px solid #444; }
+        input[type="color"] { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; cursor: pointer; }
+
+        /* IFRAME EDITOR AREA */
         .card-content { 
             display: none; 
             flex: 1; 
-            background: #000; 
+            background: #fff; /* Editor background */
             position: relative; 
-            overflow: hidden; /* Container hides overflow */
+            overflow: hidden; 
         }
         .card.active .card-content { display: block; }
         
-        /* EL FIX DEL SCROLL ESTÁ AQUÍ */
         iframe { 
             width: 100%; 
             height: 100%; 
             border: none; 
             display: block; 
-            background: #fff;
-            overflow-y: auto; /* Permitir scroll nativo */
+            background: #050505; /* Dark mode editor base */
         }
 
-        /* GENERATOR PANEL */
+        /* GENERATOR PANEL (Bottom) */
         .generator-panel { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); border-top: 1px solid var(--glass-border); padding: 15px; z-index: 5000; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -10px 30px rgba(0,0,0,0.5); }
         .gen-container { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 10px; }
 
-        /* PREVIEW & CHIPS */
         .prompt-preview-window { position: absolute; bottom: 100%; left: 0; width: 100%; max-height: 0; background: rgba(0,0,0,0.95); border: 1px solid var(--neon-gen); border-bottom: none; border-radius: 8px 8px 0 0; color: #ccc; font-family: monospace; font-size: 11px; opacity: 0; pointer-events: none; transition: 0.3s; overflow-y: auto; }
         .prompt-preview-window.visible { max-height: 200px; opacity: 1; padding: 15px; margin-bottom: 15px; pointer-events: auto; }
         
@@ -179,14 +179,14 @@
     // ==========================================
     // 2. STATE & INIT
     // ==========================================
-    let userDecks = JSON.parse(localStorage.getItem('nexus_studio_v4')) || [];
+    let userDecks = JSON.parse(localStorage.getItem('nexus_studio_v5')) || [];
     let activeModeId = MODES[0].id;
     let activeFormatId = FORMATS[0].id;
     let generatedPromptText = "";
-    let activeIframe = null; // Para el editor
+    let activeIframe = null; 
+    let activeDeckId = null;
 
     function init() {
-        // Render Chips
         const mC = document.getElementById('modeContainer');
         MODES.forEach(m => {
             const c = document.createElement('div');
@@ -237,9 +237,9 @@
     }
 
     // ==========================================
-    // 3. DECK LOGIC (SCROLL FIXED)
+    // 3. DECK LOGIC (EDITOR ENABLED)
     // ==========================================
-    function saveDecks() { localStorage.setItem('nexus_studio_v4', JSON.stringify(userDecks)); }
+    function saveDecks() { localStorage.setItem('nexus_studio_v5', JSON.stringify(userDecks)); }
 
     function renderDecks() {
         const list = document.getElementById('deck-list');
@@ -269,31 +269,18 @@
                     </div>
                 </div>
                 <div class="editor-toolbar" id="toolbar-${d.id}">
-                    <div class="editor-group">
-                        <span class="editor-label">Font</span>
-                        <select class="style-select" onchange="applyStyle('fontFamily', this.value)">
-                            <option value="sans-serif">Sans</option>
-                            <option value="serif">Serif</option>
-                            <option value="monospace">Mono</option>
-                        </select>
+                    <button class="tool-btn" onclick="execCmd('bold')">B</button>
+                    <button class="tool-btn" onclick="execCmd('italic')">I</button>
+                    <button class="tool-btn" onclick="execCmd('underline')">U</button>
+                    <button class="tool-btn" onclick="execCmd('formatBlock', 'h2')">H2</button>
+                    <button class="tool-btn" onclick="execCmd('insertUnorderedList')">List</button>
+                    <div class="color-picker-wrapper" title="Text Color">
+                        <input type="color" onchange="execCmd('foreColor', this.value)">
                     </div>
-                    <div class="editor-group">
-                        <span class="editor-label">Size</span>
-                        <select class="style-select" onchange="applyStyle('fontSize', this.value)">
-                            <option value="16px">S</option>
-                            <option value="18px" selected>M</option>
-                            <option value="22px">L</option>
-                            <option value="26px">XL</option>
-                        </select>
+                    <div class="color-picker-wrapper" title="BG Color" style="background:#fff;">
+                        <input type="color" onchange="execCmd('hiliteColor', this.value)">
                     </div>
-                    <div class="editor-group">
-                        <span class="editor-label">Text</span>
-                        <input type="color" value="#e0e0e0" onchange="applyStyle('color', this.value)">
-                    </div>
-                    <div class="editor-group">
-                        <span class="editor-label">Bg</span>
-                        <input type="color" value="#050505" onchange="applyStyle('background', this.value)">
-                    </div>
+                    <button class="tool-btn tool-save" onclick="saveContent()">SAVE CHANGES</button>
                 </div>
                 <div class="card-content" id="content-${d.id}"></div>
             `;
@@ -321,14 +308,19 @@
             if(!txt.includes('<!DOCTYPE')) {
                 isText = true;
                 const html = marked.parse(txt);
-                // INYECTAMOS CSS PARA ASEGURAR SCROLL
+                // INJECT CSS FOR EDITING EXPERIENCE
                 code = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
                     html, body { height: 100%; margin: 0; padding: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-                    body { background: #050505; color: #ddd; font-family: sans-serif; padding: 20px; line-height: 1.6; }
-                    h1 { color: #00f2ea; border-bottom: 1px solid #333; }
-                    pre { background: #111; padding: 10px; overflow-x: auto; color: #00f2ea; }
-                </style></head><body><h1>${title}</h1>${html}</body></html>`;
+                    body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 25px; line-height: 1.6; }
+                    h1, h2, h3 { color: #00f2ea; border-bottom: 1px solid #333; padding-bottom: 5px; }
+                    p { margin-bottom: 15px; }
+                    ul { padding-left: 20px; }
+                    *:focus { outline: none; } /* Remove edit outline */
+                </style></head><body contenteditable="true">${html}</body></html>`;
+            } else {
+                // If it's an app, make sure it's editable too if desired, or at least scrollable
+                code = code.replace('<body', '<body contenteditable="true" style="overflow-y:auto;"');
             }
 
             userDecks.push({ id: 'd_'+Date.now(), title, code, formatLabel: fmt, isTextPaste: isText });
@@ -358,9 +350,10 @@
         
         if(card.classList.contains('active')) {
             card.classList.remove('active');
-            document.body.classList.remove('locked'); // Unlock body scroll
+            document.body.classList.remove('locked'); 
             setTimeout(() => content.innerHTML = '', 300);
             activeIframe = null;
+            activeDeckId = null;
         } else {
             document.querySelectorAll('.active').forEach(c => {
                 c.classList.remove('active');
@@ -368,32 +361,42 @@
             });
             
             card.classList.add('active');
-            // NO bloqueamos el scroll del body completamente, solo ocultamos overflow
-            // Pero como la card es fixed z-index 9999, cubre todo.
+            document.body.classList.add('locked');
             
+            activeDeckId = id;
             const deck = userDecks.find(d => d.id === id);
             const iframe = document.createElement('iframe');
             content.appendChild(iframe);
             
-            // Escribir contenido
             const doc = iframe.contentWindow.document;
             doc.open();
             doc.write(deck.code);
             doc.close();
-
-            // Set active iframe for editor
+            
+            // Enable editing just in case
+            doc.designMode = "on";
             activeIframe = iframe;
         }
     }
 
-    // === EDITOR LOGIC (APPLY TO IFRAME) ===
-    function applyStyle(prop, val) {
-        if(!activeIframe) return;
-        const body = activeIframe.contentDocument.body;
-        if(prop === 'fontFamily') body.style.fontFamily = val;
-        if(prop === 'fontSize') body.style.fontSize = val;
-        if(prop === 'color') body.style.color = val;
-        if(prop === 'background') body.style.background = val;
+    // === EDITOR FUNCTIONS ===
+    function execCmd(cmd, val = null) {
+        if(activeIframe) {
+            activeIframe.contentDocument.execCommand(cmd, false, val);
+            activeIframe.contentWindow.focus();
+        }
+    }
+
+    function saveContent() {
+        if(activeIframe && activeDeckId) {
+            const newCode = "<!DOCTYPE html>" + activeIframe.contentDocument.documentElement.outerHTML;
+            const deck = userDecks.find(d => d.id === activeDeckId);
+            if(deck) {
+                deck.code = newCode;
+                saveDecks();
+                showToast("CHANGES SAVED");
+            }
+        }
     }
 
     init();
