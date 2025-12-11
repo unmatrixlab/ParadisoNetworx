@@ -807,12 +807,30 @@ const Game = {
         }, 800);
     },
     spawnGhost(x, y, t) { if(!this.isPlaying || this.showingGhost) return; let gx = Math.max(50, Math.min(this.width - 50, x)), gy = Math.max(50, Math.min(this.height - 50, y)); this.ghosts.push({x:gx, y:gy, text:(Array.isArray(t) ? t[0] : t).toUpperCase(), life:1.0, vy:-0.5}); this.showingGhost = true; },
-    replaceMasteredWord(oldEn) {
-        const idx = this.queue.findIndex(w => w.en === oldEn); if(idx === -1) return; this.queue.splice(idx, 1);
-        const c = this.fullList.filter(w => !this.queue.find(q => q.en === w.en) && !Profile.isBanned(w.en)); 
-        if(c.length > 0) this.queue.push(c[0]);
-        if(idx < this.idx) this.idx--; else if(idx === this.idx) this.idx--;
-    },
+// BUSCA ESTO DENTRO DE: const Game = { ... }
+
+replaceMasteredWord(oldEn) {
+    // 1. Encontrar y borrar la palabra vieja
+    const idx = this.queue.findIndex(w => w.en === oldEn); 
+    if(idx === -1) return; 
+    this.queue.splice(idx, 1);
+
+    // 2. Buscar candidata (AQUÍ ESTABA EL ERROR)
+    // Antes solo mirábamos que no estuviera en cola y no estuviera baneada.
+    // AHORA AÑADIMOS: && Profile.getLvl(w.en) < 4
+    const c = this.fullList.filter(w => 
+        !this.queue.find(q => q.en === w.en) && // Que no esté repetida en la mano actual
+        !Profile.isBanned(w.en) &&              // Que no esté baneada (calavera)
+        Profile.getLvl(w.en) < 4                // <--- NUEVO: QUE NO SEA YA MAESTRA
+    ); 
+    
+    // 3. Añadir la nueva palabra si existe
+    if(c.length > 0) this.queue.push(c[0]);
+
+    // 4. Ajustar el índice para no saltarnos nada
+    if(idx < this.idx) this.idx--; 
+    else if(idx === this.idx) this.idx--;
+},
   // BUSCA ESTO DENTRO DE: const Game = { ... }
 // Y REEMPLÁZALO POR ESTA VERSIÓN:
 
