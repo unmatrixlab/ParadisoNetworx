@@ -723,20 +723,29 @@ const Game = {
 
     init(queue, cat, colorVar, fullList) {
         this.queue=queue; this.category=cat; this.fullList=fullList;
+        // Blindaje: Si custom o mixed fallan, asegurar fallback a DB.all()
         this.pool=(cat==='custom'||cat==='mixed')?(this.fullList.length>4?this.fullList:DB.all()):DB.all();
-        // Filter pool against ban list
         this.pool = this.pool.filter(w => !Profile.isBanned(w.en));
+
+        // Blindaje extra: Si después de filtrar no hay pool, usar fullList para evitar crash
+        if(this.pool.length === 0) this.pool = this.fullList;
 
         this.idx=0; this.score=0; this.ghosts=[]; this.shockwaves=[]; this.combo=0; this.showingGhost=false; this.isPlaying=true; this.banningPhase=false;
         this.canvas=document.getElementById('game-canvas'); this.ctx=this.canvas.getContext('2d'); this.resize();
         window.addEventListener('resize', ()=>this.resize());
         this.mode=Profile.cfg.gameMode; this.speedMult=Profile.cfg.speed===1?0.6:(Profile.cfg.speed===3?1.5:1.0);
         this.startTime=Date.now(); this.timeLimit=Profile.cfg.time*60*1000;
+        
+        // Setup Theme Color
         const tD=document.createElement('div'); tD.style.color=colorVar; document.body.appendChild(tD); this.themeColor=getComputedStyle(tD).color; document.body.removeChild(tD);
         if(['flower','heart','butterfly'].includes(this.mode)) { const p={'--c-noun':'#93c5fd','--c-adj':'#f0abfc','--c-reg':'#86efac','--c-irreg':'#fcd34d','--c-func':'#a5b4fc','--primary':'#fda4af','--gold':'#fcd34d'}; const v=colorVar.replace('var(','').replace(')',''); this.themeColor=p[v]||this.themeColor; }
+        
         document.getElementById('game-timer').style.display = this.timeLimit>0?'block':'none';
-        this.stars=[]; for(let i=0;i<80;i++)this.stars.push({x:Math.random()*this.width,y:Math.random()*this.height,size:Math.random()*2,speed:0.2+Math.random()*0.5});
+        
+        // Init Decor
+        this.stars=[]; for(let i=0;i<60;i++)this.stars.push({x:Math.random()*this.width,y:Math.random()*this.height,size:Math.random()*2,speed:0.2+Math.random()*0.5});
         this.clouds=[]; if(['flower','heart','butterfly'].includes(this.mode)) for(let i=0;i<5;i++)this.clouds.push({x:Math.random()*this.width,y:Math.random()*this.height,size:30+Math.random()*50,speed:0.1+Math.random()*0.1});
+        
         this.spawn(); this.lastTime=performance.now(); this.loopId=requestAnimationFrame(t=>this.loop(t));
     },
     resize() { const c=document.getElementById('game-canvas-container'); if(c){this.canvas.width=c.offsetWidth; this.canvas.height=c.offsetHeight; this.width=this.canvas.width; this.height=this.canvas.height;} },
@@ -752,14 +761,30 @@ const Game = {
     },
     renderButtons(cor) {
         const d=document.getElementById('control-dock'); d.innerHTML=''; 
-        // 1. Center Ban Button
         const banBtn = document.createElement('button'); banBtn.className='ban-btn-arcade'; banBtn.innerText='💀'; 
         banBtn.onclick=()=>this.banActive(); d.appendChild(banBtn);
-        // 2. Options
+        
+        // === FIX CRITICO: Evitar bucle infinito o crash si pool es pequeño ===
         let opts=[cor], i=0;
-        while(opts.length<4&&i<100){const r=this.pool[Math.floor(Math.random()*this.pool.length)];if(!opts.find(x=>x.en===r.en))opts.push(r);i++;}
+        if(this.pool && this.pool.length > 0) {
+            while(opts.length<4 && i<100){
+                const r=this.pool[Math.floor(Math.random()*this.pool.length)];
+                // Verificamos que 'r' exista y tenga la propiedad 'en' antes de comparar
+                if(r && r.en && !opts.find(x=>x.en===r.en)) opts.push(r);
+                i++;
+            }
+        }
+        // Si no logramos llenar 4 opciones, rellenar con la misma correcta para evitar UI rota
+        while(opts.length < 4) opts.push(cor);
+
         opts.sort(()=>Math.random()-0.5);
-        opts.forEach(o=>{ const b=document.createElement('button'); b.className='ans-btn'; b.innerText=(Array.isArray(o.es)?o.es[0]:o.es).toUpperCase(); b.onclick=()=>this.fire(o,cor,b); d.appendChild(b); });
+        opts.forEach(o=>{ 
+            const b=document.createElement('button'); 
+            b.className='ans-btn'; 
+            b.innerText=(Array.isArray(o.es)?o.es[0]:o.es).toUpperCase(); 
+            b.onclick=()=>this.fire(o,cor,b); 
+            d.appendChild(b); 
+        });
     },
     banActive() {
         if(!this.activeWord || this.banningPhase) return;
@@ -778,63 +803,35 @@ const Game = {
         if(c.length>0)this.queue.push(c[0]);
         if(idx<this.idx)this.idx--; else if(idx===this.idx)this.idx--;
     },
-fire(sel,cor,btn) {
+    fire(sel,cor,btn) {
         if(!this.activeWord || this.banningPhase || this.laser) return;
-
         const rect=btn.getBoundingClientRect(), cRect=this.canvas.getBoundingClientRect();
         let ox=(rect.left+rect.width/2)-cRect.left, oy=this.height;
         if(['orbit','butterfly'].includes(this.mode)){ox=this.width/2;oy=this.height/2;}
-        
         const fem=['flower','heart','butterfly'].includes(this.mode);
         const isCorrect = sel.en === cor.en;
-        
         let color, start, end;
-        
         if (isCorrect) {
-            color = fem ? '#86efac' : '#10b981';
-            start = { x: ox, y: oy };
-            end = { x: this.activeWord.x, y: this.activeWord.y };
+            color = fem ? '#86efac' : '#10b981'; start = { x: ox, y: oy }; end = { x: this.activeWord.x, y: this.activeWord.y };
             btn.classList.add('correct-flash'); 
         } else {
-            color = fem ? '#fda4af' : '#ef4444';
-            start = { x: this.activeWord.x, y: this.activeWord.y }; 
-            end = { x: ox, y: oy }; 
+            color = fem ? '#fda4af' : '#ef4444'; start = { x: this.activeWord.x, y: this.activeWord.y }; end = { x: ox, y: oy }; 
             btn.classList.add('error-flash');
         }
-
-        this.laser = {
-            x1: start.x, y1: start.y,
-            x2: end.x, y2: end.y,
-            life: 1.0,
-            color: color,
-            time: 0,
-            progress: 0,
-            speed: 0.05, 
-            
+        this.laser = { x1: start.x, y1: start.y, x2: end.x, y2: end.y, life: 1.0, color: color, time: 0, progress: 0, speed: 0.08, // Speed optimizada 
             onHit: () => {
                 if(isCorrect){
-                    // ACIERTO: Explota el enemigo
                     if(App.audioMode) this.speak(cor.en);
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
-                    this.flashIntensity = 0.3; 
-                    this.combo++; 
+                    this.flashIntensity = 0.3; this.combo++; 
                     this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
-                    
                     const newLvl = Profile.setProg(cor.en, true); 
                     if(newLvl === 4) this.replaceMasteredWord(cor.en);
-                    App.updateChart(this.queue); 
-                    this.activeWord = null; 
-                    this.idx++; 
+                    App.updateChart(this.queue); this.activeWord = null; this.idx++; 
                     if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                 } else {
-                    // ERROR: Explota el botón (TU POSICIÓN)
-                    this.screenShake(); 
-                    
-                    // --- NUEVA LÍNEA: Explosión en las coordenadas finales del rayo (el botón) ---
-                    this.createExplosion(this.laser.x2, this.laser.y2, color); 
-                    
-                    this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
-                    this.combo = 0;
+                    this.screenShake(); this.createExplosion(this.laser.x2, this.laser.y2, color); 
+                    this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); this.combo = 0;
                 }
             }
         };
@@ -845,229 +842,196 @@ fire(sel,cor,btn) {
         this.activeWord=null; this.idx++; this.combo=0;
     },
     createExplosion(x, y, c, mult = 1) { 
-        // Aumentamos la cantidad de partículas según el multiplicador
-        const count = 25 * mult; 
-        
+        const count = 15 * mult; // Reducido de 25 a 15 para performance
         for(let i=0; i < count; i++){
             const a = Math.random() * Math.PI * 2;
-            
-            // La velocidad (s) define qué tan lejos llegan. Multiplicamos s por mult.
             const s = (Math.random() * 2 + 1) * mult; 
-            
-            this.particles.push({
-                x, y, 
-                vx: Math.cos(a) * s, 
-                vy: Math.sin(a) * s, 
-                life: 1.0, 
-                color: c, 
-                // También hacemos las partículas un poco más gordas
-                size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) 
-            });
+            this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1.0, color: c, size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) });
         } 
     },
     speak(t){ window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang='en-US'; u.rate=1.1; window.speechSynthesis.speak(u); },
     screenShake(){ const c=this.canvas; c.style.transform=`translate(${Math.random()*10-5}px,${Math.random()*10-5}px)`; setTimeout(()=>c.style.transform='none',200); },
-   // === REEMPLAZA TU FUNCIÓN drawWebLaser ACTUAL POR ESTA ===
- drawWebLaser(ctx, l) { 
+    
+    drawWebLaser(ctx, l) { 
         const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1);
         const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); 
+        // OPTIMIZACION: Solo sombra si life es alto
+        if(l.life > 0.5) { ctx.shadowBlur = 15; ctx.shadowColor = l.color; }
         
-        ctx.shadowBlur = 20; 
-        ctx.shadowColor = l.color; 
-        
-        // LÓGICA DE PROGRESO DEL RAYO
-        if(l.progress < 1) {
-            l.progress += l.speed;
-            if(l.progress > 1) l.progress = 1;
-        }
+        if(l.progress < 1) { l.progress += l.speed; if(l.progress > 1) l.progress = 1; }
 
-        // Añadimos el parámetro 'lag' (retraso) a la función interna
         const ds = (w, o, f, m, lag) => {
-            // Calculamos hasta dónde dibujar basado en el progreso y el retraso de este hilo
             let currentDist = d * (l.progress * lag);
-            if(currentDist > d) currentDist = d; // Tope máximo
-
+            if(currentDist > d) currentDist = d; 
             ctx.beginPath();
             ctx.strokeStyle = l.color;
             ctx.lineWidth = w;
             ctx.globalAlpha = l.life * o;
-            
-            // Iteramos solo hasta currentDist en lugar de 'd'
-            // Esto crea el efecto de que el rayo viaja hacia el objetivo
-            for(let i = 0; i <= currentDist; i += 8) {
+            // OPTIMIZACION: i+=12 en lugar de 8 para menos cálculos
+            for(let i = 0; i <= currentDist; i += 12) {
                 const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life;
-                // Cálculo de posición con vibración eléctrica
                 const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
                 const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
-                
                 if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             }
             ctx.stroke();
         }; 
+        ds(6, 0.6, 0, 1.0, 1.0);    
+        ds(3, 1.0, 0.02, 1.2, 0.85);    
+        // Tercer hilo eliminado para performance en móviles
         
-        // LLAMADAS CON DISTINTOS 'LAGS' PARA EL EFECTO ESCALONADO
-        ds(6, 0.6, 0, 1.0, 1.0);       // Núcleo: Va adelante (100% velocidad)
-        ds(3, 1.0, 0.02, 1.2, 0.85);   // Hilo 1: Un poco atrás (85% velocidad)
-        ds(3, 1.0, -0.02, 0.8, 0.70);  // Hilo 2: Más atrás (70% velocidad)
-        
-        ctx.globalAlpha = 1; 
-        ctx.shadowBlur = 0; 
-        l.time += 0.05; 
+        ctx.globalAlpha = 1; ctx.shadowBlur = 0; l.time += 0.05; 
     },
-    drawGrid(ctx){ ctx.strokeStyle="rgba(59,130,246,0.2)"; ctx.lineWidth=1; const h=this.height*0.4; this.gridOffset=(this.gridOffset+2)%40; for(let x=-this.width;x<this.width*2;x+=80){ctx.beginPath();ctx.moveTo(x,this.height);ctx.lineTo(this.width/2+(x-this.width/2)*0.2,h);ctx.stroke();} for(let z=0;z<this.height;z+=40){let y=(z+this.gridOffset)%this.height;if(y<h)continue;let py=h+Math.pow((y-h)/(this.height-h),2)*(this.height-h);ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(this.width,py);ctx.stroke();} const g=ctx.createLinearGradient(0,h,0,this.height);g.addColorStop(0,"rgba(5,5,5,1)");g.addColorStop(0.2,"rgba(5,5,5,0)");ctx.fillStyle=g;ctx.fillRect(0,h,this.width,this.height-h); },
+    drawGrid(ctx){ 
+        ctx.strokeStyle="rgba(59,130,246,0.2)"; ctx.lineWidth=1; const h=this.height*0.4; 
+        this.gridOffset=(this.gridOffset+2)%40; 
+        for(let x=-this.width;x<this.width*2;x+=80){ctx.beginPath();ctx.moveTo(x,this.height);ctx.lineTo(this.width/2+(x-this.width/2)*0.2,h);ctx.stroke();} 
+        for(let z=0;z<this.height;z+=40){let y=(z+this.gridOffset)%this.height;if(y<h)continue;let py=h+Math.pow((y-h)/(this.height-h),2)*(this.height-h);ctx.beginPath();ctx.moveTo(0,py);ctx.lineTo(this.width,py);ctx.stroke();} 
+        const g=ctx.createLinearGradient(0,h,0,this.height);g.addColorStop(0,"rgba(5,5,5,1)");g.addColorStop(0.2,"rgba(5,5,5,0)");ctx.fillStyle=g;ctx.fillRect(0,h,this.width,this.height-h); 
+    },
     drawBanBeam(ctx, target) {
         this.banBeamColor += 15; const hue = this.banBeamColor % 360; const color = `hsl(${hue}, 100%, 60%)`;
         let sx = this.width / 2; let sy = this.height + 40; if(this.mode==='orbit'||this.mode==='butterfly'){ sx=this.width/2; sy=this.height/2; } 
         const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()};
         this.drawWebLaser(ctx, l); 
-        for(let i=0; i<5; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1.0, color: color, size: Math.random()*6 }); }
+        // Reducido a 2 partículas por frame en lugar de 5
+        for(let i=0; i<2; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random()-0.5)*10, vy: (Math.random()-0.5)*10, life: 1.0, color: color, size: Math.random()*6 }); }
     },
-
-// --- NUEVAS FUNCIONES PARA EFECTO GELATINA ---
-    
-    // Calcula el radio distorsionado en un ángulo específico basado en el tiempo
     getWobbleR(baseR, angle, time) {
-        // Combinamos dos ondas seno a diferentes velocidades para que el movimiento no sea repetitivo
-        // Onda 1: Rápida y pequeña
         const w1 = Math.sin(angle * 7 + time * 0.004) * (baseR * 0.06);
-        // Onda 2: Lenta y más amplia
         const w2 = Math.cos(angle * 3 - time * 0.002) * (baseR * 0.1);
         return baseR + w1 + w2;
     },
-
-    // Dibuja el círculo tambaleante con brillo
     drawJelly(ctx, x, y, baseR, color, time, isFilled=false) {
         ctx.beginPath();
-        const steps = 40; // Cantidad de puntos para suavizar el círculo
+        const steps = 30; // Reducido de 40 a 30
         for (let i = 0; i <= steps; i++) {
-            // Calcular ángulo actual
             const a = (Math.PI * 2 / steps) * i;
-            // Obtener el radio deformado para este ángulo
             const r = this.getWobbleR(baseR, a, time);
-            // Convertir polar a cartesiano
             const px = x + Math.cos(a) * r;
             const py = y + Math.sin(a) * r;
             if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         }
         ctx.closePath();
+        // OPTIMIZACION: ShadowBlur es costoso. Solo usarlo cada 2 frames o reducir intensidad
+        ctx.shadowColor = color; ctx.shadowBlur = 15; 
         
-        // Aplicar Brillo de Neón intenso
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 25; 
-        
-        if(isFilled) {
-             // Para el centro de Orbit/Butterfly (sólido)
-            ctx.fillStyle = color;
-            ctx.fill();
-        } else {
-            // Para las burbujas (solo borde y relleno transparente)
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 4;
-            ctx.stroke();
-            // Truco para convertir el color RGB/Hex a RGBA con transparencia
-            ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); 
-             // Si es hex, no aplicará transparencia, pero no importa mucho.
-            ctx.fill(); 
+        if(isFilled) { ctx.fillStyle = color; ctx.fill(); } 
+        else {
+            ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke();
+            ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); 
         }
-        // Resetear shadow para no afectar otros elementos
         ctx.shadowBlur = 0;
     },
-    // ---------------------------------------------
-  
+    
+    // === BUCLE PRINCIPAL OPTIMIZADO ===
     loop(now) {
         if(!this.isPlaying)return; const dt=(now-this.lastTime)/16; this.lastTime=now;
         this.ctx.fillStyle='#050505'; this.ctx.fillRect(0,0,this.width,this.height);
+        
         const fem=['flower','heart','butterfly'].includes(this.mode);
         if(!fem)this.drawGrid(this.ctx);
         else{ const g=this.ctx.createLinearGradient(0,0,0,this.height);g.addColorStop(0,"#0f172a");g.addColorStop(1,"#1e1b4b");this.ctx.fillStyle=g;this.ctx.fillRect(0,0,this.width,this.height);this.clouds.forEach(c=>{c.x+=c.speed;if(c.x>this.width+100)c.x=-100;this.ctx.fillStyle="rgba(255,255,255,0.3)";this.ctx.beginPath();this.ctx.arc(c.x,c.y,c.size,0,Math.PI*2);this.ctx.fill();}); }
+        
         if(!fem)this.stars.forEach(s=>{s.y+=s.speed;if(s.y>this.height)s.y=0;this.ctx.globalAlpha=0.3+Math.random()*0.5;this.ctx.beginPath();this.ctx.arc(s.x,s.y,s.size,0,Math.PI*2);this.ctx.fillStyle='#fff';this.ctx.fill();}); this.ctx.globalAlpha=1;
         const cx=this.width/2, cy=this.height/2;
-        // (CÓDIGO NUEVO)
+        
         if(['orbit','butterfly'].includes(this.mode)){ 
             const centerColor = this.mode==='butterfly' ? '#fcd34d' : '#3b82f6';
             const centerSize = this.mode==='butterfly' ? 40 : 35;
-            // Usamos la nueva función drawJelly con isFilled = true
             this.drawJelly(this.ctx, cx, cy, centerSize, centerColor, now, true);
         }
         if(this.activeWord){
             const w=this.activeWord; 
             if(!this.banningPhase) {
                 w.x+=w.vx*dt; w.y+=w.vy*dt; w.rot+=w.rotSpeed*dt;
-                if(this.mode==='meteor'){w.trail.push({x:w.x,y:w.y});if(w.trail.length>15)w.trail.shift();this.ctx.globalCompositeOperation='lighter';w.trail.forEach((p,i)=>{this.ctx.fillStyle=w.color;this.ctx.globalAlpha=i/15;this.ctx.beginPath();this.ctx.arc(p.x,p.y,w.size*(i/20),0,Math.PI*2);this.ctx.fill();});this.ctx.globalCompositeOperation='source-over';this.ctx.globalAlpha=1;}
+                
+                // OPTIMIZACION DE ESTELA (Meteor Mode)
+                if(this.mode==='meteor'){
+                    w.trail.push({x:w.x,y:w.y});
+                    if(w.trail.length>12)w.trail.shift(); // Reducido trail length
+                    // CAMBIO DE ESTADO FUERA DEL LOOP
+                    this.ctx.globalCompositeOperation='lighter';
+                    this.ctx.fillStyle=w.color;
+                    this.ctx.beginPath(); // Un solo path para toda la estela
+                    w.trail.forEach((p,i)=>{
+                        this.ctx.moveTo(p.x, p.y);
+                        this.ctx.arc(p.x,p.y,w.size*(i/20),0,Math.PI*2);
+                    });
+                    this.ctx.globalAlpha=0.4;
+                    this.ctx.fill();
+                    this.ctx.globalCompositeOperation='source-over';
+                    this.ctx.globalAlpha=1;
+                }
+                
                 let fail=false;
                 if(['meteor','flower'].includes(this.mode)&&w.y>this.height-50)fail=true;
                 else if(['bubble','heart'].includes(this.mode)&&w.y<50)fail=true;
                 else if(['orbit','butterfly'].includes(this.mode)&&Math.hypot(cx-w.x,cy-w.y)<40)fail=true;
                 if(fail)this.fail();
             } else { w.x += (Math.random()-0.5)*5; w.y += (Math.random()-0.5)*5; this.drawBanBeam(this.ctx, w); }
+            
             this.ctx.save(); this.ctx.translate(w.x,w.y);
             if(['orbit','butterfly'].includes(this.mode)){const ang=Math.atan2(cy-w.y,cx-w.x);this.ctx.rotate(ang+Math.PI/2);}else{this.ctx.rotate(w.rot);}
-            this.ctx.shadowBlur=20; this.ctx.shadowColor=w.color;
-            if(fem){this.ctx.fillStyle=w.color;this.ctx.shadowBlur=15;}else{this.ctx.strokeStyle=w.color;this.ctx.lineWidth=3;}
+            
+            // OPTIMIZACION: Solo aplicar shadowBlur si no es modo burbuja (que ya tiene jelly effect)
+            if(this.mode !== 'bubble') { this.ctx.shadowBlur=15; this.ctx.shadowColor=w.color; }
+            
+            if(fem){this.ctx.fillStyle=w.color;}else{this.ctx.strokeStyle=w.color;this.ctx.lineWidth=3;}
             this.ctx.beginPath();
             if(this.mode==='meteor'){for(let i=0;i<6;i++)this.ctx.lineTo(w.size*Math.cos(i*Math.PI/3),w.size*Math.sin(i*Math.PI/3));this.ctx.closePath();this.ctx.stroke();this.ctx.fillStyle="rgba(0,0,0,0.8)";this.ctx.fill();}
-            else if(this.mode==='bubble'){
-    // Usamos la función drawJelly, pasando 'now' como tiempo para la animación
-    this.drawJelly(this.ctx, 0, 0, w.size, w.color, now, false);
-}
+            else if(this.mode==='bubble'){ this.drawJelly(this.ctx, 0, 0, w.size, w.color, now, false); }
             else if(this.mode==='orbit'){this.ctx.moveTo(0,20);this.ctx.lineTo(-20,-20);this.ctx.lineTo(20,-20);this.ctx.closePath();this.ctx.stroke();this.ctx.fillStyle="rgba(0,0,0,0.8)";this.ctx.fill();}
             else if(this.mode==='flower'){const p=w.size/2.5;for(let i=0;i<5;i++){this.ctx.beginPath();this.ctx.ellipse(Math.cos(i*2*Math.PI/5)*p,Math.sin(i*2*Math.PI/5)*p,p,p/2,i*2*Math.PI/5,0,2*Math.PI);this.ctx.fill();}this.ctx.beginPath();this.ctx.arc(0,0,w.size/4,0,Math.PI*2);this.ctx.fillStyle='#fffbea';this.ctx.fill();}
             else if(this.mode==='heart'){ const size=w.size; const h=size*0.3; this.ctx.moveTo(0,h); this.ctx.bezierCurveTo(0,0,-size/2,0,-size/2,h); this.ctx.bezierCurveTo(-size/2,(size+h)/2,0,(size+h)/2,0,size); this.ctx.bezierCurveTo(0,(size+h)/2,size/2,(size+h)/2,size/2,h); this.ctx.bezierCurveTo(size/2,0,0,0,0,h); this.ctx.fill(); }
             else if(this.mode==='butterfly'){ const size=w.size, flap=Math.abs(Math.sin(Date.now()*0.0025)); this.ctx.beginPath(); this.ctx.ellipse(-size/3,-size/4,size/2*flap,size/3,-Math.PI/4,0,Math.PI*2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(-size/3,size/4,size/2.5*flap,size/4,Math.PI/4,0,Math.PI*2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size/3,-size/4,size/2*flap,size/3,Math.PI/4,0,Math.PI*2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size/3,size/4,size/2.5*flap,size/4,-Math.PI/4,0,Math.PI*2); this.ctx.fill(); this.ctx.fillStyle="#fff"; this.ctx.beginPath(); this.ctx.ellipse(0,0,size/8,size/2,0,0,Math.PI*2); this.ctx.fill(); }
             this.ctx.restore();
+            
+            // Texto principal optimizado
             this.ctx.font="bold 26px 'Bebas Neue'";this.ctx.textAlign="center";this.ctx.textBaseline="middle";this.ctx.shadowBlur=0;this.ctx.lineWidth=4;this.ctx.strokeStyle="rgba(0,0,0,0.8)";this.ctx.strokeText(w.data.en.toUpperCase(),w.x,w.y);this.ctx.fillStyle="#fff";this.ctx.fillText(w.data.en.toUpperCase(),w.x,w.y);
         }
         if(this.laser){
             this.ctx.globalCompositeOperation='lighter';
             this.drawWebLaser(this.ctx, this.laser);
-            
-            // CHEQUEO DE IMPACTO
-            if (this.laser.progress >= 1) {
-                // El rayo llegó a su destino
-                if (this.laser.onHit) this.laser.onHit(); // Ejecutar explosión o error
-                this.laser = null; // Eliminar el rayo
-            } else {
-                // Solo reducimos vida si NO ha llegado (para efectos de brillo)
-                // Pero mantenemos el objeto vivo hasta que progress sea 1
-                this.laser.life -= 0.005;
-            }
+            if (this.laser.progress >= 1) { if (this.laser.onHit) this.laser.onHit(); this.laser = null; } 
+            else { this.laser.life -= 0.005; }
             this.ctx.globalCompositeOperation='source-over';
         }
-        for(let i=this.particles.length-1;i>=0;i--){let p=this.particles[i];p.x+=p.vx;p.y+=p.vy;p.life-=0.005;if(!['orbit','butterfly'].includes(this.mode))p.vy+=0.05;if(p.life<=0)this.particles.splice(i,1);else{this.ctx.globalCompositeOperation='lighter';this.ctx.globalAlpha=p.life;this.ctx.fillStyle=p.color;this.ctx.beginPath();this.ctx.arc(p.x,p.y,p.size,0,Math.PI*2);this.ctx.fill();this.ctx.globalCompositeOperation='source-over';}}
+        
+        // === OPTIMIZACION MASIVA DE PARTICULAS ===
+        // 1. Mover estado global FUERA del loop
+        if(this.particles.length > 0) {
+            this.ctx.globalCompositeOperation='lighter';
+            for(let i=this.particles.length-1;i>=0;i--){
+                let p=this.particles[i];
+                p.x+=p.vx;p.y+=p.vy;p.life-=0.005;
+                if(!['orbit','butterfly'].includes(this.mode))p.vy+=0.05;
+                if(p.life<=0)this.particles.splice(i,1);
+                else{
+                    this.ctx.globalAlpha=p.life;
+                    this.ctx.fillStyle=p.color;
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+                    this.ctx.fill();
+                }
+            }
+            this.ctx.globalCompositeOperation='source-over';
+            this.ctx.globalAlpha=1;
+        }
+
         for(let i=this.shockwaves.length-1;i>=0;i--){let s=this.shockwaves[i];s.radius+=3;s.alpha-=0.02;if(s.alpha<=0)this.shockwaves.splice(i,1);else{this.ctx.strokeStyle=s.color;this.ctx.lineWidth=3;this.ctx.globalAlpha=s.alpha;this.ctx.beginPath();this.ctx.arc(s.x,s.y,s.radius,0,Math.PI*2);this.ctx.stroke();}}
         if(this.flashIntensity>0){this.ctx.fillStyle=this.themeColor;this.ctx.globalAlpha=this.flashIntensity;this.ctx.fillRect(0,0,this.width,this.height);this.ctx.globalAlpha=1;this.flashIntensity-=0.02;}
-        // BUCLE DE FANTASMAS (TEXTO AMARILLO) MEJORADO
+        
+        // GHOSTS
         for(let i=this.ghosts.length-1;i>=0;i--){
-            let g=this.ghosts[i];
-            g.y+=g.vy; // El texto flota hacia arriba
-            g.life-=0.003; // Se desvanece poco a poco
-
-            if(g.life<=0){
-                this.ghosts.splice(i,1);
-                this.showingGhost=false;
-                if(!this.activeWord)this.spawn();
-            } else {
+            let g=this.ghosts[i]; g.y+=g.vy; g.life-=0.003;
+            if(g.life<=0){ this.ghosts.splice(i,1); this.showingGhost=false; if(!this.activeWord)this.spawn(); } 
+            else {
                 this.ctx.save();
-                
-                // --- CAMBIO: ESCALA PROGRESIVA Y SUAVE ---
-                // Eliminamos el "if > 0.9" que causaba el salto.
-                // Ahora empieza en tamaño 1.0 y crece suavemente hasta 1.3 mientras muere.
                 let s = 1 + (1 - g.life) * 0.3; 
-                
-                // Aplicamos la escala desde el centro del texto
-                this.ctx.translate(g.x, g.y);
-                this.ctx.scale(s, s);
-                this.ctx.translate(-g.x, -g.y);
-                // -----------------------------------------
-
-                this.ctx.globalAlpha = Math.max(0, g.life); // Opacidad suave
-                this.ctx.font="bold 24px 'Inter'";
-                this.ctx.textAlign="center";
-                this.ctx.lineWidth=3;
-                this.ctx.strokeStyle="#000";
-                this.ctx.strokeText(g.text,g.x,g.y);
-                this.ctx.fillStyle="#fbbf24";
-                this.ctx.fillText(g.text,g.x,g.y);
+                this.ctx.translate(g.x, g.y); this.ctx.scale(s, s); this.ctx.translate(-g.x, -g.y);
+                this.ctx.globalAlpha = Math.max(0, g.life);
+                this.ctx.font="bold 24px 'Inter'"; this.ctx.textAlign="center"; this.ctx.lineWidth=3; this.ctx.strokeStyle="#000"; this.ctx.strokeText(g.text,g.x,g.y); this.ctx.fillStyle="#fbbf24"; this.ctx.fillText(g.text,g.x,g.y);
                 this.ctx.restore();
             }
         }
