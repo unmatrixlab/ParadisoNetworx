@@ -203,6 +203,49 @@
             border: 1px dashed #fff;
         }
 
+
+        /* =========================================
+           6. EFECTO AUTO FANTÁSTICO (IDLE MODE)
+           ========================================= */
+        
+        /* La animación del brillo */
+        @keyframes kitt-scanner {
+            0% { 
+                color: #444; 
+                transform: scale(1);
+                text-shadow: none;
+                opacity: 0.5;
+            }
+            20% { 
+                color: #fff; 
+                transform: scale(1.3);
+                text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px var(--accent-color); 
+                opacity: 1;
+            }
+            40%, 100% { 
+                color: #444; 
+                transform: scale(1);
+                text-shadow: none;
+                opacity: 0.5;
+            }
+        }
+
+        /* Solo se activa si el contenedor tiene la clase .idle-mode */
+        .nexus-list.idle-mode .card-icon {
+            /* Duración total del ciclo. Ajusta 1.5s si lo quieres más lento */
+            animation: kitt-scanner 1.5s infinite ease-in-out; 
+        }
+
+        /* Retrasos escalonados para crear la secuencia de arriba a abajo.
+           Soporta hasta 10 items. Si tienes más, añade más líneas. */
+        .nexus-list.idle-mode .card:nth-child(1) .card-icon { animation-delay: 0.0s; }
+        .nexus-list.idle-mode .card:nth-child(2) .card-icon { animation-delay: 0.15s; }
+        .nexus-list.idle-mode .card:nth-child(3) .card-icon { animation-delay: 0.30s; }
+        .nexus-list.idle-mode .card:nth-child(4) .card-icon { animation-delay: 0.45s; }
+        .nexus-list.idle-mode .card:nth-child(5) .card-icon { animation-delay: 0.60s; }
+        .nexus-list.idle-mode .card:nth-child(6) .card-icon { animation-delay: 0.75s; }
+        .nexus-list.idle-mode .card:nth-child(7) .card-icon { animation-delay: 0.90s; }
+
     </style>
 </head>
 <body>
@@ -263,33 +306,41 @@
                 localStorage.setItem('nexus_sort_v2', JSON.stringify(order));
             }
         });
+        container.classList.add('idle-mode');
     }
 
     // === 3. LÓGICA DE APERTURA (MODO FIXED) ===
-    function toggleCard(id) {
+function toggleCard(id) {
         const card = document.querySelector(`.card[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
         const iframe = content.querySelector('iframe');
         const isActive = card.classList.contains('active');
+        const container = document.getElementById('nexus-container'); // Referencia al contenedor
 
         // 1. Si la carta ya está activa, la cerramos
         if (isActive) {
             card.classList.remove('active');
-            document.body.classList.remove('locked'); // Liberar scroll
-            // Pequeño timeout para limpiar el src si quieres ahorrar memoria, opcional
+            document.body.classList.remove('locked');
+            
+            // --- NUEVO: AL CERRAR, VOLVEMOS A ACTIVAR EL SCANNER ---
+            container.classList.add('idle-mode');
+            
             return;
         }
 
-        // 2. Si hay otra carta activa, la cerramos primero (seguridad)
+        // 2. Si hay otra carta activa, la cerramos
         document.querySelectorAll('.card.active').forEach(c => {
             c.classList.remove('active');
         });
 
         // 3. Activar la carta seleccionada
         card.classList.add('active');
-        document.body.classList.add('locked'); // Bloquear scroll del body
+        document.body.classList.add('locked');
+        
+        // --- NUEVO: AL ABRIR CUALQUIERA, QUITAMOS EL SCANNER ---
+        container.classList.remove('idle-mode');
 
-        // 4. Cargar iframe si no tiene src
+        // 4. Cargar iframe
         if (!iframe.src) {
             iframe.src = iframe.getAttribute('data-src');
         }
