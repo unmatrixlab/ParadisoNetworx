@@ -194,7 +194,7 @@
 
 <script>
     /* =========================================
-       1. DATA CONFIGURATION (LOGIC FROM REQ 1)
+       1. DATA CONFIGURATION
        ========================================= */
     const MODES = [
         { id: 'tech', label: 'Tech Engineer', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
@@ -263,7 +263,7 @@
     let userDecks = JSON.parse(localStorage.getItem('nexus_studio_ultimate')) || [];
     let activeModeId = MODES[0].id;
     let activeFormatId = FORMATS[0].id;
-    let lastGeneratedPrompt = ""; // Para guardar el prompt asociado a la respuesta
+    let lastGeneratedPrompt = ""; 
 
     document.addEventListener('DOMContentLoaded', () => {
         initInterface();
@@ -273,7 +273,6 @@
     });
 
     function initInterface() {
-        // 1. Render CHIPS (Modes)
         const modeCont = document.getElementById('modeContainer');
         MODES.forEach(m => {
             const chip = document.createElement('div');
@@ -283,7 +282,6 @@
             modeCont.appendChild(chip);
         });
 
-        // 2. Render CHIPS (Formats)
         const fmtCont = document.getElementById('formatContainer');
         FORMATS.forEach(f => {
             const chip = document.createElement('div');
@@ -293,7 +291,6 @@
             fmtCont.appendChild(chip);
         });
 
-        // 3. Render SELECTS
         populateSelect('taskSelect', TASK_TYPES);
         populateSelect('voiceSelect', VOICES);
         populateSelect('lengthSelect', LENGTH);
@@ -305,7 +302,7 @@
             opt.textContent = `Lvl ${i+1}: ${lvl.split(':')[1]}`; 
             levelSel.appendChild(opt);
         });
-        levelSel.selectedIndex = 2; // Default Level 3
+        levelSel.selectedIndex = 2; 
     }
 
     function populateSelect(id, data) {
@@ -323,9 +320,6 @@
         document.querySelectorAll('#formatContainer .chip').forEach((c, i) => c.className = `chip ${FORMATS[i].id === activeFormatId ? 'active-format' : ''}`);
     }
 
-    /* =========================================
-       3. MEMORY LOGIC (Last 5)
-       ========================================= */
     function loadHistory(inputId, listId) {
         const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
         const dataList = document.getElementById(listId);
@@ -351,9 +345,6 @@
         loadHistory(inputId, input.getAttribute('list'));
     }
 
-    /* =========================================
-       4. PROMPT GENERATION
-       ========================================= */
     function updatePrompt() {
         const context = document.getElementById('contextInput').value.trim();
         const topic = document.getElementById('topicInput').value.trim();
@@ -365,7 +356,6 @@
         const mode = MODES.find(m => m.id === activeModeId);
         const format = FORMATS.find(f => f.id === activeFormatId);
         
-        // Obtener valores de los Selects
         const taskVal = document.getElementById('taskSelect').value;
         const voiceVal = document.getElementById('voiceSelect').value;
         const lenVal = document.getElementById('lengthSelect').value;
@@ -375,7 +365,6 @@
         const voice = VOICES.find(v => v.id === voiceVal);
         const len = LENGTH.find(l => l.id === lenVal);
 
-        // Construcción del Prompt Complejo
         const prompt = `### ROLE & STYLE
 ${mode.role} ${mode.style}
 Goal: ${mode.goal}
@@ -397,7 +386,7 @@ ${RESTRICTIONS.join('\n')}`;
 
         document.getElementById('previewText').textContent = prompt;
         document.getElementById('matrixInfo').textContent = `${mode.label} + ${format.label}`;
-        lastGeneratedPrompt = prompt; // Store for copy later
+        lastGeneratedPrompt = prompt; 
     }
 
     function copyPrompt() {
@@ -412,7 +401,7 @@ ${RESTRICTIONS.join('\n')}`;
     }
 
     /* =========================================
-       5. PASTE, HIDE & CARD CREATION
+       3. CORRECCIÓN PRINCIPAL: SCROLLING
        ========================================= */
     async function pasteAndCreate() {
         try {
@@ -422,49 +411,85 @@ ${RESTRICTIONS.join('\n')}`;
             const title = document.getElementById('topicInput').value.trim() || "Untitled Result";
             const currentFormat = FORMATS.find(f => f.id === activeFormatId);
             
-            // Detección HTML vs Texto
             let finalCode = "";
             let isText = false;
             let displayTag = currentFormat.label;
 
             if (content.trim().startsWith('<') && content.includes('<!DOCTYPE')) {
-                finalCode = content; // Es una App completa
+                finalCode = content; 
                 displayTag = "APP";
             } else {
                 isText = true;
                 displayTag = "NOTE";
-                const htmlBody = marked.parse(content); // Markdown a HTML
+                const htmlBody = marked.parse(content); 
                 finalCode = wrapInViewer(title, htmlBody);
             }
 
-            // Crear Deck
             const deck = {
                 id: 'd_' + Date.now(),
                 title: title,
                 code: finalCode,
                 tag: displayTag,
                 isText: isText,
-                sourcePrompt: lastGeneratedPrompt // Guardamos el prompt aquí
+                sourcePrompt: lastGeneratedPrompt 
             };
 
             userDecks.push(deck);
             saveDecks();
             renderDecks();
+            togglePanel(false); // Ocultar panel
 
-            // SCROLL AL FINAL
+            // SCROLL AUTOMÁTICO AL NUEVO ELEMENTO
             setTimeout(() => { 
-                const cont = document.querySelector('.scroll-container');
-                cont.scrollTo({top: cont.scrollHeight, behavior:'smooth'}); 
-            }, 100);
+                const newCard = document.querySelector(`.card[data-id="${deck.id}"]`);
+                if(newCard) {
+                    newCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Opcional: Abrirlo automáticamente al crear
+                    // toggleCard(deck.id); 
+                }
+            }, 300);
 
             showToast('Content Created!');
-
-            // **LA LÓGICA PEDIDA: ESCONDER VENTANA**
-            togglePanel(false);
 
         } catch (e) {
             console.error(e);
             showToast('Error pasting');
+        }
+    }
+
+    function toggleCard(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
+        const content = document.getElementById(`content-${id}`);
+        
+        // Si ya está activo, cerrar
+        if(card.classList.contains('active')) {
+            card.classList.remove('active'); 
+            document.body.classList.remove('locked');
+            const ifr = content.querySelector('iframe');
+            if(ifr) ifr.remove();
+        } else {
+            // Cerrar otros
+            document.querySelectorAll('.active').forEach(c => { 
+                c.classList.remove('active'); 
+                const ifr = c.querySelector('iframe');
+                if(ifr) ifr.remove();
+            });
+            
+            // Abrir actual
+            card.classList.add('active'); 
+            document.body.classList.add('locked');
+            const deck = userDecks.find(d => d.id === id);
+            
+            const ifr = document.createElement('iframe');
+            content.appendChild(ifr);
+            ifr.contentWindow.document.open();
+            ifr.contentWindow.document.write(deck.code);
+            ifr.contentWindow.document.close();
+
+            // === AQUÍ ESTÁ EL FIX DE SCROLL AL ABRIR ===
+            setTimeout(() => {
+                card.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }, 50); // Pequeño delay para asegurar que el DOM reaccionó
         }
     }
 
@@ -491,9 +516,6 @@ ${RESTRICTIONS.join('\n')}`;
 <body><div class="container"><h1>${title}</h1>${bodyContent}</div></body></html>`;
     }
 
-    /* =========================================
-       6. UI HELPERS (Panel Toggle & Decks)
-       ========================================= */
     function togglePanel(show) {
         const panel = document.getElementById('genPanel');
         const btn = document.getElementById('restore-btn');
@@ -546,7 +568,6 @@ ${RESTRICTIONS.join('\n')}`;
         });
     }
 
-    // Sortable logic
     new Sortable(document.getElementById('deck-list'), { 
         animation: 300, handle: '.card-header', 
         onEnd: () => {
@@ -561,35 +582,6 @@ ${RESTRICTIONS.join('\n')}`;
         if(confirm("Delete this?")) { userDecks = userDecks.filter(d => d.id !== id); saveDecks(); renderDecks(); }
     }
 
-    function toggleCard(id) {
-        const card = document.querySelector(`.card[data-id="${id}"]`);
-        const content = document.getElementById(`content-${id}`);
-        
-        if(card.classList.contains('active')) {
-            card.classList.remove('active'); document.body.classList.remove('locked');
-            // Remove iframe only, keep the copy button
-            const ifr = content.querySelector('iframe');
-            if(ifr) ifr.remove();
-        } else {
-            document.querySelectorAll('.active').forEach(c => { 
-                c.classList.remove('active'); 
-                const ifr = c.querySelector('iframe');
-                if(ifr) ifr.remove();
-            });
-            
-            card.classList.add('active'); document.body.classList.add('locked');
-            const deck = userDecks.find(d => d.id === id);
-            
-            // Inject iframe below the copy button
-            const ifr = document.createElement('iframe');
-            content.appendChild(ifr);
-            ifr.contentWindow.document.open();
-            ifr.contentWindow.document.write(deck.code);
-            ifr.contentWindow.document.close();
-        }
-    }
-
-    // COPIAR PROMPT DESDE EL ACORDEON
     function copySourcePrompt(id) {
         const deck = userDecks.find(d => d.id === id);
         if (deck && deck.sourcePrompt) {
@@ -598,7 +590,6 @@ ${RESTRICTIONS.join('\n')}`;
             alert("No prompt data found for this item.");
         }
     }
-
 </script>
 </body>
 </html>
