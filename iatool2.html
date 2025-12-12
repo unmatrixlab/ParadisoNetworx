@@ -1,90 +1,75 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prompt Generator - Switch Version</title>
+    <title>AI Prompt Generator & Manager</title>
     <style>
+        /* FIX: Esto evita que la barra de scroll horizontal aparezca y mueva la app */
+        * { box-sizing: border-box; }
+
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --primary: #bb86fc;
+            --text: #e0e0e0;
+            --border: #333;
+            --accent-active: #2196F3; /* Color para modo Complex */
+        }
+
         body {
-            font-family: sans-serif;
-            background-color: #1e1e1e;
-            color: #fff;
-            padding: 20px;
+            font-family: 'Segoe UI', monospace, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0; padding: 0;
             display: flex;
-            justify-content: center;
-        }
-        .container {
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
             width: 100%;
-            max-width: 800px;
-            background-color: #2d2d2d;
+        }
+
+        /* Contenedor Principal (El Generador) */
+        #generator-container {
+            width: 100%;
+            max-width: none;
+            background: var(--surface);
             padding: 20px;
-            border-radius: 10px;
+            margin: 0;
+            border-bottom: 1px solid var(--border);
+            border-radius: 0;
+            transition: all 0.3s ease;
         }
-        label {
-            display: block;
-            margin-top: 15px;
-            margin-bottom: 5px;
-            color: #ccc;
-        }
-        select, textarea, input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            background-color: #1a1a1a;
-            border: 1px solid #444;
-            color: #fff;
-            border-radius: 5px;
-            box-sizing: border-box; 
-        }
-        textarea { height: 100px; }
-        button.generate-btn {
-            width: 100%;
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        button.generate-btn:hover { background-color: #0056b3; }
-        
-        /* --- ESTILOS DEL SWITCH DESPLAZABLE --- */
+
+        .hidden { display: none !important; }
+
+        h2 { margin-top: 0; color: var(--primary); text-align: center; }
+
+        /* --- SWITCH STYLES (NUEVO) --- */
         .switch-wrapper {
             display: flex;
             align-items: center;
-            justify-content: center; /* Centrado */
+            justify-content: center;
             margin-bottom: 20px;
             gap: 15px;
             font-weight: bold;
+            font-size: 0.9em;
         }
-        
-        /* El contenedor del switch */
         .switch {
             position: relative;
             display: inline-block;
             width: 50px;
             height: 24px;
         }
-        
-        /* Ocultar el checkbox default */
-        .switch input { 
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        /* El carril (slider) */
+        .switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute;
             cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
+            background-color: #444; /* Gris oscuro por defecto */
             transition: .4s;
             border-radius: 34px;
         }
-        
-        /* La bolita */
         .slider:before {
             position: absolute;
             content: "";
@@ -96,66 +81,195 @@
             transition: .4s;
             border-radius: 50%;
         }
-        
-        /* Cuando está activado (Complex) */
-        input:checked + .slider {
-            background-color: #2196F3;
+        input:checked + .slider { background-color: var(--accent-active); }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .mode-label { opacity: 0.5; transition: 0.3s; color: #aaa; }
+        .mode-label.active { opacity: 1; color: white; font-weight: bold; }
+        /* --------------------------- */
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .full-width { grid-column: span 2; }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            background: #2d2d2d;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        /* Botones */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        #btn-generate { background-color: var(--primary); color: #000; }
+        #btn-generate:hover { background-color: #a370db; }
+
+        #btn-paste { background-color: #03dac6; color: #000; }
+        #btn-paste:hover { background-color: #01b4a4; }
+
+        #btn-show-gen { 
+            background-color: #333; 
+            color: #fff; 
+            margin: 0;
+            padding: 15px;
+            display: none;
+            width: 100%;
+            border-radius: 0;
+        }
+
+        /* Área de Salida del Prompt */
+        #prompt-output {
+            margin-top: 20px;
+            background: #000;
+            padding: 15px;
+            border: 1px solid var(--primary);
+            font-family: monospace;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        /* Estilos del Acordeón (Resultados) */
+        #results-container {
+            width: 100%;
+            max-width: none;
+            padding: 20px;
+        }
+
+        .accordion-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            margin-bottom: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 15px;
+            background: #252525;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        input:checked + .slider:before {
-            transform: translateX(26px);
+        .accordion-header:hover { background: #303030; }
+
+        .accordion-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+            font-size: 0.95em;
+            line-height: 1.5;
         }
-        
-        /* Texto activo/inactivo */
-        .mode-label { opacity: 0.5; transition: 0.3s; }
-        .mode-label.active { opacity: 1; color: #2196F3; }
+
+        .accordion-content.active { display: block; }
+
+        .meta-tag {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-right: 5px;
+        }
+
+        .copy-prompt-btn {
+            background: var(--primary);
+            color: black;
+            border: none;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: inline-block;
+            width: auto; flex: none; /* Reset flex styles */
+        }
 
     </style>
 </head>
 <body>
 
-<div class="container">
+    <button id="btn-show-gen" onclick="toggleGenerator(true)">➕ New Generation</button>
 
-    <div class="switch-wrapper">
-        <span id="labelSimple" class="mode-label active">Simple</span>
-        <label class="switch">
-            <input type="checkbox" id="modeSwitch" onchange="toggleMode()">
-            <span class="slider"></span>
-        </label>
-        <span id="labelComplex" class="mode-label">Complex</span>
+    <div id="generator-container">
+        <h2>Nexus Prompt Engineer</h2>
+        
+        <div class="switch-wrapper">
+            <span id="labelSimple" class="mode-label active">SIMPLE</span>
+            <label class="switch">
+                <input type="checkbox" id="modeSwitch" onchange="toggleAlgorithmMode()">
+                <span class="slider"></span>
+            </label>
+            <span id="labelComplex" class="mode-label">COMPLEX</span>
+        </div>
+        <div class="grid-container">
+            <div>
+                <label>Context</label>
+                <input type="text" id="contextInput" list="context-history" placeholder="Ex: React, Finance...">
+                <datalist id="context-history"></datalist>
+            </div>
+            <div>
+                <label>Specific Topic</label>
+                <input type="text" id="topicInput" list="topic-history" placeholder="Ex: Hooks, ROI...">
+                <datalist id="topic-history"></datalist>
+            </div>
+
+            <div><label>Mode</label><select id="modeSelect"></select></div>
+            <div><label>Format</label><select id="formatSelect"></select></div>
+            
+            <div><label>Task Type</label><select id="taskSelect"></select></div>
+            <div><label>Voice/Tone</label><select id="voiceSelect"></select></div>
+            <div><label>Length</label><select id="lengthSelect"></select></div>
+            <div><label>Depth Level</label><select id="levelSelect"></select></div>
+        </div>
+
+        <div class="btn-group">
+            <button id="btn-generate" onclick="generatePrompt()">⚡ Generate Prompt</button>
+            <button id="btn-paste" onclick="handlePasteResponse()">📋 Paste Response & Hide</button>
+        </div>
+
+        <div id="prompt-output"></div>
     </div>
 
-    <label>TOPIC (What do you need?)</label>
-    <textarea id="userInput" placeholder="Paste your context or topic here..."></textarea>
-
-    <label>MODE</label>
-    <select id="modeSelect"></select>
-
-    <label>FORMAT</label>
-    <select id="formatSelect"></select>
-
-    <label>TASK TYPE</label>
-    <select id="taskSelect"></select>
-
-    <label>VOICE</label>
-    <select id="voiceSelect"></select>
-
-    <label>LENGTH</label>
-    <select id="lengthSelect"></select>
-
-    <button class="generate-btn" onclick="generatePrompt()">GENERATE PROMPT</button>
-
-    <label style="margin-top: 20px;">OUTPUT:</label>
-    <textarea id="output" style="height: 300px; font-family: monospace;" readonly></textarea>
-</div>
+    <div id="results-container"></div>
 
 <script>
-    // ==========================================
-    // 1. DATA (Tus datos exactos)
-    // ==========================================
+/* =========================================
+   1. CONFIG DATA (ESTRUCTURA NUEVA)
+   ========================================= */
 
-    // DATOS COMUNES
-    const MODES = [
+// Datos Comunes (No cambian con el switch)
+const COMMON_DATA = {
+    MODES: [
         { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
         { id: 'art', label: 'ART', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.' },
         { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.' },
@@ -164,9 +278,8 @@
         { id: 'business', label: 'BUSINESS', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.' },
         { id: 'research', label: 'RESEARCH', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.' },
         { id: 'casual', label: 'CASUAL', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.' }
-    ];
-
-    const FORMATS = [
+    ],
+    FORMATS: [
         { id: 'html', label: 'HTML APP', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
         { id: 'text', label: 'TEXT GUIDE', instruction: 'Return Markdown text with clear headings and structure.' },
         { id: 'code', label: 'CODE SNIPPET', instruction: 'Return raw code only with comments.' },
@@ -174,10 +287,12 @@
         { id: 'dialogue', label: 'DIALOGUE', instruction: 'Return a scripted scene or conversation.' },
         { id: 'template', label: 'TEMPLATE', instruction: 'Return a reusable structured template with fillable fields.' },
         { id: 'checklist', label: 'CHECKLIST', instruction: 'Return a concise actionable checklist or SOP.' }
-    ];
+    ]
+};
 
-    // DATOS VERSION SIMPLEX
-    const DATA_SIMPLEX = {
+// Datos Variables (Cambian con el switch)
+const ALGORITHMS = {
+    SIMPLEX: {
         TASK_TYPES: [
             { id: 'explain', label: 'EXPLANATION', instruction: 'Explain the topic clearly and step-by-step.' },
             { id: 'analysis', label: 'ANALYSIS', instruction: 'Break the topic down into components with pros, cons, variables.' },
@@ -213,10 +328,8 @@
             "Avoid repetition.",
             "Respect the selected format exactly."
         ]
-    };
-
-    // DATOS VERSION COMPLEX
-    const DATA_COMPLEX = {
+    },
+    COMPLEX: {
         TASK_TYPES: [
             { id: 'explain', label: 'DEMYSTIFY', instruction: 'Take the specific topic and break it down from first principles. Reveal the underlying logic clearly, making the complex intuitive.' },
             { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Perform a deep-dive analysis. Identify root causes, systemic connections, variables, and potential edge cases within the context.' },
@@ -234,9 +347,9 @@
             { id: 'concise', label: 'Minimalist / Direct', instruction: 'Maximize information density. Remove all fluff. Be surgical.' }
         ],
         LENGTH: [
-            { id: 'short', label: 'ATOMIC (High Density)', instruction: 'Provide the answer in a distilled format. Maximum impact, minimum word count (approx. 100 words).' },
-            { id: 'medium', label: 'COMPREHENSIVE (Balanced)', instruction: 'Explore the topic with sufficient detail, examples, and nuance. Standard depth (approx. 400 words).' },
-            { id: 'long', label: 'EXHAUSTIVE (Deep Dive)', instruction: 'Leave no stone unturned. Cover history, theory, application, and edge cases. Extensive length.' }
+            { id: 'short', label: 'ATOMIC', instruction: 'Provide the answer in a distilled format. Maximum impact, minimum word count (approx. 100 words).' },
+            { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Explore the topic with sufficient detail, examples, and nuance. Standard depth (approx. 400 words).' },
+            { id: 'long', label: 'EXHAUSTIVE', instruction: 'Leave no stone unturned. Cover history, theory, application, and edge cases. Extensive length.' }
         ],
         FADER_LEVELS: [
             "- Level 1: Surface (Define the core concept simply).",
@@ -252,103 +365,259 @@
             "Integrate the User's CONTEXT and SPECIFIC TOPIC seamlessly.",
             "Output must be complete; do not cut off or ask to continue."
         ]
-    };
+    }
+};
 
-    // Variable global para saber qué datos usar
-    let currentData = DATA_SIMPLEX; 
+/* =========================================
+   2. GLOBAL STATE
+   ========================================= */
+let lastGeneratedPrompt = ""; 
+let currentData = ALGORITHMS.SIMPLEX; // Por defecto
 
-    // ==========================================
-    // 2. LOGICA
-    // ==========================================
+/* =========================================
+   3. INITIALIZATION
+   ========================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Cargar datos comunes (siempre iguales)
+    populateSelect('modeSelect', COMMON_DATA.MODES);
+    populateSelect('formatSelect', COMMON_DATA.FORMATS);
 
-    // Inicializar
-    window.onload = function() {
-        populateSelect('modeSelect', MODES);
-        populateSelect('formatSelect', FORMATS);
-        updateDynamicDropdowns(); // Carga inicial
-    };
+    // 2. Cargar datos dinámicos (según el estado inicial)
+    updateDynamicDropdowns();
 
-    // Detectar el cambio del Switch
-    function toggleMode() {
-        const isComplex = document.getElementById('modeSwitch').checked;
-        
-        // Efecto visual en etiquetas de texto
-        if (isComplex) {
-            currentData = DATA_COMPLEX;
-            document.getElementById('labelSimple').classList.remove('active');
-            document.getElementById('labelComplex').classList.add('active');
-        } else {
-            currentData = DATA_SIMPLEX;
-            document.getElementById('labelSimple').classList.add('active');
-            document.getElementById('labelComplex').classList.remove('active');
-        }
-        
-        updateDynamicDropdowns();
+    // 3. Cargar historial (Funcionalidad original)
+    loadHistory('contextInput', 'context-history');
+    loadHistory('topicInput', 'topic-history');
+});
+
+/* =========================================
+   4. LOGICA DE SWITCH (NUEVO)
+   ========================================= */
+function toggleAlgorithmMode() {
+    const isComplex = document.getElementById('modeSwitch').checked;
+    
+    // Actualizar visuales
+    if (isComplex) {
+        currentData = ALGORITHMS.COMPLEX;
+        document.getElementById('labelSimple').classList.remove('active');
+        document.getElementById('labelComplex').classList.add('active');
+    } else {
+        currentData = ALGORITHMS.SIMPLEX;
+        document.getElementById('labelSimple').classList.add('active');
+        document.getElementById('labelComplex').classList.remove('active');
     }
 
-    // Actualizar los dropdowns que cambian
-    function updateDynamicDropdowns() {
-        populateSelect('taskSelect', currentData.TASK_TYPES);
-        populateSelect('voiceSelect', currentData.VOICES);
-        populateSelect('lengthSelect', currentData.LENGTH);
-    }
+    // Refrescar los menús desplegables
+    updateDynamicDropdowns();
+}
 
-    // Helper para llenar opciones
-    function populateSelect(elementId, items) {
-        const select = document.getElementById(elementId);
-        select.innerHTML = ''; 
-        items.forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item.id;
-            opt.textContent = item.label;
-            // Guardamos la instrucción como atributo de datos
-            opt.dataset.instruction = item.instruction; 
-            // Guardamos extras para Mode
-            if(item.role) opt.dataset.role = item.role;
-            if(item.style) opt.dataset.style = item.style;
-            if(item.goal) opt.dataset.goal = item.goal;
-            select.appendChild(opt);
+function updateDynamicDropdowns() {
+    populateSelect('taskSelect', currentData.TASK_TYPES);
+    populateSelect('voiceSelect', currentData.VOICES);
+    populateSelect('lengthSelect', currentData.LENGTH);
+    
+    // El selector de nivel es especial porque es un array de strings, no objetos
+    const levelSel = document.getElementById('levelSelect');
+    levelSel.innerHTML = '';
+    currentData.FADER_LEVELS.forEach((level) => {
+        let opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level.split(':')[0]; // Muestra solo el inicio
+        levelSel.appendChild(opt);
+    });
+}
+
+function populateSelect(id, dataArray) {
+    const select = document.getElementById(id);
+    select.innerHTML = ''; // Limpiar antes de llenar
+    dataArray.forEach(item => {
+        let opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.label;
+        select.appendChild(opt);
+    });
+}
+
+/* =========================================
+   5. MEMORY MANAGEMENT (TU CÓDIGO ORIGINAL)
+   ========================================= */
+function loadHistory(inputId, listId) {
+    const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    const dataList = document.getElementById(listId);
+    if(dataList) {
+        dataList.innerHTML = '';
+        history.forEach(item => {
+            let option = document.createElement('option');
+            option.value = item;
+            dataList.appendChild(option);
         });
     }
+}
 
-    // Generar el Prompt Final
-    function generatePrompt() {
-        const userInput = document.getElementById('userInput').value;
-        
-        const modeOpt = document.getElementById('modeSelect').selectedOptions[0];
-        const formatOpt = document.getElementById('formatSelect').selectedOptions[0];
-        const taskOpt = document.getElementById('taskSelect').selectedOptions[0];
-        const voiceOpt = document.getElementById('voiceSelect').selectedOptions[0];
-        const lengthOpt = document.getElementById('lengthSelect').selectedOptions[0];
+function saveToHistory(inputId) {
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
 
-        // Construcción del texto
-        let prompt = `### SYSTEM INSTRUCTIONS ###\n\n`;
-        
-        // Role
-        prompt += `**ROLE:** ${modeOpt.dataset.role}\n`;
-        prompt += `**STYLE:** ${modeOpt.dataset.style}\n`;
-        prompt += `**GOAL:** ${modeOpt.dataset.goal}\n\n`;
-        
-        // Task Details
-        prompt += `**TASK:** ${taskOpt.dataset.instruction}\n`;
-        prompt += `**VOICE:** ${voiceOpt.dataset.instruction}\n`;
-        prompt += `**LENGTH:** ${lengthOpt.dataset.instruction}\n`;
-        prompt += `**FORMAT:** ${formatOpt.dataset.instruction}\n\n`;
+    let history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    history = history.filter(item => item !== value);
+    history.unshift(value);
+    
+    if (history.length > 5) history.pop();
+    
+    localStorage.setItem(inputId + '_mem', JSON.stringify(history));
+    loadHistory(inputId, input.getAttribute('list'));
+}
 
-        // Context
-        prompt += `--- USER CONTEXT ---\n${userInput ? userInput : "[NO INPUT]"}\n--------------------\n\n`;
+/* =========================================
+   6. GENERATE PROMPT (MODIFICADO PARA USAR currentData)
+   ========================================= */
+function generatePrompt() {
+    // 1. Get values
+    const context = document.getElementById('contextInput').value;
+    const topic = document.getElementById('topicInput').value;
+    
+    // Select Objects (Buscamos en las listas actuales)
+    const mode = COMMON_DATA.MODES.find(m => m.id === document.getElementById('modeSelect').value);
+    const format = COMMON_DATA.FORMATS.find(f => f.id === document.getElementById('formatSelect').value);
+    
+    const task = currentData.TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
+    const voice = currentData.VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
+    const len = currentData.LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
+    const level = document.getElementById('levelSelect').value;
 
-        // Guideline Levels
-        prompt += `**EXECUTION LEVELS:**\n`;
-        prompt += currentData.FADER_LEVELS.join('\n') + `\n\n`;
+    // 2. Build Prompt
+    const prompt = `
+### ROLE & STYLE
+${mode.role} ${mode.style}
+Goal: ${mode.goal}
 
-        // Restrictions
-        prompt += `**RESTRICTIONS:**\n`;
-        prompt += currentData.RESTRICTIONS.join('\n');
+### TASK
+Context: ${context}
+Topic: ${topic}
+Type: ${task.label} - ${task.instruction}
 
-        document.getElementById('output').value = prompt;
+### FORMAT & OUTPUT
+Format: ${format.label}
+Instruction: ${format.instruction}
+Tone: ${voice.instruction}
+Length: ${len.instruction}
+Depth: ${level}
+
+### RESTRICTIONS
+${currentData.RESTRICTIONS.join('\n')}
+    `.trim();
+
+    // 3. Show and Save
+    const outputDiv = document.getElementById('prompt-output');
+    outputDiv.style.display = 'block';
+    outputDiv.textContent = prompt;
+    
+    // Auto Copy
+    navigator.clipboard.writeText(prompt);
+    
+    // Save for "Copy Original Prompt" button later
+    lastGeneratedPrompt = prompt;
+
+    // Save inputs to memory
+    saveToHistory('contextInput');
+    saveToHistory('topicInput');
+}
+
+/* =========================================
+   7. PASTE RESPONSE & HIDE (TU CÓDIGO ORIGINAL)
+   ========================================= */
+async function handlePasteResponse() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if(!text) return alert("Clipboard is empty.");
+
+        createAccordionItem(text);
+        toggleGenerator(false);
+
+    } catch (err) {
+        console.error("Paste Error:", err);
+        alert("Please allow clipboard access.");
     }
+}
 
+function toggleGenerator(show) {
+    const gen = document.getElementById('generator-container');
+    const btnShow = document.getElementById('btn-show-gen');
+    
+    if (show) {
+        gen.classList.remove('hidden');
+        btnShow.style.display = 'none';
+    } else {
+        gen.classList.add('hidden');
+        btnShow.style.display = 'block';
+    }
+}
+
+function createAccordionItem(contentText) {
+    const container = document.getElementById('results-container');
+    const id = Date.now();
+    
+    const mode = document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text;
+    const topic = document.getElementById('topicInput').value || "Untitled Result";
+
+    const promptForThisItem = lastGeneratedPrompt;
+
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${id})">
+            <div>
+                <span class="meta-tag">${mode}</span>
+                <strong>${topic}</strong>
+            </div>
+            <span>▼</span>
+        </div>
+        <div class="accordion-content" id="content-${id}">
+            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
+                📜 Copy Original Prompt
+            </button>
+            <div style="display:none;" class="prompt-source">${promptForThisItem}</div>
+            
+            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
+            
+            <div style="white-space: pre-wrap;">${escapeHtml(contentText)}</div>
+        </div>
+    `;
+
+    container.insertBefore(item, container.firstChild);
+}
+
+function toggleAccordion(id) {
+    const content = document.getElementById(`content-${id}`);
+    const isVisible = content.classList.contains('active');
+    
+    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
+
+    if (!isVisible) {
+        content.classList.add('active');
+    }
+}
+
+function copyTextToClipboard(btnElement) {
+    const promptText = btnElement.nextElementSibling.textContent;
+    navigator.clipboard.writeText(promptText).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "Copied!";
+        setTimeout(() => btnElement.innerText = originalText, 1500);
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return text;
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 </script>
 
 </body>
