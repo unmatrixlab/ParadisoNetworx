@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | ARCADE REWARDS V5.2 (NEURO-REST)</title>
+    <title>LINGUA NEXUS | ARCADE REWARDS V5.4 (AUDIO FIX)</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -768,8 +768,16 @@ const App = {
     toggleAudioMode() { 
         this.audioMode = !this.audioMode; 
         const btn = document.getElementById('btn-audio-mode');
-        if(this.audioMode){ btn.classList.add('active'); btn.style.opacity='1'; } 
-        else { btn.classList.remove('active'); btn.style.opacity='0.5'; }
+        if(this.audioMode){ 
+            btn.classList.add('active'); 
+            btn.style.opacity='1'; 
+            // Force reset speech synthesis on toggle to wake it up
+            if('speechSynthesis' in window) window.speechSynthesis.cancel();
+        } 
+        else { 
+            btn.classList.remove('active'); 
+            btn.style.opacity='0.5'; 
+        }
         if(Profile.cfg.interaction === 'text' && document.getElementById('view-game').classList.contains('active')) { TextGame.syncAudioState(); }
     },
     renderFolderList() {
@@ -912,6 +920,7 @@ const Game = {
     canvas:null, ctx:null, queue:[], pool:[], fullList:[], idx:0, width:0, height:0, loopId:null, lastTime:0, activeWord:null, particles:[], stars:[], laser:null, ghosts:[], shockwaves:[], clouds:[], score:0, startTime:0, timeLimit:0, themeColor:'#fff', flashIntensity:0, combo:0, gridOffset:0, showingGhost:false, category:'', timerId:null, isPlaying:false, mode: 'meteor', speedMult: 1, 
     banningPhase: false, banBeamColor: 0,
     wordsCleared: 0,
+    isResting: false, // NEW FLAG FOR PAUSE
 
     init(queue, cat, colorVar, fullList) {
         this.queue = queue; this.category = cat; this.fullList = fullList;
@@ -920,7 +929,8 @@ const Game = {
         if(this.pool.length === 0) this.pool = this.fullList;
 
         this.idx = 0; this.score = 0; this.ghosts = []; this.shockwaves = []; this.combo = 0; this.showingGhost = false; this.isPlaying = true; this.banningPhase = false;
-        this.wordsCleared = 0; // RESET COUNTER FOR REST
+        this.wordsCleared = 0; 
+        this.isResting = false; // Reset rest state
 
         this.canvas = document.getElementById('game-canvas'); this.ctx = this.canvas.getContext('2d'); this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -944,7 +954,7 @@ const Game = {
     resize() { const c = document.getElementById('game-canvas-container'); if(c) { this.canvas.width = c.offsetWidth; this.canvas.height = c.offsetHeight; this.width = this.canvas.width; this.height = this.canvas.height; } },
     stop() { this.isPlaying = false; cancelAnimationFrame(this.loopId); clearTimeout(this.timerId); this.activeWord = null; },
     spawn() {
-        if(!this.isPlaying || this.showingGhost || this.banningPhase) return;
+        if(!this.isPlaying || this.showingGhost || this.banningPhase || this.isResting) return;
         if(this.idx >= this.queue.length) { 
             this.idx = 0; 
             if(this.timeLimit === 0 && this.queue.every(w => Profile.getLvl(w.en) === 4)) { 
@@ -1089,18 +1099,26 @@ const Game = {
                         const msg = document.getElementById('rest-msg');
 
                         if (this.wordsCleared % 20 === 0) {
-                            delayNextSpawn = 14000;
+                            this.isResting = true; // FREEZE GAME
+                            delayNextSpawn = 10000;
                             title.innerText = "DEEP REST";
                             msg.innerText = "Take a deep breath...";
                             layer.classList.add('active');
-                            setTimeout(() => layer.classList.remove('active'), 13500);
+                            setTimeout(() => {
+                                layer.classList.remove('active');
+                                this.isResting = false; // UNFREEZE
+                            }, 9000);
                         } 
                         else if (this.wordsCleared % 5 === 0) {
-                            delayNextSpawn = 5000;
+                            this.isResting = true; // FREEZE GAME
+                            delayNextSpawn = 3000;
                             title.innerText = "NICE!";
                             msg.innerText = "Brief pause...";
                             layer.classList.add('active');
-                            setTimeout(() => layer.classList.remove('active'), 4500);
+                            setTimeout(() => {
+                                layer.classList.remove('active');
+                                this.isResting = false; // UNFREEZE
+                            }, 2500);
                         }
                     }
                     // ==================================
@@ -1149,7 +1167,28 @@ const Game = {
             this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1.0, color: c, size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) });
         } 
     },
-    speak(t) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 1.1; window.speechSynthesis.speak(u); },
+    speak(t) { 
+        if(!('speechSynthesis' in window)) return;
+        
+        // FIX DE AUDIO ROBUSTO
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.cancel(); 
+
+        const u = new SpeechSynthesisUtterance(t);
+        u.lang = 'en-US';
+        u.rate = 1.1;
+        
+        // Asignación explícita de voz
+        const voices = window.speechSynthesis.getVoices();
+        const preferred = voices.find(v => v.lang === 'en-US' && !v.name.includes('Google')); 
+        if (preferred) u.voice = preferred;
+
+        // FIX DE GARBAGE COLLECTION
+        window.currentUtterance = u; 
+        u.onend = () => { window.currentUtterance = null; };
+
+        window.speechSynthesis.speak(u);
+    },
     screenShake() { const c = this.canvas; c.style.transform = `translate(${Math.random() * 10 - 5}px,${Math.random() * 10 - 5}px)`; setTimeout(() => c.style.transform = 'none', 200); },
     
     drawWebLaser(ctx, l) { 
@@ -1216,7 +1255,8 @@ const Game = {
         }
         if(this.activeWord) {
             const w = this.activeWord; 
-            if(!this.banningPhase) {
+            // === LÓGICA DE CONGELACIÓN DE FÍSICAS ===
+            if(!this.banningPhase && !this.isResting) { // Si NO descansas, muévete
                 w.x += w.vx * dt; w.y += w.vy * dt; w.rot += w.rotSpeed * dt;
                 
                 if(this.mode === 'meteor') {
@@ -1234,7 +1274,11 @@ const Game = {
                 else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true;
                 else if(['orbit', 'butterfly'].includes(this.mode) && Math.hypot(cx - w.x, cy - w.y) < 40) fail = true;
                 if(fail) this.fail();
-            } else { w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); }
+            } 
+            else if (this.banningPhase) { 
+                w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); 
+            }
+            // =========================================
             
             this.ctx.save(); this.ctx.translate(w.x, w.y);
             if(['orbit', 'butterfly'].includes(this.mode)) { const ang = Math.atan2(cy - w.y, cx - w.x); this.ctx.rotate(ang + Math.PI / 2); } else { this.ctx.rotate(w.rot); }
