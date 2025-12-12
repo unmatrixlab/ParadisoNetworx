@@ -1,350 +1,367 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | Studio Final</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Generator & Manager</title>
     <style>
-        /* =========================================
-           ESTILOS CORE (VISUAL)
-           ========================================= */
         :root {
-            --bg-body: #050505;
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --neon-gen: #00f2ea;
-            --neon-del: #ff4444;
-            --neon-edit: #ffd700;
-            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --primary: #bb86fc;
+            --text: #e0e0e0;
+            --border: #333;
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        body { background-color: var(--bg-body); color: #fff; font-family: 'Inter', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-        body.locked .scroll-container { overflow: hidden; pointer-events: none; }
-
-        /* SCROLL CONTAINER */
-        .scroll-container { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 0 450px 0; width: 100%; max-width: 600px; margin: 0 auto; position: relative; }
-        #deck-list { display: flex; flex-direction: column; gap: 12px; min-height: 50px; }
-
-        /* TARJETAS */
-        .card {
-            background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%);
-            border: 1px solid var(--glass-border);
-            border-left: 3px solid var(--neon-gen);
-            border-radius: 8px; margin: 0 16px; position: relative;
-            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            transition: transform 0.2s ease, background 0.3s ease;
+        body {
+            font-family: 'Segoe UI', monospace, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
-        .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: pointer; z-index: 2; position: relative; }
-        .title-group { display: flex; align-items: center; gap: 15px; overflow: hidden; flex: 1; }
-        .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 1.5px; color: #ccc; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* Contenedor Principal (El Generador) */
+        #generator-container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        /* Clase para ocultar el generador */
+        .hidden {
+            display: none !important;
+        }
+
+        h2 { margin-top: 0; color: var(--primary); }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .full-width { grid-column: span 2; }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            background: #2d2d2d;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        /* Botones */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        #btn-generate { background-color: var(--primary); color: #000; }
+        #btn-generate:hover { background-color: #a370db; }
+
+        #btn-paste { background-color: #03dac6; color: #000; }
+        #btn-paste:hover { background-color: #01b4a4; }
+
+        #btn-show-gen { 
+            background-color: #333; 
+            color: #fff; 
+            margin-bottom: 20px;
+            display: none; /* Oculto por defecto */
+            width: 100%;
+            max-width: 800px;
+        }
+
+        /* Área de Salida del Prompt */
+        #prompt-output {
+            margin-top: 20px;
+            background: #000;
+            padding: 15px;
+            border: 1px solid var(--primary);
+            font-family: monospace;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        /* Estilos del Acordeón (Resultados) */
+        #results-container {
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+
+        .accordion-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            margin-bottom: 10px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 15px;
+            background: #252525;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
         
-        .card-tag {
-            font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; text-transform: uppercase;
-            padding: 3px 8px; border-radius: 2px; background: rgba(0, 242, 234, 0.1);
-            color: var(--neon-gen); border: 1px solid rgba(0, 242, 234, 0.2); flex-shrink: 0;
-        }
-        .card-tag.text-mode { color: #ffd700; border-color: rgba(255, 215, 0, 0.3); background: rgba(255, 215, 0, 0.1); }
+        .accordion-header:hover { background: #303030; }
 
-        .card-actions { display: flex; align-items: center; gap: 15px; flex-shrink: 0; }
-        .btn-delete-card {
-            width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-            border-radius: 50%; background: rgba(255, 68, 68, 0.1); color: var(--neon-del);
-            border: 1px solid rgba(255, 68, 68, 0.3); font-size: 12px; cursor: pointer;
+        .accordion-content {
+            padding: 15px;
+            display: none;
+            border-top: 1px solid var(--border);
+            font-size: 0.95em;
+            line-height: 1.5;
         }
 
-        /* ESTADO ACTIVO (EXPANDIDO) */
-        .card.active {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100dvh;
-            z-index: 9999; margin: 0; border: none; background: #000;
-            display: flex; flex-direction: column; 
-            animation: expandCard 0.3s var(--ease-snap) forwards;
-        }
-        @keyframes expandCard { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .card.active .card-header { background: rgba(20,20,20,0.98); border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
-        .card.active .card-title { color: #fff; }
-        .card.active .btn-delete-card { display: none; } /* Ocultar borrar al abrir */
-        
-        /* Botón de Cierre Explicito al estar abierto */
-        .btn-close-active { display: none; font-size: 24px; color: #fff; padding: 10px; cursor: pointer; }
-        .card.active .btn-close-active { display: block; }
-        .card.active .card-icon { display: none; }
+        .accordion-content.active { display: block; }
 
-        .card-content { display: none; background: #000; flex: 1; position: relative; overflow: hidden; flex-direction: column; }
-        .card.active .card-content { display: flex; animation: fadeInContent 0.4s ease 0.2s forwards; opacity: 0; }
-        @keyframes fadeInContent { to { opacity: 1; } }
-        
-        iframe { width: 100%; flex: 1; border: none; display: block; background: #fff; }
-
-        /* BARRA COPY PROMPT (Dentro del acordeón) */
-        .prompt-bar {
-            background: #111; border-bottom: 1px solid #333;
-            padding: 8px; text-align: center; cursor: pointer;
-            color: #888; font-size: 10px; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 1px; transition: 0.2s;
+        .meta-tag {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-right: 5px;
         }
-        .prompt-bar:hover { background: #222; color: #fff; }
-        .prompt-bar span { margin-right: 5px; }
 
-        /* =========================================
-           GENERATOR PANEL (MOTOR AVANZADO)
-           ========================================= */
-        .generator-panel {
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            background: rgba(10, 10, 10, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-            border-top: 1px solid var(--glass-border); padding: 15px;
-            z-index: 5000; display: flex; flex-direction: column; gap: 10px;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.5); transition: transform 0.4s var(--ease-snap);
+        .copy-prompt-btn {
+            background: var(--primary);
+            color: black;
+            border: none;
+            padding: 5px 10px;
+            font-size: 0.8em;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: inline-block;
         }
-        .generator-panel.minimized { transform: translateY(110%); }
-        
-        /* Ocultar panel cuando hay una tarjeta abierta */
-        body.locked .generator-panel { display: none; }
 
-        .gen-container { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 8px; }
-
-        /* PREVIEW WINDOW */
-        .prompt-preview-window {
-            position: absolute; bottom: 100%; left: 0; width: 100%; max-height: 0;
-            background: rgba(0,0,0,0.95); border-top: 1px solid var(--neon-gen);
-            color: #ccc; font-family: monospace; font-size: 11px; opacity: 0;
-            pointer-events: none; overflow: hidden; transition: 0.3s;
-        }
-        .prompt-preview-window.visible { max-height: 250px; opacity: 1; padding: 15px; pointer-events: auto; overflow-y: auto; }
-        .preview-header { color: var(--neon-gen); font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; }
-
-        /* CONTROLES */
-        .input-row { display: flex; gap: 10px; }
-        .gen-input {
-            background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff;
-            padding: 10px; font-size: 13px; border-radius: 6px; width: 100%; transition: border-color 0.2s;
-        }
-        .gen-input:focus { border-color: var(--neon-gen); }
-        .gen-select {
-            background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #aaa;
-            padding: 8px; font-size: 11px; border-radius: 4px; width: 100%; height: 36px;
-        }
-        .gen-select:focus { border-color: var(--neon-edit); color: #fff; }
-
-        /* CHIPS */
-        .chip-scroll { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 5px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-        .chip-scroll::-webkit-scrollbar { display: none; }
-        .chip {
-            padding: 6px 12px; border-radius: 4px; background: rgba(255,255,255,0.05);
-            border: 1px solid #333; color: #888; font-size: 10px; font-weight: 700;
-            cursor: pointer; text-transform: uppercase; white-space: nowrap; transition: 0.2s; flex-shrink: 0;
-        }
-        .chip:hover { background: rgba(255,255,255,0.1); color: #fff; }
-        .chip.active-mode { background: rgba(0, 242, 234, 0.15); border-color: var(--neon-gen); color: var(--neon-gen); }
-        .chip.active-format { background: rgba(255, 215, 0, 0.15); border-color: var(--neon-edit); color: var(--neon-edit); }
-
-        /* BOTONES */
-        .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
-        .gen-btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 700; text-transform: uppercase; font-size: 11px; cursor: pointer; letter-spacing: 0.5px; }
-        .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
-        .btn-paste { background: var(--neon-gen); color: #000; box-shadow: 0 0 15px rgba(0, 242, 234, 0.2); }
-        
-        .status-toast { position: absolute; top: -50px; left: 50%; transform: translateX(-50%); background: #000; border: 1px solid var(--neon-gen); color: var(--neon-gen); padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 6000; font-weight: bold; }
-        
-        /* Restore Button */
-        #restore-btn {
-            position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px;
-            background: var(--neon-gen); border-radius: 50%; display: none;
-            align-items: center; justify-content: center; z-index: 4000;
-            box-shadow: 0 0 20px rgba(0, 242, 234, 0.4); cursor: pointer;
-            font-size: 24px; color: #000;
-        }
     </style>
 </head>
 <body>
 
-    <div class="scroll-container">
-        <div id="deck-list"></div>
-    </div>
+    <button id="btn-show-gen" onclick="toggleGenerator(true)">➕ Nueva Generación</button>
 
-    <div id="restore-btn" onclick="togglePanel(true)">⚡</div>
-
-    <div class="generator-panel" id="genPanel">
-        <div class="status-toast" id="toast">Action Completed</div>
+    <div id="generator-container">
+        <h2>Nexus Prompt Engineer</h2>
         
-        <div class="prompt-preview-window" id="previewWindow">
-            <div class="preview-header">
-                <span>Prompt Engine v2</span>
-                <span id="matrixInfo">Ready</span>
+        <div class="grid-container">
+            <div>
+                <label>Contexto (Memoria 5)</label>
+                <input type="text" id="contextInput" list="context-history" placeholder="Ej: React, Finanzas...">
+                <datalist id="context-history"></datalist>
             </div>
-            <div id="previewText" style="white-space: pre-wrap; font-size: 10px; line-height: 1.4;">Type to generate...</div>
+            <div>
+                <label>Tema Específico (Memoria 5)</label>
+                <input type="text" id="topicInput" list="topic-history" placeholder="Ej: Hooks, ROI...">
+                <datalist id="topic-history"></datalist>
+            </div>
+
+            <div><label>Modo</label><select id="modeSelect"></select></div>
+            <div><label>Formato</label><select id="formatSelect"></select></div>
+            <div><label>Tipo de Tarea</label><select id="taskSelect"></select></div>
+            <div><label>Voz/Tono</label><select id="voiceSelect"></select></div>
+            <div><label>Longitud</label><select id="lengthSelect"></select></div>
+            <div><label>Nivel de Profundidad</label><select id="levelSelect"></select></div>
         </div>
 
-        <div class="gen-container">
-            <div class="chip-scroll" id="modeContainer"></div>
-            <div class="chip-scroll" id="formatContainer"></div>
-
-            <div class="input-row">
-                <select id="taskSelect" class="gen-select" onchange="updatePrompt()"></select>
-                <select id="voiceSelect" class="gen-select" onchange="updatePrompt()"></select>
-                <select id="lengthSelect" class="gen-select" onchange="updatePrompt()"></select>
-                <select id="levelSelect" class="gen-select" onchange="updatePrompt()"></select>
-            </div>
-
-            <div class="input-row">
-                <input type="text" id="contextInput" class="gen-input" placeholder="Context (e.g., React, Finance)" oninput="updatePrompt()">
-                <input type="text" id="topicInput" class="gen-input" placeholder="Specific Topic..." oninput="updatePrompt()">
-            </div>
-            
-            <div class="gen-controls">
-                <button class="gen-btn btn-copy" onclick="copyPrompt()">1. Copy Prompt</button>
-                <button class="gen-btn btn-paste" onclick="pasteAndCreate()">2. Paste & Create</button>
-            </div>
+        <div class="btn-group">
+            <button id="btn-generate" onclick="generatePrompt()">⚡ Generar Prompt</button>
+            <button id="btn-paste" onclick="handlePasteResponse()">📋 Pegar Respuesta y Ocultar</button>
         </div>
+
+        <div id="prompt-output"></div>
     </div>
+
+    <div id="results-container"></div>
 
 <script>
-    /* =========================================
-       1. DATA CONFIGURATION
-       ========================================= */
-    const MODES = [
-        { id: 'tech', label: 'Tech Engineer', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
-        { id: 'art', label: 'Creative Dir', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.' },
-        { id: 'school', label: 'Professor', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.' },
-        { id: 'story', label: 'Novelist', role: 'Act as a Master Novelist.', style: 'Cinematic, immersive narrative tone.', goal: 'Engaging storytelling and world-building.' },
-        { id: 'marketing', label: 'Copywriter', role: 'Act as a Senior Copywriter.', style: 'Persuasive, high-conversion writing.', goal: 'Brand voice alignment & audience engagement.' },
-        { id: 'business', label: 'Consultant', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.' },
-        { id: 'research', label: 'Scientist', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.' },
-        { id: 'casual', label: 'Assistant', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.' }
-    ];
+/* =========================================
+   1. DATOS DE CONFIGURACIÓN
+   ========================================= */
+const MODES = [
+    { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
+    { id: 'art', label: 'ART', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.' },
+    { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.' },
+    { id: 'story', label: 'STORYTELLING', role: 'Act as a Master Novelist.', style: 'Cinematic, immersive narrative tone.', goal: 'Engaging storytelling and world-building.' },
+    { id: 'marketing', label: 'MARKETING', role: 'Act as a Senior Copywriter.', style: 'Persuasive, high-conversion writing.', goal: 'Brand voice alignment & audience engagement.' },
+    { id: 'business', label: 'BUSINESS', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.' },
+    { id: 'research', label: 'RESEARCH', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.' },
+    { id: 'casual', label: 'CASUAL', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.' }
+];
 
-    const FORMATS = [
-        { id: 'html', label: 'HTML APP', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
-        { id: 'text', label: 'TEXT GUIDE', instruction: 'Return Markdown text with clear headings and structure.' },
-        { id: 'code', label: 'CODE SNIPPET', instruction: 'Return raw code only with comments.' },
-        { id: 'essay', label: 'ESSAY', instruction: 'Return a polished formal essay.' },
-        { id: 'dialogue', label: 'DIALOGUE', instruction: 'Return a scripted scene or conversation.' },
-        { id: 'template', label: 'TEMPLATE', instruction: 'Return a reusable structured template with fillable fields.' },
-        { id: 'checklist', label: 'CHECKLIST', instruction: 'Return a concise actionable checklist or SOP.' }
-    ];
+const FORMATS = [
+    { id: 'html', label: 'HTML APP', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
+    { id: 'text', label: 'TEXT GUIDE', instruction: 'Return Markdown text with clear headings and structure.' },
+    { id: 'code', label: 'CODE SNIPPET', instruction: 'Return raw code only with comments.' },
+    { id: 'essay', label: 'ESSAY', instruction: 'Return a polished formal essay.' },
+    { id: 'dialogue', label: 'DIALOGUE', instruction: 'Return a scripted scene or conversation.' },
+    { id: 'template', label: 'TEMPLATE', instruction: 'Return a reusable structured template with fillable fields.' },
+    { id: 'checklist', label: 'CHECKLIST', instruction: 'Return a concise actionable checklist or SOP.' }
+];
 
-    const TASK_TYPES = [
-        { id: 'explain', label: 'EXPLANATION', instruction: 'Explain the topic clearly and step-by-step.' },
-        { id: 'analysis', label: 'ANALYSIS', instruction: 'Break the topic down into components with pros, cons, variables.' },
-        { id: 'create', label: 'CREATION', instruction: 'Generate original content in the selected style.' },
-        { id: 'teach', label: 'TEACHING', instruction: 'Introduce, teach, give examples, and add a practice checkpoint.' },
-        { id: 'improve', label: 'IMPROVEMENT', instruction: 'Rewrite and enhance the user’s content with better clarity and style.' },
-        { id: 'compare', label: 'COMPARISON', instruction: 'Compare items using structure, criteria, and reasoning.' },
-        { id: 'build', label: 'BUILDING', instruction: 'Produce a structured artifact: plan, blueprint, script, architecture, or framework.' }
-    ];
+const TASK_TYPES = [
+    { id: 'explain', label: 'EXPLANATION', instruction: 'Explain the topic clearly and step-by-step.' },
+    { id: 'analysis', label: 'ANALYSIS', instruction: 'Break the topic down into components with pros, cons, variables.' },
+    { id: 'create', label: 'CREATIVE GENERATION', instruction: 'Generate original content in the selected style.' },
+    { id: 'teach', label: 'TEACHING', instruction: 'Introduce, teach, give examples, and add a practice checkpoint.' },
+    { id: 'improve', label: 'IMPROVEMENT', instruction: 'Rewrite and enhance the user’s content with better clarity and style.' },
+    { id: 'compare', label: 'COMPARISON', instruction: 'Compare items using structure, criteria, and reasoning.' },
+    { id: 'build', label: 'CONSTRUCTION', instruction: 'Produce a structured artifact: plan, blueprint, script, architecture, or framework.' }
+];
 
-    const VOICES = [
-        { id: 'neutral', label: 'Neutral Tone', instruction: 'Use a balanced, neutral tone.' },
-        { id: 'friendly', label: 'Friendly Tone', instruction: 'Use a warm, approachable tone.' },
-        { id: 'authoritative', label: 'Expert Tone', instruction: 'Use a confident, expert tone.' },
-        { id: 'poetic', label: 'Poetic Tone', instruction: 'Use metaphors, rhythm, and evocative language.' },
-        { id: 'concise', label: 'Concise Tone', instruction: 'Use highly efficient, compact phrasing.' }
-    ];
+const VOICES = [
+    { id: 'neutral', label: 'Neutral', instruction: 'Use a balanced, neutral tone.' },
+    { id: 'friendly', label: 'Friendly', instruction: 'Use a warm, approachable tone.' },
+    { id: 'authoritative', label: 'Authoritative', instruction: 'Use a confident, expert tone.' },
+    { id: 'poetic', label: 'Poetic', instruction: 'Use metaphors, rhythm, and evocative language.' },
+    { id: 'concise', label: 'Concise', instruction: 'Use highly efficient, compact phrasing.' }
+];
 
-    const LENGTH = [
-        { id: 'short', label: 'Short Length', instruction: 'Maximum 2 short paragraphs.' },
-        { id: 'medium', label: 'Medium Length', instruction: 'Up to 6 paragraphs with examples.' },
-        { id: 'long', label: 'Long Form', instruction: 'Extensive, detailed long-form content.' }
-    ];
+const LENGTH = [
+    { id: 'short', label: 'SHORT', instruction: 'Maximum 2 short paragraphs.' },
+    { id: 'medium', label: 'MEDIUM', instruction: 'Up to 6 paragraphs with examples.' },
+    { id: 'long', label: 'LONG', instruction: 'Extensive, detailed long-form content.' }
+];
 
-    const FADER_LEVELS = [
-        "- Level 1: Basic Summary.",
-        "- Level 2: Add Context/History.",
-        "- Level 3: Add Structure/Examples.",
-        "- Level 4: Add Advanced Analysis.",
-        "- Level 5: Full Deep-Dive Artifact."
-    ];
+const FADER_LEVELS = [
+    "- Level 1: Basic Summary or Definition.",
+    "- Level 2: Add Context, History, or Motivation.",
+    "- Level 3: Add Structure, Examples, or Interactions.",
+    "- Level 4: Add Advanced Analysis, Troubleshooting, or Exercises.",
+    "- Level 5: Full Interactive App / Deep-Dive Artifact."
+];
 
-    const RESTRICTIONS = [
-        "Do not include filler text.",
-        "Do not split the output into multiple messages.",
-        "No disclaimers unless strictly necessary.",
-        "Avoid repetition.",
-        "Respect the selected format exactly."
-    ];
+const RESTRICTIONS = [
+    "Do not include filler text.",
+    "Do not split the output into multiple messages.",
+    "No disclaimers unless strictly necessary.",
+    "Avoid repetition.",
+    "Respect the selected format exactly."
+];
 
-    /* =========================================
-       2. APP STATE & INITIALIZATION
-       ========================================= */
-    let userDecks = JSON.parse(localStorage.getItem('nexus_final_decks')) || [];
-    let activeModeId = MODES[0].id;
-    let activeFormatId = FORMATS[0].id;
-    let lastGeneratedPrompt = ""; 
+/* =========================================
+   2. ESTADO GLOBAL
+   ========================================= */
+let lastGeneratedPrompt = ""; // Guardamos el último prompt generado para el botón de copiar
 
-    document.addEventListener('DOMContentLoaded', () => {
-        initInterface();
-        renderDecks();
+/* =========================================
+   3. INICIALIZACIÓN
+   ========================================= */
+document.addEventListener('DOMContentLoaded', () => {
+    populateSelect('modeSelect', MODES);
+    populateSelect('formatSelect', FORMATS);
+    populateSelect('taskSelect', TASK_TYPES);
+    populateSelect('voiceSelect', VOICES);
+    populateSelect('lengthSelect', LENGTH);
+    
+    // Fader Levels es un array de strings, tratamiento especial o simple
+    const levelSel = document.getElementById('levelSelect');
+    FADER_LEVELS.forEach((level, index) => {
+        let opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level.split(':')[0]; // Mostrar solo "Level X"
+        levelSel.appendChild(opt);
     });
 
-    function initInterface() {
-        const modeCont = document.getElementById('modeContainer');
-        MODES.forEach(m => {
-            const chip = document.createElement('div');
-            chip.className = `chip ${m.id === activeModeId ? 'active-mode' : ''}`;
-            chip.textContent = m.label;
-            chip.onclick = () => { activeModeId = m.id; renderChips(); updatePrompt(); };
-            modeCont.appendChild(chip);
-        });
+    // Cargar Memoria Histórica
+    loadHistory('contextInput', 'context-history');
+    loadHistory('topicInput', 'topic-history');
+});
 
-        const fmtCont = document.getElementById('formatContainer');
-        FORMATS.forEach(f => {
-            const chip = document.createElement('div');
-            chip.className = `chip ${f.id === activeFormatId ? 'active-format' : ''}`;
-            chip.textContent = f.label;
-            chip.onclick = () => { activeFormatId = f.id; renderChips(); updatePrompt(); };
-            fmtCont.appendChild(chip);
-        });
+function populateSelect(id, dataArray) {
+    const select = document.getElementById(id);
+    dataArray.forEach(item => {
+        let opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.label;
+        select.appendChild(opt);
+    });
+}
 
-        populateSelect('taskSelect', TASK_TYPES);
-        populateSelect('voiceSelect', VOICES);
-        populateSelect('lengthSelect', LENGTH);
-        
-        const levelSel = document.getElementById('levelSelect');
-        FADER_LEVELS.forEach((lvl, i) => {
-            let opt = document.createElement('option');
-            opt.value = lvl;
-            opt.textContent = `Lvl ${i+1}: ${lvl.split(':')[1]}`; 
-            levelSel.appendChild(opt);
-        });
-        levelSel.selectedIndex = 2; 
-    }
-
-    function populateSelect(id, data) {
-        const sel = document.getElementById(id);
-        data.forEach(item => {
-            let opt = document.createElement('option');
-            opt.value = item.id;
-            opt.textContent = item.label;
-            sel.appendChild(opt);
+/* =========================================
+   4. GESTIÓN DE MEMORIA (Los últimos 5)
+   ========================================= */
+function loadHistory(inputId, listId) {
+    const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    const dataList = document.getElementById(listId);
+    if(dataList) {
+        dataList.innerHTML = '';
+        history.forEach(item => {
+            let option = document.createElement('option');
+            option.value = item;
+            dataList.appendChild(option);
         });
     }
+}
 
-    function renderChips() {
-        document.querySelectorAll('#modeContainer .chip').forEach((c, i) => c.className = `chip ${MODES[i].id === activeModeId ? 'active-mode' : ''}`);
-        document.querySelectorAll('#formatContainer .chip').forEach((c, i) => c.className = `chip ${FORMATS[i].id === activeFormatId ? 'active-format' : ''}`);
-    }
+function saveToHistory(inputId) {
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
 
-    function updatePrompt() {
-        const context = document.getElementById('contextInput').value.trim();
-        const topic = document.getElementById('topicInput').value.trim();
-        const preview = document.getElementById('previewWindow');
+    let history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    // Evitar duplicados consecutivos y mover al inicio
+    history = history.filter(item => item !== value);
+    history.unshift(value);
+    
+    // Limitar a 5
+    if (history.length > 5) history.pop();
+    
+    localStorage.setItem(inputId + '_mem', JSON.stringify(history));
+    loadHistory(inputId, input.getAttribute('list'));
+}
 
-        if(context || topic) preview.classList.add('visible');
-        else { preview.classList.remove('visible'); return; }
+/* =========================================
+   5. GENERAR PROMPT
+   ========================================= */
+function generatePrompt() {
+    // 1. Obtener valores
+    const context = document.getElementById('contextInput').value;
+    const topic = document.getElementById('topicInput').value;
+    
+    // Objetos seleccionados
+    const mode = MODES.find(m => m.id === document.getElementById('modeSelect').value);
+    const format = FORMATS.find(f => f.id === document.getElementById('formatSelect').value);
+    const task = TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
+    const voice = VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
+    const len = LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
+    const level = document.getElementById('levelSelect').value;
 
-        const mode = MODES.find(m => m.id === activeModeId);
-        const format = FORMATS.find(f => f.id === activeFormatId);
-        const task = TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
-        const voice = VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
-        const len = LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
-        const levelVal = document.getElementById('levelSelect').value;
-
-        const prompt = `### ROLE & STYLE
+    // 2. Construir Prompt
+    const prompt = `
+### ROLE & STYLE
 ${mode.role} ${mode.style}
 Goal: ${mode.goal}
 
@@ -358,199 +375,133 @@ Format: ${format.label}
 Instruction: ${format.instruction}
 Tone: ${voice.instruction}
 Length: ${len.instruction}
-Depth: ${levelVal}
+Depth: ${level}
 
 ### RESTRICTIONS
-${RESTRICTIONS.join('\n')}`;
+${RESTRICTIONS.join('\n')}
+    `.trim();
 
-        document.getElementById('previewText').textContent = prompt;
-        document.getElementById('matrixInfo').textContent = `${mode.label} + ${format.label}`;
-        lastGeneratedPrompt = prompt; 
+    // 3. Mostrar y Guardar
+    const outputDiv = document.getElementById('prompt-output');
+    outputDiv.style.display = 'block';
+    outputDiv.textContent = prompt;
+    
+    // Copiar al portapapeles automáticamente (opcional, buena UX)
+    navigator.clipboard.writeText(prompt);
+    
+    // Guardar estado global para el botón de "Copiar Prompt" posterior
+    lastGeneratedPrompt = prompt;
+
+    // Guardar en memoria de inputs
+    saveToHistory('contextInput');
+    saveToHistory('topicInput');
+}
+
+/* =========================================
+   6. PEGAR RESPUESTA Y OCULTAR
+   ========================================= */
+async function handlePasteResponse() {
+    try {
+        // Leer portapapeles
+        const text = await navigator.clipboard.readText();
+        if(!text) return alert("El portapapeles está vacío.");
+
+        // Crear elemento de acordeón
+        createAccordionItem(text);
+
+        // Ocultar Generador
+        toggleGenerator(false);
+
+    } catch (err) {
+        console.error("Error al pegar:", err);
+        alert("Permite el acceso al portapapeles.");
     }
+}
 
-    function copyPrompt() {
-        const text = document.getElementById('previewText').textContent;
-        if(text === "Type to generate...") return showToast("Type something first!");
-        navigator.clipboard.writeText(text).then(() => showToast("Prompt Copied!"));
+function toggleGenerator(show) {
+    const gen = document.getElementById('generator-container');
+    const btnShow = document.getElementById('btn-show-gen');
+    
+    if (show) {
+        gen.classList.remove('hidden');
+        btnShow.style.display = 'none';
+    } else {
+        gen.classList.add('hidden');
+        btnShow.style.display = 'block';
     }
+}
 
-    /* =========================================
-       3. LOGIC & CREATION
-       ========================================= */
-    async function pasteAndCreate() {
-        try {
-            const content = await navigator.clipboard.readText();
-            if (!content || !content.trim()) return showToast('Clipboard Empty');
+function createAccordionItem(contentText) {
+    const container = document.getElementById('results-container');
+    const id = Date.now();
+    
+    // Obtener datos para el título (si existen en los inputs actuales)
+    const mode = document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text;
+    const topic = document.getElementById('topicInput').value || "Resultado sin título";
 
-            const title = document.getElementById('topicInput').value.trim() || "Untitled Result";
-            const currentFormat = FORMATS.find(f => f.id === activeFormatId);
+    // Guardamos el prompt que generó este resultado en una variable local al cierre
+    const promptForThisItem = lastGeneratedPrompt;
+
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${id})">
+            <div>
+                <span class="meta-tag">${mode}</span>
+                <strong>${topic}</strong>
+            </div>
+            <span>▼</span>
+        </div>
+        <div class="accordion-content" id="content-${id}">
+            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
+                📜 Copiar Prompt Original
+            </button>
+            <div style="display:none;" class="prompt-source">${promptForThisItem}</div>
             
-            let finalCode = "";
-            let displayTag = currentFormat.label;
-            let isText = false;
-
-            if (content.trim().startsWith('<') && content.includes('<!DOCTYPE')) {
-                finalCode = content; 
-                displayTag = "APP";
-            } else {
-                isText = true;
-                const htmlBody = marked.parse(content); 
-                // CORRECCION 1: No enviamos 'title' al wrapInViewer para evitar doble titulo
-                finalCode = wrapInViewer(htmlBody);
-            }
-
-            const deck = {
-                id: 'd_' + Date.now(),
-                title: title,
-                code: finalCode,
-                tag: displayTag,
-                isText: isText,
-                sourcePrompt: lastGeneratedPrompt // Guardamos el prompt
-            };
-
-            userDecks.push(deck);
-            saveDecks();
-            renderDecks();
-            togglePanel(false); 
-
-            setTimeout(() => { 
-                const container = document.querySelector('.scroll-container');
-                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-            }, 300);
-
-            showToast('Content Created!');
-
-        } catch (e) {
-            console.error(e);
-            showToast('Error pasting');
-        }
-    }
-
-    function wrapInViewer(bodyContent) {
-        // CORRECCION 1: Eliminado <h1>${title}</h1> del body para que no se duplique
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>
-    html, body { height: 100%; margin: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 25px; box-sizing: border-box; line-height: 1.6; padding-bottom: 100px; }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { color: #00f2ea; font-family: 'Bebas Neue', sans-serif; font-size: 32px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-    h2, h3 { color: #fff; margin-top: 25px; border-left: 3px solid #ffd700; padding-left: 10px; }
-    strong { color: #00f2ea; }
-    code { background: #1a1a1a; padding: 2px 5px; border-radius: 4px; color: #ff79c6; font-family: monospace; }
-    pre { background: #111; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #333; }
-    blockquote { border-left: 3px solid #00f2ea; margin: 0; padding-left: 15px; color: #aaa; font-style: italic; }
-</style>
-</head>
-<body><div class="container">${bodyContent}</div></body></html>`;
-    }
-
-    function saveDecks() { localStorage.setItem('nexus_final_decks', JSON.stringify(userDecks)); }
-
-    function renderDecks() {
-        const list = document.getElementById('deck-list');
-        list.innerHTML = '';
-        userDecks.forEach(deck => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.setAttribute('data-id', deck.id);
-            const tagClass = deck.isText ? "card-tag text-mode" : "card-tag";
+            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
             
-            card.innerHTML = `
-                <div class="card-header" onclick="toggleCard('${deck.id}')">
-                    <div class="title-group">
-                        <h2 class="card-title">${deck.title}</h2>
-                        <span class="${tagClass}">${deck.tag}</span>
-                    </div>
-                    <div class="card-actions">
-                        <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
-                        <div class="btn-close-active">&#10005;</div>
-                        <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
-                    </div>
-                </div>
-                <div class="card-content" id="content-${deck.id}"></div>
-            `;
-            list.appendChild(card);
-        });
+            <div style="white-space: pre-wrap;">${escapeHtml(contentText)}</div>
+        </div>
+    `;
+
+    // Insertar al principio
+    container.insertBefore(item, container.firstChild);
+}
+
+function toggleAccordion(id) {
+    const content = document.getElementById(`content-${id}`);
+    const isVisible = content.classList.contains('active');
+    
+    // Cerrar todos (opcional, estilo acordeón estricto)
+    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
+
+    if (!isVisible) {
+        content.classList.add('active');
     }
+}
 
-    function toggleCard(id) {
-        const card = document.querySelector(`.card[data-id="${id}"]`);
-        const contentDiv = document.getElementById(`content-${id}`);
-        const isActive = card.classList.contains('active');
-
-        if (isActive) {
-            // CORRECCION 2: Logica de cierre
-            card.classList.remove('active');
-            document.body.classList.remove('locked');
-            setTimeout(() => { contentDiv.innerHTML = ''; }, 300);
-            return;
-        }
-
-        // Close others
-        document.querySelectorAll('.card.active').forEach(c => {
-            c.classList.remove('active');
-            c.querySelector('.card-content').innerHTML = '';
-        });
-
-        // Activate
-        card.classList.add('active');
-        document.body.classList.add('locked');
-
-        const deck = userDecks.find(d => d.id === id);
-        if (deck) {
-            // CORRECCION 3: Inyectar barra de copia de prompt antes del iframe
-            if(deck.sourcePrompt) {
-                const copyBar = document.createElement('div');
-                copyBar.className = 'prompt-bar';
-                copyBar.innerHTML = '<span>📜</span> Copy Generation Prompt';
-                copyBar.onclick = () => {
-                    navigator.clipboard.writeText(deck.sourcePrompt).then(() => showToast("Original Prompt Copied!"));
-                };
-                contentDiv.appendChild(copyBar);
-            }
-
-            const iframe = document.createElement('iframe');
-            contentDiv.appendChild(iframe);
-            const doc = iframe.contentWindow.document;
-            doc.open();
-            doc.write(deck.code);
-            doc.close();
-        }
-    }
-
-    function deleteDeck(e, id) {
-        e.stopPropagation();
-        if(confirm("Delete this?")) { userDecks = userDecks.filter(d => d.id !== id); saveDecks(); renderDecks(); }
-    }
-
-    function togglePanel(show) {
-        const panel = document.getElementById('genPanel');
-        const btn = document.getElementById('restore-btn');
-        if (show) { panel.classList.remove('minimized'); btn.style.display = 'none'; }
-        else { panel.classList.add('minimized'); btn.style.display = 'flex'; }
-    }
-
-    function showToast(msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.style.opacity = '1';
-        setTimeout(() => toast.style.opacity = '0', 2000);
-    }
-
-    new Sortable(document.getElementById('deck-list'), { 
-        animation: 300, handle: '.card-header', 
-        onEnd: () => {
-            const newOrder = Array.from(document.getElementById('deck-list').children).map(c => c.getAttribute('data-id'));
-            userDecks.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
-            saveDecks();
-        }
+// Función auxiliar para copiar el prompt oculto
+function copyTextToClipboard(btnElement) {
+    // El texto está en el div hermano siguiente con clase .prompt-source
+    const promptText = btnElement.nextElementSibling.textContent;
+    navigator.clipboard.writeText(promptText).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "¡Copiado!";
+        setTimeout(() => btnElement.innerText = originalText, 1500);
     });
+}
 
+function escapeHtml(text) {
+    if (!text) return text;
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 </script>
+
 </body>
 </html>
