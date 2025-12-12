@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nexus Prompt Engineer — Advanced</title>
+<style>
+:root{
+  --bg:#0f1113; --surface:#151718; --muted:#9aa0a6; --primary:#8b5cf6;
+  --accent:#06d6a0; --danger:#ff6b6b; --border:#222;
+  --code-bg:#0b0c0d; --glass: rgba(255,255,255,0.03);
+  --card-radius:12px;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; padding:18px; background:linear-gradient(180deg,#070708 0%,var(--bg) 100%);
+  color:#e6eef3; -webkit-font-smoothing:antialiased;
+  display:flex; flex-direction:column; gap:18px; align-items:center;
+}
+
+/* Container */
+.app {
+  width:100%; max-width:1100px;
+  display:flex; flex-direction:column; gap:18px;
+}
+
+/* Header */
+.header {
+  display:flex; gap:12px; align-items:center; justify-content:space-between;
+}
+.title {
+  display:flex; gap:12px; align-items:center;
+}
+.logo {
+  width:44px; height:44px; border-radius:10px;
+  background:linear-gradient(135deg,var(--primary),#06b6d4);
+  display:flex; align-items:center; justify-content:center; font-weight:700;
+  color:#060606; box-shadow:0 8px 30px rgba(11,9,20,0.6);
+}
+.h1 { font-size:18px; font-weight:700 }
+.h2 { font-size:13px; color:var(--muted) }
+
+/* Panel (Generator) */
+.panel {
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), var(--surface));
+  border:1px solid var(--border); padding:16px; border-radius:var(--card-radius);
+  display:flex; flex-direction:column; gap:12px;
+  box-shadow: 0 6px 30px rgba(2,6,23,0.6);
+}
+
+.switch-row { display:flex; align-items:center; gap:12px; justify-content:center; }
+.mode-label { font-weight:700; color:var(--muted); opacity:.8 }
+.mode-label.active { color: #fff; opacity:1 }
+
+/* Switch */
+.switch {
+  --w:56px; --h:30px; position:relative; width:var(--w); height:var(--h);
+  border-radius:999px; background:#232428; display:inline-block; cursor:pointer;
+  box-shadow: inset 0 -2px 6px rgba(0,0,0,0.6);
+}
+.knob {
+  position:absolute; top:4px; left:4px; width:22px; height:22px; background:#fff;
+  border-radius:50%; transition:all .24s cubic-bezier(.2,.9,.3,1); box-shadow:0 6px 16px rgba(0,0,0,0.6);
+}
+.switch.active { background: linear-gradient(90deg,var(--accent), var(--primary)); }
+.switch.active .knob { transform: translateX(26px); }
+
+/* Form grid */
+.grid {
+  display:grid; gap:12px;
+  grid-template-columns: repeat(2, 1fr);
+}
+.fullwidth { grid-column: 1 / -1; }
+
+.label { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.input, select, textarea {
+  width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+  background:var(--glass); color:#dfeff6; outline:none; font-size:13px;
+}
+textarea { min-height:80px; resize:vertical; font-family:monospace; }
+
+/* Buttons row */
+.actions { display:flex; gap:10px; flex-wrap:wrap; }
+.btn {
+  background:var(--primary); color:#061223; border:none; padding:10px 12px; font-weight:700;
+  border-radius:10px; cursor:pointer;
+}
+.btn.ghost { background:transparent; border:1px solid var(--border); color:var(--muted); }
+.btn.accent { background:var(--accent); color:#022; }
+.small { padding:8px 10px; font-size:13px; }
+
+/* Prompt output area */
+.output {
+  background: linear-gradient(180deg, #060607, #07080a);
+  border:1px solid rgba(139,92,246,0.12);
+  padding:12px; border-radius:10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space:pre-wrap; font-size:13px; color:#dbeefe;
+}
+.controls { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+
+/* Results / accordion */
+.results { display:flex; flex-direction:column; gap:10px; }
+.accordion-item {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid var(--border); border-radius:12px; overflow:hidden;
+}
+.acc-head {
+  padding:12px; display:flex; gap:10px; align-items:center; justify-content:space-between;
+  cursor:pointer;
+}
+.acc-meta { display:flex; align-items:center; gap:8px; }
+.tag { background:#0b0b0b; border:1px solid rgba(255,255,255,0.02); padding:6px 8px; border-radius:8px; font-size:12px; color:var(--muted); }
+.acc-body { padding:12px; display:none; gap:12px; border-top:1px solid rgba(255,255,255,0.02); }
+.acc-body.active { display:flex; flex-direction:column; }
+
+/* preview area */
+.preview {
+  background: linear-gradient(180deg, #050507, #071018);
+  border-radius:8px; padding:12px; border:1px solid rgba(255,255,255,0.02);
+  color:#dff7ee; max-height:420px; overflow:auto;
+}
+.preview h1,h2,h3{ color:#fff }
+.preview pre { background:var(--code-bg); padding:10px; border-radius:8px; overflow:auto; font-family: ui-monospace, monospace; }
+.preview code.inline{ background:#0b0b0c; padding:2px 6px; border-radius:6px; font-family:ui-monospace; }
+
+/* small utilities */
+.row { display:flex; gap:8px; align-items:center; }
+.copy-btn { background:transparent; border:1px solid rgba(255,255,255,0.03); color:var(--muted); padding:6px 8px; border-radius:8px; cursor:pointer; font-size:13px; }
+
+/* responsive */
+@media (max-width:820px){
+  .grid{ grid-template-columns: 1fr; }
+  .controls{ justify-content:space-between; }
+  .header{ flex-direction:column; align-items:flex-start; gap:8px;}
+}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Nexus Prompt Engineer">
+
+  <div class="header">
+    <div class="title">
+      <div class="logo">NP</div>
+      <div>
+        <div class="h1">Nexus Prompt Engineer</div>
+        <div class="h2">Advanced Prompt Studio — live preview & exports</div>
+      </div>
+    </div>
+    <div class="row">
+      <button id="btn-export-all" class="btn small ghost" title="Export all prompts JSON">Export JSON</button>
+      <button id="btn-show-gen" class="btn small" onclick="toggleGenerator(true)">➕ New</button>
+    </div>
+  </div>
+
+  <!-- Generator Panel -->
+  <section id="generator" class="panel" aria-labelledby="generator">
+    <div class="switch-row" role="toolbar" aria-label="Mode switch">
+      <div id="labelSimple" class="mode-label active">SIMPLE</div>
+      <div id="switch" class="switch" onclick="toggleSwitch()">
+        <div class="knob"></div>
+      </div>
+      <div id="labelComplex" class="mode-label">COMPLEX</div>
+    </div>
+
+    <div class="grid" role="form" aria-label="Prompt form">
+      <div class="fullwidth">
+        <label class="label">Context</label>
+        <input id="contextInput" class="input" list="context-history" placeholder="Ex: React, Finance, UX..." />
+        <datalist id="context-history"></datalist>
+      </div>
+
+      <div class="fullwidth">
+        <label class="label">Specific Topic</label>
+        <input id="topicInput" class="input" list="topic-history" placeholder="Ex: Hooks, ROI optimization..." />
+        <datalist id="topic-history"></datalist>
+      </div>
+
+      <div>
+        <label class="label">Mode</label>
+        <select id="modeSelect" class="input" aria-label="Mode"></select>
+      </div>
+
+      <div>
+        <label class="label">Format</label>
+        <select id="formatSelect" class="input" aria-label="Format"></select>
+      </div>
+
+      <div>
+        <label class="label">Task Type</label>
+        <select id="taskSelect" class="input" aria-label="Task Type"></select>
+      </div>
+
+      <div>
+        <label class="label">Voice / Tone</label>
+        <select id="voiceSelect" class="input" aria-label="Voice Tone"></select>
+      </div>
+
+      <div>
+        <label class="label">Length</label>
+        <select id="lengthSelect" class="input" aria-label="Length"></select>
+      </div>
+
+      <div>
+        <label class="label">Depth Level</label>
+        <select id="levelSelect" class="input" aria-label="Depth Level"></select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="btn-generate" class="btn" onclick="onGenerate()">⚡ Generate & Copy</button>
+      <button id="btn-paste" class="btn accent" onclick="onPasteResponse()">📋 Create Result & Hide</button>
+      <button id="btn-download" class="btn ghost small" onclick="downloadCurrent()" title="Download prompt as .txt">Download .txt</button>
+      <button id="btn-clear" class="btn ghost small" onclick="clearGenerator()">Clear</button>
+    </div>
+
+    <div class="controls">
+      <div style="flex:1"></div>
+      <div class="row" style="gap:10px">
+        <div class="label" style="margin:0">Preview will render markdown (toggle per result)</div>
+      </div>
+    </div>
+
+    <div id="promptOutput" class="output" aria-live="polite" role="status" style="display:none;"></div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="results" aria-live="polite"></section>
+</div>
+
+<script>
+/* ====================== CONFIG DATA (rich) ====================== */
+const COMMON_DATA = {
+  MODES: [
+    { id:'tech', label:'TECHNICAL', role:'Act as a Senior Engineer.', style:'Cyberpunk/Terminal style.', goal:'Technical accuracy and implementation detail.' },
+    { id:'art', label:'ART', role:'Act as a Creative Director.', style:'Minimalist Gallery / Editorial style.', goal:'Aesthetic refinement and originality.' },
+    { id:'school', label:'SCHOOL', role:'Act as a Professor.', style:'Clean Textbook / Academic style.', goal:'Structured education and conceptual clarity.' },
+    { id:'story', label:'STORYTELLING', role:'Act as a Master Novelist.', style:'Cinematic, immersive narrative tone.', goal:'Engaging storytelling and world-building.' },
+    { id:'marketing', label:'MARKETING', role:'Act as a Senior Copywriter.', style:'Persuasive, high-conversion writing.', goal:'Brand voice alignment & audience engagement.' },
+    { id:'business', label:'BUSINESS', role:'Act as a Strategy Consultant.', style:'Executive brief style.', goal:'Clarity, precision, and actionable insights.' },
+    { id:'research', label:'RESEARCH', role:'Act as a Research Scientist.', style:'Peer-reviewed academic tone.', goal:'Evidence-based rigor with citations when relevant.' },
+    { id:'casual', label:'CASUAL', role:'Act as a friendly assistant.', style:'Conversational, natural tone.', goal:'Clarity, simplicity, and a human-sounding delivery.' }
+  ],
+  FORMATS: [
+    { id:'html', label:'HTML APP', instruction:'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
+    { id:'text', label:'TEXT GUIDE', instruction:'Return Markdown text with clear headings and structure.' },
+    { id:'code', label:'CODE SNIPPET', instruction:'Return raw code only with comments.' },
+    { id:'essay', label:'ESSAY', instruction:'Return a polished formal essay.' },
+    { id:'dialogue', label:'DIALOGUE', instruction:'Return a scripted scene or conversation.' },
+    { id:'template', label:'TEMPLATE', instruction:'Return a reusable structured template with fillable fields.' },
+    { id:'checklist', label:'CHECKLIST', instruction:'Return a concise actionable checklist or SOP.' }
+  ]
+};
+
+const ALGORITHMS = {
+  SIMPLEX: {
+    TASK_TYPES:[
+      {id:'explain', label:'EXPLANATION', instruction:'Explain the topic clearly and step-by-step.'},
+      {id:'analysis', label:'ANALYSIS', instruction:'Break the topic down into components with pros, cons, variables.'},
+      {id:'create', label:'CREATIVE GENERATION', instruction:'Generate original content in the selected style.'},
+      {id:'teach', label:'TEACHING', instruction:'Introduce, teach, give examples, and add a practice checkpoint.'},
+      {id:'improve', label:'IMPROVEMENT', instruction:'Rewrite and enhance the user’s content with better clarity and style.'},
+      {id:'compare', label:'COMPARISON', instruction:'Compare items using structure, criteria, and reasoning.'},
+      {id:'build', label:'CONSTRUCTION', instruction:'Produce a structured artifact: plan, blueprint, script, architecture, or framework.'}
+    ],
+    VOICES:[
+      {id:'neutral', label:'Neutral', instruction:'Use a balanced, neutral tone.'},
+      {id:'friendly', label:'Friendly', instruction:'Use a warm, approachable tone.'},
+      {id:'authoritative', label:'Authoritative', instruction:'Use a confident, expert tone.'},
+      {id:'poetic', label:'Poetic', instruction:'Use metaphors, rhythm, and evocative language.'},
+      {id:'concise', label:'Concise', instruction:'Use highly efficient, compact phrasing.'}
+    ],
+    LENGTH:[
+      {id:'short', label:'SHORT', instruction:'Maximum 2 short paragraphs.'},
+      {id:'medium', label:'MEDIUM', instruction:'Up to 6 paragraphs with examples.'},
+      {id:'long', label:'LONG', instruction:'Extensive, detailed long-form content.'}
+    ],
+    FADER_LEVELS:[
+      {level:1, desc:'Basic Summary or Definition'},
+      {level:2, desc:'Add Context, History, or Motivation'},
+      {level:3, desc:'Add Structure, Examples, or Interactions'},
+      {level:4, desc:'Add Advanced Analysis, Troubleshooting, or Exercises'},
+      {level:5, desc:'Full Interactive App / Deep-Dive Artifact'}
+    ],
+    RESTRICTIONS:[
+      'Do not include filler text.',
+      'Do not split the output into multiple messages.',
+      'No disclaimers unless strictly necessary.',
+      'Avoid repetition.',
+      'Respect the selected format exactly.'
+    ]
+  },
+  COMPLEX: {
+    TASK_TYPES:[
+      {id:'explain', label:'DEMYSTIFY', instruction:'Take the specific topic and break it down from first principles. Reveal the underlying logic clearly.'},
+      {id:'analysis', label:'DECONSTRUCT', instruction:'Perform a deep-dive analysis. Identify root causes, systemic connections, variables, and potential edge cases.'},
+      {id:'create', label:'IDEATE & SYNTHESIZE', instruction:'Generate novel, non-obvious content. Combine disparate concepts to create something original.'},
+      {id:'teach', label:'SCAFFOLDED MASTERY', instruction:'Design a learning path. Introduce the concept, show a concrete example, explain nuance, provide a test.'},
+      {id:'improve', label:'REFACTOR & ELEVATE', instruction:'Critique the input. Optimize clarity, efficiency, and impact.'},
+      {id:'compare', label:'JUXTAPOSE & EVALUATE', instruction:'Compare entities using rigorous criteria. Highlight trade-offs, synergies, and suitability.'},
+      {id:'build', label:'ARCHITECT', instruction:'Construct a complete artifact from start to finish.'}
+    ],
+    VOICES:[
+      {id:'neutral', label:'Objective / Analytical', instruction:'Maintain a bias-free, factual, and detached tone.'},
+      {id:'friendly', label:'Warm / Collaborative', instruction:'Use inviting, encouraging tone.'},
+      {id:'authoritative', label:'Commanding / Expert', instruction:'Project confidence and decisiveness.'},
+      {id:'poetic', label:'Lyrical / Evocative', instruction:'Use metaphor, rhythm, and imagery.'},
+      {id:'concise', label:'Minimalist / Direct', instruction:'Maximize information density.'}
+    ],
+    LENGTH:[
+      {id:'short', label:'ATOMIC', instruction:'Distilled format. Max ~100 words.'},
+      {id:'medium', label:'COMPREHENSIVE', instruction:'Sufficient detail, examples, and nuance. ~400 words.'},
+      {id:'long', label:'EXHAUSTIVE', instruction:'Deep dive covering theory, application, edge cases.'}
+    ],
+    FADER_LEVELS:[
+      {level:1, desc:'Surface — define core concept simply'},
+      {level:2, desc:'Context — background & why it matters'},
+      {level:3, desc:'Mechanics — how it works (examples)'},
+      {level:4, desc:'Nuance — optimization, edge cases, trade-offs'},
+      {level:5, desc:'Mastery — full systemic integration & synthesis'}
+    ],
+    RESTRICTIONS:[
+      'Strictly follow the chosen FORMAT structure.',
+      'Do not include conversational filler. Start directly with output.',
+      'Tone must align with MODE and VOICE.',
+      "Integrate CONTEXT and SPECIFIC TOPIC seamlessly.",
+      'Output must be complete; do not cut off.'
+    ]
+  }
+};
+
+/* ================ STATE ================ */
+let currentData = ALGORITHMS.SIMPLEX;
+let lastGeneratedPrompt = '';
+let generatedItems = []; // store results (in-memory); used for Export JSON
+
+/* ================ BOOTSTRAP UI ================ */
+document.addEventListener('DOMContentLoaded', () => {
+  fillSelect('modeSelect', COMMON_DATA.MODES);
+  fillSelect('formatSelect', COMMON_DATA.FORMATS);
+  updateDynamicFields();
+  loadHistory('context-history', 'contextInput');
+  loadHistory('topic-history', 'topicInput');
+  // wire export all
+  document.getElementById('btn-export-all').addEventListener('click', exportAllJSON);
+});
+
+/* ================ UI HELPERS ================ */
+function toggleSwitch(){
+  const sw = document.getElementById('switch');
+  const active = sw.classList.toggle('active');
+  currentData = active ? ALGORITHMS.COMPLEX : ALGORITHMS.SIMPLEX;
+  document.getElementById('labelSimple').classList.toggle('active', !active);
+  document.getElementById('labelComplex').classList.toggle('active', active);
+  updateDynamicFields();
+}
+
+function fillSelect(elId, items){
+  const sel = document.getElementById(elId);
+  sel.innerHTML = '';
+  items.forEach(it => {
+    const o = document.createElement('option');
+    o.value = it.id;
+    o.textContent = it.label;
+    sel.appendChild(o);
+  });
+}
+
+function updateDynamicFields(){
+  fillSelect('taskSelect', currentData.TASK_TYPES);
+  fillSelect('voiceSelect', currentData.VOICES);
+  fillSelect('lengthSelect', currentData.LENGTH);
+  const levelSel = document.getElementById('levelSelect');
+  levelSel.innerHTML = '';
+  currentData.FADER_LEVELS.forEach(l => {
+    const o = document.createElement('option');
+    o.value = String(l.level);
+    o.textContent = `Level ${l.level} — ${l.desc}`;
+    levelSel.appendChild(o);
+  });
+}
+
+/* ================ HISTORY / DATALIST ================ */
+function loadHistory(listId, inputId){
+  const stored = JSON.parse(localStorage.getItem(listId) || '[]');
+  const datalist = document.getElementById(listId);
+  datalist.innerHTML = '';
+  stored.slice(0,10).forEach(v=>{
+    const o = document.createElement('option'); o.value = v; datalist.appendChild(o);
+  });
+  // wire save on change/blur
+  const input = document.getElementById(inputId);
+  input.addEventListener('blur', () => persistHistory(listId, inputId));
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Enter') { persistHistory(listId, inputId); e.target.blur(); }});
+}
+function persistHistory(listId, inputId){
+  const input = document.getElementById(inputId);
+  const v = input.value.trim();
+  if(!v) return;
+  const arr = JSON.parse(localStorage.getItem(listId) || '[]');
+  // dedupe and unshift
+  const dedup = arr.filter(x => x !== v);
+  dedup.unshift(v);
+  localStorage.setItem(listId, JSON.stringify(dedup.slice(0,10)));
+  loadHistory(listId, inputId);
+}
+
+/* ================ PROMPT BUILDING ================ */
+function buildPrompt(opts){
+  // opts: {mode, task, format, voice, length, level, context, topic}
+  return [
+`### ROLE & STYLE
+${opts.mode.role} ${opts.mode.style}
+Goal: ${opts.mode.goal}`,
+`### TASK
+Context: ${opts.context || 'General'}
+Topic: ${opts.topic || 'None'}
+Type: ${opts.task.label} — ${opts.task.instruction}`,
+`### FORMAT & OUTPUT
+Format: ${opts.format.label}
+Instruction: ${opts.format.instruction}
+Tone: ${opts.voice.label} — ${opts.voice.instruction}
+Length: ${opts.length.label} — ${opts.length.instruction}
+Depth: Level ${opts.level} — ${opts.levelDesc}`,
+`### RESTRICTIONS
+${(opts.restrictions || []).join('\n')}`
+  ].join('\n\n');
+}
+
+function onGenerate(){
+  const context = document.getElementById('contextInput').value.trim();
+  const topic = document.getElementById('topicInput').value.trim();
+  const mode = COMMON_DATA.MODES.find(m=>m.id===document.getElementById('modeSelect').value) || COMMON_DATA.MODES[0];
+  const format = COMMON_DATA.FORMATS.find(f=>f.id===document.getElementById('formatSelect').value) || COMMON_DATA.FORMATS[0];
+  const task = currentData.TASK_TYPES.find(t=>t.id===document.getElementById('taskSelect').value) || currentData.TASK_TYPES[0];
+  const voice = currentData.VOICES.find(v=>v.id===document.getElementById('voiceSelect').value) || currentData.VOICES[0];
+  const length = currentData.LENGTH.find(l=>l.id===document.getElementById('lengthSelect').value) || currentData.LENGTH[0];
+  const levelIndex = parseInt(document.getElementById('levelSelect').value,10) || currentData.FADER_LEVELS[0].level;
+  const levelObj = currentData.FADER_LEVELS.find(l=>l.level===levelIndex) || currentData.FADER_LEVELS[0];
+
+  const prompt = buildPrompt({
+    mode, task, format, voice, length,
+    level: levelObj.level, levelDesc: levelObj.desc,
+    context, topic, restrictions: currentData.RESTRICTIONS
+  });
+
+  lastGeneratedPrompt = prompt;
+  showPromptOutput(prompt);
+  copyToClipboard(prompt);
+  // persist history
+  persistHistory('context-history', 'contextInput');
+  persistHistory('topic-history', 'topicInput');
+}
+
+/* display */
+function showPromptOutput(text){
+  const out = document.getElementById('promptOutput');
+  out.style.display = 'block';
+  out.textContent = text;
+}
+
+/* copy helper */
+function copyToClipboard(text){
+  if(!navigator.clipboard) return;
+  navigator.clipboard.writeText(text).then(()=> flashBtn('btn-generate','Copied ✓'));
+}
+
+/* small visual flash */
+function flashBtn(id, tmpText){
+  const btn = document.getElementById(id);
+  if(!btn) return;
+  const old = btn.textContent;
+  btn.textContent = tmpText;
+  setTimeout(()=>btn.textContent = old, 1500);
+}
+
+/* download current prompt as .txt */
+function downloadCurrent(){
+  if(!lastGeneratedPrompt) return alert('No prompt generated yet.');
+  const blob = new Blob([lastGeneratedPrompt], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prompt-${Date.now()}.txt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ================ CREATE RESULT (accordion) ================ */
+function onPasteResponse(){
+  if(!lastGeneratedPrompt) return alert('Generate a prompt first.');
+  // create result item with both raw + rendered preview
+  const entry = {
+    id: Date.now(),
+    raw: lastGeneratedPrompt,
+    createdAt: new Date().toISOString()
+  };
+  generatedItems.unshift(entry);
+  renderResult(entry);
+  toggleGenerator(false);
+}
+
+/* render single */
+function renderResult(item){
+  const results = document.getElementById('results');
+
+  const card = document.createElement('div'); card.className = 'accordion-item';
+  const head = document.createElement('div'); head.className = 'acc-head';
+  const meta = document.createElement('div'); meta.className = 'acc-meta';
+  const tag = document.createElement('div'); tag.className = 'tag'; tag.textContent = item.createdAt.split('T')[0];
+  const title = document.createElement('div'); title.style.fontWeight='700'; title.textContent = item.raw.split('\n')[0].slice(0,80)+'...';
+  meta.appendChild(tag); meta.appendChild(title);
+  head.appendChild(meta);
+
+  const actions = document.createElement('div'); actions.className='row';
+  const btnCopy = document.createElement('button'); btnCopy.className='copy-btn'; btnCopy.textContent='Copy';
+  btnCopy.onclick = (ev) => { ev.stopPropagation(); navigator.clipboard.writeText(item.raw).then(()=> btnCopy.textContent='Copied'); setTimeout(()=>btnCopy.textContent='Copy',900); };
+  const btnToggle = document.createElement('button'); btnToggle.className='copy-btn'; btnToggle.textContent='Toggle Preview';
+  const btnDL = document.createElement('button'); btnDL.className='copy-btn'; btnDL.textContent='Download';
+  btnDL.onclick = (ev)=>{ ev.stopPropagation(); downloadText(item.raw, `prompt-${item.id}.txt`); };
+  const btnExport = document.createElement('button'); btnExport.className='copy-btn'; btnExport.textContent='Export JSON';
+  btnExport.onclick = (ev)=>{ ev.stopPropagation(); downloadText(JSON.stringify(item,null,2), `prompt-${item.id}.json`); };
+
+  actions.appendChild(btnCopy); actions.appendChild(btnToggle); actions.appendChild(btnDL); actions.appendChild(btnExport);
+  head.appendChild(actions);
+
+  const body = document.createElement('div'); body.className='acc-body';
+  // raw <pre>
+  const pre = document.createElement('pre'); pre.style.whiteSpace='pre-wrap'; pre.textContent = item.raw;
+  // rendered preview
+  const preview = document.createElement('div'); preview.className='preview'; preview.innerHTML = renderMarkdown(item.raw);
+
+  body.appendChild(pre);
+  body.appendChild(preview);
+
+  // toggle action
+  head.onclick = () => body.classList.toggle('active');
+  btnToggle.onclick = (ev) => { ev.stopPropagation(); preview.style.display = (preview.style.display==='none' || !preview.style.display) ? 'block' : 'none'; };
+
+  // default collapse with preview visible
+  preview.style.display = 'block';
+
+  card.appendChild(head); card.appendChild(body);
+  results.prepend(card);
+}
+
+/* download helper */
+function downloadText(text, filename){
+  const b = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const u = URL.createObjectURL(b);
+  const a = document.createElement('a'); a.href=u; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(u);
+}
+
+/* export all generated items as JSON */
+function exportAllJSON(){
+  if(generatedItems.length===0) return alert('No generated items to export.');
+  const j = JSON.stringify(generatedItems, null, 2);
+  downloadText(j, `nexus-prompts-${Date.now()}.json`);
+}
+
+/* ================ UTIL: SIMPLE MARKDOWN RENDERER ================
+   Supports headings (#..), bold **, italic *, code blocks ``` ``` , inline `code`, lists (- or *).
+   Safe escaping for HTML injection.
+=================================================================*/
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderMarkdown(md){
+  if(!md) return '';
+  // Normalize line endings
+  let text = md.replace(/\r\n/g,'\n');
+
+  // code blocks ```lang\n...\n```
+  text = text.replace(/```([\s\S]*?)```/g, (m, code) => {
+    return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
+  });
+
+  // inline code `code`
+  text = text.replace(/`([^`]+)`/g, (m, code) => `<code class="inline">${escapeHtml(code)}</code>`);
+
+  // headings
+  text = text.replace(/^### (.*)$/gm, (m, t) => `<h3>${escapeHtml(t)}</h3>`);
+  text = text.replace(/^## (.*)$/gm, (m, t) => `<h2>${escapeHtml(t)}</h2>`);
+  text = text.replace(/^# (.*)$/gm, (m, t) => `<h1>${escapeHtml(t)}</h1>`);
+
+  // bold **text**
+  text = text.replace(/\*\*([^*]+)\*\*/g, (m,t) => `<strong>${escapeHtml(t)}</strong>`);
+  // italic *text*
+  text = text.replace(/\*([^*]+)\*/g, (m,t) => `<em>${escapeHtml(t)}</em>`);
+
+  // unordered lists (lines starting with - or *)
+  // Convert groups of list lines into <ul>
+  text = text.replace(/(^[\t ]*[-*] .+(?:\n[\t ]*[-*] .+)*)/gm, (m) => {
+    const items = m.split(/\n/).map(line => line.replace(/^[\t ]*[-*] /,'').trim());
+    return '<ul>' + items.map(i => `<li>${escapeHtml(i)}</li>`).join('') + '</ul>';
+  });
+
+  // paragraphs: split by two newlines
+  const blocks = text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+  return blocks.map(b => {
+    if(/^(<h1|<h2|<h3|<pre|<ul)/.test(b)) return b;
+    return `<p>${b.replace(/\n/g,'<br>')}</p>`;
+  }).join('\n');
+}
+
+/* =================== toggle generator panel =================== */
+function toggleGenerator(show=true){
+  const gen = document.getElementById('generator');
+  const btn = document.getElementById('btn-show-gen');
+  gen.style.display = show ? 'block' : 'none';
+  btn.style.display = show ? 'none' : 'inline-block';
+}
+
+/* =================== clear form =================== */
+function clearGenerator(){
+  document.getElementById('contextInput').value='';
+  document.getElementById('topicInput').value='';
+  document.getElementById('promptOutput').style.display='none';
+  lastGeneratedPrompt = '';
+  flashBtn('btn-clear','Cleared');
+}
+
+/* =================== keyboard shortcuts (optional quality-of-life) =================== */
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='g'){ e.preventDefault(); onGenerate(); }
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='e'){ e.preventDefault(); exportAllJSON(); }
+});
+</script>
+</body>
+</html>
