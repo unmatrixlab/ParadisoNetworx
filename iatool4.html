@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt Generator & Manager</title>
+    <title>AI Prompt Generator & Manager (Persistente)</title>
     <style>
         * { box-sizing: border-box; }
+
         :root {
             --bg: #121212;
             --surface: #1e1e1e;
@@ -13,7 +14,10 @@
             --text: #e0e0e0;
             --border: #333;
             --accent-active: #2196F3;
+            --danger: #cf6679;
+            --saved-word: #ff69b4; /* Rosa para palabras guardadas */
         }
+
         body {
             font-family: 'Segoe UI', monospace, sans-serif;
             background-color: var(--bg);
@@ -25,6 +29,8 @@
             overflow-x: hidden;
             width: 100%;
         }
+
+        /* Contenedor Principal */
         #generator-container {
             width: 100%;
             max-width: none;
@@ -32,56 +38,28 @@
             padding: 20px;
             margin: 0;
             border-bottom: 1px solid var(--border);
-            border-radius: 0;
             transition: all 0.3s ease;
         }
+
         .hidden { display: none !important; }
         h2 { margin-top: 0; color: var(--primary); text-align: center; }
-        .switch-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            gap: 15px;
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
+
+        /* Switch Styles */
+        .switch-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; gap: 15px; font-weight: bold; font-size: 0.9em; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #444;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--accent-active); }
         input:checked + .slider:before { transform: translateX(26px); }
         .mode-label { opacity: 0.5; transition: 0.3s; color: #aaa; }
         .mode-label.active { opacity: 1; color: white; font-weight: bold; }
 
         .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
-        .full-width { grid-column: span 2; }
         label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #aaa; }
         input, select, textarea { width: 100%; background: #2d2d2d; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; outline: none; }
 
+        /* Botones */
         .btn-group { display: flex; gap: 10px; margin-top: 20px; }
         button { flex: 1; padding: 12px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; transition: background 0.2s; }
         #btn-generate { background-color: var(--primary); color: #000; }
@@ -90,24 +68,42 @@
         #btn-paste:hover { background-color: #01b4a4; }
         #btn-show-gen { background-color: #333; color: #fff; margin: 0; padding: 15px; display: none; width: 100%; border-radius: 0; }
 
-        #prompt-output {
-            margin-top: 20px;
-            background: #000;
-            padding: 15px;
-            border: 1px solid var(--primary);
-            font-family: monospace;
-            white-space: pre-wrap;
-            display: none;
-        }
+        /* Output Area */
+        #prompt-output { margin-top: 20px; background: #000; padding: 15px; border: 1px solid var(--primary); font-family: monospace; white-space: pre-wrap; display: none; }
 
-        #results-container { width: 100%; max-width: none; padding: 20px; }
+        /* Resultados Accordion */
+        #results-container { width: 100%; padding: 20px; }
         .accordion-item { background: var(--surface); border: 1px solid var(--border); margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
         .accordion-header { padding: 15px; background: #252525; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .accordion-header:hover { background: #303030; }
-        .accordion-content { padding: 15px; display: none; border-top: 1px solid var(--border); font-size: 0.95em; line-height: 1.5; }
+        .header-content { display: flex; flex-direction: column; gap: 4px; }
+        .header-actions { display: flex; align-items: center; gap: 15px; }
+        
+        .btn-delete { background: transparent; color: #666; border: 1px solid #444; padding: 5px 10px; border-radius: 4px; flex: none; font-size: 1.2em; line-height: 1; }
+        .btn-delete:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+        .accordion-content { padding: 15px; display: none; border-top: 1px solid var(--border); font-size: 0.95em; line-height: 1.6; }
         .accordion-content.active { display: block; }
-        .meta-tag { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; margin-right: 5px; }
+
+        .meta-tag { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; display: inline-block; width: fit-content; }
         .copy-prompt-btn { background: var(--primary); color: black; border: none; padding: 5px 10px; font-size: 0.8em; border-radius: 4px; cursor: pointer; margin-bottom: 10px; display: inline-block; width: auto; flex: none; }
+
+        /* --- NUEVO: Estilos para palabras interactivas --- */
+        .interactive-word {
+            cursor: pointer;
+            border-bottom: 1px solid transparent;
+            transition: all 0.2s;
+            padding: 0 2px;
+        }
+        .interactive-word:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .interactive-word.saved {
+            color: var(--saved-word);
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(255, 105, 180, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -136,8 +132,10 @@
                 <input type="text" id="topicInput" list="topic-history" placeholder="Ex: Hooks, ROI...">
                 <datalist id="topic-history"></datalist>
             </div>
+
             <div><label>Mode</label><select id="modeSelect"></select></div>
             <div><label>Format</label><select id="formatSelect"></select></div>
+            
             <div><label>Task Type</label><select id="taskSelect"></select></div>
             <div><label>Voice/Tone</label><select id="voiceSelect"></select></div>
             <div><label>Length</label><select id="lengthSelect"></select></div>
@@ -156,8 +154,8 @@
 
 <script>
 /* =========================================
-   CONFIG DATA
-========================================= */
+   1. CONFIG DATA
+   ========================================= */
 const COMMON_DATA = {
     MODES: [
         { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
@@ -204,11 +202,11 @@ const ALGORITHMS = {
             { id: 'long', label: 'LONG', instruction: 'Extensive, detailed long-form content.' }
         ],
         FADER_LEVELS: [
-            { level: 1, desc: "Basic Summary or Definition" },
-            { level: 2, desc: "Add Context, History, or Motivation" },
-            { level: 3, desc: "Add Structure, Examples, or Interactions" },
-            { level: 4, desc: "Add Advanced Analysis, Troubleshooting, or Exercises" },
-            { level: 5, desc: "Full Interactive App / Deep-Dive Artifact" }
+            "- Level 1: Basic Summary or Definition.",
+            "- Level 2: Add Context, History, or Motivation.",
+            "- Level 3: Add Structure, Examples, or Interactions.",
+            "- Level 4: Add Advanced Analysis, Troubleshooting, or Exercises.",
+            "- Level 5: Full Interactive App / Deep-Dive Artifact."
         ],
         RESTRICTIONS: [
             "Do not include filler text.",
@@ -220,68 +218,164 @@ const ALGORITHMS = {
     },
     COMPLEX: {
         TASK_TYPES: [
-            { id: 'explain', label: 'DEMYSTIFY', instruction: 'Take the specific topic and break it down from first principles.' },
-            { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Perform a deep-dive analysis. Identify root causes, systemic connections, variables, and potential edge cases.' },
-            { id: 'create', label: 'IDEATE & SYNTHESIZE', instruction: 'Generate novel, non-obvious content. Combine disparate concepts to create something original.' },
-            { id: 'teach', label: 'SCAFFOLDED MASTERY', instruction: 'Design a learning path. Introduce the concept, show example, explain nuance, provide test.' },
-            { id: 'improve', label: 'REFACTOR & ELEVATE', instruction: 'Critique the input. Optimize clarity, efficiency, and impact.' },
-            { id: 'compare', label: 'JUXTAPOSE & EVALUATE', instruction: 'Compare entities using rigorous criteria. Highlight trade-offs, synergies, and suitability.' },
-            { id: 'build', label: 'ARCHITECT', instruction: 'Construct a complete artifact from start to finish.' }
+            { id: 'explain', label: 'DEMYSTIFY', instruction: 'Take the specific topic and break it down from first principles. Reveal the underlying logic clearly, making the complex intuitive.' },
+            { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Perform a deep-dive analysis. Identify root causes, systemic connections, variables, and potential edge cases within the context.' },
+            { id: 'create', label: 'IDEATE & SYNTHESIZE', instruction: 'Generate novel, non-obvious content. Combine disparate concepts from the context to create something original and transformative.' },
+            { id: 'teach', label: 'SCAFFOLDED MASTERY', instruction: 'Design a learning path. Introduce the concept, show a concrete example, explain the nuance, and provide a test/challenge for the user.' },
+            { id: 'improve', label: 'REFACTOR & ELEVATE', instruction: 'Critique the input. Optimize for clarity, efficiency, and impact. Explain specifically what was improved and why.' },
+            { id: 'compare', label: 'JUXTAPOSE & EVALUATE', instruction: 'Compare entities using rigorous criteria. Highlight trade-offs, synergies, and contextual suitability. Declare a winner based on the specific context.' },
+            { id: 'build', label: 'ARCHITECT', instruction: 'Construct a complete artifact (plan, blueprint, codebase) from start to finish. Ensure all components logically fit together into a working whole.' }
         ],
         VOICES: [
-            { id: 'neutral', label: 'Objective / Analytical', instruction: 'Maintain a bias-free, factual, and detached tone.' },
-            { id: 'friendly', label: 'Warm / Collaborative', instruction: 'Use inviting, encouraging tone.' },
-            { id: 'authoritative', label: 'Commanding / Expert', instruction: 'Use decisive, confident language.' },
-            { id: 'poetic', label: 'Lyrical / Evocative', instruction: 'Use metaphor, rhythm, and imagery.' },
-            { id: 'concise', label: 'Minimalist / Direct', instruction: 'Maximize information density. Remove all fluff.' }
+            { id: 'neutral', label: 'Objective / Analytical', instruction: 'Maintain a bias-free, factual, and observably detached tone.' },
+            { id: 'friendly', label: 'Warm / Collaborative', instruction: 'Use an inviting, encouraging, and psychologically safe tone.' },
+            { id: 'authoritative', label: 'Commanding / Expert', instruction: 'Use decisive, unwavering language. Project absolute confidence.' },
+            { id: 'poetic', label: 'Lyrical / Evocative', instruction: 'Use metaphor, rhythm, and sensory imagery to paint a picture with words.' },
+            { id: 'concise', label: 'Minimalist / Direct', instruction: 'Maximize information density. Remove all fluff. Be surgical.' }
         ],
         LENGTH: [
-            { id: 'short', label: 'ATOMIC', instruction: 'Distilled format. Max ~100 words.' },
-            { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Sufficient detail, examples, and nuance. ~400 words.' },
-            { id: 'long', label: 'EXHAUSTIVE', instruction: 'Cover history, theory, application, and edge cases.' }
+            { id: 'short', label: 'ATOMIC', instruction: 'Provide the answer in a distilled format. Maximum impact, minimum word count (approx. 100 words).' },
+            { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Explore the topic with sufficient detail, examples, and nuance. Standard depth (approx. 400 words).' },
+            { id: 'long', label: 'EXHAUSTIVE', instruction: 'Leave no stone unturned. Cover history, theory, application, and edge cases. Extensive length.' }
         ],
         FADER_LEVELS: [
-            { level: 1, desc: "Surface: Define the core concept simply" },
-            { level: 2, desc: "Context: Add historical background or why it matters" },
-            { level: 3, desc: "Mechanics: Explain 'How it works' with examples" },
-            { level: 4, desc: "Nuance: Optimization, edge cases, trade-offs" },
-            { level: 5, desc: "Mastery: Full systemic integration and advanced synthesis" }
+            "- Level 1: Surface (Define the core concept simply).",
+            "- Level 2: Context (Add historical background or 'Why it matters').",
+            "- Level 3: Mechanics (Explain 'How it works' with examples).",
+            "- Level 4: Nuance (Discuss optimization, edge cases, and trade-offs).",
+            "- Level 5: Mastery (Full systemic integration and advanced synthesis). "
         ],
         RESTRICTIONS: [
             "Strictly follow the chosen FORMAT structure.",
-            "Do not include conversational filler. Start directly with output.",
-            "Tone must align with MODE and VOICE.",
-            "Integrate CONTEXT and SPECIFIC TOPIC seamlessly.",
-            "Output must be complete; do not cut off."
+            "Do not include conversational filler (e.g., 'Here is your...'). Start directly with the output.",
+            "Ensure the tone aligns perfectly with the chosen MODE and VOICE.",
+            "Integrate the User's CONTEXT and SPECIFIC TOPIC seamlessly.",
+            "Output must be complete; do not cut off or ask to continue."
         ]
     }
 };
 
 /* =========================================
-   GLOBAL STATE
-========================================= */
+   2. GLOBAL STATE & PERSISTENCE
+   ========================================= */
 let lastGeneratedPrompt = ""; 
-let currentData = ALGORITHMS.SIMPLEX;
+let currentData = ALGORITHMS.SIMPLEX; 
+// Array para guardar los acordeones generados en ESTA app
+let nexusHistory = [];
+const NEXUS_STORAGE_KEY = 'nexus_prompt_history';
+// Key de la OTRA app (MDC Vocabulary Builder)
+const MDC_VOCAB_KEY = 'mdc_vocab_list';
 
 /* =========================================
-   INITIALIZATION
-========================================= */
+   3. INITIALIZATION
+   ========================================= */
 document.addEventListener('DOMContentLoaded', () => {
     populateSelect('modeSelect', COMMON_DATA.MODES);
     populateSelect('formatSelect', COMMON_DATA.FORMATS);
     updateDynamicDropdowns();
     loadHistory('contextInput', 'context-history');
     loadHistory('topicInput', 'topic-history');
+
+    // Cargar historial de acordeones guardados
+    loadNexusHistory();
 });
 
 /* =========================================
-   SWITCH SIMPLE/COMPLEX
-========================================= */
+   4. LOGIC: SAVE TO MDC VOCAB (EXTERNAL)
+   ========================================= */
+
+// Función de limpieza idéntica a la otra App
+function sanitizeText(text) {
+    if (!text) return "";
+    text = text.replace(/['`‘´]/g, "’");
+    text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
+    return text.trim();
+}
+
+function saveWordToMDC(word, element) {
+    const cleanWord = sanitizeText(word);
+    if(!cleanWord) return;
+
+    // Obtener lista actual de MDC
+    let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    
+    // Chequear duplicados (igual que en MDC)
+    const checkEng = cleanWord.toLowerCase();
+    let existe = false;
+    for (let item of items) {
+        if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === checkEng) existe = true;
+        if (item.isFolder && item.items) {
+            for (let sub of item.items) {
+                if (sub.eng && sanitizeText(sub.eng).toLowerCase() === checkEng) existe = true;
+            }
+        }
+        if(existe) break;
+    }
+
+    if (!existe) {
+        // Agregar al inicio
+        items.unshift({ 
+            id: Date.now(), 
+            isFolder: false, 
+            eng: cleanWord, 
+            esp: "", // Vacío para que el traductor de MDC lo detecte
+            isHighlighted: false 
+        });
+        localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+        
+        // Feedback Visual
+        element.classList.add('saved');
+        console.log(`Saved "${cleanWord}" to MDC Vocab`);
+    } else {
+        // Feedback Visual (ya existe)
+        element.style.color = 'orange';
+        setTimeout(() => { if(!element.classList.contains('saved')) element.style.color = ''; }, 500);
+        console.log("Duplicate word ignored");
+    }
+}
+
+/* =========================================
+   5. LOGIC: NEXUS PERSISTENCE (INTERNAL)
+   ========================================= */
+function loadNexusHistory() {
+    const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
+    if (stored) {
+        nexusHistory = JSON.parse(stored);
+        // Renderizar en orden inverso (más reciente arriba) si se guardó cronológicamente
+        // O simplemente renderizar como vienen. Renderizamos de abajo hacia arriba en DOM.
+        nexusHistory.forEach(data => renderAccordionDOM(data));
+    }
+}
+
+function saveNexusState() {
+    localStorage.setItem(NEXUS_STORAGE_KEY, JSON.stringify(nexusHistory));
+}
+
+function addToNexusHistory(data) {
+    nexusHistory.unshift(data); // Agregar al inicio
+    saveNexusState();
+}
+
+function removeFromNexusHistory(id) {
+    nexusHistory = nexusHistory.filter(item => item.id !== id);
+    saveNexusState();
+}
+
+/* =========================================
+   6. UI LOGIC
+   ========================================= */
+
 function toggleAlgorithmMode() {
     const isComplex = document.getElementById('modeSwitch').checked;
-    currentData = isComplex ? ALGORITHMS.COMPLEX : ALGORITHMS.SIMPLEX;
-    document.getElementById('labelSimple').classList.toggle('active', !isComplex);
-    document.getElementById('labelComplex').classList.toggle('active', isComplex);
+    if (isComplex) {
+        currentData = ALGORITHMS.COMPLEX;
+        document.getElementById('labelSimple').classList.remove('active');
+        document.getElementById('labelComplex').classList.add('active');
+    } else {
+        currentData = ALGORITHMS.SIMPLEX;
+        document.getElementById('labelSimple').classList.add('active');
+        document.getElementById('labelComplex').classList.remove('active');
+    }
     updateDynamicDropdowns();
 }
 
@@ -289,13 +383,12 @@ function updateDynamicDropdowns() {
     populateSelect('taskSelect', currentData.TASK_TYPES);
     populateSelect('voiceSelect', currentData.VOICES);
     populateSelect('lengthSelect', currentData.LENGTH);
-
     const levelSel = document.getElementById('levelSelect');
     levelSel.innerHTML = '';
-    currentData.FADER_LEVELS.forEach(level => {
+    currentData.FADER_LEVELS.forEach((level) => {
         let opt = document.createElement('option');
-        opt.value = `Level ${level.level}`;
-        opt.textContent = `Level ${level.level} - ${level.desc}`;
+        opt.value = level;
+        opt.textContent = level.split(':')[0];
         levelSel.appendChild(opt);
     });
 }
@@ -304,131 +397,235 @@ function populateSelect(id, dataArray) {
     const select = document.getElementById(id);
     select.innerHTML = '';
     dataArray.forEach(item => {
-        const opt = document.createElement('option');
+        let opt = document.createElement('option');
         opt.value = item.id;
         opt.textContent = item.label;
         select.appendChild(opt);
     });
 }
 
-/* =========================================
-   HISTORY MANAGEMENT
-========================================= */
 function loadHistory(inputId, listId) {
-    const history = JSON.parse(localStorage.getItem(listId) || '[]');
-    const datalist = document.getElementById(listId);
-    datalist.innerHTML = '';
-    history.forEach(item => {
-        const opt = document.createElement('option');
-        opt.value = item;
-        datalist.appendChild(opt);
-    });
-}
-
-function saveHistory(inputId, listId) {
-    const val = document.getElementById(inputId).value.trim();
-    if (!val) return;
-    const history = JSON.parse(localStorage.getItem(listId) || '[]');
-    if (!history.includes(val)) {
-        history.unshift(val);
-        localStorage.setItem(listId, JSON.stringify(history.slice(0, 10))); // Keep last 10
-        loadHistory(inputId, listId);
+    const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    const dataList = document.getElementById(listId);
+    if(dataList) {
+        dataList.innerHTML = '';
+        history.forEach(item => {
+            let option = document.createElement('option');
+            option.value = item;
+            dataList.appendChild(option);
+        });
     }
 }
 
+function saveToHistory(inputId) {
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
+    let history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    history = history.filter(item => item !== value);
+    history.unshift(value);
+    if (history.length > 5) history.pop();
+    localStorage.setItem(inputId + '_mem', JSON.stringify(history));
+    loadHistory(inputId, input.getAttribute('list'));
+}
+
 /* =========================================
-   GENERATE PROMPT
-========================================= */
+   7. GENERATION & PARSING
+   ========================================= */
 function generatePrompt() {
-    const context = document.getElementById('contextInput').value.trim();
-    const topic = document.getElementById('topicInput').value.trim();
-    const modeId = document.getElementById('modeSelect').value;
-    const formatId = document.getElementById('formatSelect').value;
-    const taskId = document.getElementById('taskSelect').value;
-    const voiceId = document.getElementById('voiceSelect').value;
-    const lengthId = document.getElementById('lengthSelect').value;
+    const context = document.getElementById('contextInput').value;
+    const topic = document.getElementById('topicInput').value;
+    const mode = COMMON_DATA.MODES.find(m => m.id === document.getElementById('modeSelect').value);
+    const format = COMMON_DATA.FORMATS.find(f => f.id === document.getElementById('formatSelect').value);
+    const task = currentData.TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
+    const voice = currentData.VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
+    const len = currentData.LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
     const level = document.getElementById('levelSelect').value;
 
-    saveHistory('contextInput', 'context-history');
-    saveHistory('topicInput', 'topic-history');
+    const prompt = `
+### ROLE & STYLE
+${mode.role} ${mode.style}
+Goal: ${mode.goal}
 
-    const mode = COMMON_DATA.MODES.find(m => m.id === modeId) || {};
-    const format = COMMON_DATA.FORMATS.find(f => f.id === formatId) || {};
-    const task = currentData.TASK_TYPES.find(t => t.id === taskId) || {};
-    const voice = currentData.VOICES.find(v => v.id === voiceId) || {};
-    const length = currentData.LENGTH.find(l => l.id === lengthId) || {};
-    const levelObj = currentData.FADER_LEVELS.find(l => `Level ${l.level}` === level) || {};
+### TASK
+Context: ${context}
+Topic: ${topic}
+Type: ${task.label} - ${task.instruction}
 
-    let prompt = `
-Act as a ${mode.label || 'Expert'}.
-Role: ${mode.role || ''}
-Style: ${mode.style || ''}
-Goal: ${mode.goal || ''}
+### FORMAT & OUTPUT
+Format: ${format.label}
+Instruction: ${format.instruction}
+Tone: ${voice.instruction}
+Length: ${len.instruction}
+Depth: ${level}
 
-Task: ${task.label || ''} 
-Instruction: ${task.instruction || ''}
+### RESTRICTIONS
+${currentData.RESTRICTIONS.join('\n')}
+    `.trim();
 
-Voice/Tone: ${voice.label || ''} - ${voice.instruction || ''}
-Length: ${length.label || ''} - ${length.instruction || ''}
-Depth Level: ${level || ''} - ${levelObj.desc || ''}
-
-Format: ${format.label || ''} 
-${format.instruction || ''}
-
-Context: ${context || 'General'}
-Specific Topic: ${topic || 'None'}
-
-Restrictions: ${currentData.RESTRICTIONS.join('; ')}
-`.trim();
-
+    const outputDiv = document.getElementById('prompt-output');
+    outputDiv.style.display = 'block';
+    outputDiv.textContent = prompt;
+    navigator.clipboard.writeText(prompt);
     lastGeneratedPrompt = prompt;
-    displayPrompt(prompt);
+    saveToHistory('contextInput');
+    saveToHistory('topicInput');
 }
 
-/* =========================================
-   DISPLAY PROMPT
-========================================= */
-function displayPrompt(prompt) {
-    const output = document.getElementById('prompt-output');
-    output.textContent = prompt;
-    output.style.display = 'block';
-}
+async function handlePasteResponse() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if(!text) return alert("Clipboard is empty.");
+        
+        // Crear objeto de datos
+        const data = {
+            id: Date.now(),
+            modeName: document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text,
+            topic: document.getElementById('topicInput').value || "Untitled Result",
+            prompt: lastGeneratedPrompt,
+            content: text
+        };
 
-/* =========================================
-   PASTE RESPONSE HANDLER
-========================================= */
-function handlePasteResponse() {
-    const response = lastGeneratedPrompt || '';
-    if (!response) return;
-    // Custom handling: here just copies to clipboard and hides generator
-    navigator.clipboard.writeText(response).then(() => {
-        alert("Prompt copied to clipboard!");
+        // Guardar en historial
+        addToNexusHistory(data);
+
+        // Renderizar
+        renderAccordionDOM(data);
         toggleGenerator(false);
+    } catch (err) {
+        alert("Permission denied or error reading clipboard.");
+    }
+}
+
+/* =========================================
+   8. RENDERING & INTERACTIVITY
+   ========================================= */
+
+// Función para convertir texto plano en HTML con palabras clickeables
+function formatInteractiveContent(text) {
+    if (!text) return "";
+    // Escapar HTML primero para evitar inyección si el LLM devuelve código
+    const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    // Dividir manteniendo saltos de línea, pero envolver palabras
+    // Regex split: por espacios o saltos de línea
+    // Nota: Es complejo parsear markdown completo y hacer palabras clickeables sin librería.
+    // Estrategia: Preservar estructura básica, envolver tokens.
+    
+    return safeText.split(/(\s+)/).map(token => {
+        if (token.match(/^\s+$/)) return token; // Es espacio/newline
+        return `<span class="interactive-word" onclick="saveWordToMDC(this.innerText, this)">${token}</span>`;
+    }).join('');
+}
+
+function renderAccordionDOM(data) {
+    const container = document.getElementById('results-container');
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.id = `item-${data.id}`;
+    
+    const interactiveHTML = formatInteractiveContent(data.content);
+
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${data.id})">
+            <div class="header-content">
+                <span class="meta-tag">${data.modeName}</span>
+                <strong>${data.topic}</strong>
+            </div>
+            <div class="header-actions">
+                <button class="btn-delete" onclick="deleteItem(event, ${data.id})">🗑️</button>
+                <span>▼</span>
+            </div>
+        </div>
+        <div class="accordion-content" id="content-${data.id}">
+            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
+                📜 Copy Original Prompt
+            </button>
+            <div style="display:none;" class="prompt-source">${data.prompt}</div>
+            
+            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
+            
+            <div style="white-space: pre-wrap;">${interactiveHTML}</div>
+        </div>
+    `;
+
+    // Insertar al principio si es nuevo, o al final si cargamos historial? 
+    // Como loadNexusHistory itera array, si usamos appendChild queda en orden inverso al unshift.
+    // Para simplificar: el render siempre es appendChild en carga, pero como nexusHistory tiene lo más reciente primero,
+    // debemos tener cuidado. 
+    
+    // Si viene de "handlePaste" (nuevo), queremos que esté arriba.
+    // Si viene de carga inicial, nexusHistory[0] es el más nuevo.
+    // Solución: Siempre prepend (insertBefore firstChild) en DOM para nuevos.
+    // Pero en carga masiva, si iteramos array (0..N), el 0 (nuevo) queda abajo si usamos insertBefore.
+    // Vamos a ver: nexusHistory = [New, Old].
+    // Loop: render(New) -> Top. render(Old) -> Top of New. Resultado: [Old, New]. Orden incorrecto.
+    // Fix: En carga, iterar al revés o usar appendChild.
+    
+    // Mejor estrategia para renderDOM: SIEMPRE insertBefore (Top).
+    // En carga inicial, invertimos el array antes de loopear.
+    
+    // Si el elemento ya existe (por alguna razón), no duplicar.
+    if(document.getElementById(`item-${data.id}`)) return;
+
+    if (container.firstChild) {
+        container.insertBefore(item, container.firstChild);
+    } else {
+        container.appendChild(item);
+    }
+}
+
+// Modificar carga inicial para orden correcto
+function loadNexusHistory() {
+    const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
+    if (stored) {
+        nexusHistory = JSON.parse(stored);
+        // Renderizar desde el más viejo al más nuevo para que al hacer insertBefore 
+        // el más nuevo quede arriba del todo.
+        [...nexusHistory].reverse().forEach(data => renderAccordionDOM(data));
+    }
+}
+
+function toggleGenerator(show) {
+    const gen = document.getElementById('generator-container');
+    const btnShow = document.getElementById('btn-show-gen');
+    if (show) {
+        gen.classList.remove('hidden');
+        btnShow.style.display = 'none';
+    } else {
+        gen.classList.add('hidden');
+        btnShow.style.display = 'block';
+    }
+}
+
+function deleteItem(event, id) {
+    event.stopPropagation();
+    if(confirm("Are you sure you want to delete this result?")) {
+        // Borrar de DOM
+        const el = document.getElementById(`item-${id}`);
+        if(el) el.remove();
+        // Borrar de Memoria
+        removeFromNexusHistory(id);
+    }
+}
+
+function toggleAccordion(id) {
+    const content = document.getElementById(`content-${id}`);
+    const isVisible = content.classList.contains('active');
+    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
+    if (!isVisible) {
+        content.classList.add('active');
+    }
+}
+
+function copyTextToClipboard(btnElement) {
+    const promptText = btnElement.nextElementSibling.textContent;
+    navigator.clipboard.writeText(promptText).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "Copied!";
+        setTimeout(() => btnElement.innerText = originalText, 1500);
     });
 }
-
-/* =========================================
-   GENERATOR TOGGLE
-========================================= */
-function toggleGenerator(show = true) {
-    const gen = document.getElementById('generator-container');
-    const btn = document.getElementById('btn-show-gen');
-    gen.style.display = show ? 'block' : 'none';
-    btn.style.display = show ? 'none' : 'block';
-}
-
-/* =========================================
-   ACCORDION RESULTS
-========================================= */
-document.getElementById('results-container').addEventListener('click', function(e) {
-    if (e.target.classList.contains('accordion-header')) {
-        const content = e.target.nextElementSibling;
-        content.classList.toggle('active');
-    } else if (e.target.classList.contains('copy-prompt-btn')) {
-        const text = e.target.previousElementSibling.textContent;
-        navigator.clipboard.writeText(text).then(() => alert('Copied!'));
-    }
-});
 </script>
 
 </body>
