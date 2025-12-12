@@ -1,0 +1,424 @@
+Tienes toda la razón. **Mea culpa**.
+
+El código 7 que te pasé sí **guardaba** los datos del juego (porque la llave `LN_V8_HYBRID` estaba en la lista de guardado), pero **olvidé poner la fila visual en el HTML** para que tú pudieras ver que esos datos existían. Estaban "invisibles" en el Dashboard.
+
+Aquí tienes el **CÓDIGO 7 v2.4 (FINAL VISUAL FIX)**.
+
+### 🔧 Qué agregué:
+
+1.  **HTML:** Una nueva fila en "Estadísticas Locales" para el **Arcade Game**.
+2.  **JS:** Ahora lee tus monedas de Oro y Plata y las muestra en esa fila (ej: `💰 2G | 15S`). Así confirmas visualmente que el juego está conectado.
+
+Copia y reemplaza tu archivo `dashboard.html` (o como lo hayas llamado) con esto:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MDC Cloud Dashboard v2.4</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #f2f2f7; --card-bg: #ffffff; --primary: #007AFF; 
+            --danger: #FF3B30; --success: #34C759; --warning: #FF9500; 
+            --text-main: #1c1c1e; --text-sec: #8e8e93; --border: #e5e5ea;
+            --bg-badge-neutral: #e5e5ea; --bg-badge-success: #d1fae5; --bg-badge-danger: #fee2e2;
+            --card-header-bg: rgba(255,255,255,0.5);
+        }
+        body.dark-mode {
+            --bg-body: #000000; --card-bg: #1c1c1e; --text-main: #f4f4f5; 
+            --text-sec: #a1a1aa; --border: #2c2c2e;
+            --bg-badge-neutral: #2c2c2e; --bg-badge-success: rgba(52, 199, 89, 0.2);
+            --bg-badge-danger: rgba(255, 59, 48, 0.2); --card-header-bg: rgba(255,255,255,0.05);
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: 'Inter', sans-serif; background: var(--bg-body); color: var(--text-main); 
+            margin: 0; padding: 20px; min-height: 100vh; 
+            display: flex; flex-direction: column; align-items: center; 
+            transition: background 0.3s, color 0.3s;
+        }
+        .container { max-width: 600px; width: 100%; }
+        .header { margin-bottom: 20px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; font-weight: 700; }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-top: 5px; background: var(--bg-badge-neutral); color: var(--text-sec); transition: 0.3s; }
+        .status-badge.online { background: var(--bg-badge-success); color: var(--success); }
+        .status-badge.sync-needed { background: var(--bg-badge-danger); color: var(--danger); }
+        .status-badge.synced { background: var(--bg-badge-success); color: var(--success); }
+        .card { background: var(--card-bg); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; transition: background 0.3s; border: 1px solid var(--border); }
+        .card-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-sec); background: var(--card-header-bg); display: flex; justify-content: space-between; align-items: center;}
+        .data-row { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .data-row:last-child { border-bottom: none; }
+        .data-label { font-weight: 500; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+        .data-value { color: var(--text-sec); font-size: 14px; font-family: monospace; }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-size: 16px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; margin-bottom: 10px; }
+        .btn:active { transform: scale(0.98); opacity: 0.8; }
+        .btn-cloud-save { background: linear-gradient(135deg, #007AFF, #0056b3); color: white; box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
+        .btn-cloud-load { background: var(--card-bg); color: var(--danger); border: 2px solid var(--border); }
+        .btn-cloud-mix { background: var(--card-bg); color: var(--success); border: 2px solid var(--success); }
+        .file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
+        .btn-file { background: var(--bg-body); color: var(--text-main); border: 1px solid var(--border); font-size: 14px; padding: 12px; margin-bottom: 0; border-radius: 8px; }
+        .btn-file:hover { border-color: var(--text-sec); }
+        .app-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 10px; }
+        .sync-info { text-align: center; font-size: 12px; color: var(--text-sec); margin: 15px; padding: 10px; background: var(--bg-body); border-radius: 8px; border: 1px solid var(--border); }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
+        .spinner { width: 40px; height: 40px; border: 4px solid var(--border); border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-msg" style="font-weight:600; color: white;">Processing...</div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>MDC Sync Center</h1>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:5px;">
+                <span id="connection-status" class="status-badge">Conectando...</span>
+                <span id="sync-health" class="status-badge" style="display:none;">Checking...</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span>☁️ CLOUD ACTIONS</span>
+                <span style="font-size:10px;">FIREBASE REALTIME</span>
+            </div>
+            <div style="padding: 20px;">
+                <button class="btn btn-cloud-save" onclick="saveToCloud()">
+                    ⬆️ SUBIR TODO (Overwrite Cloud)
+                </button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn btn-cloud-mix" onclick="mixFromCloud()" style="margin-bottom:0;">
+                        🔄 MEZCLAR<br><span style="font-size:10px; font-weight:400;">(Merge Data)</span>
+                    </button>
+                    <button class="btn btn-cloud-load" onclick="loadFromCloud()" style="margin-bottom:0;">
+                        ⚠️ REEMPLAZAR<br><span style="font-size:10px; font-weight:400;">(Wipe Local)</span>
+                    </button>
+                </div>
+                <div class="sync-info">
+                    <div id="cloud-date">☁️ Nube: Verificando...</div>
+                    <div id="local-date">📱 Local: Verificando...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Estadísticas Locales</div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #4f46e5;">DB</div>Vocabulario</div>
+                <div class="data-value" id="stat-vocab">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Historial</div>
+                <div class="data-value" id="stat-player">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #007AFF;">AI</div>Ejercicios AI</div>
+                <div class="data-value" id="stat-ai">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #fbbf24; color: #000;">GM</div>Arcade Game</div>
+                <div class="data-value" id="stat-game">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #00f2ea; color: #000;">GEN</div>Creator Studio</div>
+                <div class="data-value" id="stat-generator">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #bb86fc; color: #000;">PE</div>Prompt Eng.</div>
+                <div class="data-value" id="stat-prompt">...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Respaldo Físico (.JSON)</div>
+            <div class="file-actions">
+                <button class="btn btn-file" onclick="backupToFile()">💾 Guardar Archivo</button>
+                <button class="btn btn-file" onclick="document.getElementById('restore-input').click()">📂 Cargar Archivo</button>
+            </div>
+            <input type="file" id="restore-input" accept=".json" onchange="restoreFromFile(this)">
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="btn" style="background:var(--danger); color:white; border:none; width:auto; padding:12px 24px; font-size:14px; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.2);" onclick="wipeSystem()">
+                ☢️ NUCLEAR WIPE (Borrar Todo)
+            </button>
+        </div>
+    </div>
+
+   <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAxXKLpXk4sa3TVN2pCustVkpxV_uMZjr8",
+            authDomain: "nexushub-6bfc4.firebaseapp.com",
+            databaseURL: "https://nexushub-6bfc4-default-rtdb.firebaseio.com",
+            projectId: "nexushub-6bfc4",
+            storageBucket: "nexushub-6bfc4.firebasestorage.app",
+            messagingSenderId: "426532214270",
+            appId: "1:426532214270:web:6816040ca1aba8e8655caf",
+            measurementId: "G-NZZ1PLEH0V"
+        };
+
+        let db;
+        // Agregamos la clave del juego para que el backup la encuentre si hacemos wipe manual viejo
+        const PREFIXES = ['mdc_', 'LN_', 'nexus_'];
+        
+        const KEYS = { 
+            vocab: 'mdc_vocab_list', 
+            history: 'mdc_studio_history', 
+            ai: 'mdc_ai_exercises', 
+            game: 'LN_V8_HYBRID',  // <--- AQUÍ ESTÁ LA DATA DEL JUEGO
+            generator: 'nexus_ai_decks',
+            prompt: 'nexus_prompt_history'
+        };
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            const connectedRef = firebase.database().ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                const badge = document.getElementById('connection-status');
+                if (snap.val() === true) {
+                    badge.innerText = "🟢 Online"; badge.className = "status-badge online";
+                    autoCheckStatus();
+                } else {
+                    badge.innerText = "⚪ Offline"; badge.className = "status-badge";
+                }
+            });
+        } catch (e) { alert("Error Firebase: " + e.message); }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshStats();
+            updateDateDisplay();
+        });
+
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'THEME_CHANGE') {
+                if (event.data.theme === 'dark') document.body.classList.add('dark-mode');
+                else document.body.classList.remove('dark-mode');
+            }
+        });
+
+        async function autoCheckStatus() {
+            try {
+                const snap = await db.ref('my_backup/meta').once('value');
+                const cloudMeta = snap.val();
+                const localTS = parseInt(localStorage.getItem('mdc_last_sync_ts') || '0');
+                const cloudTS = cloudMeta ? (cloudMeta.timestamp || 0) : 0;
+                
+                const healthBadge = document.getElementById('sync-health');
+                healthBadge.style.display = 'inline-block';
+
+                if(cloudMeta && cloudMeta.date_str) document.getElementById('cloud-date').innerText = "☁️ Nube: " + cloudMeta.date_str;
+                else document.getElementById('cloud-date').innerText = "☁️ Nube: Vacía";
+
+                if (cloudTS > localTS) {
+                    healthBadge.innerText = "📥 Nube más nueva"; healthBadge.className = "status-badge sync-needed";
+                } else if (localTS > cloudTS) {
+                    healthBadge.innerText = "📤 Local más nuevo"; healthBadge.className = "status-badge sync-needed";
+                } else {
+                    healthBadge.innerText = "✅ Sincronizado"; healthBadge.className = "status-badge synced";
+                }
+            } catch(e) { console.log("Auto-check failed"); }
+        }
+
+        function updateDateDisplay() {
+            const localStr = localStorage.getItem('mdc_last_sync_date');
+            document.getElementById('local-date').innerText = "📱 Local: " + (localStr || "Nunca");
+        }
+
+        async function mixFromCloud() {
+            if(!db) return alert("Sin conexión.");
+            showLoading("Mezclando datos...");
+            try {
+                const snapshot = await db.ref('my_backup').once('value');
+                const val = snapshot.val();
+                if (!val || !val.data) throw new Error("La nube está vacía.");
+                const cloudData = val.data;
+                let changesCount = 0;
+
+                // A. VOCAB
+                if(cloudData[KEYS.vocab]) {
+                    const localVocab = JSON.parse(localStorage.getItem(KEYS.vocab) || '[]');
+                    const cloudVocab = JSON.parse(cloudData[KEYS.vocab]); 
+                    const existingIds = new Set(localVocab.map(item => item.id));
+                    cloudVocab.forEach(item => {
+                        if(!existingIds.has(item.id)) { localVocab.unshift(item); existingIds.add(item.id); changesCount++; }
+                    });
+                    localStorage.setItem(KEYS.vocab, JSON.stringify(localVocab));
+                }
+                // B. HISTORY
+                if(cloudData[KEYS.history]) {
+                    const localHist = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
+                    const cloudHist = typeof cloudData[KEYS.history] === 'string' ? JSON.parse(cloudData[KEYS.history]) : cloudData[KEYS.history];
+                    const existingVideoIds = new Set(localHist.map(v => v.id));
+                    cloudHist.forEach(video => {
+                        if(!existingVideoIds.has(video.id)) { localHist.push(video); existingVideoIds.add(video.id); changesCount++; }
+                    });
+                    localStorage.setItem(KEYS.history, JSON.stringify(localHist));
+                }
+                // C. GENERATOR
+                if(cloudData[KEYS.generator]) {
+                    const localDecks = JSON.parse(localStorage.getItem(KEYS.generator) || '[]');
+                    const cloudDecks = typeof cloudData[KEYS.generator] === 'string' ? JSON.parse(cloudData[KEYS.generator]) : cloudData[KEYS.generator];
+                    const existingDeckIds = new Set(localDecks.map(d => d.id));
+                    cloudDecks.forEach(deck => {
+                        if(!existingDeckIds.has(deck.id)) { localDecks.push(deck); existingDeckIds.add(deck.id); changesCount++; }
+                    });
+                    localStorage.setItem(KEYS.generator, JSON.stringify(localDecks));
+                }
+                // D. PROMPTS
+                if(cloudData[KEYS.prompt]) {
+                    const localPrompts = JSON.parse(localStorage.getItem(KEYS.prompt) || '[]');
+                    const cloudPrompts = typeof cloudData[KEYS.prompt] === 'string' ? JSON.parse(cloudData[KEYS.prompt]) : cloudData[KEYS.prompt];
+                    const existingPromptIds = new Set(localPrompts.map(p => p.id));
+                    cloudPrompts.forEach(p => {
+                        if(!existingPromptIds.has(p.id)) { localPrompts.unshift(p); existingPromptIds.add(p.id); changesCount++; }
+                    });
+                    localStorage.setItem(KEYS.prompt, JSON.stringify(localPrompts));
+                }
+                // NOTA: El juego (Arcade) NO se mezcla, se reemplaza o se mantiene local, es demasiado complejo para mergear.
+
+                hideLoading();
+                alert(`✅ Mezcla completada.\n\nSe agregaron ${changesCount} elementos nuevos.`);
+                window.location.reload();
+            } catch (error) { hideLoading(); alert("❌ Error: " + error.message); }
+        }
+
+        async function saveToCloud() {
+            showLoading("Subiendo...");
+            const payload = {};
+            let count = 0;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                // Aquí el juego se guardará porque su key empieza con 'LN_' (está en PREFIXES)
+                if (PREFIXES.some(p => key.startsWith(p))) {
+                    payload[key] = localStorage.getItem(key);
+                    count++;
+                }
+            }
+            if(count === 0) { hideLoading(); return alert("No hay datos locales."); }
+            try {
+                const now = Date.now();
+                const dateStr = new Date().toLocaleString();
+                await db.ref('my_backup').set({
+                    data: payload,
+                    meta: { timestamp: now, date_str: dateStr, device: navigator.userAgent }
+                });
+                localStorage.setItem('mdc_last_sync_date', dateStr);
+                localStorage.setItem('mdc_last_sync_ts', now);
+                updateDateDisplay(); autoCheckStatus(); hideLoading();
+                alert("✅ Subida exitosa.");
+            } catch (error) { hideLoading(); alert("❌ Error: " + error.message); }
+        }
+
+        async function loadFromCloud() {
+            if(!confirm("⚠️ REEMPLAZAR borrará todo lo local. ¿Seguro?")) return;
+            showLoading("Descargando...");
+            try {
+                const snapshot = await db.ref('my_backup').once('value');
+                const val = snapshot.val();
+                if (!val || !val.data) throw new Error("Nube vacía.");
+                const cloudData = val.data;
+                const cloudMeta = val.meta || {};
+                
+                localStorage.clear(); // Limpieza total antes de bajar
+
+                Object.keys(cloudData).forEach(key => {
+                    localStorage.setItem(key, cloudData[key]);
+                });
+                localStorage.setItem('mdc_last_sync_date', cloudMeta.date_str || new Date().toLocaleString());
+                localStorage.setItem('mdc_last_sync_ts', cloudMeta.timestamp || Date.now());
+                hideLoading();
+                alert("✅ Datos reemplazados.");
+                window.location.reload();
+            } catch (error) { hideLoading(); alert("❌ Error: " + error.message); }
+        }
+
+        function backupToFile() {
+            const backup = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (PREFIXES.some(p => key.startsWith(p))) backup[key] = localStorage.getItem(key);
+            }
+            const blob = new Blob([JSON.stringify(backup)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url;
+            a.download = `MDC_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+        }
+
+        function restoreFromFile(input) {
+            const file = input.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    Object.keys(data).forEach(key => {
+                        if (PREFIXES.some(p => key.startsWith(p))) localStorage.setItem(key, data[key]);
+                    });
+                    alert("✅ Cargado."); window.location.reload();
+                } catch (err) { alert("Archivo inválido."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function showLoading(msg) { document.getElementById('loading-msg').innerText = msg; document.getElementById('loading-overlay').style.display = 'flex'; }
+        function hideLoading() { document.getElementById('loading-overlay').style.display = 'none'; }
+        
+        function refreshStats() {
+            const getLen = (k) => { 
+                const s=localStorage.getItem(k); 
+                try { return s ? JSON.parse(s).length : 0; } catch(e){ return 0; }
+            };
+            
+            // --- NUEVO: LEER ESTADÍSTICAS DEL JUEGO ARCADE ---
+            const gameData = localStorage.getItem(KEYS.game);
+            let gameText = "Sin datos";
+            let gameActive = false;
+            if(gameData) {
+                try {
+                    const g = JSON.parse(gameData);
+                    const silver = g.coins ? g.coins.silver : 0;
+                    const gold = g.coins ? g.coins.gold : 0;
+                    gameText = `💰 ${gold} Gold | ${silver} Silver`;
+                    gameActive = true;
+                } catch(e) {}
+            }
+            // ------------------------------------------------
+
+            updateRow('stat-vocab', getLen(KEYS.vocab) + " items", getLen(KEYS.vocab)>0);
+            updateRow('stat-player', getLen(KEYS.history) + " videos", getLen(KEYS.history)>0);
+            updateRow('stat-ai', getLen(KEYS.ai) + " sets", getLen(KEYS.ai)>0);
+            updateRow('stat-game', gameText, gameActive); // Usamos el texto generado
+            updateRow('stat-generator', getLen(KEYS.generator) + " decks", getLen(KEYS.generator)>0);
+            updateRow('stat-prompt', getLen(KEYS.prompt) + " prompts", getLen(KEYS.prompt)>0);
+        }
+
+        function updateRow(id, text, active) {
+            const el = document.getElementById(id);
+            el.innerText = text;
+            el.style.color = active ? 'var(--text-main)' : 'var(--text-sec)';
+        }
+
+        function wipeSystem() {
+            if(confirm("⚠️ ¿BORRAR ABSOLUTAMENTE TODO?\n\nAcción irreversible.")) {
+                localStorage.clear();
+                if (window.top) window.top.location.reload();
+                else window.location.reload();
+            }
+        }
+   </script>
+</body>
+</html>
+```
