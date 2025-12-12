@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt Generator & Manager (Persistente)</title>
+    <title>AI Prompt Generator & Manager (Sincronizado)</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -88,7 +88,7 @@
         .meta-tag { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; display: inline-block; width: fit-content; }
         .copy-prompt-btn { background: var(--primary); color: black; border: none; padding: 5px 10px; font-size: 0.8em; border-radius: 4px; cursor: pointer; margin-bottom: 10px; display: inline-block; width: auto; flex: none; }
 
-        /* --- NUEVO: Estilos para palabras interactivas --- */
+        /* Estilos para palabras interactivas */
         .interactive-word {
             cursor: pointer;
             border-bottom: 1px solid transparent;
@@ -99,6 +99,7 @@
             background: rgba(255, 255, 255, 0.1);
             color: white;
         }
+        /* Clase clave para la persistencia visual */
         .interactive-word.saved {
             color: var(--saved-word);
             font-weight: bold;
@@ -260,10 +261,8 @@ const ALGORITHMS = {
    ========================================= */
 let lastGeneratedPrompt = ""; 
 let currentData = ALGORITHMS.SIMPLEX; 
-// Array para guardar los acordeones generados en ESTA app
 let nexusHistory = [];
 const NEXUS_STORAGE_KEY = 'nexus_prompt_history';
-// Key de la OTRA app (MDC Vocabulary Builder)
 const MDC_VOCAB_KEY = 'mdc_vocab_list';
 
 /* =========================================
@@ -275,16 +274,12 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDynamicDropdowns();
     loadHistory('contextInput', 'context-history');
     loadHistory('topicInput', 'topic-history');
-
-    // Cargar historial de acordeones guardados
     loadNexusHistory();
 });
 
 /* =========================================
    4. LOGIC: SAVE TO MDC VOCAB (EXTERNAL)
    ========================================= */
-
-// Función de limpieza idéntica a la otra App
 function sanitizeText(text) {
     if (!text) return "";
     text = text.replace(/['`‘´]/g, "’");
@@ -292,45 +287,56 @@ function sanitizeText(text) {
     return text.trim();
 }
 
+// Helper para obtener TODAS las palabras guardadas actualmente en la App 1
+function getVocabSet() {
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    if (!raw) return new Set();
+    const items = JSON.parse(raw);
+    const wordSet = new Set();
+
+    // Recorremos carpetas y items sueltos
+    items.forEach(i => {
+        if (!i.isFolder && i.eng) wordSet.add(sanitizeText(i.eng).toLowerCase());
+        else if (i.isFolder && i.items) {
+            i.items.forEach(sub => {
+                if(sub.eng) wordSet.add(sanitizeText(sub.eng).toLowerCase());
+            });
+        }
+    });
+    return wordSet;
+}
+
 function saveWordToMDC(word, element) {
     const cleanWord = sanitizeText(word);
     if(!cleanWord) return;
 
-    // Obtener lista actual de MDC
     let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
     
-    // Chequear duplicados (igual que en MDC)
+    // Check duplicados
     const checkEng = cleanWord.toLowerCase();
-    let existe = false;
-    for (let item of items) {
-        if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === checkEng) existe = true;
-        if (item.isFolder && item.items) {
-            for (let sub of item.items) {
-                if (sub.eng && sanitizeText(sub.eng).toLowerCase() === checkEng) existe = true;
-            }
-        }
-        if(existe) break;
-    }
+    const currentSet = getVocabSet();
 
-    if (!existe) {
-        // Agregar al inicio
+    if (!currentSet.has(checkEng)) {
+        // Guardar
         items.unshift({ 
             id: Date.now(), 
             isFolder: false, 
             eng: cleanWord, 
-            esp: "", // Vacío para que el traductor de MDC lo detecte
+            esp: "", 
             isHighlighted: false 
         });
         localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
         
         // Feedback Visual
         element.classList.add('saved');
-        console.log(`Saved "${cleanWord}" to MDC Vocab`);
     } else {
-        // Feedback Visual (ya existe)
+        // Ya existe (feedback temporal si no estaba marcado ya)
         element.style.color = 'orange';
-        setTimeout(() => { if(!element.classList.contains('saved')) element.style.color = ''; }, 500);
-        console.log("Duplicate word ignored");
+        setTimeout(() => { 
+            // Si estaba guardado (tiene clase saved), volver a rosa, si no, volver a normal
+            if(element.classList.contains('saved')) element.style.color = ''; 
+            else element.style.color = ''; 
+        }, 500);
     }
 }
 
@@ -341,9 +347,7 @@ function loadNexusHistory() {
     const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
     if (stored) {
         nexusHistory = JSON.parse(stored);
-        // Renderizar en orden inverso (más reciente arriba) si se guardó cronológicamente
-        // O simplemente renderizar como vienen. Renderizamos de abajo hacia arriba en DOM.
-        nexusHistory.forEach(data => renderAccordionDOM(data));
+        [...nexusHistory].reverse().forEach(data => renderAccordionDOM(data));
     }
 }
 
@@ -352,7 +356,7 @@ function saveNexusState() {
 }
 
 function addToNexusHistory(data) {
-    nexusHistory.unshift(data); // Agregar al inicio
+    nexusHistory.unshift(data);
     saveNexusState();
 }
 
@@ -362,9 +366,70 @@ function removeFromNexusHistory(id) {
 }
 
 /* =========================================
-   6. UI LOGIC
+   6. UI LOGIC & RENDERING (THE FIX IS HERE)
    ========================================= */
 
+// Aquí está la solución: Le pasamos el Set de palabras guardadas para comparar al renderizar
+function formatInteractiveContent(text, existingVocabSet) {
+    if (!text) return "";
+    const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    // Dividimos y reconstruimos
+    return safeText.split(/(\s+)/).map(token => {
+        if (token.match(/^\s+$/)) return token; // Es espacio
+        
+        const cleanToken = sanitizeText(token).toLowerCase();
+        // Verificamos si existe en la DB
+        const isSaved = existingVocabSet.has(cleanToken);
+        const className = isSaved ? "interactive-word saved" : "interactive-word";
+
+        return `<span class="${className}" onclick="saveWordToMDC(this.innerText, this)">${token}</span>`;
+    }).join('');
+}
+
+function renderAccordionDOM(data) {
+    // 1. Obtener lista actual de palabras guardadas
+    const currentVocab = getVocabSet();
+
+    const container = document.getElementById('results-container');
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.id = `item-${data.id}`;
+    
+    // 2. Pasamos la lista a la función de formateo
+    const interactiveHTML = formatInteractiveContent(data.content, currentVocab);
+
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${data.id})">
+            <div class="header-content">
+                <span class="meta-tag">${data.modeName}</span>
+                <strong>${data.topic}</strong>
+            </div>
+            <div class="header-actions">
+                <button class="btn-delete" onclick="deleteItem(event, ${data.id})">🗑️</button>
+                <span>▼</span>
+            </div>
+        </div>
+        <div class="accordion-content" id="content-${data.id}">
+            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
+                📜 Copy Original Prompt
+            </button>
+            <div style="display:none;" class="prompt-source">${data.prompt}</div>
+            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
+            <div style="white-space: pre-wrap;">${interactiveHTML}</div>
+        </div>
+    `;
+
+    if(document.getElementById(`item-${data.id}`)) return;
+
+    if (container.firstChild) {
+        container.insertBefore(item, container.firstChild);
+    } else {
+        container.appendChild(item);
+    }
+}
+
+// --- Resto de funciones UI ---
 function toggleAlgorithmMode() {
     const isComplex = document.getElementById('modeSwitch').checked;
     if (isComplex) {
@@ -429,9 +494,6 @@ function saveToHistory(inputId) {
     loadHistory(inputId, input.getAttribute('list'));
 }
 
-/* =========================================
-   7. GENERATION & PARSING
-   ========================================= */
 function generatePrompt() {
     const context = document.getElementById('contextInput').value;
     const topic = document.getElementById('topicInput').value;
@@ -477,7 +539,6 @@ async function handlePasteResponse() {
         const text = await navigator.clipboard.readText();
         if(!text) return alert("Clipboard is empty.");
         
-        // Crear objeto de datos
         const data = {
             id: Date.now(),
             modeName: document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text,
@@ -486,103 +547,11 @@ async function handlePasteResponse() {
             content: text
         };
 
-        // Guardar en historial
         addToNexusHistory(data);
-
-        // Renderizar
         renderAccordionDOM(data);
         toggleGenerator(false);
     } catch (err) {
         alert("Permission denied or error reading clipboard.");
-    }
-}
-
-/* =========================================
-   8. RENDERING & INTERACTIVITY
-   ========================================= */
-
-// Función para convertir texto plano en HTML con palabras clickeables
-function formatInteractiveContent(text) {
-    if (!text) return "";
-    // Escapar HTML primero para evitar inyección si el LLM devuelve código
-    const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    
-    // Dividir manteniendo saltos de línea, pero envolver palabras
-    // Regex split: por espacios o saltos de línea
-    // Nota: Es complejo parsear markdown completo y hacer palabras clickeables sin librería.
-    // Estrategia: Preservar estructura básica, envolver tokens.
-    
-    return safeText.split(/(\s+)/).map(token => {
-        if (token.match(/^\s+$/)) return token; // Es espacio/newline
-        return `<span class="interactive-word" onclick="saveWordToMDC(this.innerText, this)">${token}</span>`;
-    }).join('');
-}
-
-function renderAccordionDOM(data) {
-    const container = document.getElementById('results-container');
-    const item = document.createElement('div');
-    item.className = 'accordion-item';
-    item.id = `item-${data.id}`;
-    
-    const interactiveHTML = formatInteractiveContent(data.content);
-
-    item.innerHTML = `
-        <div class="accordion-header" onclick="toggleAccordion(${data.id})">
-            <div class="header-content">
-                <span class="meta-tag">${data.modeName}</span>
-                <strong>${data.topic}</strong>
-            </div>
-            <div class="header-actions">
-                <button class="btn-delete" onclick="deleteItem(event, ${data.id})">🗑️</button>
-                <span>▼</span>
-            </div>
-        </div>
-        <div class="accordion-content" id="content-${data.id}">
-            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
-                📜 Copy Original Prompt
-            </button>
-            <div style="display:none;" class="prompt-source">${data.prompt}</div>
-            
-            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
-            
-            <div style="white-space: pre-wrap;">${interactiveHTML}</div>
-        </div>
-    `;
-
-    // Insertar al principio si es nuevo, o al final si cargamos historial? 
-    // Como loadNexusHistory itera array, si usamos appendChild queda en orden inverso al unshift.
-    // Para simplificar: el render siempre es appendChild en carga, pero como nexusHistory tiene lo más reciente primero,
-    // debemos tener cuidado. 
-    
-    // Si viene de "handlePaste" (nuevo), queremos que esté arriba.
-    // Si viene de carga inicial, nexusHistory[0] es el más nuevo.
-    // Solución: Siempre prepend (insertBefore firstChild) en DOM para nuevos.
-    // Pero en carga masiva, si iteramos array (0..N), el 0 (nuevo) queda abajo si usamos insertBefore.
-    // Vamos a ver: nexusHistory = [New, Old].
-    // Loop: render(New) -> Top. render(Old) -> Top of New. Resultado: [Old, New]. Orden incorrecto.
-    // Fix: En carga, iterar al revés o usar appendChild.
-    
-    // Mejor estrategia para renderDOM: SIEMPRE insertBefore (Top).
-    // En carga inicial, invertimos el array antes de loopear.
-    
-    // Si el elemento ya existe (por alguna razón), no duplicar.
-    if(document.getElementById(`item-${data.id}`)) return;
-
-    if (container.firstChild) {
-        container.insertBefore(item, container.firstChild);
-    } else {
-        container.appendChild(item);
-    }
-}
-
-// Modificar carga inicial para orden correcto
-function loadNexusHistory() {
-    const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
-    if (stored) {
-        nexusHistory = JSON.parse(stored);
-        // Renderizar desde el más viejo al más nuevo para que al hacer insertBefore 
-        // el más nuevo quede arriba del todo.
-        [...nexusHistory].reverse().forEach(data => renderAccordionDOM(data));
     }
 }
 
@@ -601,10 +570,8 @@ function toggleGenerator(show) {
 function deleteItem(event, id) {
     event.stopPropagation();
     if(confirm("Are you sure you want to delete this result?")) {
-        // Borrar de DOM
         const el = document.getElementById(`item-${id}`);
         if(el) el.remove();
-        // Borrar de Memoria
         removeFromNexusHistory(id);
     }
 }
