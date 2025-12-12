@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | Studio Hybrid</title>
+    <title>NEXUS | Studio Final</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
     <style>
         /* =========================================
-           ESTILOS VISUALES (BASE CREATOR STUDIO - LA QUE FUNCIONA)
+           ESTILOS CORE (VISUAL)
            ========================================= */
         :root {
             --bg-body: #050505;
             --glass-border: rgba(255, 255, 255, 0.08);
             --neon-gen: #00f2ea;
             --neon-del: #ff4444;
-            --neon-edit: #ffd700; /* Agregado para el motor avanzado */
+            --neon-edit: #ffd700;
             --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -29,7 +29,7 @@
         .scroll-container { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 20px 0 450px 0; width: 100%; max-width: 600px; margin: 0 auto; position: relative; }
         #deck-list { display: flex; flex-direction: column; gap: 12px; min-height: 50px; }
 
-        /* CARDS (ESTILO CREATOR STUDIO) */
+        /* TARJETAS */
         .card {
             background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 100%);
             border: 1px solid var(--glass-border);
@@ -38,6 +38,7 @@
             backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
             transition: transform 0.2s ease, background 0.3s ease;
         }
+
         .card-header { padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: pointer; z-index: 2; position: relative; }
         .title-group { display: flex; align-items: center; gap: 15px; overflow: hidden; flex: 1; }
         .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 1.5px; color: #ccc; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -55,29 +56,43 @@
             border-radius: 50%; background: rgba(255, 68, 68, 0.1); color: var(--neon-del);
             border: 1px solid rgba(255, 68, 68, 0.3); font-size: 12px; cursor: pointer;
         }
-        .card-icon { color: #444; transition: transform 0.4s var(--ease-snap), color 0.3s; }
 
-        /* ACTIVE STATE (FIXED MODE - MANTENIENDO TU LÓGICA QUE FUNCIONA) */
+        /* ESTADO ACTIVO (EXPANDIDO) */
         .card.active {
             position: fixed; top: 0; left: 0; width: 100%; height: 100dvh;
             z-index: 9999; margin: 0; border: none; background: #000;
-            display: flex; flex-direction: column; animation: expandCard 0.35s var(--ease-snap) forwards;
+            display: flex; flex-direction: column; 
+            animation: expandCard 0.3s var(--ease-snap) forwards;
         }
         @keyframes expandCard { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         
         .card.active .card-header { background: rgba(20,20,20,0.98); border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
         .card.active .card-title { color: #fff; }
-        .card.active .card-icon { color: #fff; transform: rotate(180deg); }
-        .card.active .btn-delete-card { display: none; }
+        .card.active .btn-delete-card { display: none; } /* Ocultar borrar al abrir */
         
-        .card-content { display: none; background: #000; flex: 1; position: relative; overflow: hidden; }
-        .card.active .card-content { display: flex; flex-direction: column; animation: fadeInContent 0.5s ease 0.2s forwards; opacity: 0; }
+        /* Botón de Cierre Explicito al estar abierto */
+        .btn-close-active { display: none; font-size: 24px; color: #fff; padding: 10px; cursor: pointer; }
+        .card.active .btn-close-active { display: block; }
+        .card.active .card-icon { display: none; }
+
+        .card-content { display: none; background: #000; flex: 1; position: relative; overflow: hidden; flex-direction: column; }
+        .card.active .card-content { display: flex; animation: fadeInContent 0.4s ease 0.2s forwards; opacity: 0; }
         @keyframes fadeInContent { to { opacity: 1; } }
         
-        iframe { width: 100%; height: 100%; border: none; display: block; background: #fff; }
+        iframe { width: 100%; flex: 1; border: none; display: block; background: #fff; }
+
+        /* BARRA COPY PROMPT (Dentro del acordeón) */
+        .prompt-bar {
+            background: #111; border-bottom: 1px solid #333;
+            padding: 8px; text-align: center; cursor: pointer;
+            color: #888; font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; transition: 0.2s;
+        }
+        .prompt-bar:hover { background: #222; color: #fff; }
+        .prompt-bar span { margin-right: 5px; }
 
         /* =========================================
-           ESTILOS DEL GENERADOR (DEL MOTOR ULTIMATE)
+           GENERATOR PANEL (MOTOR AVANZADO)
            ========================================= */
         .generator-panel {
             position: fixed; bottom: 0; left: 0; width: 100%;
@@ -87,6 +102,8 @@
             box-shadow: 0 -10px 30px rgba(0,0,0,0.5); transition: transform 0.4s var(--ease-snap);
         }
         .generator-panel.minimized { transform: translateY(110%); }
+        
+        /* Ocultar panel cuando hay una tarjeta abierta */
         body.locked .generator-panel { display: none; }
 
         .gen-container { max-width: 600px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 8px; }
@@ -101,7 +118,7 @@
         .prompt-preview-window.visible { max-height: 250px; opacity: 1; padding: 15px; pointer-events: auto; overflow-y: auto; }
         .preview-header { color: var(--neon-gen); font-size: 9px; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 5px; display: flex; justify-content: space-between; }
 
-        /* CONTROLS (ULTIMATE) */
+        /* CONTROLES */
         .input-row { display: flex; gap: 10px; }
         .gen-input {
             background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff;
@@ -126,7 +143,7 @@
         .chip.active-mode { background: rgba(0, 242, 234, 0.15); border-color: var(--neon-gen); color: var(--neon-gen); }
         .chip.active-format { background: rgba(255, 215, 0, 0.15); border-color: var(--neon-edit); color: var(--neon-edit); }
 
-        /* BUTTONS */
+        /* BOTONES */
         .gen-controls { display: flex; gap: 8px; margin-top: 5px; }
         .gen-btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 700; text-transform: uppercase; font-size: 11px; cursor: pointer; letter-spacing: 0.5px; }
         .btn-copy { background: #333; color: #fff; border: 1px solid #444; }
@@ -188,7 +205,7 @@
 
 <script>
     /* =========================================
-       1. DATA CONFIGURATION (MOTOR ULTIMATE)
+       1. DATA CONFIGURATION
        ========================================= */
     const MODES = [
         { id: 'tech', label: 'Tech Engineer', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
@@ -254,7 +271,7 @@
     /* =========================================
        2. APP STATE & INITIALIZATION
        ========================================= */
-    let userDecks = JSON.parse(localStorage.getItem('nexus_hybrid_decks')) || [];
+    let userDecks = JSON.parse(localStorage.getItem('nexus_final_decks')) || [];
     let activeModeId = MODES[0].id;
     let activeFormatId = FORMATS[0].id;
     let lastGeneratedPrompt = ""; 
@@ -265,7 +282,6 @@
     });
 
     function initInterface() {
-        // Render Chips
         const modeCont = document.getElementById('modeContainer');
         MODES.forEach(m => {
             const chip = document.createElement('div');
@@ -284,7 +300,6 @@
             fmtCont.appendChild(chip);
         });
 
-        // Populate Selects
         populateSelect('taskSelect', TASK_TYPES);
         populateSelect('voiceSelect', VOICES);
         populateSelect('lengthSelect', LENGTH);
@@ -356,14 +371,11 @@ ${RESTRICTIONS.join('\n')}`;
     function copyPrompt() {
         const text = document.getElementById('previewText').textContent;
         if(text === "Type to generate...") return showToast("Type something first!");
-        
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("Prompt Copied!");
-        });
+        navigator.clipboard.writeText(text).then(() => showToast("Prompt Copied!"));
     }
 
     /* =========================================
-       3. LOGICA DE PEGADO Y CREACIÓN (HYBRID)
+       3. LOGIC & CREATION
        ========================================= */
     async function pasteAndCreate() {
         try {
@@ -377,14 +389,14 @@ ${RESTRICTIONS.join('\n')}`;
             let displayTag = currentFormat.label;
             let isText = false;
 
-            // Detección: Si es HTML completo, úsalo tal cual. Si es Texto/Markdown, envuélvelo.
             if (content.trim().startsWith('<') && content.includes('<!DOCTYPE')) {
                 finalCode = content; 
                 displayTag = "APP";
             } else {
                 isText = true;
                 const htmlBody = marked.parse(content); 
-                finalCode = wrapInViewer(title, htmlBody);
+                // CORRECCION 1: No enviamos 'title' al wrapInViewer para evitar doble titulo
+                finalCode = wrapInViewer(htmlBody);
             }
 
             const deck = {
@@ -392,15 +404,15 @@ ${RESTRICTIONS.join('\n')}`;
                 title: title,
                 code: finalCode,
                 tag: displayTag,
-                isText: isText
+                isText: isText,
+                sourcePrompt: lastGeneratedPrompt // Guardamos el prompt
             };
 
             userDecks.push(deck);
             saveDecks();
             renderDecks();
-            togglePanel(false); // Ocultar panel para ver resultado
+            togglePanel(false); 
 
-            // Scroll al final
             setTimeout(() => { 
                 const container = document.querySelector('.scroll-container');
                 container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
@@ -414,17 +426,15 @@ ${RESTRICTIONS.join('\n')}`;
         }
     }
 
-    // Visor para texto plano (Markdown renderizado)
-    function wrapInViewer(title, bodyContent) {
+    function wrapInViewer(bodyContent) {
+        // CORRECCION 1: Eliminado <h1>${title}</h1> del body para que no se duplique
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title}</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <style>
-    /* Scroll Nativo para iOS */
     html, body { height: 100%; margin: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     body { background: #050505; color: #e0e0e0; font-family: 'Inter', sans-serif; padding: 25px; box-sizing: border-box; line-height: 1.6; padding-bottom: 100px; }
     .container { max-width: 800px; margin: 0 auto; }
@@ -436,13 +446,10 @@ ${RESTRICTIONS.join('\n')}`;
     blockquote { border-left: 3px solid #00f2ea; margin: 0; padding-left: 15px; color: #aaa; font-style: italic; }
 </style>
 </head>
-<body><div class="container"><h1>${title}</h1>${bodyContent}</div></body></html>`;
+<body><div class="container">${bodyContent}</div></body></html>`;
     }
 
-    /* =========================================
-       4. VISUAL RENDERER (CREATOR STUDIO STYLE)
-       ========================================= */
-    function saveDecks() { localStorage.setItem('nexus_hybrid_decks', JSON.stringify(userDecks)); }
+    function saveDecks() { localStorage.setItem('nexus_final_decks', JSON.stringify(userDecks)); }
 
     function renderDecks() {
         const list = document.getElementById('deck-list');
@@ -451,8 +458,6 @@ ${RESTRICTIONS.join('\n')}`;
             const card = document.createElement('div');
             card.className = 'card';
             card.setAttribute('data-id', deck.id);
-            
-            // Usamos estilo dorado si es texto, azul si es app
             const tagClass = deck.isText ? "card-tag text-mode" : "card-tag";
             
             card.innerHTML = `
@@ -463,6 +468,7 @@ ${RESTRICTIONS.join('\n')}`;
                     </div>
                     <div class="card-actions">
                         <div class="btn-delete-card" onclick="deleteDeck(event, '${deck.id}')">&#10005;</div>
+                        <div class="btn-close-active">&#10005;</div>
                         <svg class="card-icon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
                     </div>
                 </div>
@@ -478,6 +484,7 @@ ${RESTRICTIONS.join('\n')}`;
         const isActive = card.classList.contains('active');
 
         if (isActive) {
+            // CORRECCION 2: Logica de cierre
             card.classList.remove('active');
             document.body.classList.remove('locked');
             setTimeout(() => { contentDiv.innerHTML = ''; }, 300);
@@ -496,6 +503,17 @@ ${RESTRICTIONS.join('\n')}`;
 
         const deck = userDecks.find(d => d.id === id);
         if (deck) {
+            // CORRECCION 3: Inyectar barra de copia de prompt antes del iframe
+            if(deck.sourcePrompt) {
+                const copyBar = document.createElement('div');
+                copyBar.className = 'prompt-bar';
+                copyBar.innerHTML = '<span>📜</span> Copy Generation Prompt';
+                copyBar.onclick = () => {
+                    navigator.clipboard.writeText(deck.sourcePrompt).then(() => showToast("Original Prompt Copied!"));
+                };
+                contentDiv.appendChild(copyBar);
+            }
+
             const iframe = document.createElement('iframe');
             contentDiv.appendChild(iframe);
             const doc = iframe.contentWindow.document;
@@ -524,7 +542,6 @@ ${RESTRICTIONS.join('\n')}`;
         setTimeout(() => toast.style.opacity = '0', 2000);
     }
 
-    // Sortable Init
     new Sortable(document.getElementById('deck-list'), { 
         animation: 300, handle: '.card-header', 
         onEnd: () => {
