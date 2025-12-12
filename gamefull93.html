@@ -1169,14 +1169,37 @@ const Game = {
             this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1.0, color: c, size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) });
         } 
     },
+ // REEMPLAZA TU FUNCIÓN speak ACTUAL POR ESTA:
     speak(t) { 
-        if('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); // FORCE RESET AUDIO
-            const u = new SpeechSynthesisUtterance(t); 
-            u.lang = 'en-US'; 
-            u.rate = 1.1; 
-            window.speechSynthesis.speak(u); 
-        }
+        if(!('speechSynthesis' in window)) return;
+        
+        // 1. Despertar al motor si estaba dormido (Fix para iOS/Chrome)
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        
+        // 2. Cancelar cualquier cola pendiente brutalmente
+        window.speechSynthesis.cancel(); 
+
+        // 3. Crear el objeto de voz
+        const u = new SpeechSynthesisUtterance(t);
+        u.lang = 'en-US';
+        u.rate = 1.0; // Velocidad normal (1.1 a veces causa glitches en móviles)
+        u.volume = 1.0; // Volumen máximo forzado
+
+        // 4. TRUCO DE INMORTALIDAD (Evita que el navegador corte el audio a la mitad)
+        // Guardamos la referencia en una variable global para que el Garbage Collector no la borre
+        window.utterances = window.utterances || [];
+        window.utterances.push(u);
+        
+        u.onend = function() {
+            // Limpiamos la memoria solo cuando termina de hablar
+            window.utterances.shift(); 
+        };
+
+        // 5. Hablar
+        // Pequeño timeout de 10ms para asegurar que el cancel() anterior surtió efecto
+        setTimeout(() => {
+            window.speechSynthesis.speak(u);
+        }, 10);
     },
     screenShake() { const c = this.canvas; c.style.transform = `translate(${Math.random() * 10 - 5}px,${Math.random() * 10 - 5}px)`; setTimeout(() => c.style.transform = 'none', 200); },
     
