@@ -208,7 +208,7 @@
         <div id="stream-container"></div>
     </div>
 
-    <script>
+  <script>
         const STORAGE_KEY = 'mdc_vocab_list';
         let allItems = [];
         let groupedByVideo = {};
@@ -236,6 +236,7 @@
                 const raw = localStorage.getItem(STORAGE_KEY);
                 const data = JSON.parse(raw || '[]');
                 allItems = []; groupedByVideo = {};
+                
                 const flatten = (list) => {
                     list.forEach(item => {
                         if (item.isFolder && item.items) flatten(item.items);
@@ -258,7 +259,7 @@
             const grid = document.getElementById('library-grid');
             grid.innerHTML = '';
             const videoIds = Object.keys(groupedByVideo);
-            if (videoIds.length === 0) { grid.innerHTML = `<div style="text-align:center; color:#666;">NO DATA FOUND</div>`; return; }
+            if (videoIds.length === 0) { grid.innerHTML = `<div style="text-align:center; color:#666; grid-column:1/-1;">NO DATA FOUND</div>`; return; }
             videoIds.forEach(vId => {
                 const group = groupedByVideo[vId];
                 const card = document.createElement('div');
@@ -306,14 +307,18 @@
                 card.dataset.index = index;
                 card.dataset.videoId = item.source.videoId;
                 
-                // Tiempos Base
+                // Tiempos Base (Referencia inmutable)
                 const baseStart = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
                 const baseEnd = parseFloat(item.source.timestamp) + 3.0;
                 
+                // Tiempos Actuales (Usamos los guardados si existen, si no, los base)
+                const currentStart = (item.customStart !== undefined) ? parseFloat(item.customStart) : baseStart;
+                const currentEnd = (item.customEnd !== undefined) ? parseFloat(item.customEnd) : baseEnd;
+
                 card.dataset.baseStart = baseStart;
                 card.dataset.baseEnd = baseEnd;
-                card.dataset.currentStart = baseStart;
-                card.dataset.currentEnd = baseEnd;
+                card.dataset.currentStart = currentStart;
+                card.dataset.currentEnd = currentEnd;
 
                 card.innerHTML = `
                     <div class="loader"></div>
@@ -327,7 +332,7 @@
                     </div>
                     
                     <div class="trim-wrapper" id="trim-wrapper-${index}">
-                        <div class="trim-info" id="trim-info-${index}">Start: 0.0s | End: 0.0s</div>
+                        <div class="trim-info" id="trim-info-${index}">Adjust Trim</div>
                         <div class="trim-track" id="trim-track-${index}">
                             <div class="trim-fill" id="trim-fill-${index}" style="left: 33%; width: 33%;"></div>
                             <div class="trim-handle" id="handle-start-${index}" style="left: 33%"></div>
@@ -348,7 +353,7 @@
             });
         }
 
-        // --- LÓGICA DEL TRIMMER ---
+        // --- LÓGICA DEL TRIMMER (CON GUARDADO) ---
         function initTrimControls(index) {
             const wrapper = document.getElementById(`trim-wrapper-${index}`);
             const track = document.getElementById(`trim-track-${index}`);
@@ -358,26 +363,31 @@
             const info = document.getElementById(`trim-info-${index}`);
             const card = document.getElementById(`card-${index}`);
 
-            // Posiciones iniciales (33% y 66%)
-            let startPct = 33;
-            let endPct = 66;
-            
-            // Factor: 10% de movimiento = 0.2s * Multiplicador
-            // Rango total del slider: Digamos que el slider completo representa +/- 2 segundos por lado aprox.
-            const TIME_SENSITIVITY = 0.05; // Segundos por cada 1% de movimiento
+            // Factor: 1% de movimiento = 0.05 segundos
+            const TIME_SENSITIVITY = 0.05; 
+
+            // Recuperar posiciones visuales basadas en los tiempos guardados
+            const baseS = parseFloat(card.dataset.baseStart);
+            const baseE = parseFloat(card.dataset.baseEnd);
+            const currS = parseFloat(card.dataset.currentStart);
+            const currE = parseFloat(card.dataset.currentEnd);
+
+            // Fórmula inversa: (TiempoActual - TiempoBase) / Sensibilidad + PosiciónDefecto
+            let startPct = 33 + ((currS - baseS) / TIME_SENSITIVITY);
+            let endPct = 66 + ((currE - baseE) / TIME_SENSITIVITY);
+
+            // Aplicar posiciones iniciales
+            handleStart.style.left = startPct + '%';
+            handleEnd.style.left = endPct + '%';
+            fill.style.left = startPct + '%';
+            fill.style.width = (endPct - startPct) + '%';
 
             const updateValues = () => {
-                const baseS = parseFloat(card.dataset.baseStart);
-                const baseE = parseFloat(card.dataset.baseEnd);
-
-                // Cálculo Start: 33% es 0. Menos es start earlier (-), más es start later (+)
                 const startOffset = (startPct - 33) * TIME_SENSITIVITY;
-                
-                // Cálculo End: 66% es 0. Menos es end earlier (-), más es end later (+)
                 const endOffset = (endPct - 66) * TIME_SENSITIVITY;
 
                 const newStart = Math.max(0, baseS + startOffset);
-                const newEnd = Math.max(newStart + 0.5, baseE + endOffset); // Minimo 0.5s duracion
+                const newEnd = Math.max(newStart + 0.5, baseE + endOffset); 
 
                 card.dataset.currentStart = newStart.toFixed(2);
                 card.dataset.currentEnd = newEnd.toFixed(2);
@@ -386,6 +396,41 @@
                 
                 fill.style.left = startPct + '%';
                 fill.style.width = (endPct - startPct) + '%';
+            };
+
+            // 🔥 NUEVA FUNCIÓN DE GUARDADO 🔥
+            const saveTrimSettings = () => {
+                const item = activeItems[index];
+                const newS = parseFloat(card.dataset.currentStart);
+                const newE = parseFloat(card.dataset.currentEnd);
+
+                // 1. Actualizar objeto en memoria activa
+                item.customStart = newS;
+                item.customEnd = newE;
+
+                // 2. Actualizar persistente en LocalStorage
+                try {
+                    const fullData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    
+                    // Función recursiva para encontrar y actualizar el ítem
+                    const updateRecursive = (list) => {
+                        for (let i of list) {
+                            if (i.id === item.id) {
+                                i.customStart = newS;
+                                i.customEnd = newE;
+                                return true; // Encontrado y actualizado
+                            }
+                            if (i.isFolder && i.items) {
+                                if (updateRecursive(i.items)) return true;
+                            }
+                        }
+                        return false;
+                    };
+
+                    updateRecursive(fullData);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(fullData));
+                    console.log("Trim saved successfully");
+                } catch(e) { console.error("Save failed", e); }
             };
 
             const onDrag = (e, isStart) => {
@@ -398,12 +443,10 @@
                 newPct = Math.max(0, Math.min(100, newPct));
 
                 if (isStart) {
-                    // Start Handle: 0 to 50% (approx) but limited by end handle
                     if (newPct >= endPct - 5) newPct = endPct - 5; 
                     startPct = newPct;
                     handleStart.style.left = startPct + '%';
                 } else {
-                    // End Handle: Limited by start handle
                     if (newPct <= startPct + 5) newPct = startPct + 5;
                     endPct = newPct;
                     handleEnd.style.left = endPct + '%';
@@ -411,31 +454,27 @@
                 updateValues();
             };
 
-            const stopDrag = () => { wrapper.classList.remove('interacting'); };
+            const stopDrag = () => { 
+                wrapper.classList.remove('interacting');
+                saveTrimSettings(); // 🔥 Guardamos al soltar
+            };
 
-            // Event Listeners Start Handle
-            handleStart.addEventListener('mousedown', (e) => {
-                const move = (ev) => onDrag(ev, true);
-                const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
-                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
-            });
-            handleStart.addEventListener('touchstart', (e) => {
-                const move = (ev) => onDrag(ev, true);
-                const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
-                document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
-            });
+            // Event Listeners
+            const addDragListeners = (el, isStart) => {
+                el.addEventListener('mousedown', (e) => {
+                    const move = (ev) => onDrag(ev, isStart);
+                    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
+                    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+                });
+                el.addEventListener('touchstart', (e) => {
+                    const move = (ev) => onDrag(ev, isStart);
+                    const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
+                    document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
+                });
+            };
 
-            // Event Listeners End Handle
-            handleEnd.addEventListener('mousedown', (e) => {
-                const move = (ev) => onDrag(ev, false);
-                const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
-                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
-            });
-            handleEnd.addEventListener('touchstart', (e) => {
-                const move = (ev) => onDrag(ev, false);
-                const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
-                document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
-            });
+            addDragListeners(handleStart, true);
+            addDragListeners(handleEnd, false);
         }
 
         // --- OBSERVER & PLAYBACK ---
@@ -479,7 +518,6 @@
                     },
                     'onStateChange': (event) => {
                         if (event.data === YT.PlayerState.ENDED) {
-                            // Loop manual si YT termina solo
                             const s = parseFloat(card.dataset.currentStart);
                             event.target.seekTo(s, true);
                             event.target.playVideo();
@@ -498,7 +536,7 @@
                 const player = players[index];
                 if(!player || !player.getCurrentTime) return;
                 
-                // LEER TIEMPOS DINÁMICOS (Por si se movió el slider mientras reproduce)
+                // LEER TIEMPOS DINÁMICOS
                 const currentStart = parseFloat(card.dataset.currentStart);
                 const currentEnd = parseFloat(card.dataset.currentEnd);
                 const duration = currentEnd - currentStart;
@@ -509,7 +547,6 @@
                 if(currentTime >= currentEnd) {
                     player.seekTo(currentStart, true);
                 } 
-                // Si el usuario movió el start más adelante que el tiempo actual
                 else if (currentTime < currentStart - 0.5) { 
                     player.seekTo(currentStart, true);
                 }
