@@ -255,7 +255,7 @@ function updateAudioLive(id) {
 
 function speakContent(id) {
     window.speechSynthesis.cancel();
-    // Get text from the Text View (which is always present, sometimes hidden)
+    // Intenta leer el texto del modo interactivo (que siempre existe, aunque esté oculto)
     const contentDiv = document.getElementById(`view-text-${id}`);
     const text = contentDiv ? contentDiv.innerText : "";
 
@@ -303,7 +303,7 @@ function sanitizeText(text) {
     return text.trim();
 }
 
-// NUEVA FUNCION: Quita etiquetas HTML para extraer el texto puro
+// NUEVA FUNCIÓN: Extrae solo el texto visible del HTML para el modo análisis
 function stripHtml(html) {
    let tmp = document.createElement("DIV");
    tmp.innerHTML = html;
@@ -387,7 +387,7 @@ function formatInteractiveContent(text, existingVocabSet) {
     }).join('');
 }
 
-// === MAIN RENDER FUNCTION UPDATED FOR HYBRID MODE ===
+// === FUNCIÓN CRÍTICA MODIFICADA: Detecta HTML y lo ejecuta ===
 function renderAccordionDOM(data) {
     const currentVocab = getVocabSet();
     const container = document.getElementById('results-container');
@@ -395,34 +395,36 @@ function renderAccordionDOM(data) {
     item.className = 'accordion-item';
     item.id = `item-${data.id}`;
 
-    // Detectar si es HTML
+    // DETECCIÓN INTELIGENTE: ¿Es una App HTML o solo texto?
     const contentTrimmed = data.content.trim();
-    const isHtmlApp = contentTrimmed.startsWith('<!DOCTYPE html') || contentTrimmed.startsWith('<html');
+    // Buscamos <!DOCTYPE o <html al principio
+    const isHtmlApp = contentTrimmed.startsWith('<!DOCTYPE') || contentTrimmed.startsWith('<html');
     
     let appViewHTML = '';
-    let textViewDisplay = 'block'; // Por defecto visible si no es app
+    let textViewDisplay = 'block'; // Si es texto normal, esto se ve.
     let toggleButton = '';
 
-    // Preparar el contenido interactivo (texto)
-    // Si es HTML, le quitamos las etiquetas primero para que quede solo el texto limpio
+    // Preparamos el texto interactivo (para el modo análisis y audio)
+    // Si es una App, usamos stripHtml para sacar el texto limpio de las etiquetas
     const cleanText = isHtmlApp ? stripHtml(data.content) : data.content;
     const interactiveHTML = formatInteractiveContent(cleanText, currentVocab);
 
     if (isHtmlApp) {
+        // Creamos un Blob URL para renderizar el HTML de forma aislada y segura
         const blob = new Blob([data.content], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         
-        // Botón para cambiar vista
-        toggleButton = `<button style="background:#333; color:white; border:1px solid #555; padding:5px 10px; border-radius:4px; margin-bottom:10px; cursor:pointer;" onclick="toggleView(${data.id})">👁️ Show Text / Analysis</button>`;
+        // Botón para alternar entre ver la App y ver el texto (para guardar palabras)
+        toggleButton = `<button style="background:#333; color:white; border:1px solid #555; padding:5px 10px; border-radius:4px; margin-bottom:10px; cursor:pointer;" onclick="toggleView(${data.id})">👁️ Toggle: App / Text Analysis</button>`;
         
-        // Vista App (Visible por defecto)
+        // Contenedor del Iframe (Visible por defecto)
         appViewHTML = `
             <div id="view-app-${data.id}" style="display:block; margin-top:5px;">
-                <div style="margin-bottom:5px; font-size:0.8em; color:var(--accent-active); font-weight:bold;">🖥️ APP MODE (Read Only)</div>
+                <div style="margin-bottom:5px; font-size:0.8em; color:var(--accent-active); font-weight:bold;">🖥️ APP MODE (Preview)</div>
                 <iframe src="${url}" style="width:100%; height:500px; border:none; background:#111; border-radius:4px; display:block;" sandbox="allow-scripts allow-same-origin"></iframe>
             </div>
         `;
-        textViewDisplay = 'none'; // Oculto por defecto si es app
+        textViewDisplay = 'none'; // El texto se oculta por defecto si es una app
     }
 
     const savedSpeed = localStorage.getItem(PREF_AUDIO_SPEED) || "1";
@@ -477,6 +479,7 @@ function renderAccordionDOM(data) {
     setTimeout(() => { updateVoiceSelect(document.getElementById(`voice-${data.id}`)); }, 100);
 }
 
+// Función para cambiar vistas
 function toggleView(id) {
     const app = document.getElementById(`view-app-${id}`);
     const text = document.getElementById(`view-text-${id}`);
