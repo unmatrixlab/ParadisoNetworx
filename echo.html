@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>LINGUA NEXUS | ECHO STREAM PRO</title>
+    <title>LINGUA NEXUS | ECHO STREAM</title>
     <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <script src="https://www.youtube.com/iframe_api"></script>
     <style>
         :root {
-            --bg-deep: #050505;
+            --bg-deep: #000000;
+            --glass: rgba(20, 20, 20, 0.6);
             --neon-blue: #00f3ff;
             --neon-pink: #ff00ff;
             --text-main: #ffffff;
-            --glass: rgba(255, 255, 255, 0.05);
+            --text-dim: #888888;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -22,19 +23,19 @@
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             margin: 0;
-            height: 100vh;
-            overflow: hidden;
+            height: 100vh; /* Viewport exacto */
+            overflow: hidden; /* Evita scroll del body, lo manejamos en el contenedor */
         }
 
-        /* === SCANLINE & VIGNETTE === */
+        /* === SCANLINE EFFECT (CRT VIBE) === */
         .scanlines {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
             background-size: 100% 4px;
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.7); /* Viñeta oscura en bordes */
+            opacity: 0.6;
         }
 
-        /* === STREAM CONTAINER === */
+        /* === MAIN STREAM CONTAINER (SNAP SCROLL) === */
         #stream-container {
             height: 100%;
             overflow-y: scroll;
@@ -43,158 +44,131 @@
             -webkit-overflow-scrolling: touch;
         }
 
+        /* === CARD DESIGN === */
         .echo-card {
             width: 100%;
-            height: 100%;
+            height: 100%; /* Ocupa toda la pantalla */
             scroll-snap-align: start;
-            scroll-snap-stop: always; /* 🚀 SENSACIÓN SÓLIDA AL PARAR */
             position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
             background: #000;
             overflow: hidden;
         }
 
-        /* === VIDEO LAYER (ZOOM HACK) === */
-        /* 🚀 Hacemos el video más grande que la caja para simular object-fit: cover */
+        /* VIDEO LAYER */
         .video-layer {
-            position: absolute; 
-            top: -15%; left: -15%; width: 130%; height: 130%; /* Zoom in */
-            pointer-events: none; /* Clicks pasan al overlay */
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            opacity: 0.6; /* Oscurecido para resaltar UI */
+            pointer-events: none; /* Dejar pasar clicks para pausar */
             transition: opacity 0.5s;
-            opacity: 0;
         }
         .echo-card.playing .video-layer { opacity: 1; }
-        
-        /* Iframe ocupa todo el espacio del wrapper aumentado */
-        .video-layer iframe { width: 100%; height: 100%; }
 
-        /* === INTERACTION OVERLAY (CLICK ZONE) === */
-        .click-zone {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 5; cursor: pointer;
-        }
-
-        /* === PLAY/PAUSE ICON ANIMATION === */
-        .center-icon {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5);
-            font-size: 80px; color: rgba(255,255,255,0.8);
-            opacity: 0; pointer-events: none; transition: 0.2s; z-index: 60;
-            text-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
-        .paused-state .center-icon { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-
-        /* === HUD LAYER === */
+        /* DATA OVERLAY (HUD) */
         .hud-layer {
             position: absolute; bottom: 0; left: 0; width: 100%;
-            padding: 20px;
-            padding-bottom: 90px; /* Espacio para barra progreso y nav */
+            padding: 30px 20px 80px 20px; /* Padding bottom extra para navbar de móvil */
             z-index: 10;
-            /* 🚀 Gradiente más profesional y legible */
-            background: linear-gradient(to top, 
-                rgba(0,0,0,0.95) 0%, 
-                rgba(0,0,0,0.6) 50%, 
-                rgba(0,0,0,0) 100%);
-            pointer-events: none; /* Dejar pasar clicks al video */
+            background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0) 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .meta-tag {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 11px; color: var(--neon-blue);
-            background: rgba(0, 243, 255, 0.1);
-            padding: 4px 8px; border-radius: 4px;
-            display: inline-flex; align-items: center; gap: 6px;
-            margin-bottom: 10px; border: 1px solid rgba(0, 243, 255, 0.2);
-            box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+            font-size: 10px; color: var(--neon-blue);
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-bottom: 5px; display: flex; align-items: center; gap: 6px;
         }
         
         .main-word {
             font-family: 'Syncopate', sans-serif;
-            font-size: 36px; line-height: 1; font-weight: 700;
-            color: #fff; text-transform: uppercase;
-            text-shadow: 0 0 15px rgba(0, 243, 255, 0.4); /* Neon glow */
-            margin-bottom: 5px;
-        }
-
-        .translation {
-            font-size: 16px; color: var(--neon-pink); font-weight: 600;
-            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-            margin-bottom: 10px;
+            font-size: 32px; line-height: 1;
+            background: linear-gradient(90deg, #fff, #aaa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.3));
         }
 
         .context-sentence {
-            font-size: 15px; color: #ccc; line-height: 1.5; font-style: italic;
-            border-left: 3px solid var(--neon-blue);
-            padding-left: 10px;
+            font-size: 16px; color: #ddd; line-height: 1.4;
+            font-weight: 500; margin-top: 5px;
+            text-shadow: 0 1px 2px black;
+        }
+        
+        .translation {
+            font-size: 14px; color: var(--neon-pink);
+            font-weight: 600; margin-top: 2px;
+            opacity: 0.9;
         }
 
-        /* BLIND MODE */
+        /* BLIND MODE MASK */
         .blind-active .main-word, 
-        .blind-active .translation, 
-        .blind-active .context-sentence {
-            filter: blur(12px); opacity: 0; transition: 0.3s;
+        .blind-active .context-sentence, 
+        .blind-active .translation {
+            filter: blur(8px);
+            opacity: 0.5;
+            user-select: none;
         }
 
-        /* === PROGRESS BAR === */
-        .progress-container {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 4px;
-            background: rgba(255,255,255,0.1);
-            z-index: 20;
-        }
-        .progress-bar {
-            height: 100%; width: 0%;
-            background: var(--neon-blue);
-            box-shadow: 0 0 10px var(--neon-blue);
-            transition: width 0.1s linear;
-        }
-
-        /* === CONTROLS RAIL === */
+        /* CONTROLS (Floating Right) */
         .controls-rail {
-            position: absolute; right: 15px; bottom: 120px; z-index: 30;
-            display: flex; flex-direction: column; gap: 20px;
-            pointer-events: auto; /* Reactivar clicks aquí */
+            position: absolute; right: 15px; bottom: 100px;
+            z-index: 20;
+            display: flex; flex-direction: column; gap: 15px;
+            align-items: center;
         }
 
         .rail-btn {
-            width: 50px; height: 50px; border-radius: 50%;
-            background: rgba(20, 20, 20, 0.6);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: white; font-size: 22px;
+            width: 45px; height: 45px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; font-size: 20px;
             display: flex; align-items: center; justify-content: center;
             cursor: pointer; transition: 0.2s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-        .rail-btn:active { transform: scale(0.9); }
-        .rail-btn.active { color: var(--bg-deep); background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); border-color: var(--neon-blue); }
+        .rail-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+        .rail-btn.active { color: var(--neon-blue); border-color: var(--neon-blue); background: rgba(0, 243, 255, 0.1); }
 
-        /* === LOADER === */
+        /* LOADING STATE */
         .loader {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 50px; height: 50px; border-radius: 50%;
-            border: 3px solid transparent; border-top-color: var(--neon-blue); border-bottom-color: var(--neon-pink);
-            animation: spin 0.8s ease-in-out infinite; z-index: 5;
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--neon-blue); border-radius: 50%;
+            animation: spin 1s linear infinite; z-index: 5;
         }
-        @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
 
+        /* EMPTY STATE */
         .empty-state {
             height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            color: #666; font-family: monospace;
+            text-align: center; padding: 40px; color: var(--text-dim);
         }
+        .empty-icon { font-size: 60px; margin-bottom: 20px; opacity: 0.5; }
     </style>
 </head>
 <body>
 
     <div class="scanlines"></div>
 
-    <div id="stream-container"></div>
+    <div id="stream-container">
+        </div>
 
     <script>
         const STORAGE_KEY = 'mdc_vocab_list';
         let items = [];
-        let players = {}; 
-        let progressIntervals = {}; // 🚀 Para la barra de progreso
+        let players = {}; // Almacena instancias de YT Players
         let observer;
         let blindMode = false;
 
+        // --- 1. INITIALIZATION ---
         function init() {
             loadData();
             renderStream();
@@ -205,24 +179,36 @@
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 const all = JSON.parse(raw || '[]');
-                items = [];
-                const extractItems = (list) => {
-                    list.forEach(item => {
-                        if (item.isFolder && item.items) extractItems(item.items);
-                        else if (item.source && item.source.type === 'youtube') items.push(item);
-                    });
-                };
-                extractItems(all);
+                
+                // FILTRO MÁGICO: Solo items que tengan datos de video (Source Youtube)
+                // y que no sean carpetas.
+                items = all.filter(i => 
+                    !i.isFolder && 
+                    i.source && 
+                    i.source.type === 'youtube' && 
+                    i.source.videoId
+                );
+
+                // Barajar para que sea divertido (Shuffle)
                 items.sort(() => Math.random() - 0.5);
+
             } catch (e) { items = []; }
         }
 
+        // --- 2. RENDER LOGIC ---
         function renderStream() {
             const container = document.getElementById('stream-container');
             container.innerHTML = '';
-            
+
             if (items.length === 0) {
-                container.innerHTML = `<div class="empty-state"><h2>SYSTEM OFFLINE</h2><p>Please load vocabulary.</p></div>`;
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <h2>NO SIGNAL DETECTED</h2>
+                        <p>Use the <b>PLAYER</b> module to save words from videos.</p>
+                        <p style="font-size:12px; margin-top:10px; color:#555;">(Only new words saved with the update will appear here)</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -232,26 +218,23 @@
                 card.id = `card-${index}`;
                 card.dataset.index = index;
                 card.dataset.videoId = item.source.videoId;
-                
-                // 🚀 Cálculo mejorado: Buffer de 1.5s antes y 3s después
+                // Calculamos tiempos: Start = timestamp - 1.5s, End = timestamp + 3s
                 const startT = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
                 const endT = parseFloat(item.source.timestamp) + 3.0;
                 
                 card.dataset.start = startT;
                 card.dataset.end = endT;
 
+                // Template HTML
                 card.innerHTML = `
                     <div class="loader"></div>
+                    <div class="video-layer" id="video-wrapper-${index}">
+                        </div>
                     
-                    <div class="video-layer" id="video-wrapper-${index}"></div>
-                    
-                    <div class="click-zone" onclick="togglePlayPause(${index})"></div>
-                    <div class="center-icon">▶</div>
-
-                    <div class="hud-layer">
+                    <div class="hud-layer" id="hud-${index}">
                         <div class="meta-tag">
                             <span>● REC</span>
-                            <span>${new Date(item.dateAdded || Date.now()).toLocaleDateString()}</span>
+                            <span>${new Date(item.id).toLocaleDateString()}</span>
                         </div>
                         <div class="main-word">${item.eng}</div>
                         <div class="translation">${item.esp || '...'}</div>
@@ -259,73 +242,95 @@
                     </div>
 
                     <div class="controls-rail">
-                        <button class="rail-btn" onclick="toggleBlindMode(this)" title="Blind Mode">👁️</button>
+                        <button class="rail-btn" onclick="toggleBlindMode(this)" title="Blind Listening">👁️</button>
                         <button class="rail-btn" onclick="replayCard(${index})" title="Replay">↺</button>
                     </div>
-
-                    <div class="progress-container">
-                        <div class="progress-bar" id="progress-${index}"></div>
-                    </div>
                 `;
+
                 container.appendChild(card);
             });
         }
 
+        // --- 3. INTERSECTION OBSERVER (THE ENGINE) ---
         function setupObserver() {
-            const options = { root: document.getElementById('stream-container'), threshold: 0.7 }; // 0.7 requiere que el 70% de la tarjeta esté visible
+            // Este observador detecta qué tarjeta está en pantalla
+            const options = {
+                root: document.getElementById('stream-container'),
+                threshold: 0.6 // Cuando el 60% de la tarjeta es visible
+            };
+
             observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     const idx = entry.target.dataset.index;
-                    if (entry.isIntersecting) loadAndPlayVideo(idx);
-                    else destroyVideo(idx);
+                    if (entry.isIntersecting) {
+                        loadAndPlayVideo(idx);
+                    } else {
+                        destroyVideo(idx);
+                    }
                 });
             }, options);
-            document.querySelectorAll('.echo-card').forEach(card => observer.observe(card));
+
+            document.querySelectorAll('.echo-card').forEach(card => {
+                observer.observe(card);
+            });
         }
 
+        // --- 4. YOUTUBE PLAYER MANAGEMENT (LAZY LOADING) ---
         function loadAndPlayVideo(index) {
             const card = document.getElementById(`card-${index}`);
-            if(!card) return;
+            const wrapperId = `video-wrapper-${index}`;
             const videoId = card.dataset.videoId;
-            const start = parseFloat(card.dataset.start);
-            const end = parseFloat(card.dataset.end);
+            const start = Math.floor(parseFloat(card.dataset.start));
+            const end = Math.ceil(parseFloat(card.dataset.end));
 
-            if (players[index]) return; 
+            // Si ya existe, solo asegurarnos de que corra
+            if (players[index]) {
+                // players[index].seekTo(start);
+                // players[index].playVideo();
+                return; 
+            }
 
+            // Crear div temporal para la API
             const tempDiv = document.createElement('div');
             tempDiv.id = `yt-player-${index}`;
-            document.getElementById(`video-wrapper-${index}`).innerHTML = ''; 
-            document.getElementById(`video-wrapper-${index}`).appendChild(tempDiv);
+            document.getElementById(wrapperId).innerHTML = ''; // Limpiar
+            document.getElementById(wrapperId).appendChild(tempDiv);
 
             players[index] = new YT.Player(`yt-player-${index}`, {
-                height: '100%', width: '100%',
+                height: '100%',
+                width: '100%',
                 videoId: videoId,
                 playerVars: {
-                    'autoplay': 1, 'controls': 0, 'rel': 0, 'showinfo': 0,
-                    'modestbranding': 1, 'playsinline': 1, 'iv_load_policy': 3, 'fs': 0, 'disablekb': 1,
-                    'start': Math.floor(start) // Ayuda a cargar cerca
+                    'autoplay': 1,
+                    'controls': 0,
+                    'rel': 0,
+                    'showinfo': 0,
+                    'modestbranding': 1,
+                    'playsinline': 1,
+                    'start': start,
+                    'end': end,
+                    'iv_load_policy': 3,
+                    'fs': 0,
+                    'disablekb': 1
                 },
                 events: {
                     'onReady': (event) => {
-                        event.target.mute();
-                        event.target.seekTo(start, true);
+                        event.target.mute(); // Mute inicial forzoso por políticas de autoplay móvil
                         event.target.playVideo();
                         
-                        // 🚀 Fade In de Audio para elegancia
+                        // Unmute hack: intentamos desmutear tras 1s (si el usuario interactuó con la página antes, funcionará)
                         setTimeout(() => {
                             event.target.unMute();
                             event.target.setVolume(100);
-                        }, 400);
+                        }, 500);
 
                         card.querySelector('.loader').style.display = 'none';
                         card.classList.add('playing');
-                        
-                        // 🚀 Iniciar Tracking de Progreso
-                        startProgressTracking(index, start, end);
                     },
                     'onStateChange': (event) => {
+                        // LOOP LOGIC MANUAL
                         if (event.data === YT.PlayerState.ENDED) {
-                            event.target.seekTo(start, true);
+                            event.target.seekTo(start);
                             event.target.playVideo();
                         }
                     }
@@ -333,71 +338,29 @@
             });
         }
 
-        // 🚀 Nueva función para manejar el Loop y la Barra de Progreso manualmente
-        function startProgressTracking(index, start, end) {
-            if(progressIntervals[index]) clearInterval(progressIntervals[index]);
-            
-            const progressBar = document.getElementById(`progress-${index}`);
-            const duration = end - start;
-            
-            progressIntervals[index] = setInterval(() => {
-                const player = players[index];
-                if(!player || !player.getCurrentTime) return;
-
-                const current = player.getCurrentTime();
-                
-                // Lógica de Loop Manual (Más precisa que YouTube Playlist)
-                if(current >= end) {
-                    player.seekTo(start, true);
-                }
-
-                // Actualizar barra visual
-                const percent = ((current - start) / duration) * 100;
-                if(progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
-
-            }, 100); // 10fps es suficiente para UI fluida
-        }
-
-        function togglePlayPause(index) {
-            const player = players[index];
-            const card = document.getElementById(`card-${index}`);
-            if (!player || typeof player.getPlayerState !== 'function') return;
-
-            const state = player.getPlayerState();
-            if (state === YT.PlayerState.PLAYING) {
-                player.pauseVideo();
-                card.classList.add('paused-state'); // Muestra icono
-            } else {
-                player.playVideo();
-                card.classList.remove('paused-state'); // Oculta icono
-            }
-        }
-
         function destroyVideo(index) {
-            if(progressIntervals[index]) clearInterval(progressIntervals[index]); // Limpiar intervalo
-            
             if (players[index]) {
-                try { players[index].destroy(); } catch(e){}
+                try {
+                    players[index].destroy();
+                } catch(e){}
                 delete players[index];
                 const card = document.getElementById(`card-${index}`);
                 if(card) {
-                    card.classList.remove('playing', 'paused-state');
+                    card.classList.remove('playing');
                     card.querySelector('.loader').style.display = 'block';
-                    document.getElementById(`video-wrapper-${index}`).innerHTML = '';
-                    const bar = document.getElementById(`progress-${index}`);
-                    if(bar) bar.style.width = '0%';
                 }
             }
         }
 
-        // --- CONTROLS ---
+        // --- 5. CONTROLS ---
         window.toggleBlindMode = function(btn) {
             blindMode = !blindMode;
             btn.classList.toggle('active', blindMode);
+            
+            // Aplicar clase a todas las cards actuales y futuras
             document.querySelectorAll('.echo-card').forEach(card => {
-                const hud = card.querySelector('.hud-layer');
-                if(blindMode) hud.classList.add('blind-active');
-                else hud.classList.remove('blind-active');
+                if(blindMode) card.querySelector('.hud-layer').classList.add('blind-active');
+                else card.querySelector('.hud-layer').classList.remove('blind-active');
             });
         };
 
@@ -405,15 +368,29 @@
             if(players[index]) {
                 const card = document.getElementById(`card-${index}`);
                 const start = parseFloat(card.dataset.start);
-                players[index].seekTo(start, true);
+                players[index].seekTo(start);
                 players[index].playVideo();
-                card.classList.remove('paused-state');
             }
         };
 
-        window.onYouTubeIframeAPIReady = function() { console.log("Echo Stream Pro: Ready"); };
+        // --- 6. GLOBAL API READY ---
+        // La API de YouTube requiere esta función global
+        window.onYouTubeIframeAPIReady = function() {
+            // No hacemos nada aquí, el observer inicia los players bajo demanda
+            console.log("Echo Stream: Audio Engine Ready");
+        };
 
+        // --- 7. NEXUS COMMUNICATION ---
+        window.addEventListener('message', function(event) {
+            if (event.data === 'FORCE_PAUSE') {
+                // Destruir todos los players para ahorrar memoria si cierran la tarjeta
+                Object.keys(players).forEach(idx => destroyVideo(idx));
+            }
+        });
+
+        // Start
         init();
+
     </script>
 </body>
 </html>
