@@ -1,88 +1,697 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Hiking Story – Vocabulary Practice</title>
-<style>
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #0f172a;
-    color: #e5e7eb;
-  }
-  .app {
-    height: 100vh;
-    overflow-y: auto;
-    padding: 24px;
-    box-sizing: border-box;
-  }
-  h1 {
-    font-size: 1.4rem;
-    margin-bottom: 16px;
-    letter-spacing: 0.5px;
-  }
-  section {
-    margin-bottom: 20px;
-  }
-  p {
-    line-height: 1.6;
-    margin: 0;
-  }
-  .divider {
-    height: 1px;
-    background: rgba(255,255,255,0.1);
-    margin: 20px 0;
-  }
-</style>
-</head>
-<body>
-<div class="app">
-  <h1>Senderismo: A Short Story</h1>
+<script>
+/* 1. CONFIG DATA */
+const COMMON_DATA = {
+    MODES: [
+        { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
+        { id: 'art', label: 'ART', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.' },
+        { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.' },
+        { id: 'story', label: 'STORYTELLING', role: 'Act as a Master Novelist.', style: 'Cinematic, immersive narrative tone.', goal: 'Engaging storytelling and world-building.' },
+        { id: 'marketing', label: 'MARKETING', role: 'Act as a Senior Copywriter.', style: 'Persuasive, high-conversion writing.', goal: 'Brand voice alignment & audience engagement.' },
+        { id: 'business', label: 'BUSINESS', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.' },
+        { id: 'research', label: 'RESEARCH', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.' },
+        { id: 'casual', label: 'CASUAL', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.' }
+    ],
+    FORMATS: [
+        { id: 'html', label: 'HTML APP', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
+        { id: 'text', label: 'TEXT GUIDE', instruction: 'Return Markdown text with clear headings and structure.' },
+        { id: 'code', label: 'CODE SNIPPET', instruction: 'Return raw code only with comments.' },
+        { id: 'essay', label: 'ESSAY', instruction: 'Return a polished formal essay.' },
+        { id: 'dialogue', label: 'DIALOGUE', instruction: 'Return a scripted scene or conversation.' },
+        { id: 'template', label: 'TEMPLATE', instruction: 'Return a reusable structured template with fillable fields.' },
+        { id: 'checklist', label: 'CHECKLIST', instruction: 'Return a concise actionable checklist or SOP.' }
+    ]
+};
 
-  <section>
-    <p>
-      The trail begins at dawn, when the mountains are quiet and the air feels untouched.
-      I hike here <b>always</b> with the same ritual: slow steps, steady breath, and eyes
-      fixed on the path unfolding ahead.
-    </p>
-  </section>
+const VOCAB_TASKS = [
+    { id: 'v_story', label: '📖 VOCAB: Creative Story', instruction: 'Write a short, engaging story incorporating the target vocabulary naturally.', linkedMode: 'story' },
+    { id: 'v_quiz', label: '❓ VOCAB: Quiz Generator', instruction: 'Create a multiple-choice quiz (with answer key) testing the definition and usage of these words.', linkedMode: 'school' },
+    { id: 'v_dialogue', label: '💬 VOCAB: Roleplay Dialogue', instruction: 'Write a script for a realistic conversation between two people using these words.', linkedMode: 'casual' },
+    { id: 'v_sentences', label: '✍️ VOCAB: Sentence Drill', instruction: 'Generate 3 distinct sentences (Context A, B, and C) for each target word.', linkedMode: 'school' },
+    { id: 'v_explain', label: '🧠 VOCAB: Deep Explanation', instruction: 'Explain the etymology, nuance, and common collocations for each word.', linkedMode: 'research' }
+];
 
-  <div class="divider"></div>
+const ALGORITHMS = {
+    SIMPLEX: {
+        TASK_TYPES: [
+            { id: 'explain', label: 'EXPLANATION', instruction: 'Explain the topic clearly and step-by-step.' },
+            { id: 'analysis', label: 'ANALYSIS', instruction: 'Break the topic down into components with pros, cons, variables.' },
+            { id: 'create', label: 'CREATIVE GENERATION', instruction: 'Generate original content in the selected style.' },
+            { id: 'teach', label: 'TEACHING', instruction: 'Introduce, teach, give examples, and add a practice checkpoint.' },
+            { id: 'improve', label: 'IMPROVEMENT', instruction: 'Rewrite and enhance the user’s content with better clarity and style.' },
+            { id: 'compare', label: 'COMPARISON', instruction: 'Compare items using structure, criteria, and reasoning.' },
+            { id: 'build', label: 'CONSTRUCTION', instruction: 'Produce a structured artifact: plan, blueprint, script, architecture, or framework.' }
+        ],
+        VOICES: [
+            { id: 'neutral', label: 'Neutral', instruction: 'Use a balanced, neutral tone.' },
+            { id: 'friendly', label: 'Friendly', instruction: 'Use a warm, approachable tone.' },
+            { id: 'authoritative', label: 'Authoritative', instruction: 'Use a confident, expert tone.' },
+            { id: 'poetic', label: 'Poetic', instruction: 'Use metaphors, rhythm, and evocative language.' },
+            { id: 'concise', label: 'Concise', instruction: 'Use highly efficient, compact phrasing.' }
+        ],
+        LENGTH: [
+            { id: 'short', label: 'SHORT', instruction: 'Maximum 2 short paragraphs.' },
+            { id: 'medium', label: 'MEDIUM', instruction: 'Up to 6 paragraphs with examples.' },
+            { id: 'long', label: 'LONG', instruction: 'Extensive, detailed long-form content.' }
+        ],
+        FADER_LEVELS: ["- Level 1: Basic Summary.", "- Level 2: Add Context.", "- Level 3: Add Structure.", "- Level 4: Add Advanced Analysis.", "- Level 5: Full Deep-Dive."],
+        RESTRICTIONS: ["Do not include filler text.", "No disclaimers.", "Respect format."]
+    },
+    COMPLEX: {
+        TASK_TYPES: [
+            { id: 'explain', label: 'DEMYSTIFY', instruction: 'Break down from first principles.' },
+            { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Deep-dive analysis with root causes.' },
+            { id: 'create', label: 'IDEATE & SYNTHESIZE', instruction: 'Generate novel, non-obvious content.' },
+            { id: 'teach', label: 'SCAFFOLDED MASTERY', instruction: 'Design a learning path with tests.' },
+            { id: 'improve', label: 'REFACTOR & ELEVATE', instruction: 'Optimize for clarity and impact.' },
+            { id: 'compare', label: 'JUXTAPOSE & EVALUATE', instruction: 'Rigorous comparison with trade-offs.' },
+            { id: 'build', label: 'ARCHITECT', instruction: 'Construct a complete logical artifact.' }
+        ],
+        VOICES: [
+            { id: 'neutral', label: 'Objective', instruction: 'Bias-free, factual.' },
+            { id: 'friendly', label: 'Collaborative', instruction: 'Inviting and safe.' },
+            { id: 'authoritative', label: 'Expert', instruction: 'Decisive and confident.' },
+            { id: 'poetic', label: 'Evocative', instruction: 'Metaphorical and rhythmic.' },
+            { id: 'concise', label: 'Surgical', instruction: 'Maximum density, no fluff.' }
+        ],
+        LENGTH: [
+            { id: 'short', label: 'ATOMIC', instruction: 'Distilled impact.' },
+            { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Sufficient detail.' },
+            { id: 'long', label: 'EXHAUSTIVE', instruction: 'No stone unturned.' }
+        ],
+        FADER_LEVELS: ["- Level 1: Surface.", "- Level 2: Context.", "- Level 3: Mechanics.", "- Level 4: Nuance.", "- Level 5: Mastery."],
+        RESTRICTIONS: ["Strict format.", "No filler.", "Align tone.", "Integrate context.", "Complete output."]
+    }
+};
 
-  <section>
-    <p>
-      At first, every rock and tree seems the <b>same</b>, repeating itself like a rhythm,
-      but with each turn, the landscape starts to shift in subtle ways I didn’t expect.
-    </p>
-  </section>
+/* 2. GLOBAL STATE */
+let lastGeneratedPrompt = ""; 
+let currentData = ALGORITHMS.SIMPLEX; 
+let nexusHistory = [];
+const NEXUS_STORAGE_KEY = 'nexus_prompt_history';
+const MDC_VOCAB_KEY = 'mdc_vocab_list';
+const PREF_AUDIO_VOICE = 'nexus_audio_voice';
+const PREF_AUDIO_SPEED = 'nexus_audio_speed';
+let availableVoices = [];
 
-  <div class="divider"></div>
+/* 3. INITIALIZATION */
+document.addEventListener('DOMContentLoaded', () => {
+    populateSelect('modeSelect', COMMON_DATA.MODES);
+    populateSelect('formatSelect', COMMON_DATA.FORMATS);
+    updateDynamicDropdowns();
+    loadHistory('contextInput', 'context-history');
+    loadHistory('topicInput', 'topic-history');
+    loadNexusHistory();
+    loadVocabFolders();
+    
+    if(window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+    }
+});
 
-  <section>
-    <p>
-      I <b>take</b> my time climbing higher, feeling how the effort stretches my legs and
-      thoughts alike, as if the mountain is asking for patience before revealing anything.
-    </p>
-  </section>
+/* VOCAB FUNCTIONS */
+function loadVocabFolders() {
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    const group = document.getElementById('folder-group');
+    const badge = document.getElementById('vocab-count-badge');
+    
+    if(!raw) {
+        badge.innerText = "No Database Found";
+        badge.style.color = "#cf6679";
+        return;
+    }
+    
+    const data = JSON.parse(raw);
+    group.innerHTML = '';
+    let total = 0;
+    
+    data.forEach(item => {
+        if(item.isFolder) {
+            let opt = document.createElement('option');
+            opt.value = `folder:${item.id}`;
+            opt.textContent = `${item.name} (${item.items.length})`;
+            group.appendChild(opt);
+            total += item.items.length;
+        } else total++;
+    });
+    
+    badge.innerText = `${total} words available`;
+    badge.style.color = "#00ffcc";
+}
 
-  <div class="divider"></div>
+function toggleVocabMode() {
+    const isActive = document.getElementById('useVocabCheckbox').checked;
+    const settings = document.getElementById('vocab-settings');
+    const controlsPanel = document.getElementById('vocab-controls');
+    const topicInput = document.getElementById('topicInput');
+    const taskSelect = document.getElementById('taskSelect');
+    
+    settings.style.display = isActive ? 'block' : 'none';
 
-  <section>
-    <p>
-      The trail grows <b>long</b>, winding through shadows and light, and somewhere along
-      the way, the noise of everyday life fades into silence.
-    </p>
-  </section>
+    if (isActive) {
+        controlsPanel.classList.add('active-panel');
+        loadVocabFolders();
+        topicInput.value = "Target Vocabulary List"; 
+        topicInput.disabled = true;
+        
+        taskSelect.innerHTML = '';
+        VOCAB_TASKS.forEach(t => {
+            let opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.label;
+            taskSelect.appendChild(opt);
+        });
+        syncModeWithTask(); 
+    } else {
+        controlsPanel.classList.remove('active-panel');
+        topicInput.value = "";
+        topicInput.disabled = false;
+        updateDynamicDropdowns(); 
+    }
+}
 
-  <div class="divider"></div>
+function syncModeWithTask() {
+    if (!document.getElementById('useVocabCheckbox').checked) return;
+    const taskId = document.getElementById('taskSelect').value;
+    const task = VOCAB_TASKS.find(t => t.id === taskId);
+    if (task && task.linkedMode) document.getElementById('modeSelect').value = task.linkedMode;
+}
 
-  <section>
-    <p>
-      By the summit, I realize the real <b>change</b> isn’t in the view below, but inside me:
-      each hike reshapes how I move through the world, one step at a time.
-    </p>
-  </section>
+function getSelectedVocab() {
+    if (!document.getElementById('useVocabCheckbox').checked) return null;
+    const source = document.getElementById('vocabSource').value;
+    const amount = parseInt(document.getElementById('vocabAmount').value);
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    if(!raw) return [];
+    
+    const data = JSON.parse(raw);
+    let pool = [];
 
-</div>
-</body>
-</html>
+    if (source === 'all') {
+        data.forEach(i => i.isFolder ? pool.push(...i.items) : pool.push(i));
+    } else if (source === 'highlighted') {
+        data.forEach(i => {
+            if(i.isFolder) pool.push(...i.items.filter(x=>x.isHighlighted));
+            else if(i.isHighlighted) pool.push(i);
+        });
+    } else if (source.startsWith('folder:')) {
+        const fid = parseInt(source.split(':')[1]);
+        const f = data.find(i => i.id === fid);
+        if(f) pool = f.items;
+    }
+    else if (source === 'recent') {
+        let all = [];
+        data.forEach(i => i.isFolder ? all.push(...i.items) : all.push(i));
+        all.sort((a,b) => b.id - a.id);
+        pool = all.slice(0, 10);
+    }
+    if(pool.length === 0) return [];
+    return pool.sort(() => 0.5 - Math.random()).slice(0, amount).map(i => i.eng);
+}
+
+/* AUDIO ENGINE */
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')); 
+    availableVoices.sort((a, b) => {
+        const priority = (name) => {
+            if (name.includes('Google')) return 3;
+            if (name.includes('Premium')) return 2;
+            if (name.includes('Enhanced')) return 1;
+            return 0;
+        };
+        return priority(b.name) - priority(a.name);
+    });
+    document.querySelectorAll('.daw-select').forEach(sel => updateVoiceSelect(sel));
+}
+
+function updateVoiceSelect(select) {
+    const savedVoiceURI = localStorage.getItem(PREF_AUDIO_VOICE);
+    select.innerHTML = '';
+    availableVoices.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.voiceURI;
+        opt.textContent = v.name.replace(/English \(.*?\)/, '').trim().substring(0, 18);
+        select.appendChild(opt);
+    });
+    if(savedVoiceURI) select.value = savedVoiceURI;
+}
+
+function updateAudioLive(id) {
+    const btn = document.getElementById(`play-${id}`);
+    const speed = document.getElementById(`speed-${id}`).value;
+    const voiceURI = document.getElementById(`voice-${id}`).value;
+    localStorage.setItem(PREF_AUDIO_SPEED, speed);
+    localStorage.setItem(PREF_AUDIO_VOICE, voiceURI);
+    
+    const screen = document.getElementById(`screen-${id}`);
+    const voiceName = availableVoices.find(v => v.voiceURI === voiceURI)?.name.substring(0,6) || "DEF";
+    if(screen) screen.innerText = `SPD:${speed}x | ${voiceName}`;
+
+    if (btn.classList.contains('playing')) {
+        window.speechSynthesis.cancel();
+        speakContent(id);
+    }
+}
+
+function speakContent(id) {
+    window.speechSynthesis.cancel();
+    // Get text from the Text View (which is always present, sometimes hidden)
+    const contentDiv = document.getElementById(`view-text-${id}`);
+    const text = contentDiv ? contentDiv.innerText : "";
+
+    const speed = document.getElementById(`speed-${id}`).value;
+    const voiceURI = document.getElementById(`voice-${id}`).value;
+
+    const utter = new SpeechSynthesisUtterance(text);
+    const selectedVoice = availableVoices.find(v => v.voiceURI === voiceURI);
+    if(selectedVoice) utter.voice = selectedVoice;
+    utter.rate = parseFloat(speed);
+    
+    const playBtn = document.getElementById(`play-${id}`);
+    const screen = document.getElementById(`screen-${id}`);
+    
+    utter.onstart = () => {
+        playBtn.classList.add('playing');
+        playBtn.innerHTML = '●';
+        if(screen) screen.classList.add('active');
+        window.postMessage('FORCE_PAUSE', '*'); 
+    };
+    
+    utter.onend = () => {
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '▶';
+        if(screen) screen.classList.remove('active');
+    };
+
+    window.speechSynthesis.speak(utter);
+    document.querySelectorAll('.daw-btn-play').forEach(b => {
+        if(b.id !== `play-${id}`) { b.classList.remove('playing'); b.innerHTML = '▶'; }
+    });
+}
+
+function toggleAudio(id) {
+    const btn = document.getElementById(`play-${id}`);
+    if(!btn.classList.contains('playing')) speakContent(id);
+    else window.speechSynthesis.cancel();
+}
+
+/* HELPER FUNCTIONS */
+function sanitizeText(text) {
+    if (!text) return "";
+    text = text.replace(/['`‘´]/g, "’");
+    text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
+    return text.trim();
+}
+
+// NUEVA FUNCION: Quita etiquetas HTML para extraer el texto puro
+function stripHtml(html) {
+   let tmp = document.createElement("DIV");
+   tmp.innerHTML = html;
+   return tmp.textContent || tmp.innerText || "";
+}
+
+function getVocabSet() {
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    if (!raw) return new Set();
+    const items = JSON.parse(raw);
+    const wordSet = new Set();
+    items.forEach(i => {
+        if (!i.isFolder && i.eng) wordSet.add(sanitizeText(i.eng).toLowerCase());
+        else if (i.isFolder && i.items) {
+            i.items.forEach(sub => { if(sub.eng) wordSet.add(sanitizeText(sub.eng).toLowerCase()); });
+        }
+    });
+    return wordSet;
+}
+
+function saveWordToMDC(word, element) {
+    translateWord(word);
+    const cleanWord = sanitizeText(word);
+    if(!cleanWord) return;
+    let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    const checkEng = cleanWord.toLowerCase();
+    const currentSet = getVocabSet();
+    if (!currentSet.has(checkEng)) {
+        items.unshift({ id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false });
+        localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+        element.classList.add('saved');
+        loadVocabFolders(); 
+    } else {
+        element.style.color = 'orange';
+        setTimeout(() => { 
+            if(element.classList.contains('saved')) element.style.color = ''; 
+            else element.style.color = ''; 
+        }, 500);
+    }
+}
+
+async function translateWord(text) {
+    const pill = document.getElementById('translation-pill');
+    const originEl = document.getElementById('trans-origin');
+    const resultEl = document.getElementById('trans-result');
+    pill.classList.add('visible');
+    originEl.innerText = text;
+    resultEl.innerText = "loading...";
+    try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data[0] && data[0][0]) resultEl.innerText = data[0][0][0]; 
+        else resultEl.innerText = "Not found";
+    } catch (e) { resultEl.innerText = "Error (Offline?)"; }
+    clearTimeout(window.transTimer);
+    window.transTimer = setTimeout(() => { pill.classList.remove('visible'); }, 4000);
+}
+
+/* HISTORY MANAGEMENT */
+function loadNexusHistory() {
+    const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
+    if (stored) {
+        nexusHistory = JSON.parse(stored);
+        [...nexusHistory].reverse().forEach(data => renderAccordionDOM(data));
+    }
+}
+function saveNexusState() { localStorage.setItem(NEXUS_STORAGE_KEY, JSON.stringify(nexusHistory)); }
+function addToNexusHistory(data) { nexusHistory.unshift(data); saveNexusState(); }
+function removeFromNexusHistory(id) { nexusHistory = nexusHistory.filter(item => item.id !== id); saveNexusState(); }
+
+function formatInteractiveContent(text, existingVocabSet) {
+    if (!text) return "";
+    const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return safeText.split(/(\s+)/).map(token => {
+        if (token.match(/^\s+$/)) return token; 
+        const cleanToken = sanitizeText(token).toLowerCase();
+        const isSaved = existingVocabSet.has(cleanToken);
+        const className = isSaved ? "interactive-word saved" : "interactive-word";
+        return `<span class="${className}" onclick="saveWordToMDC(this.innerText, this)">${token}</span>`;
+    }).join('');
+}
+
+// === MAIN RENDER FUNCTION UPDATED FOR HYBRID MODE ===
+function renderAccordionDOM(data) {
+    const currentVocab = getVocabSet();
+    const container = document.getElementById('results-container');
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.id = `item-${data.id}`;
+
+    // Detectar si es HTML
+    const contentTrimmed = data.content.trim();
+    const isHtmlApp = contentTrimmed.startsWith('<!DOCTYPE html') || contentTrimmed.startsWith('<html');
+    
+    let appViewHTML = '';
+    let textViewDisplay = 'block'; // Por defecto visible si no es app
+    let toggleButton = '';
+
+    // Preparar el contenido interactivo (texto)
+    // Si es HTML, le quitamos las etiquetas primero para que quede solo el texto limpio
+    const cleanText = isHtmlApp ? stripHtml(data.content) : data.content;
+    const interactiveHTML = formatInteractiveContent(cleanText, currentVocab);
+
+    if (isHtmlApp) {
+        const blob = new Blob([data.content], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        
+        // Botón para cambiar vista
+        toggleButton = `<button style="background:#333; color:white; border:1px solid #555; padding:5px 10px; border-radius:4px; margin-bottom:10px; cursor:pointer;" onclick="toggleView(${data.id})">👁️ Show Text / Analysis</button>`;
+        
+        // Vista App (Visible por defecto)
+        appViewHTML = `
+            <div id="view-app-${data.id}" style="display:block; margin-top:5px;">
+                <div style="margin-bottom:5px; font-size:0.8em; color:var(--accent-active); font-weight:bold;">🖥️ APP MODE (Read Only)</div>
+                <iframe src="${url}" style="width:100%; height:500px; border:none; background:#111; border-radius:4px; display:block;" sandbox="allow-scripts allow-same-origin"></iframe>
+            </div>
+        `;
+        textViewDisplay = 'none'; // Oculto por defecto si es app
+    }
+
+    const savedSpeed = localStorage.getItem(PREF_AUDIO_SPEED) || "1";
+
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${data.id})">
+            <div class="header-content">
+                <span class="meta-tag">${data.modeName}</span>
+                <strong>${data.topic}</strong>
+            </div>
+            <div class="header-actions">
+                <button class="btn-delete" onclick="deleteItem(event, ${data.id})">🗑️</button>
+                <span>▼</span>
+            </div>
+        </div>
+        <div class="accordion-content" id="content-${data.id}">
+            <div class="daw-panel">
+                <div class="daw-top-deck">
+                    <button id="play-${data.id}" class="daw-btn-play" onclick="toggleAudio(${data.id})">▶</button>
+                    <div class="daw-screen" id="screen-${data.id}">MASTER OUT</div>
+                </div>
+                <div class="daw-control-deck">
+                    <div class="daw-knob-group">
+                        <span class="daw-label">SPEED</span>
+                        <input type="range" id="speed-${data.id}" class="daw-slider" min="0.5" max="2.0" step="0.1" value="${savedSpeed}" oninput="updateAudioLive(${data.id})">
+                    </div>
+                    <div class="daw-knob-group">
+                        <span class="daw-label">VOICE BANK</span>
+                        <select id="voice-${data.id}" class="daw-select" onchange="updateAudioLive(${data.id})"></select>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <button class="copy-prompt-btn" style="width:auto; margin:0;" onclick="copyTextToClipboard(this)">📜 Copy Prompt</button>
+                ${toggleButton}
+            </div>
+            <div style="display:none;" class="prompt-source">${data.prompt}</div>
+            
+            ${appViewHTML}
+
+            <div id="view-text-${data.id}" class="interactive-content" style="white-space: pre-wrap; display:${textViewDisplay}; border-top:1px solid #333; padding-top:10px;">
+                ${isHtmlApp ? '<div style="margin-bottom:10px; font-size:0.8em; color:var(--saved-word); font-weight:bold;">🔍 TEXT ANALYSIS MODE (Click words to save)</div>' : ''}
+                ${interactiveHTML}
+            </div>
+        </div>
+    `;
+
+    if(document.getElementById(`item-${data.id}`)) return;
+    if (container.firstChild) container.insertBefore(item, container.firstChild);
+    else container.appendChild(item);
+
+    setTimeout(() => { updateVoiceSelect(document.getElementById(`voice-${data.id}`)); }, 100);
+}
+
+function toggleView(id) {
+    const app = document.getElementById(`view-app-${id}`);
+    const text = document.getElementById(`view-text-${id}`);
+    if(app.style.display === 'none') {
+        app.style.display = 'block';
+        text.style.display = 'none';
+    } else {
+        app.style.display = 'none';
+        text.style.display = 'block';
+    }
+}
+
+function toggleAlgorithmMode() {
+    const isComplex = document.getElementById('modeSwitch').checked;
+    
+    const vocabCheck = document.getElementById('useVocabCheckbox');
+    if(vocabCheck.checked) {
+        vocabCheck.checked = false;
+        toggleVocabMode();
+    }
+
+    if (isComplex) {
+        currentData = ALGORITHMS.COMPLEX;
+        document.getElementById('labelSimple').classList.remove('active');
+        document.getElementById('labelComplex').classList.add('active');
+    } else {
+        currentData = ALGORITHMS.SIMPLEX;
+        document.getElementById('labelSimple').classList.add('active');
+        document.getElementById('labelComplex').classList.remove('active');
+    }
+    updateDynamicDropdowns();
+}
+
+function updateDynamicDropdowns() {
+    if (!document.getElementById('useVocabCheckbox').checked) {
+        populateSelect('taskSelect', currentData.TASK_TYPES);
+    }
+    
+    populateSelect('voiceSelect', currentData.VOICES);
+    populateSelect('lengthSelect', currentData.LENGTH);
+    const levelSel = document.getElementById('levelSelect');
+    levelSel.innerHTML = '';
+    currentData.FADER_LEVELS.forEach((level) => {
+        let opt = document.createElement('option');
+        opt.value = level;
+        opt.textContent = level.split(':')[0];
+        levelSel.appendChild(opt);
+    });
+}
+
+function populateSelect(id, dataArray) {
+    const select = document.getElementById(id);
+    select.innerHTML = '';
+    dataArray.forEach(item => {
+        let opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.label;
+        select.appendChild(opt);
+    });
+}
+
+function loadHistory(inputId, listId) {
+    const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    const dataList = document.getElementById(listId);
+    if(dataList) {
+        dataList.innerHTML = '';
+        history.forEach(item => {
+            let option = document.createElement('option');
+            option.value = item;
+            dataList.appendChild(option);
+        });
+    }
+}
+
+function saveToHistory(inputId) {
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
+    let history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
+    history = history.filter(item => item !== value);
+    history.unshift(value);
+    if (history.length > 5) history.pop();
+    localStorage.setItem(inputId + '_mem', JSON.stringify(history));
+    loadHistory(inputId, input.getAttribute('list'));
+}
+
+function generatePrompt() {
+    const isVocabMode = document.getElementById('useVocabCheckbox').checked;
+    
+    let context = document.getElementById('contextInput').value;
+    let topic = document.getElementById('topicInput').value;
+    
+    let vocabBlock = "";
+    let selectedTask = null;
+
+    if (isVocabMode) {
+        const words = getSelectedVocab();
+        if (words && words.length > 0) {
+            vocabBlock = `
+### TARGET VOCABULARY
+The user is learning English. You must use the following words from their database:
+[ ${words.join(', ')} ]
+Strict Rule: Ensure these words are **bolded** when they appear in the output.
+`;
+            topic = "English Vocabulary Practice"; 
+            
+            const taskId = document.getElementById('taskSelect').value;
+            selectedTask = VOCAB_TASKS.find(t => t.id === taskId);
+            if(!selectedTask) selectedTask = VOCAB_TASKS[0];
+            
+        } else {
+            alert("No vocabulary found! Add words in the MDC App.");
+            return;
+        }
+    } else {
+        selectedTask = currentData.TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
+    }
+
+    const mode = COMMON_DATA.MODES.find(m => m.id === document.getElementById('modeSelect').value);
+    const format = COMMON_DATA.FORMATS.find(f => f.id === document.getElementById('formatSelect').value);
+    const voice = currentData.VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
+    const len = currentData.LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
+    const level = document.getElementById('levelSelect').value;
+
+    const prompt = `
+### ROLE & STYLE
+${mode.role} ${mode.style}
+Goal: ${mode.goal}
+
+### TASK
+Context: ${context}
+Topic: ${topic}
+Type: ${selectedTask.label}
+Instruction: ${selectedTask.instruction}
+${vocabBlock}
+
+### FORMAT & OUTPUT
+Format: ${format.label}
+Instruction: ${format.instruction}
+Tone: ${voice.instruction}
+Length: ${len.instruction}
+Depth: ${level}
+
+### RESTRICTIONS
+${currentData.RESTRICTIONS.join('\n')}
+    `.trim();
+
+    const outputDiv = document.getElementById('prompt-output');
+    outputDiv.style.display = 'block';
+    outputDiv.textContent = prompt;
+    navigator.clipboard.writeText(prompt);
+    lastGeneratedPrompt = prompt;
+    if(!isVocabMode) {
+        saveToHistory('contextInput');
+        saveToHistory('topicInput');
+    }
+}
+
+async function handlePasteResponse() {
+    try {
+        const text = await navigator.clipboard.readText();
+        if(!text) return alert("Clipboard is empty.");
+        const data = {
+            id: Date.now(),
+            modeName: document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text,
+            topic: document.getElementById('topicInput').value || "Untitled Result",
+            prompt: lastGeneratedPrompt,
+            content: text
+        };
+        addToNexusHistory(data);
+        renderAccordionDOM(data);
+        toggleGenerator(false);
+    } catch (err) { alert("Permission denied or error reading clipboard."); }
+}
+
+function toggleGenerator(show) {
+    const gen = document.getElementById('generator-container');
+    const btnShow = document.getElementById('btn-show-gen');
+    if (show) { gen.classList.remove('hidden'); btnShow.style.display = 'none'; } 
+    else { gen.classList.add('hidden'); btnShow.style.display = 'block'; }
+}
+
+function deleteItem(event, id) {
+    event.stopPropagation();
+    if(confirm("Delete result?")) {
+        const el = document.getElementById(`item-${id}`);
+        if(el) el.remove();
+        removeFromNexusHistory(id);
+    }
+}
+
+function toggleAccordion(id) {
+    const content = document.getElementById(`content-${id}`);
+    const isVisible = content.classList.contains('active');
+    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
+    if (!isVisible) content.classList.add('active');
+}
+
+function copyTextToClipboard(btnElement) {
+    const promptText = btnElement.nextElementSibling.textContent;
+    navigator.clipboard.writeText(promptText).then(() => {
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "Copied!";
+        setTimeout(() => btnElement.innerText = originalText, 1500);
+    });
+}
+
+function filterResults() {
+    const query = document.getElementById('searchBar').value.toLowerCase();
+    const items = document.querySelectorAll('.accordion-item');
+    items.forEach(item => {
+        const topic = item.querySelector('.header-content strong').innerText.toLowerCase();
+        const content = item.querySelector('.interactive-content').innerText.toLowerCase();
+        if (topic.includes(query) || content.includes(query)) item.style.display = "block";
+        else item.style.display = "none";
+    });
+}
+</script>
