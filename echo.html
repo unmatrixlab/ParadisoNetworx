@@ -175,21 +175,30 @@
             setupObserver();
         }
 
+        // --- CORRECCIÓN 1: RECURSIVIDAD PARA LEER CARPETAS ---
         function loadData() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
                 const all = JSON.parse(raw || '[]');
-                
-                // FILTRO MÁGICO: Solo items que tengan datos de video (Source Youtube)
-                // y que no sean carpetas.
-                items = all.filter(i => 
-                    !i.isFolder && 
-                    i.source && 
-                    i.source.type === 'youtube' && 
-                    i.source.videoId
-                );
+                items = []; // Reiniciar
 
-                // Barajar para que sea divertido (Shuffle)
+                // Función auxiliar para extraer recursivamente
+                const extractItems = (list) => {
+                    list.forEach(item => {
+                        if (item.isFolder && item.items) {
+                            // Si es carpeta, entramos
+                            extractItems(item.items);
+                        } else if (item.source && item.source.type === 'youtube' && item.source.videoId) {
+                            // Si es item válido, lo guardamos
+                            items.push(item);
+                        }
+                    });
+                };
+
+                // Ejecutar extracción
+                extractItems(all);
+
+                // Barajar
                 items.sort(() => Math.random() - 0.5);
 
             } catch (e) { items = []; }
@@ -205,8 +214,8 @@
                     <div class="empty-state">
                         <div class="empty-icon">📡</div>
                         <h2>NO SIGNAL DETECTED</h2>
-                        <p>Use the <b>PLAYER</b> module to save words from videos.</p>
-                        <p style="font-size:12px; margin-top:10px; color:#555;">(Only new words saved with the update will appear here)</p>
+                        <p>Save words in the <b>PLAYER</b> module.</p>
+                        <p style="font-size:12px; margin-top:10px; color:#555;">(Folders are now supported!)</p>
                     </div>
                 `;
                 return;
@@ -234,7 +243,7 @@
                     <div class="hud-layer" id="hud-${index}">
                         <div class="meta-tag">
                             <span>● REC</span>
-                            <span>${new Date(item.id).toLocaleDateString()}</span>
+                            <span>${new Date(item.dateAdded || Date.now()).toLocaleDateString()}</span>
                         </div>
                         <div class="main-word">${item.eng}</div>
                         <div class="translation">${item.esp || '...'}</div>
@@ -253,10 +262,9 @@
 
         // --- 3. INTERSECTION OBSERVER (THE ENGINE) ---
         function setupObserver() {
-            // Este observador detecta qué tarjeta está en pantalla
             const options = {
                 root: document.getElementById('stream-container'),
-                threshold: 0.6 // Cuando el 60% de la tarjeta es visible
+                threshold: 0.6 
             };
 
             observer = new IntersectionObserver((entries) => {
@@ -275,25 +283,19 @@
             });
         }
 
-        // --- 4. YOUTUBE PLAYER MANAGEMENT (LAZY LOADING) ---
+        // --- 4. YOUTUBE PLAYER MANAGEMENT (FIXED TIMESTAMP) ---
         function loadAndPlayVideo(index) {
             const card = document.getElementById(`card-${index}`);
             const wrapperId = `video-wrapper-${index}`;
             const videoId = card.dataset.videoId;
-            const start = Math.floor(parseFloat(card.dataset.start));
-            const end = Math.ceil(parseFloat(card.dataset.end));
+            const start = parseFloat(card.dataset.start); // Usar float para precisión
+            const end = parseFloat(card.dataset.end);
 
-            // Si ya existe, solo asegurarnos de que corra
-            if (players[index]) {
-                // players[index].seekTo(start);
-                // players[index].playVideo();
-                return; 
-            }
+            if (players[index]) return; 
 
-            // Crear div temporal para la API
             const tempDiv = document.createElement('div');
             tempDiv.id = `yt-player-${index}`;
-            document.getElementById(wrapperId).innerHTML = ''; // Limpiar
+            document.getElementById(wrapperId).innerHTML = ''; 
             document.getElementById(wrapperId).appendChild(tempDiv);
 
             players[index] = new YT.Player(`yt-player-${index}`, {
@@ -307,18 +309,21 @@
                     'showinfo': 0,
                     'modestbranding': 1,
                     'playsinline': 1,
-                    'start': start,
-                    'end': end,
+                    'start': Math.floor(start), // La config inicial prefiere enteros
+                    'end': Math.ceil(end),
                     'iv_load_policy': 3,
                     'fs': 0,
                     'disablekb': 1
                 },
                 events: {
                     'onReady': (event) => {
-                        event.target.mute(); // Mute inicial forzoso por políticas de autoplay móvil
+                        event.target.mute(); 
+                        
+                        // --- CORRECCIÓN 2: FORZAR SALTO ---
+                        // A veces el parámetro 'start' falla en el init, así que lo forzamos aquí
+                        event.target.seekTo(start, true); 
                         event.target.playVideo();
                         
-                        // Unmute hack: intentamos desmutear tras 1s (si el usuario interactuó con la página antes, funcionará)
                         setTimeout(() => {
                             event.target.unMute();
                             event.target.setVolume(100);
@@ -328,9 +333,9 @@
                         card.classList.add('playing');
                     },
                     'onStateChange': (event) => {
-                        // LOOP LOGIC MANUAL
+                        // LOOP LOGIC
                         if (event.data === YT.PlayerState.ENDED) {
-                            event.target.seekTo(start);
+                            event.target.seekTo(start, true); // seekTo(seconds, allowSeekAhead)
                             event.target.playVideo();
                         }
                     }
@@ -356,8 +361,6 @@
         window.toggleBlindMode = function(btn) {
             blindMode = !blindMode;
             btn.classList.toggle('active', blindMode);
-            
-            // Aplicar clase a todas las cards actuales y futuras
             document.querySelectorAll('.echo-card').forEach(card => {
                 if(blindMode) card.querySelector('.hud-layer').classList.add('blind-active');
                 else card.querySelector('.hud-layer').classList.remove('blind-active');
@@ -368,27 +371,21 @@
             if(players[index]) {
                 const card = document.getElementById(`card-${index}`);
                 const start = parseFloat(card.dataset.start);
-                players[index].seekTo(start);
+                players[index].seekTo(start, true);
                 players[index].playVideo();
             }
         };
 
-        // --- 6. GLOBAL API READY ---
-        // La API de YouTube requiere esta función global
         window.onYouTubeIframeAPIReady = function() {
-            // No hacemos nada aquí, el observer inicia los players bajo demanda
             console.log("Echo Stream: Audio Engine Ready");
         };
 
-        // --- 7. NEXUS COMMUNICATION ---
         window.addEventListener('message', function(event) {
             if (event.data === 'FORCE_PAUSE') {
-                // Destruir todos los players para ahorrar memoria si cierran la tarjeta
                 Object.keys(players).forEach(idx => destroyVideo(idx));
             }
         });
 
-        // Start
         init();
 
     </script>
