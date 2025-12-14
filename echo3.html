@@ -208,8 +208,12 @@
         <div id="stream-container"></div>
     </div>
 
-  <script>
+<script>
+        // 🔥 CAMBIO CRÍTICO: Detectar si estamos embebidos para usar la memoria del PADRE
+        const isEmbedded = window.self !== window.top;
+        const PARENT_STORAGE = isEmbedded ? window.parent.localStorage : localStorage;
         const STORAGE_KEY = 'mdc_vocab_list';
+
         let allItems = [];
         let groupedByVideo = {};
         
@@ -228,12 +232,13 @@
             } catch(e) { console.error(e); }
         }
 
-        // --- 1. DATA ---
+        // --- 1. DATA (Ahora usa PARENT_STORAGE) ---
         function init() { loadAndOrganizeData(); renderLibrary(); }
 
         function loadAndOrganizeData() {
             try {
-                const raw = localStorage.getItem(STORAGE_KEY);
+                // 🔥 Usamos PARENT_STORAGE para leer la base de datos REAL
+                const raw = PARENT_STORAGE.getItem(STORAGE_KEY);
                 const data = JSON.parse(raw || '[]');
                 allItems = []; groupedByVideo = {};
                 
@@ -252,14 +257,14 @@
                     });
                 };
                 flatten(data);
-            } catch (e) { allItems = []; }
+            } catch (e) { allItems = []; console.error("Error cargando datos:", e); }
         }
 
         function renderLibrary() {
             const grid = document.getElementById('library-grid');
             grid.innerHTML = '';
             const videoIds = Object.keys(groupedByVideo);
-            if (videoIds.length === 0) { grid.innerHTML = `<div style="text-align:center; color:#666; grid-column:1/-1;">NO DATA FOUND</div>`; return; }
+            if (videoIds.length === 0) { grid.innerHTML = `<div style="text-align:center; color:#666; grid-column:1/-1;">NO DATA FOUND (Check Code 1 Memory)</div>`; return; }
             videoIds.forEach(vId => {
                 const group = groupedByVideo[vId];
                 const card = document.createElement('div');
@@ -295,6 +300,9 @@
             if(observer) observer.disconnect();
             document.getElementById('stream-view').style.display = 'none';
             document.getElementById('library-view').style.display = 'flex';
+            // Recargamos datos por si se editó algo en el padre mientras tanto
+            loadAndOrganizeData();
+            renderLibrary();
         }
 
         function renderStreamCards() {
@@ -307,11 +315,9 @@
                 card.dataset.index = index;
                 card.dataset.videoId = item.source.videoId;
                 
-                // Tiempos Base (Referencia inmutable)
                 const baseStart = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
                 const baseEnd = parseFloat(item.source.timestamp) + 3.0;
                 
-                // Tiempos Actuales (Usamos los guardados si existen, si no, los base)
                 const currentStart = (item.customStart !== undefined) ? parseFloat(item.customStart) : baseStart;
                 const currentEnd = (item.customEnd !== undefined) ? parseFloat(item.customEnd) : baseEnd;
 
@@ -335,8 +341,8 @@
                         <div class="trim-info" id="trim-info-${index}">Adjust Trim</div>
                         <div class="trim-track" id="trim-track-${index}">
                             <div class="trim-fill" id="trim-fill-${index}" style="left: 33%; width: 33%;"></div>
-                            <div class="trim-handle" id="handle-start-${index}" style="left: 33%"></div>
-                            <div class="trim-handle" id="handle-end-${index}" style="left: 66%"></div>
+                            <div class="trim-handle" id="handle-start-${index}" data-role="start" style="left: 33%"></div>
+                            <div class="trim-handle" id="handle-end-${index}" data-role="end" style="left: 66%"></div>
                         </div>
                     </div>
 
@@ -348,12 +354,11 @@
                 `;
                 container.appendChild(card);
                 
-                // Inicializar el slider para esta tarjeta
                 requestAnimationFrame(() => initTrimControls(index));
             });
         }
 
-        // --- LÓGICA DEL TRIMMER (CON GUARDADO) ---
+        // --- LÓGICA DEL TRIMMER (POINTER EVENTS ROBUSTOS) ---
         function initTrimControls(index) {
             const wrapper = document.getElementById(`trim-wrapper-${index}`);
             const track = document.getElementById(`trim-track-${index}`);
@@ -363,118 +368,106 @@
             const info = document.getElementById(`trim-info-${index}`);
             const card = document.getElementById(`card-${index}`);
 
-            // Factor: 1% de movimiento = 0.05 segundos
             const TIME_SENSITIVITY = 0.05; 
 
-            // Recuperar posiciones visuales basadas en los tiempos guardados
             const baseS = parseFloat(card.dataset.baseStart);
             const baseE = parseFloat(card.dataset.baseEnd);
             const currS = parseFloat(card.dataset.currentStart);
             const currE = parseFloat(card.dataset.currentEnd);
 
-            // Fórmula inversa: (TiempoActual - TiempoBase) / Sensibilidad + PosiciónDefecto
             let startPct = 33 + ((currS - baseS) / TIME_SENSITIVITY);
             let endPct = 66 + ((currE - baseE) / TIME_SENSITIVITY);
 
-            // Aplicar posiciones iniciales
-            handleStart.style.left = startPct + '%';
-            handleEnd.style.left = endPct + '%';
-            fill.style.left = startPct + '%';
-            fill.style.width = (endPct - startPct) + '%';
+            // Render inicial
+            const renderUI = () => {
+                handleStart.style.left = startPct + '%';
+                handleEnd.style.left = endPct + '%';
+                fill.style.left = startPct + '%';
+                fill.style.width = (endPct - startPct) + '%';
+            }
+            renderUI();
 
             const updateValues = () => {
                 const startOffset = (startPct - 33) * TIME_SENSITIVITY;
                 const endOffset = (endPct - 66) * TIME_SENSITIVITY;
-
                 const newStart = Math.max(0, baseS + startOffset);
                 const newEnd = Math.max(newStart + 0.5, baseE + endOffset); 
 
                 card.dataset.currentStart = newStart.toFixed(2);
                 card.dataset.currentEnd = newEnd.toFixed(2);
-
                 info.innerText = `Start: ${startOffset > 0 ? '+' : ''}${startOffset.toFixed(1)}s | End: ${endOffset > 0 ? '+' : ''}${endOffset.toFixed(1)}s`;
-                
-                fill.style.left = startPct + '%';
-                fill.style.width = (endPct - startPct) + '%';
+                renderUI();
             };
 
-            // 🔥 NUEVA FUNCIÓN DE GUARDADO 🔥
             const saveTrimSettings = () => {
                 const item = activeItems[index];
                 const newS = parseFloat(card.dataset.currentStart);
                 const newE = parseFloat(card.dataset.currentEnd);
-
-                // 1. Actualizar objeto en memoria activa
+                
+                // Actualizar localmente
                 item.customStart = newS;
                 item.customEnd = newE;
 
-                // 2. Actualizar persistente en LocalStorage
+                // Actualizar en PERSISTENCIA DEL PADRE
                 try {
-                    const fullData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-                    
-                    // Función recursiva para encontrar y actualizar el ítem
+                    // 🔥 Leemos del PADRE, modificamos y guardamos en el PADRE
+                    const fullData = JSON.parse(PARENT_STORAGE.getItem(STORAGE_KEY) || '[]');
                     const updateRecursive = (list) => {
                         for (let i of list) {
                             if (i.id === item.id) {
                                 i.customStart = newS;
                                 i.customEnd = newE;
-                                return true; // Encontrado y actualizado
+                                return true;
                             }
-                            if (i.isFolder && i.items) {
-                                if (updateRecursive(i.items)) return true;
-                            }
+                            if (i.isFolder && i.items) { if (updateRecursive(i.items)) return true; }
                         }
                         return false;
                     };
-
-                    updateRecursive(fullData);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(fullData));
-                    console.log("Trim saved successfully");
+                    if(updateRecursive(fullData)) {
+                        PARENT_STORAGE.setItem(STORAGE_KEY, JSON.stringify(fullData));
+                        console.log("Guardado en Parent Storage");
+                    }
                 } catch(e) { console.error("Save failed", e); }
             };
 
-            const onDrag = (e, isStart) => {
-                e.preventDefault();
-                wrapper.classList.add('interacting');
+            // 🔥 LOGICA POINTER EVENTS (Funciona en Iframe y Móvil) 🔥
+            const onPointerDown = (e) => {
+                e.preventDefault(); // Evita scroll
+                const handle = e.target;
+                const isStart = handle.dataset.role === 'start';
                 
-                const rect = track.getBoundingClientRect();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                let newPct = ((clientX - rect.left) / rect.width) * 100;
-                newPct = Math.max(0, Math.min(100, newPct));
+                wrapper.classList.add('interacting');
+                handle.setPointerCapture(e.pointerId); // <--- ESTA ES LA CLAVE: Captura el cursor
 
-                if (isStart) {
-                    if (newPct >= endPct - 5) newPct = endPct - 5; 
-                    startPct = newPct;
-                    handleStart.style.left = startPct + '%';
-                } else {
-                    if (newPct <= startPct + 5) newPct = startPct + 5;
-                    endPct = newPct;
-                    handleEnd.style.left = endPct + '%';
-                }
-                updateValues();
+                const onPointerMove = (ev) => {
+                    const rect = track.getBoundingClientRect();
+                    let newPct = ((ev.clientX - rect.left) / rect.width) * 100;
+                    newPct = Math.max(0, Math.min(100, newPct));
+
+                    if (isStart) {
+                        if (newPct >= endPct - 5) newPct = endPct - 5; 
+                        startPct = newPct;
+                    } else {
+                        if (newPct <= startPct + 5) newPct = startPct + 5;
+                        endPct = newPct;
+                    }
+                    updateValues();
+                };
+
+                const onPointerUp = (ev) => {
+                    handle.releasePointerCapture(ev.pointerId);
+                    handle.removeEventListener('pointermove', onPointerMove);
+                    handle.removeEventListener('pointerup', onPointerUp);
+                    wrapper.classList.remove('interacting');
+                    saveTrimSettings();
+                };
+
+                handle.addEventListener('pointermove', onPointerMove);
+                handle.addEventListener('pointerup', onPointerUp);
             };
 
-            const stopDrag = () => { 
-                wrapper.classList.remove('interacting');
-                saveTrimSettings(); // 🔥 Guardamos al soltar
-            };
-
-            // Event Listeners
-            const addDragListeners = (el, isStart) => {
-                el.addEventListener('mousedown', (e) => {
-                    const move = (ev) => onDrag(ev, isStart);
-                    const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
-                    document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
-                });
-                el.addEventListener('touchstart', (e) => {
-                    const move = (ev) => onDrag(ev, isStart);
-                    const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
-                    document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
-                });
-            };
-
-            addDragListeners(handleStart, true);
-            addDragListeners(handleEnd, false);
+            handleStart.addEventListener('pointerdown', onPointerDown);
+            handleEnd.addEventListener('pointerdown', onPointerDown);
         }
 
         // --- OBSERVER & PLAYBACK ---
@@ -495,7 +488,6 @@
             if(!card || players[index]) return;
 
             const videoId = card.dataset.videoId;
-            // USAR dataset.currentStart en vez de dataset.start estático
             const start = parseFloat(card.dataset.currentStart || card.dataset.baseStart);
             
             const tempDiv = document.createElement('div');
@@ -536,18 +528,16 @@
                 const player = players[index];
                 if(!player || !player.getCurrentTime) return;
                 
-                // LEER TIEMPOS DINÁMICOS
                 const currentStart = parseFloat(card.dataset.currentStart);
                 const currentEnd = parseFloat(card.dataset.currentEnd);
                 const duration = currentEnd - currentStart;
                 
                 const currentTime = player.getCurrentTime();
                 
-                // LÓGICA DE LOOP
+                // LÓGICA DE LOOP PRECISO
                 if(currentTime >= currentEnd) {
                     player.seekTo(currentStart, true);
-                } 
-                else if (currentTime < currentStart - 0.5) { 
+                } else if (currentTime < currentStart - 0.5) { 
                     player.seekTo(currentStart, true);
                 }
 
@@ -581,7 +571,6 @@
             }
         }
 
-        // --- UTILS ---
         window.toggleBlindMode = function(btn) {
             blindMode = !blindMode;
             btn.classList.toggle('active', blindMode);
@@ -600,6 +589,6 @@
         };
 
         init();
-    </script>
+</script>
 </body>
 </html>
