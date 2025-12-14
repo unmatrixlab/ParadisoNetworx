@@ -47,13 +47,14 @@
 
         .grid-container {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 20px; padding-bottom: 50px; padding-top: 40px;
+            gap: 20px; padding-bottom: 50px; padding-top: 50px; /* Un poco más de espacio arriba */
         }
 
         .video-card {
             background: var(--card-bg); border-radius: 12px; overflow: hidden;
             cursor: pointer; border: 1px solid rgba(255,255,255,0.05);
             transition: transform 0.2s;
+            position: relative; /* Importante para el z-index */
         }
         .video-card:active { transform: scale(0.95); }
         
@@ -64,17 +65,19 @@
             background: rgba(0,0,0,0.8); color: var(--neon-blue);
             font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;
             border: 1px solid rgba(0, 243, 255, 0.3);
+            z-index: 5;
         }
         .card-info { padding: 12px; }
         .card-title { font-size: 13px; font-weight: 600; color: #eee; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         .card-meta { font-size: 11px; color: #888; margin-top: 6px; }
 
-        /* Estilo especial para la carta Random */
+        /* 🔥 CORRECCIÓN DADO (RANDOM) 🔥 */
         .random-thumb {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, #111, #222);
+            background: linear-gradient(135deg, #1e1e1e, #000); /* Fondo más solido */
             display: flex; align-items: center; justify-content: center;
             font-size: 40px;
+            z-index: 10; /* Asegurar que esté encima */
         }
 
         /* === 2. STREAM VIEW (PLAYER) === */
@@ -121,7 +124,6 @@
             display: flex; flex-direction: column; justify-content: flex-end;
         }
 
-        /* Zonas interactivas dentro de la capa de interfaz */
         .click-zone { 
             position: absolute; top: 0; left: 0; width: 100%; height: 80%; 
             z-index: 11; pointer-events: auto; cursor: pointer; 
@@ -136,7 +138,7 @@
 
         /* HUD: Texto */
         .hud-wrapper {
-            width: 100%; padding: 20px; padding-bottom: 80px; /* Menos padding porque no hay trimmer */
+            width: 100%; padding: 20px; padding-bottom: 80px;
             background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 100%);
             pointer-events: none; z-index: 15;
             transition: all 0.3s;
@@ -145,16 +147,18 @@
         .translation { font-size: 16px; color: var(--neon-purple); font-weight: 600; }
         .context-sentence { font-size: 14px; color: #ccc; font-style: italic; border-left: 3px solid var(--neon-blue); padding-left: 10px; margin-top: 5px; }
         
-        /* 🔥 EFECTO DIFUMINADO (BLUR) RESTAURADO 🔥 */
+        /* 🔥 CORRECCIÓN BLUR (DIFUMINADO) 🔥 
+           Bajamos el blur de 15px a 6px para que no desaparezca, 
+           y forzamos opacidad 1 */
         .blind-active .main-word, 
         .blind-active .translation, 
         .blind-active .context-sentence { 
-            filter: blur(15px); /* Mucho blur */
-            opacity: 1; /* IMPORTANTE: Opacidad 1 para que se vea la mancha borrosa */
+            filter: blur(6px); /* Reducido para que se vea la mancha */
+            opacity: 1; 
+            text-shadow: 0 0 10px rgba(255,255,255,0.5); /* Ayuda a ver que hay algo ahí */
             user-select: none;
         }
 
-        /* BOTONES LATERALES */
         .controls-rail { 
             position: absolute; right: 15px; bottom: 150px; 
             z-index: 50; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; 
@@ -162,7 +166,6 @@
         .rail-btn { width: 45px; height: 45px; border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.3); color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
         .rail-btn.active { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px var(--neon-blue); }
 
-        /* Loader & Progress */
         .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--neon-blue); border-radius: 50%; animation: spin 1s linear infinite; z-index: 5; }
         @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
         .progress-bar-bottom { position: absolute; bottom: 0; left: 0; height: 4px; background: var(--neon-blue); z-index: 100; transition: width 0.1s linear; }
@@ -218,10 +221,10 @@
             const grid = document.getElementById('library-grid');
             grid.innerHTML = '';
 
-            // 🔥 1. AGREGAR CARPETA "RANDOM" AL PRINCIPIO
+            // 🎲 1. AGREGAR CARPETA "RANDOM"
             const randomCard = document.createElement('div');
             randomCard.className = 'video-card';
-            randomCard.onclick = () => startStream('RANDOM_MIX'); // Flag especial
+            randomCard.onclick = () => startStream('RANDOM_MIX'); 
             randomCard.innerHTML = `
                 <div class="thumb-wrapper">
                     <div class="random-thumb">🎲</div>
@@ -234,7 +237,7 @@
             `;
             grid.appendChild(randomCard);
 
-            // 2. AGREGAR EL RESTO DE VIDEOS
+            // 2. RESTO DE VIDEOS
             Object.keys(groupedByVideo).forEach(vId => {
                 const group = groupedByVideo[vId];
                 const card = document.createElement('div');
@@ -250,16 +253,12 @@
 
         function startStream(filterVideoId) {
             if (filterVideoId === 'RANDOM_MIX') {
-                // 🔥 MODO RANDOM: Usamos todos los items mezclados
                 activeItems = [...allItems];
                 activeItems.sort(() => Math.random() - 0.5);
             } else if (filterVideoId) {
-                // MODO CARPETA NORMAL
                 activeItems = [...groupedByVideo[filterVideoId].items];
                 activeItems.sort((a, b) => parseFloat(a.source.timestamp) - parseFloat(b.source.timestamp));
-            } else {
-                return alert("Error loading items");
-            }
+            } else { return alert("Error loading items"); }
 
             if(activeItems.length === 0) return alert("No items found.");
             renderStreamCards();
@@ -273,7 +272,6 @@
             if(observer) observer.disconnect();
             document.getElementById('stream-view').style.display = 'none';
             document.getElementById('library-view').style.display = 'flex';
-            // Recargar datos por si se agregó algo nuevo
             loadData(); renderLibrary();
         }
 
@@ -289,32 +287,26 @@
                 
                 const baseStart = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
                 const baseEnd = parseFloat(item.source.timestamp) + 3.0;
-                // Si existe un guardado previo (aunque quitamos el trimmer, leemos si ya existía)
                 const currentStart = (item.customStart !== undefined) ? parseFloat(item.customStart) : baseStart;
                 const currentEnd = (item.customEnd !== undefined) ? parseFloat(item.customEnd) : baseEnd;
 
                 card.dataset.currentStart = currentStart; card.dataset.currentEnd = currentEnd;
 
-                // SIN EL TRIMMER HTML
                 card.innerHTML = `
                     <div class="layer-video" id="video-wrapper-${index}"></div>
-                    
                     <div class="layer-interface">
                         <div class="click-zone" onclick="togglePlayPause(${index})"></div>
                         <div class="center-icon">▶</div>
                         <div class="loader"></div>
-                        
                         <div class="hud-wrapper">
                             <div class="main-word">${item.eng}</div>
                             <div class="translation">${item.esp || ''}</div>
                             <div class="context-sentence">"${item.source.context || ''}"</div>
                         </div>
-
                         <div class="controls-rail">
                             <button class="rail-btn" onclick="toggleBlindMode(this)">👁️</button>
                             <button class="rail-btn" onclick="replayCard(${index})">↺</button>
                         </div>
-                        
                         <div class="progress-bar-bottom" id="progress-${index}" style="width:0%"></div>
                     </div>
                 `;
@@ -339,7 +331,6 @@
             if(!card || players[index]) return;
             const videoId = card.dataset.videoId;
             const start = parseFloat(card.dataset.currentStart);
-            
             const tempDiv = document.createElement('div'); tempDiv.id = `yt-player-${index}`;
             document.getElementById(`video-wrapper-${index}`).appendChild(tempDiv);
 
@@ -399,7 +390,6 @@
         window.toggleBlindMode = (btn) => { 
             blindMode = !blindMode; 
             btn.classList.toggle('active', blindMode); 
-            // Buscamos el contenedor HUD para aplicar la clase blur
             document.querySelectorAll('.hud-wrapper').forEach(h => {
                 if(blindMode) h.classList.add('blind-active'); 
                 else h.classList.remove('blind-active');
