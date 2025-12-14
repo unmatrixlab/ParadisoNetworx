@@ -113,7 +113,7 @@
         
         .hud-layer { 
             position: absolute; bottom: 0; left: 0; width: 100%; 
-            padding: 20px 20px 140px 20px; /* Más padding bottom para dejar espacio al timeline */
+            padding: 20px 20px 180px 20px; /* AUMENTADO PADDING BOTTOM */
             z-index: 10; 
             background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%); 
             pointer-events: none; 
@@ -127,70 +127,78 @@
         .progress-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.1); z-index: 20; }
         .progress-bar { height: 100%; width: 0%; background: var(--neon-blue); transition: width 0.1s linear; }
         
-        .controls-rail { position: absolute; right: 15px; bottom: 120px; z-index: 30; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
+        .controls-rail { position: absolute; right: 15px; bottom: 150px; z-index: 30; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
         .rail-btn { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
         
         .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--neon-blue); border-radius: 50%; animation: spin 1s linear infinite; z-index: 5; }
         @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
         .scanlines { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 4px; box-shadow: inset 0 0 100px rgba(0,0,0,0.7); }
 
-        /* === NUEVA LINEA DE TIEMPO (TRIMMER) === */
+        /* === NUEVA LINEA DE TIEMPO (TRIMMER) - CORREGIDA Y VISIBLE === */
         .trim-wrapper {
             position: absolute;
-            bottom: 30px; /* Encima de la barra de progreso inferior */
+            bottom: 90px; /* SUBIDO PARA VISIBILIDAD EN EMBED */
             left: 50%;
             transform: translateX(-50%);
-            width: 85%;
-            height: 40px;
-            z-index: 40;
+            width: 90%;
+            height: 60px;
+            z-index: 1000; /* CAPA SUPERIOR */
             pointer-events: auto;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            background: rgba(0, 0, 0, 0.6); /* FONDO PARA CONTRASTE */
+            backdrop-filter: blur(5px);
+            border-radius: 12px;
+            padding: 0 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .trim-info {
             text-align: center;
             font-family: 'JetBrains Mono', monospace;
-            font-size: 10px;
+            font-size: 11px;
             color: var(--neon-blue);
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
-            opacity: 0;
+            opacity: 1; /* SIEMPRE VISIBLE */
             transition: opacity 0.2s;
+            pointer-events: none;
         }
-        .trim-wrapper.interacting .trim-info { opacity: 1; }
-
+        
         .trim-track {
             position: relative;
             width: 100%;
-            height: 4px;
-            background: #444; /* Gris */
-            border-radius: 2px;
+            height: 6px; /* UN POCO MAS GRUESO */
+            background: #555;
+            border-radius: 3px;
         }
 
         .trim-fill {
             position: absolute;
             top: 0;
             height: 100%;
-            background: var(--neon-blue); /* Azul entre puntos */
-            opacity: 0.7;
+            background: var(--neon-blue); 
+            opacity: 0.8;
+            border-radius: 3px;
         }
 
         .trim-handle {
             position: absolute;
             top: 50%;
             transform: translate(-50%, -50%);
-            width: 16px;
-            height: 16px;
-            background: var(--neon-blue);
+            width: 20px; /* MANIJAS MAS GRANDES */
+            height: 20px;
+            background: #fff;
+            border: 2px solid var(--neon-blue);
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
-            touch-action: none; /* Crucial para móviles */
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.8);
+            touch-action: none; 
+            z-index: 1001;
         }
         .trim-handle::after {
-            content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px; /* Área de toque más grande */
+            content: ''; position: absolute; top: -15px; left: -15px; right: -15px; bottom: -15px; 
         }
 
     </style>
@@ -209,7 +217,7 @@
     </div>
 
 <script>
-        // 🔥 CAMBIO CRÍTICO: Detectar si estamos embebidos para usar la memoria del PADRE
+        // 🔥 COMUNICACIÓN PADRE / HIJO
         const isEmbedded = window.self !== window.top;
         const PARENT_STORAGE = isEmbedded ? window.parent.localStorage : localStorage;
         const STORAGE_KEY = 'mdc_vocab_list';
@@ -237,7 +245,6 @@
 
         function loadAndOrganizeData() {
             try {
-                // 🔥 Usamos PARENT_STORAGE para leer la base de datos REAL
                 const raw = PARENT_STORAGE.getItem(STORAGE_KEY);
                 const data = JSON.parse(raw || '[]');
                 allItems = []; groupedByVideo = {};
@@ -300,7 +307,6 @@
             if(observer) observer.disconnect();
             document.getElementById('stream-view').style.display = 'none';
             document.getElementById('library-view').style.display = 'flex';
-            // Recargamos datos por si se editó algo en el padre mientras tanto
             loadAndOrganizeData();
             renderLibrary();
         }
@@ -358,7 +364,7 @@
             });
         }
 
-        // --- LÓGICA DEL TRIMMER (POINTER EVENTS ROBUSTOS) ---
+        // --- LÓGICA DEL TRIMMER (POINTER EVENTS) ---
         function initTrimControls(index) {
             const wrapper = document.getElementById(`trim-wrapper-${index}`);
             const track = document.getElementById(`trim-track-${index}`);
@@ -378,7 +384,6 @@
             let startPct = 33 + ((currS - baseS) / TIME_SENSITIVITY);
             let endPct = 66 + ((currE - baseE) / TIME_SENSITIVITY);
 
-            // Render inicial
             const renderUI = () => {
                 handleStart.style.left = startPct + '%';
                 handleEnd.style.left = endPct + '%';
@@ -404,13 +409,10 @@
                 const newS = parseFloat(card.dataset.currentStart);
                 const newE = parseFloat(card.dataset.currentEnd);
                 
-                // Actualizar localmente
                 item.customStart = newS;
                 item.customEnd = newE;
 
-                // Actualizar en PERSISTENCIA DEL PADRE
                 try {
-                    // 🔥 Leemos del PADRE, modificamos y guardamos en el PADRE
                     const fullData = JSON.parse(PARENT_STORAGE.getItem(STORAGE_KEY) || '[]');
                     const updateRecursive = (list) => {
                         for (let i of list) {
@@ -430,14 +432,13 @@
                 } catch(e) { console.error("Save failed", e); }
             };
 
-            // 🔥 LOGICA POINTER EVENTS (Funciona en Iframe y Móvil) 🔥
             const onPointerDown = (e) => {
-                e.preventDefault(); // Evita scroll
+                e.preventDefault(); 
                 const handle = e.target;
                 const isStart = handle.dataset.role === 'start';
                 
                 wrapper.classList.add('interacting');
-                handle.setPointerCapture(e.pointerId); // <--- ESTA ES LA CLAVE: Captura el cursor
+                handle.setPointerCapture(e.pointerId);
 
                 const onPointerMove = (ev) => {
                     const rect = track.getBoundingClientRect();
@@ -534,7 +535,6 @@
                 
                 const currentTime = player.getCurrentTime();
                 
-                // LÓGICA DE LOOP PRECISO
                 if(currentTime >= currentEnd) {
                     player.seekTo(currentStart, true);
                 } else if (currentTime < currentStart - 0.5) { 
