@@ -642,24 +642,34 @@ function getVocabSet() {
 }
 
 function saveWordToMDC(word, element) {
-    translateWord(word);
+    translateWord(word); // Mantiene la traducción visual
     const cleanWord = sanitizeText(word);
-    if(!cleanWord) return;
+    if (!cleanWord) return;
+
     let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
     const checkEng = cleanWord.toLowerCase();
-    const currentSet = getVocabSet();
-    if (!currentSet.has(checkEng)) {
+    
+    // Buscamos si el índice ya existe
+    const existingIndex = items.findIndex(i => !i.isFolder && i.eng.toLowerCase() === checkEng);
+
+    if (existingIndex === -1) {
+        // --- AGREGAR (Si no existe) ---
         items.unshift({ id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false });
-        localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
-        element.classList.add('saved');
-        loadVocabFolders(); 
+        element.classList.add('saved'); // Pintar Rosa
     } else {
-        element.style.color = 'orange';
-        setTimeout(() => { 
-            if(element.classList.contains('saved')) element.style.color = ''; 
-            else element.style.color = ''; 
-        }, 500);
+        // --- QUITAR (Si ya existe logicamente) ---
+        // 1. La borramos del array
+        items.splice(existingIndex, 1);
+        // 2. Quitamos la clase visualmente
+        element.classList.remove('saved'); 
+        element.style.color = ''; // Reseteamos color por si acaso
     }
+
+    // Guardamos el nuevo estado en la base de datos
+    localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+    
+    // Actualizamos la lista de carpetas/conteo en la UI
+    loadVocabFolders(); 
 }
 
 async function translateWord(text) {
