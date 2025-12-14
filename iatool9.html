@@ -1,3 +1,289 @@
+<!DOCTYPE html>
+<html lang="en"> 
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Generator & Manager (Nexus + MDC)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --primary: #bb86fc;
+            --text: #e0e0e0;
+            --border: #333;
+            --accent-active: #2196F3;
+            --danger: #cf6679;
+            --saved-word: #ff69b4;
+            --daw-bg: #222;
+            --daw-screen-bg: #050505;
+            --daw-text: #00ffcc;
+        }
+
+        body {
+            font-family: 'Segoe UI', monospace, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0; padding: 0;
+            display: flex; flex-direction: column; align-items: center;
+            overflow-x: hidden; width: 100%; padding-bottom: 60px;
+        }
+
+        /* === LAYOUT & CONTAINERS === */
+        #generator-container {
+            width: 100%; max-width: none; background: var(--surface);
+            padding: 20px; margin: 0; border-bottom: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+        .hidden { display: none !important; }
+        h2 { margin-top: 0; color: var(--primary); text-align: center; }
+
+        .switch-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; gap: 15px; font-weight: bold; font-size: 0.9em; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-active); }
+        input:checked + .slider:before { transform: translateX(26px); }
+        .mode-label { opacity: 0.5; transition: 0.3s; color: #aaa; }
+        .mode-label.active { opacity: 1; color: white; font-weight: bold; }
+
+        /* === ESTILOS MEJORADOS: PANEL DE VOCABULARIO === */
+        #vocab-controls {
+            background: #181818;
+            border: 1px solid #333;
+            border-left: 4px solid #444; 
+            border-radius: 6px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        #vocab-controls.active-panel {
+            border-left-color: var(--saved-word);
+            background: #1f1a1d; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .vocab-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 15px; cursor: pointer; user-select: none;
+        }
+
+        .vocab-toggle-wrapper {
+            display: flex; align-items: center; gap: 12px;
+            font-weight: 600; color: #ccc; font-size: 1rem; transition: color 0.3s;
+        }
+
+        #vocab-controls.active-panel .vocab-toggle-wrapper {
+            color: white; text-shadow: 0 0 8px rgba(255, 105, 180, 0.4);
+        }
+
+        /* Checkbox personalizado estilo "Switch" */
+        .custom-checkbox {
+            appearance: none; -webkit-appearance: none;
+            width: 40px; height: 22px; background: #333; border-radius: 20px;
+            position: relative; cursor: pointer; transition: background 0.3s; flex-shrink: 0;
+        }
+        .custom-checkbox::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+            background: #888; border-radius: 50%; transition: transform 0.3s, background 0.3s;
+        }
+        .custom-checkbox:checked { background: rgba(255, 105, 180, 0.2); border: 1px solid var(--saved-word); }
+        .custom-checkbox:checked::after {
+            transform: translateX(18px); background: var(--saved-word); box-shadow: 0 0 8px var(--saved-word);
+        }
+
+        .vocab-badge {
+            background: #252525; color: #777; padding: 4px 8px; border-radius: 4px;
+            font-size: 0.75rem; font-family: 'Roboto Mono', monospace; letter-spacing: 0.5px;
+            border: 1px solid #333; white-space: nowrap; transition: all 0.3s;
+        }
+        #vocab-controls.active-panel .vocab-badge {
+            border-color: var(--saved-word); color: var(--saved-word); background: rgba(255, 105, 180, 0.05);
+        }
+
+        .vocab-settings {
+            padding: 15px; background: #141414; border-top: 1px solid #333;
+            display: none; animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === GENERAL INPUTS === */
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        @media (max-width: 600px) { .grid-container { grid-template-columns: 1fr; } } 
+        
+        label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #aaa; }
+        input, select, textarea { width: 100%; background: #2d2d2d; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; outline: none; }
+        input:disabled { opacity: 0.5; cursor: not-allowed; background: #222; border-color: #333; color: #777; }
+        
+        #modeSelect { transition: border-color 0.3s ease; border: 1px solid var(--border); }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 12px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; transition: background 0.2s; }
+        #btn-generate { background-color: var(--primary); color: #000; }
+        #btn-paste { background-color: #03dac6; color: #000; }
+        #btn-show-gen { background-color: #333; color: #fff; margin: 0; padding: 15px; display: none; width: 100%; border-radius: 0; }
+        #prompt-output { margin-top: 20px; background: #000; padding: 15px; border: 1px solid var(--primary); font-family: monospace; white-space: pre-wrap; display: none; }
+
+        /* === SEARCH & RESULTS === */
+        #search-container { width: 100%; background: var(--surface); padding: 10px 20px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+        #searchBar { width: 100%; background: #121212; border: 1px solid #333; color: white; padding: 12px; border-radius: 4px; font-size: 16px; }
+        #results-container { width: 100%; padding: 0 20px 20px 20px; }
+        .accordion-item { background: var(--surface); border: 1px solid var(--border); margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
+        .accordion-header { padding: 15px; background: #252525; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .header-content { display: flex; flex-direction: column; gap: 4px; }
+        .meta-tag { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; display: inline-block; width: fit-content; }
+        .btn-delete { background: transparent; color: #666; border: 1px solid #444; padding: 5px 12px; border-radius: 4px; font-size: 1.2em; }
+        .accordion-content { padding: 15px; display: none; border-top: 1px solid var(--border); font-size: 0.95em; line-height: 1.6; }
+        .accordion-content.active { display: block; }
+        .copy-prompt-btn { background: var(--primary); color: black; border: none; padding: 8px 12px; font-size: 0.85em; border-radius: 4px; cursor: pointer; margin-bottom: 15px; width: 100%; }
+        .interactive-word { cursor: pointer; border-bottom: 1px solid transparent; padding: 0 2px; }
+        .interactive-word:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .interactive-word.saved { color: var(--saved-word); font-weight: bold; text-shadow: 0 0 5px rgba(255, 105, 180, 0.3); }
+
+        /* === DAW AUDIO PLAYER === */
+        .daw-panel {
+            background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+            border: 1px solid #444; border-radius: 6px; padding: 12px; margin: 10px 0 20px 0;
+            display: flex; flex-direction: column; gap: 12px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 10px rgba(0,0,0,0.5);
+            font-family: 'Roboto Mono', monospace;
+        }
+        .daw-top-deck { display: flex; gap: 10px; width: 100%; height: 44px; }
+        .daw-btn-play {
+            width: 44px; height: 44px; background: #111; border: 2px solid #555; border-radius: 4px; color: #888;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .daw-btn-play:active { transform: translateY(2px); box-shadow: inset 0 4px 8px rgba(0,0,0,0.8); }
+        .daw-btn-play.playing { color: #0f0; border-color: #0f0; text-shadow: 0 0 8px #0f0; box-shadow: inset 0 0 15px rgba(0,255,0,0.2); background: #001100; }
+        .daw-screen {
+            flex: 1; background: var(--daw-screen-bg); border: 1px solid #333; border-radius: 2px;
+            display: flex; align-items: center; padding: 0 12px; color: #06b6d4; font-size: 0.85em;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8); position: relative; overflow: hidden; white-space: nowrap;
+        }
+        .daw-screen.active { color: #0f0; }
+        .daw-control-deck { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+        .daw-knob-group { display: flex; flex-direction: column; gap: 4px; }
+        .daw-label { font-size: 0.65em; color: #777; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .daw-slider { -webkit-appearance: none; width: 100%; height: 24px; background: transparent; margin: 0; }
+        .daw-slider::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #000; border: 1px solid #333; border-radius: 3px; }
+        .daw-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 10px; background: #888; border: 1px solid #000; border-radius: 2px; margin-top: -7px; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .daw-select { background: #111; color: #ccc; border: 1px solid #444; font-family: 'Roboto Mono', monospace; font-size: 0.8em; padding: 8px; width: 100%; border-radius: 2px; height: 32px; }
+        @media (min-width: 768px) {
+            .daw-panel { flex-direction: row; height: 60px; }
+            .daw-top-deck { width: auto; flex: 1; }
+            .daw-control-deck { display: flex; gap: 20px; width: auto; }
+            .daw-slider { width: 100px; }
+            .daw-select { width: 140px; }
+        }
+
+        /* === TRANSLATE PILL === */
+        #translation-pill {
+            position: fixed; bottom: 20px; right: 20px; background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
+            border: 1px solid var(--primary); border-radius: 50px; padding: 12px 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+            display: flex; align-items: center; gap: 10px; transform: translateY(120px); opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2000; max-width: 90%;
+        }
+        #translation-pill.visible { transform: translateY(0); opacity: 1; }
+        .trans-origin { color: #aaa; font-style: italic; font-size: 0.9em; margin-right: 5px; border-right: 1px solid #444; padding-right: 8px; }
+        .trans-result { color: white; font-weight: bold; font-size: 1em; }
+        .trans-icon { font-size: 1.2em; }
+    </style>
+</head>
+<body>
+
+    <div id="translation-pill">
+        <span class="trans-icon">🌐</span>
+        <div>
+            <span id="trans-origin" class="trans-origin">...</span>
+            <span id="trans-result" class="trans-result">Waiting...</span>
+        </div>
+    </div>
+
+    <button id="btn-show-gen" onclick="toggleGenerator(true)">➕ New Generation</button>
+
+    <div id="generator-container">
+        <h2>Nexus Prompt Engineer</h2>
+        
+        <div class="switch-wrapper">
+            <span id="labelSimple" class="mode-label active">SIMPLE</span>
+            <label class="switch">
+                <input type="checkbox" id="modeSwitch" onchange="toggleAlgorithmMode()">
+                <span class="slider"></span>
+            </label>
+            <span id="labelComplex" class="mode-label">COMPLEX</span>
+        </div>
+
+        <div id="vocab-controls">
+            <div class="vocab-header" onclick="document.getElementById('useVocabCheckbox').click()">
+                <div class="vocab-toggle-wrapper">
+                    <input type="checkbox" id="useVocabCheckbox" class="custom-checkbox" onclick="event.stopPropagation()" onchange="toggleVocabMode()">
+                    <span>Inject MDC Vocab</span>
+                </div>
+                <span id="vocab-count-badge" class="vocab-badge">Checking DB...</span>
+            </div>
+
+            <div id="vocab-settings" class="vocab-settings">
+                <div class="grid-container" style="margin-bottom:0;">
+                    <div>
+                        <label>Source</label>
+                        <select id="vocabSource">
+                            <option value="all">🌐 All Words</option>
+                            <option value="highlighted">⭐ Highlighted</option>
+                            <option value="recent">Hz Recent (10)</option>
+                            <optgroup id="folder-group" label="📂 Folders"></optgroup>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Amount (Words)</label>
+                        <input type="number" id="vocabAmount" value="5" min="1" max="50">
+                    </div>
+                </div>
+                <div style="font-size: 0.8em; color: #666; margin-top:10px; font-style:italic; border-top: 1px solid #222; padding-top: 5px;">
+                    ℹ️ "Learning Mode" active: Topic is locked. Task dictates the Persona.
+                </div>
+            </div>
+        </div>
+        <div class="grid-container">
+            <div>
+                <label>Context</label>
+                <input type="text" id="contextInput" list="context-history" placeholder="Ex: React, Finance...">
+                <datalist id="context-history"></datalist>
+            </div>
+            <div>
+                <label>Specific Topic</label>
+                <input type="text" id="topicInput" list="topic-history" placeholder="Ex: Hooks, ROI...">
+                <datalist id="topic-history"></datalist>
+            </div>
+
+            <div><label>Mode (Persona)</label><select id="modeSelect"></select></div>
+            <div><label>Format</label><select id="formatSelect"></select></div>
+            
+            <div><label id="taskLabel">Task Type</label><select id="taskSelect" onchange="syncModeWithTask()"></select></div>
+            
+            <div><label>Voice/Tone</label><select id="voiceSelect"></select></div>
+            <div><label>Length</label><select id="lengthSelect"></select></div>
+            <div><label>Depth Level</label><select id="levelSelect"></select></div>
+        </div>
+
+        <div class="btn-group">
+            <button id="btn-generate" onclick="generatePrompt()">⚡ Generate Prompt</button>
+            <button id="btn-paste" onclick="handlePasteResponse()">📋 Paste Response & Hide</button>
+        </div>
+
+        <div id="prompt-output"></div>
+    </div>
+
+    <div id="search-container">
+        <input type="text" id="searchBar" placeholder="🔍 Search saved prompts..." onkeyup="filterResults()">
+    </div>
+
+    <div id="results-container"></div>
+
 <script>
 /* 1. CONFIG DATA */
 const COMMON_DATA = {
@@ -22,12 +308,38 @@ const COMMON_DATA = {
     ]
 };
 
+// --- TASKS WITH LINKED MODES ---
 const VOCAB_TASKS = [
-    { id: 'v_story', label: '📖 VOCAB: Creative Story', instruction: 'Write a short, engaging story incorporating the target vocabulary naturally.', linkedMode: 'story' },
-    { id: 'v_quiz', label: '❓ VOCAB: Quiz Generator', instruction: 'Create a multiple-choice quiz (with answer key) testing the definition and usage of these words.', linkedMode: 'school' },
-    { id: 'v_dialogue', label: '💬 VOCAB: Roleplay Dialogue', instruction: 'Write a script for a realistic conversation between two people using these words.', linkedMode: 'casual' },
-    { id: 'v_sentences', label: '✍️ VOCAB: Sentence Drill', instruction: 'Generate 3 distinct sentences (Context A, B, and C) for each target word.', linkedMode: 'school' },
-    { id: 'v_explain', label: '🧠 VOCAB: Deep Explanation', instruction: 'Explain the etymology, nuance, and common collocations for each word.', linkedMode: 'research' }
+    { 
+        id: 'v_story', 
+        label: '📖 VOCAB: Creative Story', 
+        instruction: 'Write a short, engaging story incorporating the target vocabulary naturally.',
+        linkedMode: 'story' 
+    },
+    { 
+        id: 'v_quiz', 
+        label: '❓ VOCAB: Quiz Generator', 
+        instruction: 'Create a multiple-choice quiz (with answer key) testing the definition and usage of these words.',
+        linkedMode: 'school' 
+    },
+    { 
+        id: 'v_dialogue', 
+        label: '💬 VOCAB: Roleplay Dialogue', 
+        instruction: 'Write a script for a realistic conversation between two people using these words.',
+        linkedMode: 'casual' 
+    },
+    { 
+        id: 'v_sentences', 
+        label: '✍️ VOCAB: Sentence Drill', 
+        instruction: 'Generate 3 distinct sentences (Context A, B, and C) for each target word.',
+        linkedMode: 'school' 
+    },
+    { 
+        id: 'v_explain', 
+        label: '🧠 VOCAB: Deep Explanation', 
+        instruction: 'Explain the etymology, nuance, and common collocations for each word.',
+        linkedMode: 'research' 
+    }
 ];
 
 const ALGORITHMS = {
@@ -109,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/* VOCAB FUNCTIONS */
+/* === VOCAB INTEGRATION LOGIC === */
 function loadVocabFolders() {
     const raw = localStorage.getItem(MDC_VOCAB_KEY);
     const group = document.getElementById('folder-group');
@@ -150,10 +462,11 @@ function toggleVocabMode() {
 
     if (isActive) {
         controlsPanel.classList.add('active-panel');
-        loadVocabFolders();
+        loadVocabFolders(); // Refresh
         topicInput.value = "Target Vocabulary List"; 
         topicInput.disabled = true;
         
+        // Inject specialized drills
         taskSelect.innerHTML = '';
         VOCAB_TASKS.forEach(t => {
             let opt = document.createElement('option');
@@ -161,24 +474,35 @@ function toggleVocabMode() {
             opt.textContent = t.label;
             taskSelect.appendChild(opt);
         });
-        syncModeWithTask(); 
+
+        syncModeWithTask(); // Force Sync
+
     } else {
         controlsPanel.classList.remove('active-panel');
         topicInput.value = "";
         topicInput.disabled = false;
-        updateDynamicDropdowns(); 
+        updateDynamicDropdowns(); // Restore normal tasks
     }
 }
 
 function syncModeWithTask() {
     if (!document.getElementById('useVocabCheckbox').checked) return;
+
     const taskId = document.getElementById('taskSelect').value;
     const task = VOCAB_TASKS.find(t => t.id === taskId);
-    if (task && task.linkedMode) document.getElementById('modeSelect').value = task.linkedMode;
+    
+    if (task && task.linkedMode) {
+        const modeSelect = document.getElementById('modeSelect');
+        modeSelect.value = task.linkedMode;
+        
+        modeSelect.style.borderColor = 'var(--primary)';
+        setTimeout(() => modeSelect.style.borderColor = '#333', 500);
+    }
 }
 
 function getSelectedVocab() {
     if (!document.getElementById('useVocabCheckbox').checked) return null;
+
     const source = document.getElementById('vocabSource').value;
     const amount = parseInt(document.getElementById('vocabAmount').value);
     const raw = localStorage.getItem(MDC_VOCAB_KEY);
@@ -205,11 +529,12 @@ function getSelectedVocab() {
         all.sort((a,b) => b.id - a.id);
         pool = all.slice(0, 10);
     }
+
     if(pool.length === 0) return [];
     return pool.sort(() => 0.5 - Math.random()).slice(0, amount).map(i => i.eng);
 }
 
-/* AUDIO ENGINE */
+/* 4. AUDIO ENGINE */
 function loadVoices() {
     availableVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')); 
     availableVoices.sort((a, b) => {
@@ -295,7 +620,7 @@ function toggleAudio(id) {
     else window.speechSynthesis.cancel();
 }
 
-/* HELPER FUNCTIONS */
+/* 5. HELPER FUNCTIONS */
 function sanitizeText(text) {
     if (!text) return "";
     text = text.replace(/['`‘´]/g, "’");
@@ -363,7 +688,6 @@ async function translateWord(text) {
     window.transTimer = setTimeout(() => { pill.classList.remove('visible'); }, 4000);
 }
 
-/* HISTORY MANAGEMENT */
 function loadNexusHistory() {
     const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
     if (stored) {
@@ -479,7 +803,6 @@ function renderAccordionDOM(data) {
     setTimeout(() => { updateVoiceSelect(document.getElementById(`voice-${data.id}`)); }, 100);
 }
 
-// Función para cambiar vistas
 function toggleView(id) {
     const app = document.getElementById(`view-app-${id}`);
     const text = document.getElementById(`view-text-${id}`);
@@ -698,3 +1021,5 @@ function filterResults() {
     });
 }
 </script>
+</body>
+</html>
