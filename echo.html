@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LINGUA NEXUS | ECHO STREAM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
+        :root {
+            --bg-deep: #000000;
+            --glass: rgba(20, 20, 20, 0.6);
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --text-main: #ffffff;
+            --text-dim: #888888;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh; /* Viewport exacto */
+            overflow: hidden; /* Evita scroll del body, lo manejamos en el contenedor */
+        }
+
+        /* === SCANLINE EFFECT (CRT VIBE) === */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+            background-size: 100% 4px;
+            opacity: 0.6;
+        }
+
+        /* === MAIN STREAM CONTAINER (SNAP SCROLL) === */
+        #stream-container {
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* === CARD DESIGN === */
+        .echo-card {
+            width: 100%;
+            height: 100%; /* Ocupa toda la pantalla */
+            scroll-snap-align: start;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: #000;
+            overflow: hidden;
+        }
+
+        /* VIDEO LAYER */
+        .video-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1;
+            opacity: 0.6; /* Oscurecido para resaltar UI */
+            pointer-events: none; /* Dejar pasar clicks para pausar */
+            transition: opacity 0.5s;
+        }
+        .echo-card.playing .video-layer { opacity: 1; }
+
+        /* DATA OVERLAY (HUD) */
+        .hud-layer {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            padding: 30px 20px 80px 20px; /* Padding bottom extra para navbar de móvil */
+            z-index: 10;
+            background: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.8) 40%, rgba(0,0,0,0) 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .meta-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px; color: var(--neon-blue);
+            text-transform: uppercase; letter-spacing: 1px;
+            margin-bottom: 5px; display: flex; align-items: center; gap: 6px;
+        }
+        
+        .main-word {
+            font-family: 'Syncopate', sans-serif;
+            font-size: 32px; line-height: 1;
+            background: linear-gradient(90deg, #fff, #aaa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.3));
+        }
+
+        .context-sentence {
+            font-size: 16px; color: #ddd; line-height: 1.4;
+            font-weight: 500; margin-top: 5px;
+            text-shadow: 0 1px 2px black;
+        }
+        
+        .translation {
+            font-size: 14px; color: var(--neon-pink);
+            font-weight: 600; margin-top: 2px;
+            opacity: 0.9;
+        }
+
+        /* BLIND MODE MASK */
+        .blind-active .main-word, 
+        .blind-active .context-sentence, 
+        .blind-active .translation {
+            filter: blur(8px);
+            opacity: 0.5;
+            user-select: none;
+        }
+
+        /* CONTROLS (Floating Right) */
+        .controls-rail {
+            position: absolute; right: 15px; bottom: 100px;
+            z-index: 20;
+            display: flex; flex-direction: column; gap: 15px;
+            align-items: center;
+        }
+
+        .rail-btn {
+            width: 45px; height: 45px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; font-size: 20px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .rail-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+        .rail-btn.active { color: var(--neon-blue); border-color: var(--neon-blue); background: rgba(0, 243, 255, 0.1); }
+
+        /* LOADING STATE */
+        .loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--neon-blue); border-radius: 50%;
+            animation: spin 1s linear infinite; z-index: 5;
+        }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* EMPTY STATE */
+        .empty-state {
+            height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 40px; color: var(--text-dim);
+        }
+        .empty-icon { font-size: 60px; margin-bottom: 20px; opacity: 0.5; }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+
+    <div id="stream-container">
+        </div>
+
+    <script>
+        const STORAGE_KEY = 'mdc_vocab_list';
+        let items = [];
+        let players = {}; // Almacena instancias de YT Players
+        let observer;
+        let blindMode = false;
+
+        // --- 1. INITIALIZATION ---
+        function init() {
+            loadData();
+            renderStream();
+            setupObserver();
+        }
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                const all = JSON.parse(raw || '[]');
+                
+                // FILTRO MÁGICO: Solo items que tengan datos de video (Source Youtube)
+                // y que no sean carpetas.
+                items = all.filter(i => 
+                    !i.isFolder && 
+                    i.source && 
+                    i.source.type === 'youtube' && 
+                    i.source.videoId
+                );
+
+                // Barajar para que sea divertido (Shuffle)
+                items.sort(() => Math.random() - 0.5);
+
+            } catch (e) { items = []; }
+        }
+
+        // --- 2. RENDER LOGIC ---
+        function renderStream() {
+            const container = document.getElementById('stream-container');
+            container.innerHTML = '';
+
+            if (items.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <h2>NO SIGNAL DETECTED</h2>
+                        <p>Use the <b>PLAYER</b> module to save words from videos.</p>
+                        <p style="font-size:12px; margin-top:10px; color:#555;">(Only new words saved with the update will appear here)</p>
+                    </div>
+                `;
+                return;
+            }
+
+            items.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'echo-card';
+                card.id = `card-${index}`;
+                card.dataset.index = index;
+                card.dataset.videoId = item.source.videoId;
+                // Calculamos tiempos: Start = timestamp - 1.5s, End = timestamp + 3s
+                const startT = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
+                const endT = parseFloat(item.source.timestamp) + 3.0;
+                
+                card.dataset.start = startT;
+                card.dataset.end = endT;
+
+                // Template HTML
+                card.innerHTML = `
+                    <div class="loader"></div>
+                    <div class="video-layer" id="video-wrapper-${index}">
+                        </div>
+                    
+                    <div class="hud-layer" id="hud-${index}">
+                        <div class="meta-tag">
+                            <span>● REC</span>
+                            <span>${new Date(item.id).toLocaleDateString()}</span>
+                        </div>
+                        <div class="main-word">${item.eng}</div>
+                        <div class="translation">${item.esp || '...'}</div>
+                        <div class="context-sentence">"${item.source.context || '...'}"</div>
+                    </div>
+
+                    <div class="controls-rail">
+                        <button class="rail-btn" onclick="toggleBlindMode(this)" title="Blind Listening">👁️</button>
+                        <button class="rail-btn" onclick="replayCard(${index})" title="Replay">↺</button>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        // --- 3. INTERSECTION OBSERVER (THE ENGINE) ---
+        function setupObserver() {
+            // Este observador detecta qué tarjeta está en pantalla
+            const options = {
+                root: document.getElementById('stream-container'),
+                threshold: 0.6 // Cuando el 60% de la tarjeta es visible
+            };
+
+            observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const idx = entry.target.dataset.index;
+                    if (entry.isIntersecting) {
+                        loadAndPlayVideo(idx);
+                    } else {
+                        destroyVideo(idx);
+                    }
+                });
+            }, options);
+
+            document.querySelectorAll('.echo-card').forEach(card => {
+                observer.observe(card);
+            });
+        }
+
+        // --- 4. YOUTUBE PLAYER MANAGEMENT (LAZY LOADING) ---
+        function loadAndPlayVideo(index) {
+            const card = document.getElementById(`card-${index}`);
+            const wrapperId = `video-wrapper-${index}`;
+            const videoId = card.dataset.videoId;
+            const start = Math.floor(parseFloat(card.dataset.start));
+            const end = Math.ceil(parseFloat(card.dataset.end));
+
+            // Si ya existe, solo asegurarnos de que corra
+            if (players[index]) {
+                // players[index].seekTo(start);
+                // players[index].playVideo();
+                return; 
+            }
+
+            // Crear div temporal para la API
+            const tempDiv = document.createElement('div');
+            tempDiv.id = `yt-player-${index}`;
+            document.getElementById(wrapperId).innerHTML = ''; // Limpiar
+            document.getElementById(wrapperId).appendChild(tempDiv);
+
+            players[index] = new YT.Player(`yt-player-${index}`, {
+                height: '100%',
+                width: '100%',
+                videoId: videoId,
+                playerVars: {
+                    'autoplay': 1,
+                    'controls': 0,
+                    'rel': 0,
+                    'showinfo': 0,
+                    'modestbranding': 1,
+                    'playsinline': 1,
+                    'start': start,
+                    'end': end,
+                    'iv_load_policy': 3,
+                    'fs': 0,
+                    'disablekb': 1
+                },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute(); // Mute inicial forzoso por políticas de autoplay móvil
+                        event.target.playVideo();
+                        
+                        // Unmute hack: intentamos desmutear tras 1s (si el usuario interactuó con la página antes, funcionará)
+                        setTimeout(() => {
+                            event.target.unMute();
+                            event.target.setVolume(100);
+                        }, 500);
+
+                        card.querySelector('.loader').style.display = 'none';
+                        card.classList.add('playing');
+                    },
+                    'onStateChange': (event) => {
+                        // LOOP LOGIC MANUAL
+                        if (event.data === YT.PlayerState.ENDED) {
+                            event.target.seekTo(start);
+                            event.target.playVideo();
+                        }
+                    }
+                }
+            });
+        }
+
+        function destroyVideo(index) {
+            if (players[index]) {
+                try {
+                    players[index].destroy();
+                } catch(e){}
+                delete players[index];
+                const card = document.getElementById(`card-${index}`);
+                if(card) {
+                    card.classList.remove('playing');
+                    card.querySelector('.loader').style.display = 'block';
+                }
+            }
+        }
+
+        // --- 5. CONTROLS ---
+        window.toggleBlindMode = function(btn) {
+            blindMode = !blindMode;
+            btn.classList.toggle('active', blindMode);
+            
+            // Aplicar clase a todas las cards actuales y futuras
+            document.querySelectorAll('.echo-card').forEach(card => {
+                if(blindMode) card.querySelector('.hud-layer').classList.add('blind-active');
+                else card.querySelector('.hud-layer').classList.remove('blind-active');
+            });
+        };
+
+        window.replayCard = function(index) {
+            if(players[index]) {
+                const card = document.getElementById(`card-${index}`);
+                const start = parseFloat(card.dataset.start);
+                players[index].seekTo(start);
+                players[index].playVideo();
+            }
+        };
+
+        // --- 6. GLOBAL API READY ---
+        // La API de YouTube requiere esta función global
+        window.onYouTubeIframeAPIReady = function() {
+            // No hacemos nada aquí, el observer inicia los players bajo demanda
+            console.log("Echo Stream: Audio Engine Ready");
+        };
+
+        // --- 7. NEXUS COMMUNICATION ---
+        window.addEventListener('message', function(event) {
+            if (event.data === 'FORCE_PAUSE') {
+                // Destruir todos los players para ahorrar memoria si cierran la tarjeta
+                Object.keys(players).forEach(idx => destroyVideo(idx));
+            }
+        });
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
