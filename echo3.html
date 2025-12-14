@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LINGUA NEXUS | HUB</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <style>
+        :root {
+            --bg-deep: #050505;
+            --neon-blue: #00f3ff;
+            --neon-purple: #bd00ff;
+            --card-bg: #111;
+            --text-main: #ffffff;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* === 1. LIBRARY VIEW (DASHBOARD) === */
+        #library-view {
+            width: 100%; height: 100%;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex; flex-direction: column;
+            background: radial-gradient(circle at top, #1a1a1a, #000);
+            position: relative;
+        }
+
+        .hub-close-btn {
+            position: absolute; top: 15px; right: 15px;
+            width: 35px; height: 35px;
+            background: #333; border: 1px solid #444; color: #ccc;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold; cursor: pointer; z-index: 50;
+            transition: all 0.2s;
+        }
+        .hub-close-btn:hover { background: #444; color: white; border-color: #666; }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 20px;
+            padding-bottom: 50px;
+            padding-top: 40px;
+        }
+
+        .video-card {
+            background: var(--card-bg); border-radius: 12px; overflow: hidden;
+            cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid rgba(255,255,255,0.05); position: relative;
+        }
+        .video-card:active { transform: scale(0.98); }
+        
+        .thumb-wrapper {
+            position: relative; padding-bottom: 56.25%; background: #000;
+        }
+        .thumb-img {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.8;
+        }
+        .card-badge {
+            position: absolute; bottom: 5px; right: 5px;
+            background: rgba(0,0,0,0.8); color: var(--neon-blue);
+            font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+        }
+
+        .card-info { padding: 12px; }
+        .card-title {
+            font-size: 13px; font-weight: 600; line-height: 1.4; color: #eee;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .card-meta { font-size: 11px; color: #888; margin-top: 6px; }
+
+        /* === 2. STREAM VIEW (PLAYER) === */
+        #stream-view {
+            display: none; width: 100%; height: 100%;
+            position: fixed; top: 0; left: 0;
+            background: #000; z-index: 100;
+        }
+
+        #stream-container {
+            height: 100%; overflow-y: scroll;
+            scroll-snap-type: y mandatory; scroll-behavior: smooth;
+        }
+
+        .exit-btn {
+            position: fixed; top: 20px; left: 20px; z-index: 200;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; width: 40px; height: 40px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; cursor: pointer;
+        }
+
+        /* === PLAYER STYLES === */
+        .echo-card { width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; position: relative; overflow: hidden; }
+        .video-layer { position: absolute; top: -15%; left: -15%; width: 130%; height: 130%; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+        .echo-card.playing .video-layer { opacity: 1; }
+        .video-layer iframe { width: 100%; height: 100%; }
+        .click-zone { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; cursor: pointer; }
+        .center-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.5); font-size: 80px; color: rgba(255,255,255,0.8); opacity: 0; pointer-events: none; transition: 0.2s; z-index: 60; }
+        .paused-state .center-icon { opacity: 1; transform: scale(1); }
+        
+        .hud-layer { 
+            position: absolute; bottom: 0; left: 0; width: 100%; 
+            padding: 20px 20px 140px 20px; /* Más padding bottom para dejar espacio al timeline */
+            z-index: 10; 
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%); 
+            pointer-events: none; 
+        }
+        
+        .main-word { font-family: 'Syncopate', sans-serif; font-size: 32px; color: #fff; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 243, 255, 0.4); margin-bottom: 5px; }
+        .translation { font-size: 16px; color: var(--neon-purple); font-weight: 600; margin-bottom: 10px; }
+        .context-sentence { font-size: 14px; color: #ccc; font-style: italic; border-left: 3px solid var(--neon-blue); padding-left: 10px; }
+        .blind-active .main-word, .blind-active .translation, .blind-active .context-sentence { filter: blur(12px); opacity: 0; }
+        
+        .progress-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.1); z-index: 20; }
+        .progress-bar { height: 100%; width: 0%; background: var(--neon-blue); transition: width 0.1s linear; }
+        
+        .controls-rail { position: absolute; right: 15px; bottom: 120px; z-index: 30; display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
+        .rail-btn { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+        
+        .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--neon-blue); border-radius: 50%; animation: spin 1s linear infinite; z-index: 5; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        .scanlines { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%); background-size: 100% 4px; box-shadow: inset 0 0 100px rgba(0,0,0,0.7); }
+
+        /* === NUEVA LINEA DE TIEMPO (TRIMMER) === */
+        .trim-wrapper {
+            position: absolute;
+            bottom: 30px; /* Encima de la barra de progreso inferior */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 85%;
+            height: 40px;
+            z-index: 40;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .trim-info {
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            color: var(--neon-blue);
+            margin-bottom: 8px;
+            text-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .trim-wrapper.interacting .trim-info { opacity: 1; }
+
+        .trim-track {
+            position: relative;
+            width: 100%;
+            height: 4px;
+            background: #444; /* Gris */
+            border-radius: 2px;
+        }
+
+        .trim-fill {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            background: var(--neon-blue); /* Azul entre puntos */
+            opacity: 0.7;
+        }
+
+        .trim-handle {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+            touch-action: none; /* Crucial para móviles */
+        }
+        .trim-handle::after {
+            content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px; /* Área de toque más grande */
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="library-view">
+        <button class="hub-close-btn" onclick="notifyParentClose()">✕</button>
+        <div id="library-grid" class="grid-container"></div>
+    </div>
+
+    <div id="stream-view">
+        <div class="scanlines"></div>
+        <button class="exit-btn" onclick="exitStream()">✕</button>
+        <div id="stream-container"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'mdc_vocab_list';
+        let allItems = [];
+        let groupedByVideo = {};
+        
+        let activeItems = [];
+        let players = {}; 
+        let progressIntervals = {};
+        let observer;
+        let blindMode = false;
+
+        // --- 0. COMUNICACIÓN PADRE ---
+        function notifyParentClose() {
+            try {
+                if(window.parent && window.parent.closeNexus) {
+                    window.parent.closeNexus();
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // --- 1. DATA ---
+        function init() { loadAndOrganizeData(); renderLibrary(); }
+
+        function loadAndOrganizeData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                const data = JSON.parse(raw || '[]');
+                allItems = []; groupedByVideo = {};
+                const flatten = (list) => {
+                    list.forEach(item => {
+                        if (item.isFolder && item.items) flatten(item.items);
+                        else if (item.source && item.source.type === 'youtube') {
+                            allItems.push(item);
+                            const vId = item.source.videoId;
+                            if (!groupedByVideo[vId]) {
+                                groupedByVideo[vId] = { id: vId, title: item.source.title || "Unknown", count: 0, items: [] };
+                            }
+                            groupedByVideo[vId].items.push(item);
+                            groupedByVideo[vId].count++;
+                        }
+                    });
+                };
+                flatten(data);
+            } catch (e) { allItems = []; }
+        }
+
+        function renderLibrary() {
+            const grid = document.getElementById('library-grid');
+            grid.innerHTML = '';
+            const videoIds = Object.keys(groupedByVideo);
+            if (videoIds.length === 0) { grid.innerHTML = `<div style="text-align:center; color:#666;">NO DATA FOUND</div>`; return; }
+            videoIds.forEach(vId => {
+                const group = groupedByVideo[vId];
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.onclick = () => startStream(vId);
+                const thumbUrl = `https://img.youtube.com/vi/${vId}/mqdefault.jpg`;
+                card.innerHTML = `
+                    <div class="thumb-wrapper"><img src="${thumbUrl}" class="thumb-img"><div class="card-badge">${group.count} words</div></div>
+                    <div class="card-info"><div class="card-title">${group.title}</div><div class="card-meta">TAP TO STUDY</div></div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // --- 3. STREAM & PLAYER ---
+        function startStream(filterVideoId) {
+            if (filterVideoId) {
+                activeItems = [...groupedByVideo[filterVideoId].items];
+                activeItems.sort((a, b) => parseFloat(a.source.timestamp) - parseFloat(b.source.timestamp));
+            } else {
+                activeItems = [...allItems];
+                activeItems.sort(() => Math.random() - 0.5);
+            }
+            if(activeItems.length === 0) return alert("No items.");
+            renderStreamCards();
+            setupObserver();
+            document.getElementById('library-view').style.display = 'none';
+            document.getElementById('stream-view').style.display = 'block';
+        }
+
+        function exitStream() {
+            Object.keys(players).forEach(idx => destroyVideo(idx));
+            if(observer) observer.disconnect();
+            document.getElementById('stream-view').style.display = 'none';
+            document.getElementById('library-view').style.display = 'flex';
+        }
+
+        function renderStreamCards() {
+            const container = document.getElementById('stream-container');
+            container.innerHTML = '';
+            activeItems.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'echo-card';
+                card.id = `card-${index}`;
+                card.dataset.index = index;
+                card.dataset.videoId = item.source.videoId;
+                
+                // Tiempos Base
+                const baseStart = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
+                const baseEnd = parseFloat(item.source.timestamp) + 3.0;
+                
+                card.dataset.baseStart = baseStart;
+                card.dataset.baseEnd = baseEnd;
+                card.dataset.currentStart = baseStart;
+                card.dataset.currentEnd = baseEnd;
+
+                card.innerHTML = `
+                    <div class="loader"></div>
+                    <div class="video-layer" id="video-wrapper-${index}"></div>
+                    <div class="click-zone" onclick="togglePlayPause(${index})"></div>
+                    <div class="center-icon">▶</div>
+                    <div class="hud-layer">
+                        <div class="main-word">${item.eng}</div>
+                        <div class="translation">${item.esp || '...'}</div>
+                        <div class="context-sentence">"${item.source.context || '...'}"</div>
+                    </div>
+                    
+                    <div class="trim-wrapper" id="trim-wrapper-${index}">
+                        <div class="trim-info" id="trim-info-${index}">Start: 0.0s | End: 0.0s</div>
+                        <div class="trim-track" id="trim-track-${index}">
+                            <div class="trim-fill" id="trim-fill-${index}" style="left: 33%; width: 33%;"></div>
+                            <div class="trim-handle" id="handle-start-${index}" style="left: 33%"></div>
+                            <div class="trim-handle" id="handle-end-${index}" style="left: 66%"></div>
+                        </div>
+                    </div>
+
+                    <div class="controls-rail">
+                        <button class="rail-btn" onclick="toggleBlindMode(this)">👁️</button>
+                        <button class="rail-btn" onclick="replayCard(${index})">↺</button>
+                    </div>
+                    <div class="progress-container"><div class="progress-bar" id="progress-${index}"></div></div>
+                `;
+                container.appendChild(card);
+                
+                // Inicializar el slider para esta tarjeta
+                requestAnimationFrame(() => initTrimControls(index));
+            });
+        }
+
+        // --- LÓGICA DEL TRIMMER ---
+        function initTrimControls(index) {
+            const wrapper = document.getElementById(`trim-wrapper-${index}`);
+            const track = document.getElementById(`trim-track-${index}`);
+            const fill = document.getElementById(`trim-fill-${index}`);
+            const handleStart = document.getElementById(`handle-start-${index}`);
+            const handleEnd = document.getElementById(`handle-end-${index}`);
+            const info = document.getElementById(`trim-info-${index}`);
+            const card = document.getElementById(`card-${index}`);
+
+            // Posiciones iniciales (33% y 66%)
+            let startPct = 33;
+            let endPct = 66;
+            
+            // Factor: 10% de movimiento = 0.2s * Multiplicador
+            // Rango total del slider: Digamos que el slider completo representa +/- 2 segundos por lado aprox.
+            const TIME_SENSITIVITY = 0.05; // Segundos por cada 1% de movimiento
+
+            const updateValues = () => {
+                const baseS = parseFloat(card.dataset.baseStart);
+                const baseE = parseFloat(card.dataset.baseEnd);
+
+                // Cálculo Start: 33% es 0. Menos es start earlier (-), más es start later (+)
+                const startOffset = (startPct - 33) * TIME_SENSITIVITY;
+                
+                // Cálculo End: 66% es 0. Menos es end earlier (-), más es end later (+)
+                const endOffset = (endPct - 66) * TIME_SENSITIVITY;
+
+                const newStart = Math.max(0, baseS + startOffset);
+                const newEnd = Math.max(newStart + 0.5, baseE + endOffset); // Minimo 0.5s duracion
+
+                card.dataset.currentStart = newStart.toFixed(2);
+                card.dataset.currentEnd = newEnd.toFixed(2);
+
+                info.innerText = `Start: ${startOffset > 0 ? '+' : ''}${startOffset.toFixed(1)}s | End: ${endOffset > 0 ? '+' : ''}${endOffset.toFixed(1)}s`;
+                
+                fill.style.left = startPct + '%';
+                fill.style.width = (endPct - startPct) + '%';
+            };
+
+            const onDrag = (e, isStart) => {
+                e.preventDefault();
+                wrapper.classList.add('interacting');
+                
+                const rect = track.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                let newPct = ((clientX - rect.left) / rect.width) * 100;
+                newPct = Math.max(0, Math.min(100, newPct));
+
+                if (isStart) {
+                    // Start Handle: 0 to 50% (approx) but limited by end handle
+                    if (newPct >= endPct - 5) newPct = endPct - 5; 
+                    startPct = newPct;
+                    handleStart.style.left = startPct + '%';
+                } else {
+                    // End Handle: Limited by start handle
+                    if (newPct <= startPct + 5) newPct = startPct + 5;
+                    endPct = newPct;
+                    handleEnd.style.left = endPct + '%';
+                }
+                updateValues();
+            };
+
+            const stopDrag = () => { wrapper.classList.remove('interacting'); };
+
+            // Event Listeners Start Handle
+            handleStart.addEventListener('mousedown', (e) => {
+                const move = (ev) => onDrag(ev, true);
+                const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
+                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+            });
+            handleStart.addEventListener('touchstart', (e) => {
+                const move = (ev) => onDrag(ev, true);
+                const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
+                document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
+            });
+
+            // Event Listeners End Handle
+            handleEnd.addEventListener('mousedown', (e) => {
+                const move = (ev) => onDrag(ev, false);
+                const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); stopDrag(); };
+                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+            });
+            handleEnd.addEventListener('touchstart', (e) => {
+                const move = (ev) => onDrag(ev, false);
+                const up = () => { document.removeEventListener('touchmove', move); document.removeEventListener('touchend', up); stopDrag(); };
+                document.addEventListener('touchmove', move); document.addEventListener('touchend', up);
+            });
+        }
+
+        // --- OBSERVER & PLAYBACK ---
+        function setupObserver() {
+            const options = { root: document.getElementById('stream-container'), threshold: 0.7 };
+            observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const idx = entry.target.dataset.index;
+                    if (entry.isIntersecting) loadAndPlayVideo(idx);
+                    else destroyVideo(idx);
+                });
+            }, options);
+            document.querySelectorAll('.echo-card').forEach(card => observer.observe(card));
+        }
+
+        function loadAndPlayVideo(index) {
+            const card = document.getElementById(`card-${index}`);
+            if(!card || players[index]) return;
+
+            const videoId = card.dataset.videoId;
+            // USAR dataset.currentStart en vez de dataset.start estático
+            const start = parseFloat(card.dataset.currentStart || card.dataset.baseStart);
+            
+            const tempDiv = document.createElement('div');
+            tempDiv.id = `yt-player-${index}`;
+            document.getElementById(`video-wrapper-${index}`).innerHTML = '';
+            document.getElementById(`video-wrapper-${index}`).appendChild(tempDiv);
+
+            players[index] = new YT.Player(`yt-player-${index}`, {
+                height: '100%', width: '100%', videoId: videoId,
+                playerVars: { 'autoplay': 1, 'controls': 0, 'rel': 0, 'showinfo': 0, 'modestbranding': 1, 'playsinline': 1, 'iv_load_policy': 3, 'start': Math.floor(start) },
+                events: {
+                    'onReady': (event) => {
+                        event.target.mute();
+                        event.target.seekTo(start, true);
+                        event.target.playVideo();
+                        setTimeout(() => { event.target.unMute(); event.target.setVolume(100); }, 400);
+                        card.querySelector('.loader').style.display = 'none';
+                        card.classList.add('playing');
+                        startProgressTracking(index);
+                    },
+                    'onStateChange': (event) => {
+                        if (event.data === YT.PlayerState.ENDED) {
+                            // Loop manual si YT termina solo
+                            const s = parseFloat(card.dataset.currentStart);
+                            event.target.seekTo(s, true);
+                            event.target.playVideo();
+                        }
+                    }
+                }
+            });
+        }
+
+        function startProgressTracking(index) {
+            if(progressIntervals[index]) clearInterval(progressIntervals[index]);
+            const progressBar = document.getElementById(`progress-${index}`);
+            const card = document.getElementById(`card-${index}`);
+            
+            progressIntervals[index] = setInterval(() => {
+                const player = players[index];
+                if(!player || !player.getCurrentTime) return;
+                
+                // LEER TIEMPOS DINÁMICOS (Por si se movió el slider mientras reproduce)
+                const currentStart = parseFloat(card.dataset.currentStart);
+                const currentEnd = parseFloat(card.dataset.currentEnd);
+                const duration = currentEnd - currentStart;
+                
+                const currentTime = player.getCurrentTime();
+                
+                // LÓGICA DE LOOP
+                if(currentTime >= currentEnd) {
+                    player.seekTo(currentStart, true);
+                } 
+                // Si el usuario movió el start más adelante que el tiempo actual
+                else if (currentTime < currentStart - 0.5) { 
+                    player.seekTo(currentStart, true);
+                }
+
+                const percent = ((currentTime - currentStart) / duration) * 100;
+                if(progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+            }, 100);
+        }
+
+        function togglePlayPause(index) {
+            const player = players[index];
+            const card = document.getElementById(`card-${index}`);
+            if (!player || typeof player.getPlayerState !== 'function') return;
+            const state = player.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) { player.pauseVideo(); card.classList.add('paused-state'); } 
+            else { player.playVideo(); card.classList.remove('paused-state'); }
+        }
+
+        function destroyVideo(index) {
+            if(progressIntervals[index]) clearInterval(progressIntervals[index]);
+            if (players[index]) {
+                try { players[index].destroy(); } catch(e){}
+                delete players[index];
+                const card = document.getElementById(`card-${index}`);
+                if(card) {
+                    card.classList.remove('playing', 'paused-state');
+                    card.querySelector('.loader').style.display = 'block';
+                    document.getElementById(`video-wrapper-${index}`).innerHTML = '';
+                    const bar = document.getElementById(`progress-${index}`);
+                    if(bar) bar.style.width = '0%';
+                }
+            }
+        }
+
+        // --- UTILS ---
+        window.toggleBlindMode = function(btn) {
+            blindMode = !blindMode;
+            btn.classList.toggle('active', blindMode);
+            document.querySelectorAll('.echo-card .hud-layer').forEach(hud => {
+                if(blindMode) hud.classList.add('blind-active'); else hud.classList.remove('blind-active');
+            });
+        };
+        window.replayCard = function(index) {
+            if(players[index]) {
+                const card = document.getElementById(`card-${index}`);
+                const s = parseFloat(card.dataset.currentStart);
+                players[index].seekTo(s, true);
+                players[index].playVideo();
+                card.classList.remove('paused-state');
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>
