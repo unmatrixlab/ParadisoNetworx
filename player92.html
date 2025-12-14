@@ -999,7 +999,7 @@ function initInteractiveWords() {
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    function saveLineToVocab(btn) {
+function saveLineToVocab(btn) {
         const line = btn.closest('.line'); 
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
@@ -1008,6 +1008,15 @@ function initInteractiveWords() {
         const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
         
+        // Datos del contexto (Video y Tiempo) para TODOS los casos
+        const contextSource = {
+            type: 'youtube',
+            videoId: YOUTUBE_ID, // ID Global
+            title: VIDEO_TITLE,  // Título Global
+            timestamp: (player && typeof player.getCurrentTime === 'function') ? player.getCurrentTime() : 0,
+            context: line.querySelector('.english').innerText // La frase completa siempre es el contexto
+        };
+
         const isDuplicate = (textToCheck) => {
             const cleanCheck = sanitizeText(textToCheck).toLowerCase();
             for (let item of items) {
@@ -1021,6 +1030,7 @@ function initInteractiveWords() {
             return false;
         };
         
+        // CASO A: Palabras seleccionadas (Individuales)
         if (selectedEng.length > 0) {
             let translation = ""; 
             if (selectedEng.length === 1 && selectedEsp.length === 1) { 
@@ -1034,15 +1044,21 @@ function initInteractiveWords() {
                     return; 
                 }
                 const cleanEsp = sanitizeText(translation);
+                
+                // AQUÍ ESTABA FALTANDO EL SOURCE
                 itemsToAdd.push({ 
-                    eng: cleanEng, 
-                    esp: cleanEsp, 
                     id: Date.now() + Math.random(), 
                     isFolder: false, 
-                    isHighlighted: false 
+                    eng: cleanEng, 
+                    esp: cleanEsp, 
+                    isHighlighted: false,
+                    source: contextSource, // <--- AÑADIDO
+                    dateAdded: Date.now()
                 }); 
             });
-        } else {
+        } 
+        // CASO B: Frase completa (Sin selección)
+        else {
             const rawEng = line.querySelector('.english').innerText;
             const cleanEng = sanitizeText(rawEng);
 
@@ -1050,59 +1066,43 @@ function initInteractiveWords() {
                 const rawEsp = line.querySelector('.spanish').innerText;
                 const cleanEsp = sanitizeText(rawEsp);
 
-               // --- DENTRO DE LA FUNCIÓN saveLineToVocab(btn) ---
-// ... (código anterior de limpieza) ...
-
-// BLOQUE A REEMPLAZAR / ACTUALIZAR:
-itemsToAdd.push({
-    id: Date.now() + Math.random(), // ID único
-    eng: cleanEng,
-    esp: cleanEsp,
-    isHighlighted: false,
-    isFolder: false,
-    // 🔥 NUEVO: INYECCIÓN DE METADATOS DE VIDEO 🔥
-    source: {
-        type: 'youtube',
-        videoId: YOUTUBE_ID, // Variable global del player
-        title: VIDEO_TITLE,  // Título del video
-        timestamp: player.getCurrentTime(), // Segundo exacto
-        context: line.querySelector('.english').innerText // La frase completa
-    },
-    dateAdded: Date.now()
-});
-
-// ... (resto de la función saveLineToVocab) ...
+                itemsToAdd.push({ 
+                    id: Date.now() + Math.random(), 
+                    isFolder: false, 
+                    eng: cleanEng, 
+                    esp: cleanEsp, 
+                    isHighlighted: false,
+                    source: contextSource, // <--- YA LO TENÍAS AQUÍ
+                    dateAdded: Date.now()
+                });
             } else {
                  alert("Esta frase ya existe en tu vocabulario.");
                  return;
             }
         }
         
-if (itemsToAdd.length === 0) {
+        if (itemsToAdd.length === 0) {
             const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; 
             setTimeout(() => { btn.innerHTML = originalText; }, 1000);
             return;
         }
 
-        // --- LÓGICA CORREGIDA PARA ENCONTRAR LA CARPETA ---
+        // --- LÓGICA DE CARPETAS ---
         const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
-        const cleanTargetName = targetNameRaw.trim(); // Quitamos espacios extra
+        const cleanTargetName = targetNameRaw.trim(); 
 
-        // Buscamos ignorando mayúsculas/minúsculas para evitar duplicados
         let targetFolder = items.find(i => 
             i.isFolder === true && 
             i.name.trim().toLowerCase() === cleanTargetName.toLowerCase()
         );
         
         if (targetFolder) { 
-            // Si la carpeta existe, agregamos las palabras nuevas al principio de SU lista
+            // Insertar al inicio de la carpeta
             itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); 
-            
-            // Movemos la carpeta al principio de la lista general para que sea visible rápido
+            // Mover carpeta arriba
             items = items.filter(i => i.id !== targetFolder.id); 
             items.unshift(targetFolder);
         } else { 
-            // Si no existe, creamos una nueva con el nombre limpio
             const newFolder = { 
                 id: Date.now() + 1, 
                 isFolder: true, 
