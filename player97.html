@@ -921,20 +921,55 @@
     function saveSelectionToStorage(key, selector) { const selectedElements = document.querySelectorAll(selector); const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx)); localStorage.setItem(key, JSON.stringify(indices)); }
     function clearAllWords() { if(!confirm('Reset all selections?')) return; engSelection = []; activeWordID = null; localStorage.removeItem(STORAGE_KEY_ENG); document.querySelectorAll('.spanish-word.selected-word').forEach(el => el.classList.remove('selected-word')); localStorage.removeItem(STORAGE_KEY_ESP); renderWordStates(); }
     
-    function attachButtonEvents() {
+  function attachButtonEvents() {
         document.querySelectorAll('.playBtn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                e.stopPropagation(); const line = btn.closest('.line');
-                const start = parseFloat(line.dataset.start) - timeOffset; const end = parseFloat(line.dataset.end) + endPadding;
+                e.stopPropagation(); 
+                const line = btn.closest('.line');
+                
+                // 1. Obtener tiempos crudos
+                const start = parseFloat(line.dataset.start) - timeOffset;
+                let rawEnd = parseFloat(line.dataset.end);
+
+                // 2. CORRECCIÓN DE SUPERPOSICIÓN (La magia ocurre aquí)
+                // Miramos si hay una línea siguiente
+                const nextLine = line.nextElementSibling;
+                if (nextLine && nextLine.classList.contains('line')) {
+                    const nextStart = parseFloat(nextLine.dataset.start);
+                    // Si la línea actual termina DESPUÉS de que empiece la siguiente...
+                    // Cortamos la actual justo cuando empieza la siguiente.
+                    if (rawEnd > nextStart) {
+                        rawEnd = nextStart; 
+                    }
+                }
+
+                // 3. Aplicar padding al final calculado
+                const end = rawEnd + endPadding;
+
                 if (btn.dataset.state === 'playing') { player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return; }
-                resetButtons(); window.speechSynthesis.cancel(); document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
-                scrollEnabled = false; isSegmentPlaying = true; segmentEndTime = end;
-                player.seekTo(Math.max(0, start), true); player.playVideo(); player.setPlaybackRate(currentPlaybackRate);
-                btn.textContent = "Stop"; btn.dataset.state = 'playing'; line.classList.add('active');
+                
+                resetButtons(); 
+                window.speechSynthesis.cancel(); 
+                document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
+                
+                scrollEnabled = false; 
+                isSegmentPlaying = true; 
+                segmentEndTime = end;
+                
+                player.seekTo(Math.max(0, start), true); 
+                player.playVideo(); 
+                player.setPlaybackRate(currentPlaybackRate);
+                
+                btn.textContent = "Stop"; 
+                btn.dataset.state = 'playing'; 
+                line.classList.add('active');
             });
         });
+        
+        // ... El resto de attachButtonEvents (speakBtn) sigue igual ...
         document.querySelectorAll('.speakBtn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+             // (Dejar este bloque igual que antes)
+             btn.addEventListener('click', (e) => {
                 e.stopPropagation(); const line = btn.closest('.line'); const text = line.querySelector('.english').innerText;
                 if (btn.dataset.state === 'speaking') { window.speechSynthesis.cancel(); resetButtons(); return; }
                 resetButtons(); window.speechSynthesis.cancel(); player.pauseVideo();
@@ -942,20 +977,6 @@
             });
         });
     }
-    
-    document.addEventListener('keydown', (e) => {
-        if(document.getElementById('setup-screen').style.display !== 'none') return; 
-        if(e.target.tagName === 'INPUT') return;
-        switch(e.code) {
-            case 'Space': e.preventDefault(); const activeLine = document.querySelector('.line.active'); if (activeLine) { activeLine.querySelector('.playBtn').click(); } else if(engSelection.length > 0) { const word = document.querySelector(`.english-word[data-idx="${activeWordID || engSelection[0]}"]`); if(word) word.closest('.line').querySelector('.playBtn').click(); } break;
-            case 'ArrowLeft': navigateWords(-1); break;
-            case 'ArrowRight': navigateWords(1); break;
-            case 'ArrowUp': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate + 0.1).toFixed(1)); if(currentPlaybackRate > 2.0) currentPlaybackRate = 2.0; cycleSpeedInternal(); break;
-            case 'ArrowDown': e.preventDefault(); currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1)); if(currentPlaybackRate < 0.5) currentPlaybackRate = 0.5; cycleSpeedInternal(); break;
-            case 'KeyR': const activeLineR = document.querySelector('.line.active'); if(activeLineR) activeLineR.querySelector('.saveBtn').click(); break;
-            case 'KeyL': toggleLoop(); break;
-        }
-    });
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
