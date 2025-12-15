@@ -156,7 +156,15 @@
             text-shadow: 0 0 5px rgba(255, 105, 180, 0.2);
         }
 
-        .word-interactive.nav-active-word { color: var(--nav-active) !important; text-decoration-color: var(--nav-active) !important; background-color: rgba(37, 99, 235, 0.1); border-radius: 4px; }
+        /* ESTILO PARA NAVEGACIÓN ACTIVA (FLECHAS) */
+        .word-interactive.nav-active-word { 
+            color: var(--nav-active) !important; 
+            text-decoration-color: var(--nav-active) !important; 
+            background-color: rgba(37, 99, 235, 0.1); 
+            border-radius: 4px; 
+            outline: 2px solid rgba(37, 99, 235, 0.5); /* Más visible */
+        }
+        
         .word-interactive.spanish-word.selected-word { color: #be123c; font-weight: 700; }
 
         /* === BARRA INFERIOR === */
@@ -370,7 +378,6 @@
         loadRemoteLibrary(); 
     });
 
-    // === PERSISTENCIA EXACTA AL CERRAR ===
     window.addEventListener('beforeunload', () => {
         saveCurrentTime();
     });
@@ -470,13 +477,12 @@
         cover.style.backgroundImage = `url('https://img.youtube.com/vi/${id}/maxresdefault.jpg')`;
         cover.style.display = 'flex'; 
         
-        // Setup keys for storage
         STORAGE_KEY_ENG = 'mdc_eng_' + YOUTUBE_ID; 
         STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; 
-        STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID; // Unique time key per video
+        STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID; 
         
         renderSubtitles();
-        initInteractiveWords(); // Now checks vocab DB
+        initInteractiveWords(); 
         loadPreferences();
         
         if(window.YT && window.YT.Player) {
@@ -496,7 +502,7 @@
 
     function goHome() {
         if(player) player.pauseVideo();
-        saveCurrentTime(); // Save before exit
+        saveCurrentTime(); 
         document.getElementById('player-ui').style.display = 'none';
         document.getElementById('setup-screen').style.display = 'flex';
         renderHistoryList();
@@ -622,7 +628,6 @@
     function onPlayerReady(event) {
         const data = player.getVideoData();
         if(data && data.title) { VIDEO_TITLE = data.title; updateHistoryTitle(YOUTUBE_ID, data.title); }
-        // Restore Time Logic
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
         if (savedTime) { 
             const timeToSeek = parseFloat(savedTime);
@@ -651,15 +656,13 @@
         }
         else { 
             clearInterval(checkInterval); 
-            saveCurrentTime(); // Save immediately on pause/buffering
+            saveCurrentTime(); 
         }
     }
 
     function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
-        
-        // Save roughly every 5 seconds too
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
         if (isSegmentPlaying && currentTime >= segmentEndTime) {
@@ -806,7 +809,7 @@
         if(isMirrorActive) btn.classList.add('active-state'); else btn.classList.remove('active-state');
     }
 
-    // === NUEVA LÓGICA DE PALABRAS ===
+    // === GESTIÓN DE PALABRAS ===
     const MDC_VOCAB_KEY = 'mdc_vocab_list';
 
     function getVocabSet() {
@@ -824,7 +827,7 @@
     }
 
     function initInteractiveWords() {
-        // Obtenemos el set de palabras guardadas en la DB global
+        engSelection = []; // Reseteamos la lista de navegación
         const savedWords = getVocabSet();
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         
@@ -835,16 +838,21 @@
             const words = rawText.trim().split(/\s+/); 
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                // Check if word is in global vocab
                 const clean = sanitizeText(word).toLowerCase();
                 const isSaved = savedWords.has(clean);
                 
-                // Se usa el onclick nuevo
+                // IMPORTANTE: Si está guardada, la agregamos a la navegación local
+                if(isSaved) engSelection.push(engIndex);
+
                 const span = `<span class="word-interactive english-word ${isSaved ? 'saved' : ''}" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
                 engIndex++; return span;
             }).join('');
         });
 
+        // Ordenamos y actualizamos estado
+        engSelection.sort((a, b) => a - b);
+        if(engSelection.length > 0 && activeWordID === null) activeWordID = engSelection[0];
+        
         let espIndex = 0;
         document.querySelectorAll('.spanish').forEach(el => {
             if(allVisible) el.classList.add('visible');
@@ -858,53 +866,115 @@
                 espIndex++; return span;
             }).join('');
         });
+        
+        // Actualizamos botones y resaltados
+        renderWordStates();
     }
 
-    // === NUEVA LÓGICA DE SELECCIÓN ===
     function toggleWordSelection(element, event) {
         event.stopPropagation(); 
         const lang = element.dataset.lang; 
         
         if (lang === 'es') { 
-            // Lógica antigua para español (solo visual local)
             element.classList.toggle('selected-word'); 
             saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word'); 
             return; 
         }
         
-        // LOGICA NUEVA PARA INGLÉS: Guardar en DB Global y Traducir
+        // --- LOGICA DE NAVEGACIÓN Y GUARDADO ---
+        const idx = parseInt(element.dataset.idx);
         const word = element.innerText;
+        
+        // 1. Guardar/Borrar de la Base de Datos Global
         saveWordToMDC(word, element);
+        
+        // 2. Actualizar estado local de navegación
+        if (element.classList.contains('saved')) {
+            // Se acaba de guardar -> Añadir a navegación
+            if (!engSelection.includes(idx)) {
+                engSelection.push(idx);
+                engSelection.sort((a, b) => a - b);
+            }
+            activeWordID = idx; // Poner el foco en la que acabamos de tocar
+        } else {
+            // Se acaba de borrar -> Quitar de navegación
+            engSelection = engSelection.filter(id => id !== idx);
+            if (activeWordID === idx) activeWordID = null;
+        }
+
+        // 3. Actualizar visuales
+        renderWordStates();
     }
     
+    function renderWordStates() { 
+        // Limpiamos solo el estado "nav-active", mantenemos "saved"
+        document.querySelectorAll('.english-word').forEach(el => el.classList.remove('nav-active-word')); 
+        
+        if (activeWordID !== null) {
+            const el = document.querySelector(`.english-word[data-idx="${activeWordID}"]`);
+            if(el) el.classList.add('nav-active-word');
+        }
+        updateControlBar(); 
+    }
+
+    function updateControlBar() {
+        const counterEl = document.getElementById('nav-counter'); 
+        const total = engSelection.length; 
+        let currentPos = 0;
+        if (activeWordID !== null && total > 0) currentPos = engSelection.indexOf(activeWordID) + 1;
+        counterEl.innerText = total === 0 ? "0/0" : `${currentPos}/${total}`;
+        const els = ['btn-clear','btn-speak-word','btn-prev','btn-next'];
+        els.forEach(id => { 
+            const btn = document.getElementById(id); 
+            if(total > 0) btn.classList.remove('disabled'); 
+            else btn.classList.add('disabled'); 
+        });
+    }
+
+    function navigateWords(direction) {
+        if (engSelection.length === 0) return; 
+        let currentIndexArray = engSelection.indexOf(activeWordID);
+        
+        if (currentIndexArray === -1) currentIndexArray = direction > 0 ? 0 : engSelection.length - 1;
+        else { 
+            currentIndexArray += direction; 
+            if (currentIndexArray >= engSelection.length) currentIndexArray = 0; 
+            if (currentIndexArray < 0) currentIndexArray = engSelection.length - 1; 
+        }
+        
+        activeWordID = engSelection[currentIndexArray];
+        
+        const targetEl = document.querySelector(`.english-word[data-idx="${activeWordID}"]`);
+        if(targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            renderWordStates();
+            // Opcional: leer automáticamente al navegar
+            // speakWordById(activeWordID);
+        }
+    }
+
     function saveWordToMDC(word, element) {
-        translateWord(word); // Mostrar pill
+        translateWord(word); 
         const cleanWord = sanitizeText(word);
         if (!cleanWord) return;
 
         let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
         const checkEng = cleanWord.toLowerCase();
         
-        // Buscamos si ya existe
         const existingIndex = items.findIndex(i => !i.isFolder && i.eng.toLowerCase() === checkEng);
 
         if (existingIndex === -1) {
-            // --- AGREGAR ---
-            // Usamos contexto mínimo
             const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: 0 };
             items.unshift({ id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false, source: contextSource });
-            element.classList.add('saved'); // Visual Feedback
+            element.classList.add('saved'); 
         } else {
-            // --- QUITAR ---
             items.splice(existingIndex, 1);
             element.classList.remove('saved'); 
         }
 
-        // Guardamos
         localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
     }
 
-    // === TRADUCCIÓN (PILL) ===
     async function translateWord(text) {
         const pill = document.getElementById('translation-pill');
         const originEl = document.getElementById('trans-origin');
@@ -924,11 +994,25 @@
     }
 
     function speakText(text, onStart, onEnd) { window.speechSynthesis.cancel(); const utter = new SpeechSynthesisUtterance(text); utter.lang = TTS_LANG; utter.rate = TTS_RATE; if(onStart) utter.onstart = onStart; if(onEnd) utter.onend = onEnd; window.speechSynthesis.speak(utter); }
-    function speakActiveOrSelected() { if (activeWordID !== null) { speakWordById(activeWordID); return; } if (engSelection.length > 0) { activeWordID = engSelection[0]; speakWordById(activeWordID); } }
-    function speakWordById(idx) { const el = document.querySelector(`.english-word[data-idx="${idx}"]`); if (el) speakText(el.innerText); }
+    
+    // Corregido: Ahora lee activeWordID
+    function speakActiveOrSelected() { 
+        if (activeWordID !== null) { 
+            speakWordById(activeWordID); 
+        } else if (engSelection.length > 0) { 
+            activeWordID = engSelection[0]; 
+            renderWordStates(); 
+            speakWordById(activeWordID); 
+        } 
+    }
+    
+    function speakWordById(idx) { 
+        const el = document.querySelector(`.english-word[data-idx="${idx}"]`); 
+        if (el) speakText(el.innerText); 
+    }
+    
     function saveSelectionToStorage(key, selector) { const selectedElements = document.querySelectorAll(selector); const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx)); localStorage.setItem(key, JSON.stringify(indices)); }
     
-    // Antiguo clear, ahora solo limpia español
     function clearAllWords() { 
         if(!confirm('Clear Spanish highlights?')) return; 
         document.querySelectorAll('.spanish-word.selected-word').forEach(el => el.classList.remove('selected-word')); 
@@ -970,17 +1054,9 @@
         }
     });
 
-    // Se mantiene por si usas la barra inferior, pero ya no es el foco
-    function navigateWords(direction) {
-        // Funcionalidad simplificada o desactivada visualmente si se prefiere
-    }
-
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    // === BOTON RESERVADO ===
     function saveLineToVocab(btn) {
-        // FUNCION VACÍA A PETICIÓN DEL USUARIO.
-        // El botón "+" se conserva visualmente, pero ya no guarda nada.
         console.log("Botón reservado para futura lógica.");
         btn.innerHTML = "🔒";
         setTimeout(() => btn.innerHTML = "+", 1000);
@@ -1001,7 +1077,7 @@
         }
     });
 
-    const NEXUS_URL = 'https://paradisonetworx.com/echo2'; 
+    const NEXUS_URL = 'https://paradisonetworx.com/echo2';
 
     function openNexus() {
         const portal = document.getElementById('nexus-portal');
