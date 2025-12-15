@@ -996,48 +996,64 @@
     }
 
     // === AQUÍ ESTÁ LA NUEVA LÓGICA DE GUARDADO ===
-    function saveWordToMDC(word, element) {
-        translateWord(word); 
+function saveWordToMDC(word, element) {
+        // 1. Limpiar la palabra
         const cleanWord = sanitizeText(word);
         if (!cleanWord) return;
 
-        // 1. CAPTURAR LA FRASE COMPLETA DEL SUBTÍTULO
+        // 2. Capturar la frase completa (Contexto)
+        // Buscamos el contenedor padre (.english) para sacar toda la oración
         const parentLine = element.closest('.english');
-        let fullSentence = "";
+        let fullSentence = "Context not found";
         if (parentLine) {
-            // .innerText nos da el texto limpio, sin los tags HTML
-            fullSentence = parentLine.innerText.replace(/[\n\r]+/g, ' ').trim(); 
+            fullSentence = parentLine.innerText.replace(/[\n\r]+/g, ' ').trim();
         }
 
-        // 2. CAPTURAR EL TIEMPO EXACTO
+        // 3. Capturar el tiempo exacto (Timestamp)
         const line = element.closest('.line');
         let exactTime = 0;
-        if(line) {
-            exactTime = parseFloat(line.dataset.start);
-        }
+        if(line) exactTime = parseFloat(line.dataset.start);
 
+        // 4. Preparar el objeto para guardar
         let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
         const checkEng = cleanWord.toLowerCase();
         
+        // Revisar si ya existe
         const existingIndex = items.findIndex(i => !i.isFolder && i.eng.toLowerCase() === checkEng);
 
         if (existingIndex === -1) {
-            const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: exactTime };
+            // CREAR NUEVA TARJETA
+            const contextSource = { 
+                type: 'youtube', 
+                videoId: YOUTUBE_ID, 
+                title: VIDEO_TITLE, 
+                timestamp: exactTime,
+                quote: fullSentence // Guardamos la frase en el source también por seguridad
+            };
             
             items.unshift({ 
                 id: Date.now(), 
                 isFolder: false, 
                 eng: cleanWord, 
-                esp: fullSentence, // <--- AQUÍ GUARDAMOS LA FRASE EN LUGAR DE DEJARLO VACÍO
+                
+                // AQUÍ EL CAMBIO: En lugar de dejarlo vacío (""), 
+                // ponemos la frase completa. Así en la tarjeta se verá la frase 
+                // en lugar de los tres puntos "..." hasta que el otro programa traduzca.
+                esp: fullSentence, 
+                
                 isHighlighted: false, 
                 source: contextSource 
             });
+            
+            // Marcar visualmente
             element.classList.add('saved'); 
         } else {
+            // BORRAR SI YA EXISTE (Toggle)
             items.splice(existingIndex, 1);
             element.classList.remove('saved'); 
         }
 
+        // 5. Guardar en LocalStorage
         localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
     }
 
