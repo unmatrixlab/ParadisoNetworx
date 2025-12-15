@@ -6,7 +6,7 @@
     <title>MDC Studio Player (Creator Mode)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* === CAMBIO DE COLOR ROJO A ROSA (#ec4899) === */
+        /* === COLOR ROSA (#ec4899) === */
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ec4899; --nav-active: #2563eb; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
@@ -156,20 +156,18 @@
         .word-interactive { border-radius: 3px; padding: 0 1px; cursor: pointer; display: inline-block; }
         .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
         
-        /* ESTILOS DE PALABRA SELECCIONADA (ROSA) */
+        /* ESTILO ROSA DE SELECCION */
         .word-interactive.english-word.selected-word { color: var(--selected-word); font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(236, 72, 153, 0.3); }
         .word-interactive.english-word.nav-active-word { color: var(--nav-active) !important; text-decoration-color: var(--nav-active) !important; background-color: rgba(37, 99, 235, 0.1); border-radius: 4px; }
         
-        /* CAMBIO DE ROJO A ROSA OSCURO PARA ESPAÑOL */
         .word-interactive.spanish-word.selected-word { color: #db2777; font-weight: 700; }
 
-        /* NUEVO: ESTILO PARA PALABRAS YA GUARDADAS EN DB (Dorado) */
+        /* ESTILO DORADO PARA PALABRAS YA GUARDADAS */
         .word-interactive.saved-in-db {
-            color: #d97706 !important; /* Color ámbar/dorado */
+            color: #d97706 !important; 
             font-weight: 800;
             border-bottom: 2px dotted #d97706;
         }
-        /* Si está guardada y seleccionada, gana el rosa de selección */
         .word-interactive.saved-in-db.selected-word {
             color: var(--selected-word) !important;
             border-bottom: 2px solid var(--selected-word);
@@ -487,14 +485,13 @@
         } catch (e) { alert("Error leyendo archivos: " + e); }
     }
 
-    // === GENERATE JSON (FIXED) ===
+    // === GENERATE JSON ===
     async function generateLibraryJSON() {
         const rawInput = document.getElementById('input-yt-id').value.trim();
         const category = document.getElementById('input-category').value;
         let extractedID = extractVideoID(rawInput);
         if (!extractedID && rawInput.length === 11) extractedID = rawInput;
         
-        // Validation with alert
         if (!extractedID) { alert("❌ ID invalido."); return; }
         const fileEn = document.getElementById('file-en').files[0];
         const fileEs = document.getElementById('file-es').files[0];
@@ -508,9 +505,6 @@
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
             
-            // REMOVED AUTOMATIC TITLE FETCH TO AVOID ERRORS
-            // Uses a placeholder so you can fill it later manually
-            
             const jsonObj = {
                 id: extractedID,
                 title: "TITULO_AQUI", 
@@ -521,7 +515,6 @@
             
             const jsonString = JSON.stringify(jsonObj, null, 2) + ",";
             
-            // Show Modal
             document.getElementById('json-output').value = jsonString;
             document.getElementById('json-modal').style.display = 'flex';
             
@@ -554,7 +547,7 @@
         cover.style.display = 'flex'; 
         renderSubtitles();
         initInteractiveWords();
-        loadPreferences();
+        loadPreferences(); // Aquí cargamos las preferencias (incluyendo el timing por video)
         if(window.YT && window.YT.Player) {
             if(player) { player.loadVideoById(id); player.setPlaybackRate(currentPlaybackRate); } 
             else { onYouTubeIframeAPIReady(); }
@@ -687,10 +680,15 @@
         return parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec) + parseInt(ms) / 1000;
     }
 
+    // --- VARIABLES GLOBALES DE TIMING ---
     let timeOffset = 0.2, endPadding = 0.5; 
+    
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
+    
+    // PREF_TIMING ya no se usará globalmente para guardar, pero lo mantenemos para la carga si quieres
     const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing', PREF_OFFSET='mdc_pref_v_offset';
+    
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
@@ -812,16 +810,35 @@
         STORAGE_KEY_ENG = 'mdc_eng_' + YOUTUBE_ID; STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
     }
 
+    // --- FUNCIÓN MODIFICADA: Guardar configuración POR VIDEO ---
     function updateTimingSettings() {
         timeOffset = parseFloat(document.getElementById('input-time-offset').value) || 0;
         endPadding = parseFloat(document.getElementById('input-end-padding').value) || 0;
-        localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
+        
+        // Creamos una clave única usando el ID del video
+        const videoSpecificKey = 'mdc_timing_' + YOUTUBE_ID;
+        localStorage.setItem(videoSpecificKey, JSON.stringify({ offset: timeOffset, padding: endPadding }));
     }
 
+    // --- FUNCIÓN MODIFICADA: Cargar configuración POR VIDEO ---
     function loadTimingPrefs() {
-        const saved = localStorage.getItem(PREF_TIMING);
-        if (saved) { const parsed = JSON.parse(saved); timeOffset = parseFloat(parsed.offset); endPadding = parseFloat(parsed.padding); }
-        document.getElementById('input-time-offset').value = timeOffset; document.getElementById('input-end-padding').value = endPadding;
+        // Intentamos cargar la config específica de este video
+        const videoSpecificKey = 'mdc_timing_' + YOUTUBE_ID;
+        const saved = localStorage.getItem(videoSpecificKey);
+
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            timeOffset = parseFloat(parsed.offset);
+            endPadding = parseFloat(parsed.padding);
+        } else {
+            // Si no hay config para este video, usamos valores por defecto
+            timeOffset = 0.2;
+            endPadding = 0.5;
+        }
+
+        document.getElementById('input-time-offset').value = timeOffset;
+        document.getElementById('input-end-padding').value = endPadding;
+        
         const savedOffset = localStorage.getItem(PREF_OFFSET);
         if(savedOffset) { currentVerticalOffset = parseInt(savedOffset); document.getElementById('vertical-slider').value = currentVerticalOffset; }
     }
@@ -849,7 +866,8 @@
         }
         const sTrans = localStorage.getItem(PREF_TRANS);
         if(sTrans === 'true') { allVisible = true; document.getElementById('btn-toggle-trans').style.color = '#4f46e5'; }
-        loadTimingPrefs();
+        
+        loadTimingPrefs(); // Carga los tiempos específicos del video
     }
     function cycleSpeed() {
         currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
@@ -877,7 +895,6 @@
         if(isMirrorActive) btn.classList.add('active-state'); else btn.classList.remove('active-state');
     }
 
-    // --- NUEVA FUNCIÓN PARA OBTENER PALABRAS GUARDADAS ---
     function getSavedVocabularySet() {
         const raw = localStorage.getItem('mdc_vocab_list');
         const items = raw ? JSON.parse(raw) : [];
@@ -900,7 +917,6 @@
         engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         
-        // --- 1. OBTENER VOCABULARIO GUARDADO ---
         const savedVocab = getSavedVocabularySet(); 
 
         let engIndex = 0;
@@ -912,12 +928,10 @@
             el.innerHTML = words.map(word => {
                 if(!word) return '';
                 
-                // --- 2. VERIFICAR SI LA PALABRA ACTUAL ESTÁ EN LA BASE DE DATOS ---
                 const cleanWord = sanitizeText(word).toLowerCase();
                 const isSaved = savedVocab.has(cleanWord);
                 const savedClass = isSaved ? 'saved-in-db' : '';
 
-                // --- 3. AGREGAR LA CLASE savedClass AL SPAN ---
                 const span = `<span class="word-interactive english-word ${savedClass}" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
                 engIndex++; 
                 return span;
@@ -1026,28 +1040,22 @@
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    // --- NUEVA FUNCIÓN DE GUARDADO INTELIGENTE (AGRUPADO) ---
     function saveLineToVocab(btn) {
         const line = btn.closest('.line'); 
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        // 1. Obtener elementos seleccionados y ORDENARLOS por índice (Crucial)
         let selectedEngElements = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
         selectedEngElements.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
 
-        // 2. Obtener elementos de español
         const selectedEspElements = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         selectedEspElements.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
 
-        // Si no hay nada seleccionado, intentar guardar la línea entera (comportamiento por defecto)
         if (selectedEngElements.length === 0) {
             const rawEng = line.querySelector('.english').innerText;
-            // Simulamos un elemento para que entre en la lógica de abajo
             selectedEngElements = [{ innerText: rawEng, dataset: { idx: -1 } }]; 
         }
 
-        // --- LÓGICA DE AGRUPAMIENTO INTELIGENTE ---
         let groups = [];
         if (selectedEngElements.length > 0) {
             let currentGroup = [selectedEngElements[0]];
@@ -1056,7 +1064,6 @@
                 const prevIdx = parseInt(selectedEngElements[i-1].dataset.idx);
                 const currIdx = parseInt(selectedEngElements[i].dataset.idx);
 
-                // Si es consecutivo (ej: 4 y 5), es la misma frase
                 if (currIdx === prevIdx + 1) {
                     currentGroup.push(selectedEngElements[i]);
                 } else {
@@ -1067,7 +1074,6 @@
             groups.push(currentGroup);
         }
 
-        // --- PROCESAR CADA GRUPO ---
         let itemsToAdd = [];
         const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: parseFloat(line.dataset.start), context: line.querySelector('.english').innerText };
 
@@ -1083,8 +1089,7 @@
         let globalEspTranslation = "";
         if (selectedEspElements.length > 0) {
             globalEspTranslation = selectedEspElements.map(el => el.innerText).join(' ');
-        } else if (selectedEngElements.length === 1 && selectedEngElements[0].dataset.idx === undefined) { // Check for simulated element (idx -1 or undefined)
-             // Caso línea completa
+        } else if (selectedEngElements.length === 1 && selectedEngElements[0].dataset.idx === undefined) { 
              globalEspTranslation = line.querySelector('.spanish').innerText;
         }
 
@@ -1092,7 +1097,6 @@
             const phraseEng = group.map(el => el.innerText).join(' ');
             const cleanEng = sanitizeText(phraseEng);
             
-            // Si hay solo 1 grupo, asignamos la traducción. Si hay varios, vacío (seguridad).
             let phraseEsp = "";
             if (groups.length === 1) {
                 phraseEsp = sanitizeText(globalEspTranslation);
@@ -1119,7 +1123,6 @@
             return; 
         }
 
-        // --- GUARDADO EN CARPETA ---
         const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
         const cleanTargetName = targetNameRaw.trim(); 
 
@@ -1139,7 +1142,6 @@
         
         const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
         
-        // Actualizar visualmente (para que se pinten de dorado)
         initInteractiveWords(); 
 
         setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
