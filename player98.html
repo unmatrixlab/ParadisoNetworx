@@ -995,11 +995,26 @@
         }
     }
 
-    // === AQUÍ ESTÁ LA CORRECCIÓN CLAVE ===
+    // === AQUÍ ESTÁ LA NUEVA LÓGICA DE GUARDADO ===
     function saveWordToMDC(word, element) {
         translateWord(word); 
         const cleanWord = sanitizeText(word);
         if (!cleanWord) return;
+
+        // 1. CAPTURAR LA FRASE COMPLETA DEL SUBTÍTULO
+        const parentLine = element.closest('.english');
+        let fullSentence = "";
+        if (parentLine) {
+            // .innerText nos da el texto limpio, sin los tags HTML
+            fullSentence = parentLine.innerText.replace(/[\n\r]+/g, ' ').trim(); 
+        }
+
+        // 2. CAPTURAR EL TIEMPO EXACTO
+        const line = element.closest('.line');
+        let exactTime = 0;
+        if(line) {
+            exactTime = parseFloat(line.dataset.start);
+        }
 
         let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
         const checkEng = cleanWord.toLowerCase();
@@ -1007,11 +1022,16 @@
         const existingIndex = items.findIndex(i => !i.isFolder && i.eng.toLowerCase() === checkEng);
 
         if (existingIndex === -1) {
-            // RESTAURADO: Creamos el objeto contextSource con la información del video
-            const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: 0 };
+            const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: exactTime };
             
-            // RESTAURADO: Incluimos 'source: contextSource' en el objeto guardado
-            items.unshift({ id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false, source: contextSource });
+            items.unshift({ 
+                id: Date.now(), 
+                isFolder: false, 
+                eng: cleanWord, 
+                esp: fullSentence, // <--- AQUÍ GUARDAMOS LA FRASE EN LUGAR DE DEJARLO VACÍO
+                isHighlighted: false, 
+                source: contextSource 
+            });
             element.classList.add('saved'); 
         } else {
             items.splice(existingIndex, 1);
