@@ -49,16 +49,15 @@
         .file-upload-btn:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
         .file-upload-btn.loaded { border-color: #10b981; color: #065f46; background: #d1fae5; border-style: solid; }
         
-        .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
-        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
-        input[type="file"] { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; top:0; left:0; }
-        
         .start-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
         .start-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
         
         .gen-json-btn { background: #374151; color: white; border: none; width: 100%; padding: 12px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 10px; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .gen-json-btn:hover { background: #1f2937; }
 
+        .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
+        .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
+        input[type="file"] { position: absolute; width: 100%; height: 100%; opacity: 0; cursor: pointer; top:0; left:0; }
         .backup-actions { display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
 
         /* === FILTERS === */
@@ -191,6 +190,31 @@
     #nexus-portal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 5000; background: #000; }
     #nexus-frame { width: 100%; height: 100%; border: none; display: block; }
     
+    /* === JSON MODAL STYLE === */
+    #json-modal {
+        display: none;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.8); z-index: 6000;
+        align-items: center; justify-content: center;
+        padding: 20px;
+    }
+    .json-modal-content {
+        background: #1f2937; color: #fff;
+        width: 100%; max-width: 600px;
+        border-radius: 12px; padding: 20px;
+        display: flex; flex-direction: column; gap: 10px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    #json-output {
+        width: 100%; height: 300px;
+        background: #111827; color: #a5f3fc;
+        border: 1px solid #374151; border-radius: 8px;
+        padding: 10px; font-family: monospace; font-size: 12px;
+        resize: none; outline: none;
+    }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .close-modal-btn { background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+    
     </style>
 </head>
 <body>
@@ -275,6 +299,17 @@
                         <input type="file" accept=".json" onchange="importBackup(this)">
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="json-modal">
+        <div class="json-modal-content">
+            <h3 style="margin:0;">📜 JSON Generated</h3>
+            <p style="margin:0; font-size:12px; opacity:0.7;">Copy this and paste it into your library file.</p>
+            <textarea id="json-output" readonly></textarea>
+            <div class="modal-actions">
+                <button class="close-modal-btn" onclick="document.getElementById('json-modal').style.display='none'">Close</button>
             </div>
         </div>
     </div>
@@ -435,50 +470,43 @@
         } catch (e) { alert("Error leyendo archivos: " + e); }
     }
 
-    // === NEW FUNCTION: GENERATE JSON ===
+    // === GENERATE JSON (FIXED) ===
     async function generateLibraryJSON() {
         const rawInput = document.getElementById('input-yt-id').value.trim();
         const category = document.getElementById('input-category').value;
         let extractedID = extractVideoID(rawInput);
         if (!extractedID && rawInput.length === 11) extractedID = rawInput;
-        if (!extractedID) return alert("❌ Primero ingresa un URL o ID válido.");
         
+        // Validation with alert
+        if (!extractedID) { alert("❌ ID invalido."); return; }
         const fileEn = document.getElementById('file-en').files[0];
         const fileEs = document.getElementById('file-es').files[0];
-        if(!fileEn || !fileEs) return alert("⚠️ Debes cargar ambos archivos SRT para generar el JSON.");
+        if(!fileEn || !fileEs) { alert("⚠️ Falta cargar subtitulos."); return; }
 
         const btn = document.querySelector('.gen-json-btn');
         const originalText = btn.innerText;
-        btn.innerText = "⏳ Generando...";
+        btn.innerText = "⏳ Reading...";
 
         try {
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
             
-            // Try to fetch title via oEmbed
-            let title = "Nuevo Video";
-            try {
-                const res = await fetch(`https://www.youtube.com/oembed?url=http://www.youtube.com/watch?v=${extractedID}&format=json`);
-                if(res.ok) {
-                    const data = await res.json();
-                    title = data.title;
-                }
-            } catch(e) { console.log("No se pudo obtener el título automáticamente."); }
-
+            // REMOVED AUTOMATIC TITLE FETCH TO AVOID ERRORS
+            // Uses a placeholder so you can fill it later manually
+            
             const jsonObj = {
                 id: extractedID,
-                title: title,
+                title: "TITULO_AQUI", 
                 category: category,
                 srtEn: textEn,
                 srtEs: textEs
             };
             
-            // Format as a single object entry (comma at end for easy pasting into a list)
             const jsonString = JSON.stringify(jsonObj, null, 2) + ",";
             
-            navigator.clipboard.writeText(jsonString).then(() => {
-                alert("✅ JSON copiado al portapapeles!\n\nPégalo en tu archivo biblioteca.json");
-            });
+            // Show Modal
+            document.getElementById('json-output').value = jsonString;
+            document.getElementById('json-modal').style.display = 'flex';
             
         } catch (e) { alert("Error: " + e); }
         
