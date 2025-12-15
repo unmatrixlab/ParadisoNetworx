@@ -65,11 +65,14 @@
         .h-info { flex: 1; min-width: 0; }
         .h-title { font-size: 14px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .h-date { font-size: 11px; color: var(--text-sec); }
+        
+        /* Botones de historial */
         .h-btn-del { padding: 5px 8px; font-size: 12px; color: #ef4444; background: transparent; border: none; cursor: pointer; opacity: 0.5; }
         .h-btn-del:hover { opacity: 1; background: #fee2e2; border-radius: 4px; }
-       .h-btn-copy { padding: 5px 8px; font-size: 14px; color: var(--primary); background: transparent; border: none; cursor: pointer; opacity: 0.6; margin-right: 4px; }
+        .h-btn-copy { padding: 5px 8px; font-size: 14px; color: var(--primary); background: transparent; border: none; cursor: pointer; opacity: 0.6; margin-right: 4px; }
         .h-btn-copy:hover { opacity: 1; background: #e0e7ff; border-radius: 4px; }
-      .empty-history { text-align: center; color: #9ca3af; font-size: 14px; padding: 20px; font-style: italic; }
+
+        .empty-history { text-align: center; color: #9ca3af; font-size: 14px; padding: 20px; font-style: italic; }
         .library-section { margin-bottom: 25px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
         .library-label { display: block; font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
         
@@ -258,6 +261,12 @@
                     <label class="input-label">1. Video ID or URL</label>
                     <input type="text" id="input-yt-id" class="text-input" placeholder="Paste YouTube URL..." autocomplete="off">
                 </div>
+                
+                <div class="input-group">
+                    <label class="input-label">Title (Optional)</label>
+                    <input type="text" id="input-video-title" class="text-input" placeholder="Custom Video Title..." autocomplete="off">
+                </div>
+
                 <div class="input-group">
                     <label class="input-label">2. Subtitles (.srt)</label>
                     <div class="file-upload-btn" id="btn-upload-en" style="margin-bottom: 10px;">
@@ -442,6 +451,9 @@
 
     async function startNewSession() {
         const rawInput = document.getElementById('input-yt-id').value.trim();
+        // Capturar título manual
+        const manualTitle = document.getElementById('input-video-title').value.trim();
+        
         let extractedID = extractVideoID(rawInput);
         if (!extractedID && rawInput.length === 11) extractedID = rawInput;
         if (!extractedID) return alert("❌ URL o ID de video inválido.");
@@ -452,8 +464,13 @@
         try {
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
-            processAndLaunch(textEn, textEs, YOUTUBE_ID, "Video Cargado");
-            addToHistory(YOUTUBE_ID, "Cargando título...", textEn, textEs);
+            
+            // Usar título manual o default
+            const finalTitle = manualTitle.length > 0 ? manualTitle : "Video Cargado";
+            VIDEO_TITLE = finalTitle;
+
+            processAndLaunch(textEn, textEs, YOUTUBE_ID, finalTitle);
+            addToHistory(YOUTUBE_ID, finalTitle, textEn, textEs);
         } catch (e) { alert("Error leyendo archivos: " + e); }
     }
 
@@ -534,7 +551,32 @@
         renderHistoryList();
     }
 
- function renderHistoryList() {
+    // FUNCION DE COPIAR JSON
+    function copyHistoryItem(e, id) {
+        e.stopPropagation();
+        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        const item = history.find(i => i.id === id);
+        
+        if(item) {
+            const exportObj = {
+                id: item.id,
+                title: item.title,
+                srtEn: item.srtEn,
+                srtEs: item.srtEs
+            };
+            const textToCopy = JSON.stringify(exportObj, null, 4);
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btn = e.target;
+                const original = btn.innerHTML;
+                btn.innerHTML = "✅";
+                setTimeout(() => btn.innerHTML = original, 1500);
+            }).catch(err => {
+                alert("Error al copiar: " + err);
+            });
+        }
+    }
+
+    function renderHistoryList() {
         const list = document.getElementById('history-container');
         const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
         if(history.length === 0) { list.innerHTML = '<div class="empty-history">No hay historial reciente.</div>'; return; }
@@ -544,7 +586,6 @@
             const div = document.createElement('div');
             div.className = 'history-item';
             div.onclick = () => loadFromHistory(item.id);
-            // Aquí agregamos el botón de copiar (📋) antes del de borrar
             div.innerHTML = `
                 <div class="h-thumb" style="background-image: url('https://img.youtube.com/vi/${item.id}/default.jpg')"></div>
                 <div class="h-info"><div class="h-title">${item.title}</div><div class="h-date">Guardado: ${date}</div></div>
@@ -552,37 +593,6 @@
                 <button class="h-btn-del" onclick="deleteHistoryItem(event, '${item.id}')">✕</button>`;
             list.appendChild(div);
         });
-    }
-
-
-      function copyHistoryItem(e, id) {
-        e.stopPropagation(); // Evita que se cargue el video al hacer click
-        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-        const item = history.find(i => i.id === id);
-        
-        if(item) {
-            // Creamos el objeto limpio solo con lo que pediste
-            const exportObj = {
-                id: item.id,
-                title: item.title,
-                srtEn: item.srtEn,
-                srtEs: item.srtEs
-            };
-            
-            // Convertir a texto bonito con sangría
-            const textToCopy = JSON.stringify(exportObj, null, 4);
-            
-            // Copiar al portapapeles
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                // Feedback visual simple (cambia el icono temporalmente)
-                const btn = e.target;
-                const original = btn.innerHTML;
-                btn.innerHTML = "✅";
-                setTimeout(() => btn.innerHTML = original, 1500);
-            }).catch(err => {
-                alert("Error al copiar: " + err);
-            });
-        }
     }
 
     function exportBackup() {
@@ -663,7 +673,15 @@
 
     function onPlayerReady(event) {
         const data = player.getVideoData();
-        if(data && data.title) { VIDEO_TITLE = data.title; updateHistoryTitle(YOUTUBE_ID, data.title); }
+        // Lógica actualizada: solo sobrescribir el título si el usuario NO escribió uno manual
+        const manualInput = document.getElementById('input-video-title');
+        const userTypedTitle = manualInput ? manualInput.value.trim() : "";
+
+        if(data && data.title && userTypedTitle === "") { 
+            VIDEO_TITLE = data.title; 
+            updateHistoryTitle(YOUTUBE_ID, data.title); 
+        }
+        
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
         if (savedTime) { 
             const timeToSeek = parseFloat(savedTime);
