@@ -1307,7 +1307,7 @@ const Game = {
         setTimeout(() => { overlay.style.display = 'none'; }, 1600);
     },
 
-    fire(sel, cor, btn) {
+  fire(sel, cor, btn) {
         if(!this.activeWord || this.banningPhase || this.laser) return;
 
         const targetWordRef = this.activeWord;
@@ -1337,6 +1337,9 @@ const Game = {
                 if(!this.activeWord || this.activeWord !== targetWordRef || !this.isPlaying) return;
 
                 if(isCorrect) {
+                    // ==========================================
+                    // CASO 1: ACIERTO (Destruir palabra y avanzar)
+                    // ==========================================
                     if(App.audioMode) this.speak(cor.en);
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
                     this.flashIntensity = 0.3; this.combo++; 
@@ -1350,18 +1353,8 @@ const Game = {
                     let restTitle = "";
 
                     if (Profile.cfg.restMode === 'true') {
-                        if (this.wordsCleared % 20 === 0) {
-                            isTriggerRest = true;
-                            restDuration = 20000;
-                            restTitle = "DEEP REST";
-                            restMsg = "Take a deep breath...";
-                        } 
-                        else if (this.wordsCleared % 5 === 0) {
-                            isTriggerRest = true;
-                            restDuration = 6000;
-                            restTitle = "NICE!";
-                            restMsg = "Brief pause...";
-                        }
+                        if (this.wordsCleared % 20 === 0) { isTriggerRest = true; restDuration = 20000; restTitle = "DEEP REST"; restMsg = "Take a deep breath..."; } 
+                        else if (this.wordsCleared % 5 === 0) { isTriggerRest = true; restDuration = 6000; restTitle = "NICE!"; restMsg = "Brief pause..."; }
                     }
 
                     if (isTriggerRest) {
@@ -1369,18 +1362,14 @@ const Game = {
                         const layer = document.getElementById('brain-rest-layer');
                         document.getElementById('rest-title').innerText = restTitle;
                         document.getElementById('rest-msg').innerText = restMsg;
-                        
                         layer.classList.add('active');
-                        
                         setTimeout(() => {
                             layer.classList.remove('active');
                             this.isResting = false; 
                             this.activeWord = null; 
                             this.idx++; 
                             this.spawn();
-
                         }, restDuration);
-
                     } else {
                         const newLvl = Profile.setProg(cor.en, true); 
                         App.updateChart(this.queue);
@@ -1388,45 +1377,44 @@ const Game = {
                         if(newLvl >= 4) {
                             const reward = Profile.addMasteryPoint();
                             if (reward) this.showReward(reward);
-                            
                             this.banningPhase = true; 
                             setTimeout(() => {
                                 this.replaceMasteredWord(cor.en); 
                                 this.banningPhase = false;        
-                                this.activeWord = null;             
-                                this.idx++;                         
-                                this.spawn();                       
+                                this.activeWord = null;              
+                                this.idx++;                          
+                                this.spawn();                        
                             }, 800); 
                         } else {
-    // === AQUÍ ESTÁ EL CAMBIO LÓGICO ===
-    
-    // 1. Efectos visuales de error (ya los tienes)
-    this.screenShake(); 
-    this.createExplosion(this.laser.x2, this.laser.y2, color); 
-    if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
-    
-    // 2. ROMPER COMBO (Castigo de juego)
-    this.combo = 0;
-
-    // 3. PENALIZAR APRENDIZAJE (Castigo educativo)
-    // Agregamos esto para que si el usuario adivina, el sistema sepa que en realidad no sabía la palabra.
-    // Esto baja el nivel de la palabra en la base de datos INMEDIATAMENTE.
-    Profile.setProg(this.activeWord.data.en, false); 
-    
-    // 4. Actualizar gráfico para reflejar la caída de nivel
-    App.updateChart(this.queue);
-
-    // NOTA: NO llamamos a this.activeWord = null; 
-    // Dejamos que la palabra siga viva para que el usuario pueda intentar dispararle de nuevo.
-}
+                            // AQUÍ ES DONDE ESTABA EL ERROR ANTES
+                            // Esto debe limpiar la palabra normal
+                            this.activeWord = null; 
+                            this.idx++; 
+                            if(!this.showingGhost) {
+                                this.timerId = setTimeout(() => this.spawn(), 500);
+                            }
                         }
                     }
 
                 } else {
+                    // ==========================================
+                    // CASO 2: ERROR (Penalizar YA, pero dejar viva)
+                    // ==========================================
                     this.screenShake(); 
                     this.createExplosion(this.laser.x2, this.laser.y2, color); 
                     if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
+                    
+                    // 1. Romper Combo
                     this.combo = 0;
+
+                    // 2. Bajar nivel inmediatamente (Castigo)
+                    Profile.setProg(this.activeWord.data.en, false); 
+                    
+                    // 3. Actualizar gráfico
+                    App.updateChart(this.queue);
+
+                    // NOTA CRÍTICA: NO hacemos 'this.activeWord = null'
+                    // La palabra sigue cayendo para que intentes de nuevo.
                 }
             }
         };
