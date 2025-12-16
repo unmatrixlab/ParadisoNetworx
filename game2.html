@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LINGUA NEXUS | ARCADE REWARDS V5.8 (FIXED)</title>
+    <title>LINGUA NEXUS | ARCADE REWARDS V6.0 (SMART BATCHES)</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -15,6 +15,7 @@
             --primary: #3b82f6; --success: #10b981; --danger: #ef4444; --gold: #fbbf24; --purple: #a855f7;
             --font-head: 'Bebas Neue', sans-serif; --font-ui: 'Inter', sans-serif; --font-code: 'JetBrains Mono', monospace;
             --safe-bottom: env(safe-area-inset-bottom);
+            --c-mixed: #334155;
         }
         :root.light-mode {
             --bg-deep: #f8fafc; --bg-card: #ffffff; --bg-hover: #f1f5f9; --bg-input: #e2e8f0;
@@ -502,129 +503,84 @@
     </main>
 
     <script>
-// ================================================================
-// MODULE 1: DATABASE HANDLING (FIXED: CONSTANT CLEANING)
-// ================================================================
+/* ================================================================
+   MODULE 1: DATABASE HANDLING (CLEAN & ROBUST)
+   ================================================================ */
 const DB = {
     data: {}, customData: [],
     async init() {
         try { this.customData = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]'); } catch(e) { this.customData = []; }
         return new Promise(r => {
-            // Check for internal DB or fallback to empty to prevent crash
             const t = setInterval(() => { 
                 if (typeof INTERNAL_VOCAB !== 'undefined') { 
                     this.data = INTERNAL_VOCAB; 
-                    clearInterval(t); 
-                    r(); 
+                    clearInterval(t); r(); 
                 } else if (document.readyState === 'complete') {
-                    // Fallback if no internal DB found after load
-                    this.data = {};
-                    clearInterval(t);
-                    r();
+                    this.data = {}; clearInterval(t); r();
                 }
             }, 50);
         });
     },
-    
-    // CRITICAL FIX: Always strip metadata from keys (word/meaning -> word)
+    // Limpieza crítica para evitar duplicados por metadatos
     clean(txt) {
         if (!txt) return "";
         return txt.split('/')[0].trim();
     },
-
     getFolderWords(folderId) {
-        // 1. SYSTEM FOLDERS
+        let words = [];
+        // 1. Sistemas predefinidos
         if (folderId === 'sys_official') { 
-            let all=[]; 
-            Object.keys(this.data).forEach(k => all = all.concat(this.data[k].map(x => ({
-                ...x, 
-                en: this.clean(x.en), 
-                cat:'official'
-            })))); 
-            return all; 
+            Object.keys(this.data).forEach(k => words = words.concat(this.data[k].map(x => ({...x, en: this.clean(x.en), cat:'official'}))));
+            return words; 
         }
         if (folderId === 'sys_custom') { 
-            let all=[]; 
-            const ext = (l) => {
-                l.forEach(i => {
-                    if(i.isFolder && i.items) ext(i.items);
-                    else if(i.eng) all.push({en:this.clean(i.eng), es:i.esp, cat:'custom'});
-                });
-            }; 
-            ext(this.customData); 
-            return all; 
+            const ext = (l) => l.forEach(i => { if(i.isFolder && i.items) ext(i.items); else if(i.eng) words.push({en:this.clean(i.eng), es:i.esp, cat:'custom'}); }); 
+            ext(this.customData); return words; 
         }
         if (folderId === 'sys_everything') { return this.getFolderWords('sys_official').concat(this.getFolderWords('sys_custom')); }
         
-        // 2. SPECIFIC FOLDERS (RECURSIVE SEARCH)
-        let words = []; 
+        // 2. Búsqueda recursiva en carpetas de usuario
         const find = (l) => {
             for(let i of l) {
-                if(i.isFolder) {
-                    if(i.id === folderId) return i.items || [];
-                    const f = find(i.items || []);
-                    if(f) return f;
-                }
+                if(i.isFolder) { if(i.id === folderId) return i.items || []; const f = find(i.items || []); if(f) return f; }
             }
             return null;
         };
         const raw = find(this.customData); 
         if(!raw) return [];
-
-        // 3. FLATTEN FOLDER CONTENT
-        const ext = (l) => {
-            l.forEach(i => {
-                if(i.isFolder && i.items) ext(i.items);
-                else if(i.eng) words.push({en:this.clean(i.eng), es:i.esp, cat:'custom'});
-            });
-        };
-        ext(raw); 
+        
+        // Aplanar resultados
+        const ext = (l) => l.forEach(i => { if(i.isFolder && i.items) ext(i.items); else if(i.eng) words.push({en:this.clean(i.eng), es:i.esp, cat:'custom'}); });
+        ext(raw);
         return words;
     },
-
     getFolderList() {
         let f = []; 
-        const ext = (l) => {
-            l.forEach(i => {
-                if(i.isFolder) {
-                    let c = 0;
-                    const count = (s) => s.forEach(x => { if(x.isFolder && x.items) count(x.items); else if(x.eng) c++; });
-                    if(i.items) count(i.items);
-                    f.push({id:i.id, name:i.name, count:c});
-                    if(i.items) ext(i.items);
-                }
-            });
-        };
-        ext(this.customData); 
-        return f;
+        const ext = (l) => l.forEach(i => { 
+            if(i.isFolder) { 
+                let c = 0; const count = (s) => s.forEach(x => { if(x.isFolder && x.items) count(x.items); else if(x.eng) c++; }); 
+                if(i.items) count(i.items); f.push({id:i.id, name:i.name, count:c}); if(i.items) ext(i.items); 
+            } 
+        });
+        ext(this.customData); return f;
     },
     get(cat) {
         const k = {nouns:'NOUNS', adjectives:'ADJECTIVES', verbs_reg:'REGULAR_VERBS', verbs_irreg:'IRREGULAR_VERBS', functionals:'FUNCTION WORDS'};
         if(cat === 'mixed') {
-            let a = [];
-            Object.keys(k).forEach(ky => { a = a.concat((this.data[k[ky]] || []).map(x => ({
-                ...x, 
-                en: this.clean(x.en), 
-                cat:ky
-            }))); });
+            let a = []; Object.keys(k).forEach(ky => { a = a.concat((this.data[k[ky]] || []).map(x => ({...x, en: this.clean(x.en), cat:ky}))); });
             return a;
         }
-        return (this.data[k[cat]] || []).map(x => ({
-            ...x, 
-            en: this.clean(x.en),
-            cat
-        }));
+        return (this.data[k[cat]] || []).map(x => ({...x, en: this.clean(x.en), cat}));
     },
     all(){ 
-        let a = []; 
-        Object.keys(this.data).forEach(k => a = a.concat(this.data[k].map(x => ({...x, en:this.clean(x.en)})))); 
+        let a = []; Object.keys(this.data).forEach(k => a = a.concat(this.data[k].map(x => ({...x, en:this.clean(x.en)})))); 
         return a; 
     }
 };
 
-// ================================================================
-// MODULE 2: USER PROFILE & STATS (FIXED: DYNAMIC SCOPE STATS)
-// ================================================================
+/* ================================================================
+   MODULE 2: PROFILE & STATS (LOGIC CORE)
+   ================================================================ */
 const Profile = {
     cfg: { count: 10, time: 0, theme: 'dark', prog: {}, speed: 1, gameMode: 'meteor', interaction: 'arcade', restMode: 'true', banned: [], coins: { silver:0, gold:0 } },
     sessionMastery: 0, 
@@ -634,19 +590,18 @@ const Profile = {
         if (s) this.cfg = { ...this.cfg, ...JSON.parse(s) };
         if(!this.cfg.banned) this.cfg.banned = [];
         if(!this.cfg.coins) this.cfg.coins = { silver:0, gold:0 }; 
-        
-        this.applyDecay(); 
         this.applyTheme();
         
-        // Restore inputs
-        if(document.getElementById('cfg-count')) document.getElementById('cfg-count').value = this.cfg.count;
-        if(document.getElementById('cfg-speed')) document.getElementById('cfg-speed').value = this.cfg.speed || 1;
-        if(document.getElementById('cfg-time')) document.getElementById('cfg-time').value = this.cfg.time || 0;
-        if(document.getElementById('cfg-mode')) document.getElementById('cfg-mode').value = this.cfg.gameMode || 'meteor';
-        if(document.getElementById('cfg-interaction')) document.getElementById('cfg-interaction').value = this.cfg.interaction || 'arcade';
-        if(document.getElementById('cfg-rest')) document.getElementById('cfg-rest').value = this.cfg.restMode || 'false';
+        // Restore inputs safely
+        const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+        setVal('cfg-count', this.cfg.count);
+        setVal('cfg-speed', this.cfg.speed || 1);
+        setVal('cfg-time', this.cfg.time || 0);
+        setVal('cfg-mode', this.cfg.gameMode || 'meteor');
+        setVal('cfg-interaction', this.cfg.interaction || 'arcade');
+        setVal('cfg-rest', this.cfg.restMode || 'false');
 
-        this.calcStats(); // Initial calc (global)
+        this.calcStats();
         App.updateCoinUI();
     },
     saveCfg() {
@@ -656,130 +611,154 @@ const Profile = {
         this.cfg.gameMode = document.getElementById('cfg-mode').value;
         this.cfg.interaction = document.getElementById('cfg-interaction').value;
         this.cfg.restMode = document.getElementById('cfg-rest').value;
-
         this.save(); 
-        App.renderQueue(); // Update queue based on new settings
+        App.renderQueue(); 
     },
     save() { localStorage.setItem('LN_V8_HYBRID', JSON.stringify(this.cfg)); },
     
-    ban(w) { if(!this.cfg.banned.includes(w)) this.cfg.banned.push(w); this.save(); },
-    unban(w) { this.cfg.banned = this.cfg.banned.filter(b => b !== w); this.save(); App.renderBannedList(); },
-    isBanned(w) { return (this.cfg.banned || []).includes(w); },
-    
-    addMasteryPoint() {
-        this.sessionMastery++;
-        const goal = this.cfg.count; 
-        
-        if (this.sessionMastery > 0 && this.sessionMastery % goal === 0) {
-            this.cfg.coins.silver++;
-            if (this.cfg.coins.silver >= 5) {
-                this.cfg.coins.silver -= 5;
-                this.cfg.coins.gold++;
-                this.save();
-                App.updateCoinUI();
-                return 'gold'; 
-            } else {
-                this.save();
-                App.updateCoinUI();
-                return 'silver'; 
-            }
-        }
-        return null;
-    },
-
-    applyTheme() {
-        const d = document.documentElement, i = document.getElementById('theme-icon');
-        if(this.cfg.theme === 'light') {
-            d.classList.add('light-mode');
-            if(i) i.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
-        } else {
-            d.classList.remove('light-mode');
-            if(i) i.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
-        }
-    },
-    toggleTheme() { this.cfg.theme = this.cfg.theme === 'dark' ? 'light' : 'dark'; this.applyTheme(); this.save(); },
+    ban(w) { const key = DB.clean(w); if(!this.cfg.banned.includes(key)) this.cfg.banned.push(key); this.save(); },
+    unban(w) { const key = DB.clean(w); this.cfg.banned = this.cfg.banned.filter(b => b !== key); this.save(); App.renderBannedList(); },
+    isBanned(w) { return (this.cfg.banned || []).includes(DB.clean(w)); },
     
     getData(w) { 
-        let v = this.cfg.prog[w]; 
+        const key = DB.clean(w); 
+        let v = this.cfg.prog[key]; 
         if(v === undefined) return {lvl:0, date:0}; 
         if(typeof v === 'number') return {lvl:v, date:0}; 
         return { lvl: parseInt(v.lvl), date: v.date }; 
     },
+    
+    // === LÓGICA DE PROGRESO 0-4 ===
     setProg(w, ok) {
-        let e = this.getData(w), l = e.lvl; 
-        if(ok) { if(l < 4) l++; } else { l = Math.max(0, l - 1); }
-        this.cfg.prog[w] = {lvl:l, date:Date.now()}; 
+        const key = DB.clean(w); 
+        let e = this.getData(key), l = e.lvl; 
+        if(ok) { if(l < 4) l++; } 
+        else { l = Math.max(0, l - 1); }
+        this.cfg.prog[key] = {lvl:l, date:Date.now()}; 
         this.save(); 
-        
-        // Recalc stats based on current view (App.activeScope or Global)
         this.calcStats(App.activeScope); 
         return l;
     },
     getLvl(w) { return this.getData(w).lvl; },
     
-    wipe() { 
-        if(confirm("DANGER: This will delete ALL progress, coins, and banned words. Are you sure?")) { 
-            this.cfg.prog = {}; this.cfg.banned = []; this.cfg.coins = {silver:0,gold:0}; 
-            this.save(); 
-            App.clearScope(); // Reset scope too
-            App.nav('home'); 
-        } 
+    addMasteryPoint() {
+        this.sessionMastery++;
+        const goal = this.cfg.count; 
+        if (this.sessionMastery > 0 && this.sessionMastery % goal === 0) {
+            this.cfg.coins.silver++;
+            if (this.cfg.coins.silver >= 5) {
+                this.cfg.coins.silver -= 5; this.cfg.coins.gold++;
+                this.save(); App.updateCoinUI(); return 'gold'; 
+            } else {
+                this.save(); App.updateCoinUI(); return 'silver'; 
+            }
+        }
+        return null;
     },
-    
-    // CRITICAL FIX: STATS NOW RESPECT SCOPE
+    applyTheme() {
+        const d = document.documentElement, i = document.getElementById('theme-icon');
+        if(this.cfg.theme === 'light') { d.classList.add('light-mode'); if(i) i.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>'; } 
+        else { d.classList.remove('light-mode'); if(i) i.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>'; }
+    },
+    toggleTheme() { this.cfg.theme = this.cfg.theme === 'dark' ? 'light' : 'dark'; this.applyTheme(); this.save(); },
+    wipe() { if(confirm("DANGER: This will delete ALL progress, coins, and banned words. Are you sure?")) { this.cfg.prog = {}; this.cfg.banned = []; this.cfg.coins = {silver:0,gold:0}; this.save(); App.clearScope(); App.nav('home'); } },
     calcStats(scopeList = null) {
-        // If a scope is provided (folder), use it. Otherwise default to DB.all() (Internal)
         const sourceList = scopeList || (typeof DB !== 'undefined' ? DB.all() : []);
         const total = sourceList.length;
-        
         if (total === 0) {
              if(document.getElementById('stat-m')) document.getElementById('stat-m').innerHTML = `0 <span style="font-size:12px; opacity:0.7">/ 0</span>`;
              if(document.getElementById('stat-t')) document.getElementById('stat-t').innerText = `0%`;
              return;
         }
-
-        // Count mastery ONLY within the source list
         let masteredCount = 0;
-        sourceList.forEach(w => {
-            if (this.getLvl(w.en) === 4) masteredCount++;
-        });
-
+        sourceList.forEach(w => { if (this.getLvl(w.en) === 4) masteredCount++; });
         const globalPct = ((masteredCount / total) * 100).toFixed(1);
-
-        if(document.getElementById('stat-m')) {
-            document.getElementById('stat-m').innerHTML = 
-                `${masteredCount} <span style="font-size:12px; opacity:0.7">/ ${total}</span>`;
-        }
-        if(document.getElementById('stat-t')) {
-            document.getElementById('stat-t').innerText = `${globalPct}%`;
-        }
-    },
-    
-    applyDecay() {
-        const NOW = Date.now(), DECAY = 30 * 24 * 60 * 60 * 1000; 
-        let ch = false;
-        Object.keys(this.cfg.prog).forEach(w => {
-            let e = this.cfg.prog[w];
-            if(typeof e === 'object' && e.lvl === 4 && NOW - e.date > DECAY) {
-                e.lvl = 3; e.date = NOW; ch = true;
-            }
-        });
-        if(ch) this.save();
+        if(document.getElementById('stat-m')) document.getElementById('stat-m').innerHTML = `${masteredCount} <span style="font-size:12px; opacity:0.7">/ ${total}</span>`;
+        if(document.getElementById('stat-t')) document.getElementById('stat-t').innerText = `${globalPct}%`;
     }
 };
 
-// ================================================================
-// MODULE 3: APP CONTROLLER (FIXED: SCOPE PERSISTENCE)
-// ================================================================
+/* ================================================================
+   MODULE 3: BATCH & QUEUE SYSTEM (NEW LOGIC)
+   ================================================================ */
+const BatchManager = {
+    currentBatch: [],
+    phase: 'new', // 'new' (0->3) or 'review' (3->4)
+    
+    // Obtiene las palabras para la sesión actual, gestionando los ciclos
+    getBatch(fullPool) {
+        // 1. Limpiar lote actual: Quitar palabras que ya cumplieron el objetivo
+        // Si estamos en NEW: salen al llegar a Lvl 3.
+        // Si estamos en REVIEW: salen al llegar a Lvl 4.
+        const target = this.phase === 'new' ? 3 : 4;
+        
+        // Filtramos el lote actual manteniendo solo las que NO han llegado al objetivo
+        this.currentBatch = this.currentBatch.filter(w => {
+            const l = Profile.getLvl(w.en);
+            return l < target && !Profile.isBanned(w.en);
+        });
+
+        // 2. Si el lote se vació (0 palabras), llenamos uno nuevo
+        if (this.currentBatch.length === 0) {
+            this.cyclePhase();
+            this.fillBatch(fullPool);
+        }
+
+        return [...this.currentBatch]; // Devolver copia
+    },
+
+    cyclePhase() {
+        // Alternar fase: Si estaba en new, toca review. Si review, toca new.
+        this.phase = (this.phase === 'new') ? 'review' : 'new';
+        // Notificación visual (opcional)
+        console.log(`BATCH CYCLE: Switching to ${this.phase.toUpperCase()} phase.`);
+    },
+
+    fillBatch(fullPool) {
+        const batchSize = Profile.cfg.count || 10;
+        let candidates = [];
+
+        if (this.phase === 'new') {
+            // Buscar palabras "Nuevas" (Lvl 0, 1, 2)
+            candidates = fullPool.filter(w => Profile.getLvl(w.en) < 3 && !Profile.isBanned(w.en));
+            // Priorizar las de Lvl 0 (Totalmente nuevas)
+            candidates.sort((a,b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));
+        } else {
+            // Buscar palabras "Viejas" (Lvl 3) para pasar a Master (Lvl 4)
+            candidates = fullPool.filter(w => Profile.getLvl(w.en) === 3 && !Profile.isBanned(w.en));
+        }
+
+        // Si no hay candidatos para Review, volver forzosamente a New
+        if (this.phase === 'review' && candidates.length === 0) {
+            this.phase = 'new';
+            this.fillBatch(fullPool);
+            return;
+        }
+
+        // Mezclar un poco los candidatos y tomar 10
+        candidates.sort(() => Math.random() - 0.5);
+        this.currentBatch = candidates.slice(0, batchSize);
+    },
+    
+    // Método para reiniciar el manager al cambiar de carpeta/scope
+    reset() {
+        this.currentBatch = [];
+        this.phase = 'new';
+    }
+};
+
+/* ================================================================
+   MODULE 4: APP CONTROLLER
+   ================================================================ */
 const App = {
     audioMode: true, activeScope: null, scopeName: null, pausedSession: null,
     
     async boot() { 
         await DB.init(); 
         Profile.load(); 
-        // Initial stat calc is global
         Profile.calcStats();
         
+        // Recuperar sesión pausada
         const saved = localStorage.getItem('LN_SAVED_SESSION');
         if(saved) {
             try { this.pausedSession = JSON.parse(saved); } 
@@ -799,15 +778,17 @@ const App = {
         if(document.getElementById('view-game').classList.contains('active')) {
             const isText = Profile.cfg.interaction === 'text';
             const stateToSave = {
-                queue: isText ? TextGame.queue : Game.queue,
-                fullList: isText ? TextGame.fullList : Game.fullList,
+                queue: isText ? TextGame.queue : Game.queue, // Guardamos la cola visual actual
+                fullList: isText ? TextGame.fullList : Game.fullList, // Guardamos el pool entero
                 idx: isText ? TextGame.idx : Game.idx,
                 cat: isText ? TextGame.cat : Game.category,
-                // Save scope info for resumption
                 scopeName: this.scopeName,
                 isScopeActive: !!this.activeScope,
                 time: isText ? TextGame.startTime : Game.startTime,
-                active: true
+                active: true,
+                // Guardar estado del BatchManager también
+                batchData: BatchManager.currentBatch,
+                batchPhase: BatchManager.phase
             };
             localStorage.setItem('LN_SAVED_SESSION', JSON.stringify(stateToSave));
             this.pausedSession = stateToSave; 
@@ -816,64 +797,45 @@ const App = {
 
     headerBack() {
         if(document.getElementById('view-game').classList.contains('active')) {
-            this.saveStateToDisk();
-            this.stopAll();
-            this.nav('home');
-            return;
+            this.saveStateToDisk(); this.stopAll(); this.nav('home'); return;
         }
         if(document.getElementById('view-settings').classList.contains('active')) {
             this.nav('home'); return;
         }
-        this.stopAll();
-        this.nav('home');
+        this.stopAll(); this.nav('home');
     },
 
     nav(v) {
         if(document.getElementById('view-game').classList.contains('active') && v === 'settings') {
-            this.saveStateToDisk(); 
-            this.stopAll();
+            this.saveStateToDisk(); this.stopAll();
         } 
-        
         document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active'));
         document.getElementById('view-' + v).classList.add('active');
         document.body.className = (v === 'home') ? 'is-home' : '';
-        const btn = document.getElementById('btn-settings-nav');
         
         if (v === 'settings') {
-            btn.classList.add('active'); 
+            document.getElementById('btn-settings-nav').classList.add('active'); 
             this.setLibFilter('all', document.querySelector('.filter-bar .filter-btn'));
-            this.renderQueue(); 
+            this.renderQueuePreview(); 
             this.renderBannedList(); 
-            this.updateScopeUI(); // SHOW WHICH FOLDER IS ACTIVE
-            
-            // Recalculate stats for the Settings View context
+            this.updateScopeUI(); 
             Profile.calcStats(this.activeScope);
-
             const resumeBtn = document.getElementById('resume-banner');
             if(resumeBtn) resumeBtn.style.display = (this.pausedSession && this.pausedSession.active) ? 'block' : 'none';
         } else { 
-            btn.classList.remove('active'); 
+            document.getElementById('btn-settings-nav').classList.remove('active'); 
         }
 
         if (v === 'home') {
-            // Recalculate global stats for home unless we want to show last scope stats
-            // Let's stick to Global Stats on home for cleaner UX
             Profile.calcStats(null); 
-
             const homeResume = document.getElementById('home-resume-btn');
             const lbl = document.getElementById('resume-lbl');
             if(this.pausedSession && this.pausedSession.active) {
                 homeResume.style.display = 'block';
-                // Show Folder Name if resumed
                 const displayLabel = this.pausedSession.scopeName || (this.pausedSession.cat === 'mixed' ? 'MIXED BAG' : this.pausedSession.cat);
                 lbl.innerText = displayLabel.toUpperCase();
-                
-                homeResume.style.animation = 'none';
-                homeResume.offsetHeight; 
-                homeResume.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-            } else {
-                homeResume.style.display = 'none';
-            }
+                homeResume.style.animation = 'none'; homeResume.offsetHeight; homeResume.style.animation = 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            } else { homeResume.style.display = 'none'; }
         }
         if (v === 'folders') this.renderFolderList();
     },
@@ -881,14 +843,12 @@ const App = {
     resumeGame() {
         if(!this.pausedSession || !this.pausedSession.active) return;
         const ps = this.pausedSession;
+        if (ps.isScopeActive) { this.scopeName = ps.scopeName; }
         
-        // Restore scope if needed
-        if (ps.isScopeActive) {
-            this.scopeName = ps.scopeName;
-            // We don't necessarily have the full list object here easily without re-fetching
-            // But prepGame uses the stored fullList from session, so it's fine.
-        }
-        
+        // Restaurar estado del BatchManager
+        if(ps.batchData) BatchManager.currentBatch = ps.batchData;
+        if(ps.batchPhase) BatchManager.phase = ps.batchPhase;
+
         this.prepGame(ps.queue, ps.cat, ps.scopeName || ps.cat, true); 
     },
 
@@ -897,10 +857,7 @@ const App = {
     toggleAudioMode() { 
         this.audioMode = !this.audioMode; 
         const btn = document.getElementById('btn-audio-mode');
-        if(this.audioMode){ 
-            btn.classList.add('active'); btn.style.opacity='1'; 
-            if('speechSynthesis' in window) window.speechSynthesis.cancel();
-        } 
+        if(this.audioMode){ btn.classList.add('active'); btn.style.opacity='1'; if('speechSynthesis' in window) window.speechSynthesis.cancel(); } 
         else { btn.classList.remove('active'); btn.style.opacity='0.5'; }
         if(Profile.cfg.interaction === 'text' && document.getElementById('view-game').classList.contains('active')) { TextGame.syncAudioState(); }
     },
@@ -922,87 +879,43 @@ const App = {
         }
     },
     
-    // CRITICAL FIX: SET SCOPE EXPLICITLY
     startFolder(fid, fname) {
         const raw = DB.getFolderWords(fid); 
         if(raw.length === 0) return alert("Folder is empty!");
-        
-        // 1. Lock Scope
         this.activeScope = raw; 
         this.scopeName = fname;
-        
-        // 2. Update Stats for this Scope immediately (so user feels the context switch)
         Profile.calcStats(raw);
-        
-        // 3. Start Game
+        BatchManager.reset(); // Reiniciar lotes al cambiar de carpeta
         this.prepGame(raw, 'custom', fname);
     },
     
     start(cat) { 
         const raw = DB.get(cat); 
-        // Reset scope for standard categories to keep it simple, OR treat them as scopes?
-        // Let's reset scope so it behaves like "Quick Play"
         this.activeScope = null; 
         this.scopeName = null; 
-        
+        BatchManager.reset(); // Reiniciar lotes al cambiar de categoría
         this.prepGame(raw, cat, cat === 'mixed' ? "MIXED BAG" : cat.toUpperCase()); 
     },
     
-    getSmartQueue(rawWords, count) {
-        const pool = rawWords.filter(w => {
-    // 1. Si está baneada manualmente, fuera.
-    if (Profile.isBanned(w.en)) return false;
-    
-    // 2. FILTRO DE FRASES: Si tiene espacios, es una frase -> fuera.
-    if (w.en.trim().includes(' ')) return false; 
-
-    // 3. FILTRO DE BARRAS: Si tiene una barra /, se ignora totalmente -> fuera.
-    // (Nota: Si prefieres que se "limpie" en vez de borrarse, elimina esta línea).
-    if (w.en.includes('/')) return false;
-
-    return true;
-});
-        if (pool.length === 0) return [];
-
-        const active = [];  
-        const fresh = [];   
-        const master = [];  
-
-        pool.forEach(w => {
-            const l = Profile.getLvl(w.en);
-            if (l === 4) master.push(w);
-            else if (l === 0) fresh.push(w);
-            else active.push(w);
-        });
-
-        const shuffle = (array) => {
-            for (let i = array.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [array[i], array[j]] = [array[j], array[i]];
-            }
-            return array;
-        };
-
-        shuffle(active);
-        shuffle(fresh);
-        shuffle(master);
-
-        const finalPool = [...active, ...fresh, ...master];
-        return finalPool.slice(0, count);
+    // Función auxiliar para obtener palabras del sistema de lotes
+    getGameQueue(rawList) {
+        return BatchManager.getBatch(rawList);
     },
 
-    prepGame(raw, catKey, title, isResume = false) {
+    prepGame(rawOrQueue, catKey, title, isResume = false) {
         let queue, sorted;
         
         if(isResume) {
-            queue = raw;
+            queue = rawOrQueue;
             sorted = this.pausedSession.fullList;
         } else {
             localStorage.removeItem('LN_SAVED_SESSION'); 
             this.pausedSession = null;
             
-            queue = this.getSmartQueue(raw, Profile.cfg.count);
-            sorted = raw; 
+            // Aquí usamos el BatchManager para obtener el lote de 10
+            // 'rawOrQueue' es la lista completa de la categoría/carpeta
+            queue = this.getGameQueue(rawOrQueue);
+            sorted = rawOrQueue; 
 
             if (queue.length === 0) return alert("No words available (Check banned list?).");
         }
@@ -1042,43 +955,23 @@ const App = {
         }
     },
     
+    // UI Helpers
     setLibFilter(lvl, btn) { this.filterLvl = lvl; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); if(btn) btn.classList.add('active'); this.resetRender(); },
-    
-    // CRITICAL FIX: CLEAR SCOPE PROPERLY
     clearScope() { 
-        this.activeScope = null; 
-        this.scopeName = null; 
-        this.updateScopeUI(); 
-        
-        // Reset stats to Global
+        this.activeScope = null; this.scopeName = null; this.updateScopeUI(); 
         Profile.calcStats(null); 
-        
-        this.resetRender(); 
-        this.renderQueue(); 
+        this.resetRender(); this.renderQueuePreview(); 
     },
-    
     updateScopeUI() {
         const lbl = document.getElementById('lib-scope-label'), btn = document.getElementById('btn-scope-reset');
-        if(this.activeScope) { 
-            lbl.innerText = `SCOPE: ${this.scopeName}`; 
-            lbl.style.color = 'var(--gold)'; 
-            btn.style.display = 'block'; 
-        }
-        else { 
-            lbl.innerText = 'SCOPE: FULL DATABASE'; 
-            lbl.style.color = 'var(--txt-sec)'; 
-            btn.style.display = 'none'; 
-        }
+        if(this.activeScope) { lbl.innerText = `SCOPE: ${this.scopeName}`; lbl.style.color = 'var(--gold)'; btn.style.display = 'block'; }
+        else { lbl.innerText = 'SCOPE: FULL DATABASE'; lbl.style.color = 'var(--txt-sec)'; btn.style.display = 'none'; }
     },
-    
     resetRender() { this.renderCount = 50; this.calculateFilteredList(); this.renderLib(); },
     renderMore() { this.renderCount += 50; this.renderLib(); },
-    
     calculateFilteredList() { 
         const s = document.getElementById('inp-search').value.toLowerCase(); 
-        // Use active scope if set, otherwise global
         const src = this.activeScope || DB.all();
-        
         this.filteredResults = src.filter(x => { 
             const m = !s || x.en.toLowerCase().includes(s); 
             if(!m) return false; 
@@ -1099,15 +992,16 @@ const App = {
         });
         c.appendChild(frag);
     },
-    
-    renderQueue() {
-        // Use active scope if set for the queue preview too
+    renderQueuePreview() {
+        // En settings mostramos una mezcla simple para no confundir con la logica compleja de batch
         let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed');
-        const nB = this.getSmartQueue(raw, Profile.cfg.count);
+        raw = raw.filter(w => !Profile.isBanned(w.en));
+        raw.sort(() => Math.random() - 0.5);
+        const nB = raw.slice(0, Profile.cfg.count);
         
         const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
         if(nB.length === 0) { con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; return; }
-        con.innerHTML = `<div style="font-size:11px;color:var(--primary);margin-bottom:10px;font-weight:700;">NEXT ${nB.length} WORDS (RANDOMIZED):</div>`;
+        con.innerHTML = `<div style="font-size:11px;color:var(--primary);margin-bottom:10px;font-weight:700;">PREVIEW (NEXT 10):</div>`;
         nB.forEach(w => {
             const l = Profile.getLvl(w.en), tc = 'tag-' + l, tt = l === 0 ? 'NEW' : (l === 4 ? 'MASTER' : `LVL ${l}`);
             const d = document.createElement('div'); d.className = 'queue-item'; 
@@ -1115,57 +1009,34 @@ const App = {
             con.appendChild(d);
         });
     },
-
     renderBannedList() {
-        const con = document.getElementById('banned-list-container');
-        if (!con) return;
-        con.innerHTML = '';
-        
+        const con = document.getElementById('banned-list-container'); if (!con) return; con.innerHTML = '';
         const list = Profile.cfg.banned || [];
-        
-        if (list.length === 0) {
-            con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>';
-            return;
-        }
-
+        if (list.length === 0) { con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>'; return; }
         list.forEach(w => {
-            const d = document.createElement('div');
-            d.className = 'banned-item';
+            const d = document.createElement('div'); d.className = 'banned-item';
             d.innerHTML = `<span>${w.toUpperCase()}</span><span class="banned-icon">♻️ RESTORE</span>`;
-            d.onclick = () => {
-                if(confirm(`Restore "${w}" to active list?`)) {
-                    Profile.unban(w);
-                }
-            };
+            d.onclick = () => { if(confirm(`Restore "${w}"?`)) Profile.unban(w); };
             con.appendChild(d);
         });
     }
 };
 
-// ================================================================
-// MODULE 4: ARCADE GAME ENGINE
-// ================================================================
+/* ================================================================
+   MODULE 5: ARCADE GAME ENGINE (BATCH AWARE & SINGLE PENALTY)
+   ================================================================ */
 const Game = {
     canvas:null, ctx:null, queue:[], pool:[], fullList:[], idx:0, width:0, height:0, loopId:null, lastTime:0, activeWord:null, particles:[], stars:[], laser:null, ghosts:[], shockwaves:[], clouds:[], score:0, startTime:0, timeLimit:0, themeColor:'#fff', flashIntensity:0, combo:0, gridOffset:0, showingGhost:false, category:'', timerId:null, isPlaying:false, mode: 'meteor', speedMult: 1, 
-    banningPhase: false, banBeamColor: 0,
-    wordsCleared: 0,
-    isResting: false, 
+    banningPhase: false, banBeamColor: 0, wordsCleared: 0, isResting: false, 
 
     init(queue, cat, colorVar, fullList) {
         this.queue = queue; this.category = cat; this.fullList = fullList;
-        // If playing a custom folder (App.activeScope exists), restrict pool to that scope
-        if (App.activeScope) {
-            this.pool = App.activeScope;
-        } else {
-            this.pool = (cat === 'custom' || cat === 'mixed') ? (this.fullList.length > 4 ? this.fullList : DB.all()) : DB.all();
-        }
+        // Pool is just for distractors
+        if (App.activeScope) { this.pool = App.activeScope; } 
+        else { this.pool = (cat === 'custom' || cat === 'mixed') ? (this.fullList.length > 4 ? this.fullList : DB.all()) : DB.all(); }
         
-        this.pool = this.pool.filter(w => !Profile.isBanned(w.en));
-        if(this.pool.length === 0) this.pool = this.fullList;
-
         this.idx = 0; this.score = 0; this.ghosts = []; this.shockwaves = []; this.combo = 0; this.showingGhost = false; this.isPlaying = true; this.banningPhase = false;
-        this.wordsCleared = 0; 
-        this.isResting = false; 
+        this.wordsCleared = 0; this.isResting = false; 
 
         this.canvas = document.getElementById('game-canvas'); this.ctx = this.canvas.getContext('2d'); this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -1175,12 +1046,10 @@ const Game = {
         const tD = document.createElement('div'); tD.style.color = colorVar; document.body.appendChild(tD); this.themeColor = getComputedStyle(tD).color; document.body.removeChild(tD);
         if(['flower', 'heart', 'butterfly'].includes(this.mode)) { 
             const p = {'--c-noun':'#93c5fd', '--c-adj':'#f0abfc', '--c-reg':'#86efac', '--c-irreg':'#fcd34d', '--c-func':'#a5b4fc', '--primary':'#fda4af', '--gold':'#fcd34d'}; 
-            const v = colorVar.replace('var(', '').replace(')', ''); 
-            this.themeColor = p[v] || this.themeColor; 
+            const v = colorVar.replace('var(', '').replace(')', ''); this.themeColor = p[v] || this.themeColor; 
         }
         
         document.getElementById('game-timer').style.display = this.timeLimit > 0 ? 'block' : 'none';
-        
         this.stars = []; for(let i = 0; i < 60; i++) this.stars.push({x:Math.random() * this.width, y:Math.random() * this.height, size:Math.random() * 2, speed:0.2 + Math.random() * 0.5});
         this.clouds = []; if(['flower', 'heart', 'butterfly'].includes(this.mode)) for(let i = 0; i < 5; i++) this.clouds.push({x:Math.random() * this.width, y:Math.random() * this.height, size:30 + Math.random() * 50, speed:0.1 + Math.random() * 0.1});
         
@@ -1191,20 +1060,24 @@ const Game = {
     
     spawn() {
         if(!this.isPlaying || this.showingGhost || this.banningPhase || this.isResting) return;
+        
+        // --- LOGICA DE COLA RECURSIVA ---
         if(this.idx >= this.queue.length) { 
             this.idx = 0; 
-            if(this.timeLimit === 0 && this.queue.every(w => Profile.getLvl(w.en) === 4)) { 
-                localStorage.removeItem('LN_SAVED_SESSION');
-                alert("SESSION COMPLETE!"); 
-                this.stop(); 
-                App.nav('home'); 
-                return; 
-            } 
+            // Si llegamos al final de la cola visual, actualizamos el lote desde BatchManager
+            // Esto traerá las mismas palabras si no han subido de nivel, o nuevas si el lote se vació.
+            this.queue = App.getGameQueue(this.fullList);
+            App.updateChart(this.queue);
+            
+            if(this.queue.length === 0) {
+                // Caso extremo: Carpeta vacía o todo masterizado
+                alert("BATCH COMPLETED!"); 
+                this.stop(); App.nav('home'); return;
+            }
         }
-        const data = this.queue[this.idx]; 
         
-        // --- CLEAN DISPLAY WORD ---
-        data.en = DB.clean(data.en);
+        const data = this.queue[this.idx]; 
+        const displayWord = DB.clean(data.en); 
         
         const size = 60; let x, y, vx, vy;
         if(this.mode === 'orbit' || this.mode === 'butterfly') { 
@@ -1220,7 +1093,9 @@ const Game = {
             vx = (Math.random() - 0.5) * 0.5; 
             vy = fall ? (1 + Math.random()) * this.speedMult : (-1 - Math.random()) * this.speedMult; 
         }
-        this.activeWord = {data, x, y, vx, vy, rot:0, rotSpeed:(Math.random() - 0.5) * 0.02, size, color:this.themeColor, trail:[]};
+        
+        // Agregar flag hasErrored para penalización única
+        this.activeWord = {data, displayWord, x, y, vx, vy, rot:0, rotSpeed:(Math.random() - 0.5) * 0.02, size, color:this.themeColor, trail:[], hasErrored: false};
         this.renderButtons(data);
     },
 
@@ -1244,10 +1119,8 @@ const Game = {
         opts.forEach(o => { 
             const b = document.createElement('button'); 
             b.className = 'ans-btn'; 
-            
             let label = Array.isArray(o.es) ? o.es[0] : o.es;
             label = DB.clean(label);
-            
             b.innerText = label.toUpperCase(); 
             b.onclick = () => this.fire(o, cor, b); 
             d.appendChild(b); 
@@ -1256,58 +1129,32 @@ const Game = {
 
     banActive(btnElement) {
         if(!this.activeWord || this.banningPhase) return;
-        
         if(btnElement) btnElement.classList.add('is-banning');
-
         const w = this.activeWord.data;
         Profile.ban(w.en); 
-        this.banningPhase = true;
-        
+        this.banningPhase = true; 
         setTimeout(() => {
-            this.replaceMasteredWord(w.en); 
+            // Remover de la cola local inmediatamente
+            const qIdx = this.queue.findIndex(qw => qw.en === w.en);
+            if(qIdx !== -1) this.queue.splice(qIdx, 1);
+            if(qIdx < this.idx) this.idx--; else if(qIdx === this.idx) this.idx--;
+            
             this.banningPhase = false; this.activeWord = null; this.idx++;
             this.spawn();
         }, 800);
     },
     spawnGhost(x, y, t) { if(!this.isPlaying || this.showingGhost) return; let gx = Math.max(50, Math.min(this.width - 50, x)), gy = Math.max(50, Math.min(this.height - 50, y)); this.ghosts.push({x:gx, y:gy, text:(Array.isArray(t) ? t[0] : t).toUpperCase(), life:1.0, vy:-0.5}); this.showingGhost = true; },
     
-    replaceMasteredWord(oldEn) {
-        const idx = this.queue.findIndex(w => w.en === oldEn); if(idx === -1) return; this.queue.splice(idx, 1);
-        
-        const c = this.fullList.filter(w => 
-            !this.queue.find(q => q.en === w.en) && 
-            !Profile.isBanned(w.en) &&
-            Profile.getLvl(w.en) < 4
-        ); 
-        
-        if(c.length > 0) this.queue.push(c[0]);
-        if(idx < this.idx) this.idx--; else if(idx === this.idx) this.idx--;
-    },
-
     showReward(type) {
         const overlay = document.getElementById('reward-overlay');
         const title = document.getElementById('reward-title');
         const desc = document.getElementById('reward-desc');
-        
-        if (type === 'gold') {
-            title.innerText = "RANK UP!";
-            title.style.color = "var(--gold)";
-            desc.innerText = "+1 GOLD COIN (MASTER!)";
-            desc.style.color = "#000";
-            desc.style.background = "var(--gold)";
-        } else {
-            title.innerText = "UNIT CLEAR!";
-            title.style.color = "#fff";
-            desc.innerText = "+1 SILVER COIN";
-            desc.style.color = "#fff";
-            desc.style.background = "rgba(0,0,0,0.8)";
-        }
-        
-        overlay.style.display = 'flex';
-        setTimeout(() => { overlay.style.display = 'none'; }, 1600);
+        if (type === 'gold') { title.innerText = "RANK UP!"; title.style.color = "var(--gold)"; desc.innerText = "+1 GOLD COIN"; desc.style.color = "#000"; desc.style.background = "var(--gold)"; } 
+        else { title.innerText = "UNIT CLEAR!"; title.style.color = "#fff"; desc.innerText = "+1 SILVER COIN"; desc.style.color = "#fff"; desc.style.background = "rgba(0,0,0,0.8)"; }
+        overlay.style.display = 'flex'; setTimeout(() => { overlay.style.display = 'none'; }, 1600);
     },
 
-  fire(sel, cor, btn) {
+    fire(sel, cor, btn) {
         if(!this.activeWord || this.banningPhase || this.laser) return;
 
         const targetWordRef = this.activeWord;
@@ -1320,15 +1167,9 @@ const Game = {
         let color, start, end;
         
         if (isCorrect) {
-            color = fem ? '#86efac' : '#10b981';
-            start = { x: ox, y: oy };
-            end = { x: targetWordRef.x, y: targetWordRef.y };
-            btn.classList.add('correct-flash'); 
+            color = fem ? '#86efac' : '#10b981'; start = { x: ox, y: oy }; end = { x: targetWordRef.x, y: targetWordRef.y }; btn.classList.add('correct-flash'); 
         } else {
-            color = fem ? '#fda4af' : '#ef4444';
-            end = { x: ox, y: oy }; 
-            start = { x: targetWordRef.x, y: targetWordRef.y };
-            btn.classList.add('error-flash');
+            color = fem ? '#fda4af' : '#ef4444'; end = { x: ox, y: oy }; start = { x: targetWordRef.x, y: targetWordRef.y }; btn.classList.add('error-flash');
         }
 
         this.laser = {
@@ -1337,169 +1178,91 @@ const Game = {
                 if(!this.activeWord || this.activeWord !== targetWordRef || !this.isPlaying) return;
 
                 if(isCorrect) {
-                    // ==========================================
-                    // CASO 1: ACIERTO (Destruir palabra y avanzar)
-                    // ==========================================
                     if(App.audioMode) this.speak(cor.en);
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color});
                     this.flashIntensity = 0.3; this.combo++; 
                     this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color);
-                    
                     this.wordsCleared++;
                     
-                    let isTriggerRest = false;
-                    let restDuration = 0;
-                    let restMsg = "";
-                    let restTitle = "";
-
+                    let isTriggerRest = false; let restDuration = 0; let restMsg = ""; let restTitle = "";
                     if (Profile.cfg.restMode === 'true') {
                         if (this.wordsCleared % 20 === 0) { isTriggerRest = true; restDuration = 20000; restTitle = "DEEP REST"; restMsg = "Take a deep breath..."; } 
                         else if (this.wordsCleared % 5 === 0) { isTriggerRest = true; restDuration = 6000; restTitle = "NICE!"; restMsg = "Brief pause..."; }
                     }
 
                     if (isTriggerRest) {
-                        this.isResting = true;
-                        const layer = document.getElementById('brain-rest-layer');
-                        document.getElementById('rest-title').innerText = restTitle;
-                        document.getElementById('rest-msg').innerText = restMsg;
+                        this.isResting = true; const layer = document.getElementById('brain-rest-layer');
+                        document.getElementById('rest-title').innerText = restTitle; document.getElementById('rest-msg').innerText = restMsg;
                         layer.classList.add('active');
                         setTimeout(() => {
-                            layer.classList.remove('active');
-                            this.isResting = false; 
-                            this.activeWord = null; 
-                            this.idx++; 
-                            this.spawn();
+                            layer.classList.remove('active'); this.isResting = false; this.activeWord = null; this.idx++; this.spawn();
                         }, restDuration);
                     } else {
-                        const newLvl = Profile.setProg(cor.en, true); 
+                        // LOGICA DE PROGRESO SOLO SI NO HUBO ERROR PREVIO
+                        // Si ya se equivocó, no sube nivel, pero sí se elimina de pantalla.
+                        const newLvl = this.activeWord.hasErrored ? Profile.getLvl(cor.en) : Profile.setProg(cor.en, true);
                         App.updateChart(this.queue);
                         
-                        if(newLvl >= 4) {
-                            const reward = Profile.addMasteryPoint();
-                            if (reward) this.showReward(reward);
-                            this.banningPhase = true; 
-                            setTimeout(() => {
-                                this.replaceMasteredWord(cor.en); 
-                                this.banningPhase = false;        
-                                this.activeWord = null;              
-                                this.idx++;                          
-                                this.spawn();                        
-                            }, 800); 
-                        } else {
-                            // AQUÍ ES DONDE ESTABA EL ERROR ANTES
-                            // Esto debe limpiar la palabra normal
-                            this.activeWord = null; 
-                            this.idx++; 
-                            if(!this.showingGhost) {
-                                this.timerId = setTimeout(() => this.spawn(), 500);
-                            }
+                        this.activeWord = null; 
+                        this.idx++; 
+                        
+                        // Si subió a nivel 4 (Master), dar premio (solo si no hubo error esta vez)
+                        if(newLvl >= 4 && !this.activeWord?.hasErrored) {
+                            const reward = Profile.addMasteryPoint(); if (reward) this.showReward(reward);
                         }
+                        
+                        if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                     }
-
                 } else {
-                    // ==========================================
-                    // CASO 2: ERROR (Penalizar YA, pero dejar viva)
-                    // ==========================================
-                    this.screenShake(); 
-                    this.createExplosion(this.laser.x2, this.laser.y2, color); 
+                    // ERROR LOGIC: PENALIZACIÓN ÚNICA
+                    this.screenShake(); this.createExplosion(this.laser.x2, this.laser.y2, color); 
                     if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
-                    
-                    // 1. Romper Combo
                     this.combo = 0;
 
-                    // 2. Bajar nivel inmediatamente (Castigo)
-                    Profile.setProg(this.activeWord.data.en, false); 
-                    
-                    // 3. Actualizar gráfico
-                    App.updateChart(this.queue);
-
-                    // NOTA CRÍTICA: NO hacemos 'this.activeWord = null'
-                    // La palabra sigue cayendo para que intentes de nuevo.
+                    // Solo penalizar si es el primer error de esta aparición
+                    if (!this.activeWord.hasErrored) {
+                        Profile.setProg(this.activeWord.data.en, false); 
+                        this.activeWord.hasErrored = true;
+                        App.updateChart(this.queue);
+                    }
+                    // La palabra NO se destruye, sigue cayendo
                 }
             }
         };
     },
+    
+    // Fallo por colisión (no disparo)
     fail() {
         if(App.audioMode) this.speak(this.activeWord.data.en); this.screenShake(); this.spawnGhost(this.activeWord.x, this.activeWord.y, this.activeWord.data.es);
-        Profile.setProg(this.activeWord.data.en, false); App.updateChart(this.queue); this.createExplosion(this.activeWord.x, this.activeWord.y, '#555');
+        this.createExplosion(this.activeWord.x, this.activeWord.y, '#555');
+        
+        // Penalizar solo si no se había penalizado ya por disparo erróneo
+        if (!this.activeWord.hasErrored) {
+            Profile.setProg(this.activeWord.data.en, false); 
+            App.updateChart(this.queue);
+        }
+        
         this.activeWord = null; this.idx++; this.combo = 0;
+        if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
     },
+    
     createExplosion(x, y, c, mult = 1) { 
-        const count = 15 * mult; 
-        for(let i = 0; i < count; i++) {
-            const a = Math.random() * Math.PI * 2;
-            const s = (Math.random() * 2 + 1) * mult; 
-            this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1.0, color: c, size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) });
-        } 
+        const count = 15 * mult; for(let i = 0; i < count; i++) { const a = Math.random() * Math.PI * 2; const s = (Math.random() * 2 + 1) * mult; this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1.0, color: c, size: (Math.random() * 4) * (mult > 1 ? 1.5 : 1) }); } 
     },
     speak(t) { 
-        if(!('speechSynthesis' in window)) return;
-        
-        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-        window.speechSynthesis.cancel(); 
-
-        const u = new SpeechSynthesisUtterance(t);
-        u.lang = 'en-US';
-        u.rate = 1.0; 
-        u.volume = 1.0; 
-
-        window.utterances = window.utterances || [];
-        window.utterances.push(u);
-        
-        u.onend = function() {
-            window.utterances.shift(); 
-        };
-
-        setTimeout(() => {
-            window.speechSynthesis.speak(u);
-        }, 10);
+        if(!('speechSynthesis' in window)) return; if (window.speechSynthesis.paused) window.speechSynthesis.resume(); window.speechSynthesis.cancel(); 
+        const u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 1.0; u.volume = 1.0; window.utterances = window.utterances || []; window.utterances.push(u); u.onend = function() { window.utterances.shift(); }; setTimeout(() => { window.speechSynthesis.speak(u); }, 10);
     },
     screenShake() { const c = this.canvas; c.style.transform = `translate(${Math.random() * 10 - 5}px,${Math.random() * 10 - 5}px)`; setTimeout(() => c.style.transform = 'none', 200); },
-    
     drawWebLaser(ctx, l) { 
-        const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1);
-        const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); 
-        if(l.life > 0.5) { ctx.shadowBlur = 15; ctx.shadowColor = l.color; }
-        if(l.progress < 1) { l.progress += l.speed; if(l.progress > 1) l.progress = 1; }
-
-        const ds = (w, o, f, m, lag) => {
-            let currentDist = d * (l.progress * lag);
-            if(currentDist > d) currentDist = d; 
-            ctx.beginPath(); ctx.strokeStyle = l.color; ctx.lineWidth = w; ctx.globalAlpha = l.life * o;
-            for(let i = 0; i <= currentDist; i += 12) {
-                const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life;
-                const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
-                const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb);
-                if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-        }; 
-        ds(6, 0.6, 0, 1.0, 1.0); ds(3, 1.0, 0.02, 1.2, 0.85); 
-        ctx.globalAlpha = 1; ctx.shadowBlur = 0; l.time += 0.05; 
+        const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1); const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); if(l.life > 0.5) { ctx.shadowBlur = 15; ctx.shadowColor = l.color; } if(l.progress < 1) { l.progress += l.speed; if(l.progress > 1) l.progress = 1; }
+        const ds = (w, o, f, m, lag) => { let currentDist = d * (l.progress * lag); if(currentDist > d) currentDist = d; ctx.beginPath(); ctx.strokeStyle = l.color; ctx.lineWidth = w; ctx.globalAlpha = l.life * o; for(let i = 0; i <= currentDist; i += 12) { const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life; const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); }; 
+        ds(6, 0.6, 0, 1.0, 1.0); ds(3, 1.0, 0.02, 1.2, 0.85); ctx.globalAlpha = 1; ctx.shadowBlur = 0; l.time += 0.05; 
     },
-    drawGrid(ctx) { 
-        ctx.strokeStyle = "rgba(59,130,246,0.2)"; ctx.lineWidth = 1; const h = this.height * 0.4; 
-        this.gridOffset = (this.gridOffset + 2) % 40; 
-        for(let x = -this.width; x < this.width * 2; x += 80) { ctx.beginPath(); ctx.moveTo(x, this.height); ctx.lineTo(this.width / 2 + (x - this.width / 2) * 0.2, h); ctx.stroke(); } 
-        for(let z = 0; z < this.height; z += 40) { let y = (z + this.gridOffset) % this.height; if(y < h) continue; let py = h + Math.pow((y - h) / (this.height - h), 2) * (this.height - h); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(this.width, py); ctx.stroke(); } 
-        const g = ctx.createLinearGradient(0, h, 0, this.height); g.addColorStop(0, "rgba(5,5,5,1)"); g.addColorStop(0.2, "rgba(5,5,5,0)"); ctx.fillStyle = g; ctx.fillRect(0, h, this.width, this.height - h); 
-    },
-    drawBanBeam(ctx, target) {
-        this.banBeamColor += 15; const hue = this.banBeamColor % 360; const color = `hsl(${hue}, 100%, 60%)`;
-        let sx = this.width / 2; let sy = this.height + 40; if(this.mode === 'orbit' || this.mode === 'butterfly') { sx = this.width / 2; sy = this.height / 2; } 
-        const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()};
-        this.drawWebLaser(ctx, l); 
-        for(let i = 0; i < 2; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 6 }); }
-    },
+    drawGrid(ctx) { ctx.strokeStyle = "rgba(59,130,246,0.2)"; ctx.lineWidth = 1; const h = this.height * 0.4; this.gridOffset = (this.gridOffset + 2) % 40; for(let x = -this.width; x < this.width * 2; x += 80) { ctx.beginPath(); ctx.moveTo(x, this.height); ctx.lineTo(this.width / 2 + (x - this.width / 2) * 0.2, h); ctx.stroke(); } for(let z = 0; z < this.height; z += 40) { let y = (z + this.gridOffset) % this.height; if(y < h) continue; let py = h + Math.pow((y - h) / (this.height - h), 2) * (this.height - h); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(this.width, py); ctx.stroke(); } const g = ctx.createLinearGradient(0, h, 0, this.height); g.addColorStop(0, "rgba(5,5,5,1)"); g.addColorStop(0.2, "rgba(5,5,5,0)"); ctx.fillStyle = g; ctx.fillRect(0, h, this.width, this.height - h); },
+    drawBanBeam(ctx, target) { this.banBeamColor += 15; const hue = this.banBeamColor % 360; const color = `hsl(${hue}, 100%, 60%)`; let sx = this.width / 2; let sy = this.height + 40; if(this.mode === 'orbit' || this.mode === 'butterfly') { sx = this.width / 2; sy = this.height / 2; } const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()}; this.drawWebLaser(ctx, l); for(let i = 0; i < 2; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 6 }); } },
     getWobbleR(baseR, angle, time) { return baseR + Math.sin(angle * 7 + time * 0.004) * (baseR * 0.06) + Math.cos(angle * 3 - time * 0.002) * (baseR * 0.1); },
-    drawJelly(ctx, x, y, baseR, color, time, isFilled = false) {
-        ctx.beginPath(); const steps = 30; 
-        for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
-        ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; 
-        if(isFilled) { ctx.fillStyle = color; ctx.fill(); } 
-        else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); }
-        ctx.shadowBlur = 0;
-    },
+    drawJelly(ctx, x, y, baseR, color, time, isFilled = false) { ctx.beginPath(); const steps = 30; for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; if(isFilled) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); } ctx.shadowBlur = 0; },
     
     // === MAIN LOOP ===
     loop(now) {
@@ -1513,24 +1276,15 @@ const Game = {
         if(!fem) this.stars.forEach(s => { s.y += s.speed; if(s.y > this.height) s.y = 0; this.ctx.globalAlpha = 0.3 + Math.random() * 0.5; this.ctx.beginPath(); this.ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); this.ctx.fillStyle = '#fff'; this.ctx.fill(); }); this.ctx.globalAlpha = 1;
         const cx = this.width / 2, cy = this.height / 2;
         
-        if(['orbit', 'butterfly'].includes(this.mode)) { 
-            const centerColor = this.mode === 'butterfly' ? '#fcd34d' : '#3b82f6';
-            const centerSize = this.mode === 'butterfly' ? 40 : 35;
-            this.drawJelly(this.ctx, cx, cy, centerSize, centerColor, now, true);
-        }
+        if(['orbit', 'butterfly'].includes(this.mode)) { const centerColor = this.mode === 'butterfly' ? '#fcd34d' : '#3b82f6'; const centerSize = this.mode === 'butterfly' ? 40 : 35; this.drawJelly(this.ctx, cx, cy, centerSize, centerColor, now, true); }
         if(this.activeWord) {
             const w = this.activeWord; 
             if(!this.banningPhase && !this.isResting) { 
                 w.x += w.vx * dt; w.y += w.vy * dt; w.rot += w.rotSpeed * dt;
                 
                 if(this.mode === 'meteor') {
-                    w.trail.push({x:w.x, y:w.y});
-                    if(w.trail.length > 12) w.trail.shift(); 
-                    this.ctx.globalCompositeOperation = 'lighter'; this.ctx.fillStyle = w.color;
-                    this.ctx.beginPath(); 
-                    w.trail.forEach((p, i) => { this.ctx.moveTo(p.x, p.y); this.ctx.arc(p.x, p.y, w.size * (i / 20), 0, Math.PI * 2); });
-                    this.ctx.globalAlpha = 0.4; this.ctx.fill();
-                    this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1;
+                    w.trail.push({x:w.x, y:w.y}); if(w.trail.length > 12) w.trail.shift(); 
+                    this.ctx.globalCompositeOperation = 'lighter'; this.ctx.fillStyle = w.color; this.ctx.beginPath(); w.trail.forEach((p, i) => { this.ctx.moveTo(p.x, p.y); this.ctx.arc(p.x, p.y, w.size * (i / 20), 0, Math.PI * 2); }); this.ctx.globalAlpha = 0.4; this.ctx.fill(); this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1;
                 }
                 
                 let fail = false;
@@ -1538,16 +1292,12 @@ const Game = {
                 else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true;
                 else if(['orbit', 'butterfly'].includes(this.mode) && Math.hypot(cx - w.x, cy - w.y) < 40) fail = true;
                 if(fail) this.fail();
-            } 
-            else if (this.banningPhase) { 
-                w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); 
-            }
+            } else if (this.banningPhase) { w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); }
             
             this.ctx.save(); this.ctx.translate(w.x, w.y);
             if(['orbit', 'butterfly'].includes(this.mode)) { const ang = Math.atan2(cy - w.y, cx - w.x); this.ctx.rotate(ang + Math.PI / 2); } else { this.ctx.rotate(w.rot); }
             
             if(this.mode !== 'bubble') { this.ctx.shadowBlur = 15; this.ctx.shadowColor = w.color; }
-            
             if(fem) { this.ctx.fillStyle = w.color; } else { this.ctx.strokeStyle = w.color; this.ctx.lineWidth = 3; }
             this.ctx.beginPath();
             if(this.mode === 'meteor') { for(let i = 0; i < 6; i++) this.ctx.lineTo(w.size * Math.cos(i * Math.PI / 3), w.size * Math.sin(i * Math.PI / 3)); this.ctx.closePath(); this.ctx.stroke(); this.ctx.fillStyle = "rgba(0,0,0,0.8)"; this.ctx.fill(); }
@@ -1558,71 +1308,29 @@ const Game = {
             else if(this.mode === 'butterfly') { const size = w.size, flap = Math.abs(Math.sin(Date.now() * 0.0025)); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, -size / 4, size / 2 * flap, size / 3, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, size / 4, size / 2.5 * flap, size / 4, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, -size / 4, size / 2 * flap, size / 3, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, size / 4, size / 2.5 * flap, size / 4, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.fillStyle = "#fff"; this.ctx.beginPath(); this.ctx.ellipse(0, 0, size / 8, size / 2, 0, 0, Math.PI * 2); this.ctx.fill(); }
             this.ctx.restore();
             
-            // --- DRAW PROGRESS DOTS ---
+            // DRAW PROGRESS DOTS (VISUAL FEEDBACK FOR BATCH PROGRESS)
             const currentLvl = Profile.getLvl(w.data.en);
-            const dots = 4; 
-            const dotSize = 3;
-            const spacing = 10;
-            const startX = w.x - ((dots - 1) * spacing) / 2;
-
+            const dots = 4; const dotSize = 3; const spacing = 10; const startX = w.x - ((dots - 1) * spacing) / 2;
             for(let i = 0; i < dots; i++) {
-                this.ctx.beginPath();
-                this.ctx.arc(startX + (i * spacing), w.y + 25, dotSize, 0, Math.PI * 2); 
-                if (i < currentLvl) {
-                    this.ctx.fillStyle = this.themeColor; 
-                    this.ctx.fill();
-                } else {
-                    this.ctx.strokeStyle = "rgba(255,255,255,0.3)";
-                    this.ctx.lineWidth = 1;
-                    this.ctx.stroke();
-                }
+                this.ctx.beginPath(); this.ctx.arc(startX + (i * spacing), w.y + 25, dotSize, 0, Math.PI * 2); 
+                if (i < currentLvl) { this.ctx.fillStyle = this.themeColor; this.ctx.fill(); } else { this.ctx.strokeStyle = "rgba(255,255,255,0.3)"; this.ctx.lineWidth = 1; this.ctx.stroke(); }
             }
-            // --------------------------
 
-            this.ctx.font = "bold 26px 'Bebas Neue'"; this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle"; this.ctx.shadowBlur = 0; this.ctx.lineWidth = 4; this.ctx.strokeStyle = "rgba(0,0,0,0.8)"; this.ctx.strokeText(w.data.en.toUpperCase(), w.x, w.y); this.ctx.fillStyle = "#fff"; this.ctx.fillText(w.data.en.toUpperCase(), w.x, w.y);
+            this.ctx.font = "bold 26px 'Bebas Neue'"; this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle"; this.ctx.shadowBlur = 0; this.ctx.lineWidth = 4; this.ctx.strokeStyle = "rgba(0,0,0,0.8)"; this.ctx.strokeText(w.displayWord.toUpperCase(), w.x, w.y); this.ctx.fillStyle = "#fff"; this.ctx.fillText(w.displayWord.toUpperCase(), w.x, w.y);
         }
         if(this.laser) {
-            this.ctx.globalCompositeOperation = 'lighter';
-            this.drawWebLaser(this.ctx, this.laser);
-            if (this.laser.progress >= 1) { if (this.laser.onHit) this.laser.onHit(); this.laser = null; } 
-            else { this.laser.life -= 0.005; }
+            this.ctx.globalCompositeOperation = 'lighter'; this.drawWebLaser(this.ctx, this.laser);
+            if (this.laser.progress >= 1) { if (this.laser.onHit) this.laser.onHit(); this.laser = null; } else { this.laser.life -= 0.005; }
             this.ctx.globalCompositeOperation = 'source-over';
         }
-        
         if(this.particles.length > 0) {
             this.ctx.globalCompositeOperation = 'lighter';
-            for(let i = this.particles.length - 1; i >= 0; i--) {
-                let p = this.particles[i];
-                p.x += p.vx; p.y += p.vy; p.life -= 0.005;
-                if(!['orbit', 'butterfly'].includes(this.mode)) p.vy += 0.05;
-                if(p.life <= 0) this.particles.splice(i, 1);
-                else {
-                    this.ctx.globalAlpha = p.life;
-                    this.ctx.fillStyle = p.color;
-                    this.ctx.beginPath();
-                    this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    this.ctx.fill();
-                }
-            }
-            this.ctx.globalCompositeOperation = 'source-over';
-            this.ctx.globalAlpha = 1;
+            for(let i = this.particles.length - 1; i >= 0; i--) { let p = this.particles[i]; p.x += p.vx; p.y += p.vy; p.life -= 0.005; if(!['orbit', 'butterfly'].includes(this.mode)) p.vy += 0.05; if(p.life <= 0) this.particles.splice(i, 1); else { this.ctx.globalAlpha = p.life; this.ctx.fillStyle = p.color; this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); this.ctx.fill(); } }
+            this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1;
         }
-
         for(let i = this.shockwaves.length - 1; i >= 0; i--) { let s = this.shockwaves[i]; s.radius += 3; s.alpha -= 0.02; if(s.alpha <= 0) this.shockwaves.splice(i, 1); else { this.ctx.strokeStyle = s.color; this.ctx.lineWidth = 3; this.ctx.globalAlpha = s.alpha; this.ctx.beginPath(); this.ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2); this.ctx.stroke(); } }
         if(this.flashIntensity > 0) { this.ctx.fillStyle = this.themeColor; this.ctx.globalAlpha = this.flashIntensity; this.ctx.fillRect(0, 0, this.width, this.height); this.ctx.globalAlpha = 1; this.flashIntensity -= 0.02; }
-        
-        for(let i = this.ghosts.length - 1; i >= 0; i--) {
-            let g = this.ghosts[i]; g.y += g.vy; g.life -= 0.003;
-            if(g.life <= 0) { this.ghosts.splice(i, 1); this.showingGhost = false; if(!this.activeWord) this.spawn(); } 
-            else {
-                this.ctx.save();
-                let s = 1 + (1 - g.life) * 0.3; 
-                this.ctx.translate(g.x, g.y); this.ctx.scale(s, s); this.ctx.translate(-g.x, -g.y);
-                this.ctx.globalAlpha = Math.max(0, g.life);
-                this.ctx.font = "bold 24px 'Inter'"; this.ctx.textAlign = "center"; this.ctx.lineWidth = 3; this.ctx.strokeStyle = "#000"; this.ctx.strokeText(g.text, g.x, g.y); this.ctx.fillStyle = "#fbbf24"; this.ctx.fillText(g.text, g.x, g.y);
-                this.ctx.restore();
-            }
-        }
+        for(let i = this.ghosts.length - 1; i >= 0; i--) { let g = this.ghosts[i]; g.y += g.vy; g.life -= 0.003; if(g.life <= 0) { this.ghosts.splice(i, 1); this.showingGhost = false; if(!this.activeWord) this.spawn(); } else { this.ctx.save(); let s = 1 + (1 - g.life) * 0.3; this.ctx.translate(g.x, g.y); this.ctx.scale(s, s); this.ctx.translate(-g.x, -g.y); this.ctx.globalAlpha = Math.max(0, g.life); this.ctx.font = "bold 24px 'Inter'"; this.ctx.textAlign = "center"; this.ctx.lineWidth = 3; this.ctx.strokeStyle = "#000"; this.ctx.strokeText(g.text, g.x, g.y); this.ctx.fillStyle = "#fbbf24"; this.ctx.fillText(g.text, g.x, g.y); this.ctx.restore(); } }
         this.ctx.globalAlpha = 1;
         if(this.combo > 1) { this.ctx.font = "italic 900 30px 'Bebas Neue'"; this.ctx.fillStyle = "#fff"; this.ctx.strokeStyle = "#000"; this.ctx.lineWidth = 4; this.ctx.strokeText(`x${this.combo} COMBO!`, this.width - 70, 40); this.ctx.fillText(`x${this.combo} COMBO!`, this.width - 70, 40); }
         if(this.timeLimit > 0) { const l = this.timeLimit - (Date.now() - this.startTime); if(l <= 0) { this.stop(); alert("TIME'S UP!"); App.nav('home'); return; } else { const m = Math.floor(l / 60000), s = Math.floor((l % 60000) / 1000); document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; } }
@@ -1631,153 +1339,36 @@ const Game = {
 };
 
 // ================================================================
-// MODULE 5: TEXT MODE ENGINE
+// MODULE 6: TEXT MODE ENGINE (SIMPLIFIED FOR COMPATIBILITY)
 // ================================================================
 const TextGame = {
     queue: [], fullList: [], idx: 0, startTime: 0, timeLimit: 0, fail: false, isPlaying: false, cat: '', nextTimer: null,
-
-    init(queue, cat, fullList) {
-        this.queue = queue; this.cat = cat; this.fullList = fullList;
-        this.idx = 0; this.startTime = Date.now(); this.timeLimit = Profile.cfg.time * 60 * 1000;
-        this.isPlaying = true;
-        document.getElementById('game-timer').style.display = this.timeLimit > 0 ? 'block' : 'none';
-        this.play(); this.checkTimer();
-    },
+    init(queue, cat, fullList) { this.queue = queue; this.cat = cat; this.fullList = fullList; this.idx = 0; this.startTime = Date.now(); this.timeLimit = Profile.cfg.time * 60 * 1000; this.isPlaying = true; document.getElementById('game-timer').style.display = this.timeLimit > 0 ? 'block' : 'none'; this.play(); this.checkTimer(); },
     stop() { this.isPlaying = false; clearTimeout(this.nextTimer); },
-    checkTimer() {
-        if(!this.isPlaying) return;
-        if(this.timeLimit > 0) {
-            const l = this.timeLimit - (Date.now() - this.startTime);
-            if(l <= 0) { alert("Time's Up!"); App.nav('home'); return; }
-            const m = Math.floor(l / 60000); const s = Math.floor((l % 60000) / 1000);
-            document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-            requestAnimationFrame(() => this.checkTimer());
-        }
-    },
-    syncAudioState() {
-        if(!this.isPlaying) return;
-        const wEl = document.getElementById('text-word'); const curr = this.queue[this.idx];
-        if(App.audioMode) { wEl.innerHTML = '<span style="font-size:40px">🔊</span><div style="font-size:14px; opacity:0.5; margin-top:5px">LISTEN & TYPE</div>'; wEl.classList.add('audio-active'); this.speak(curr); } 
-        else { wEl.innerText = Array.isArray(curr.es) ? curr.es[0].toUpperCase() : curr.es.toUpperCase(); wEl.classList.remove('audio-active'); }
-    },
-    speak(w) { Game.speak(w.en); },
-    replayAudio() { if(App.audioMode) this.speak(this.queue[this.idx]); },
-    banActive() {
-        const w = this.queue[this.idx];
-        Profile.ban(w.en);
-        const ray = document.getElementById('text-space-ray');
-        ray.classList.add('ray-active');
-        setTimeout(() => {
-            ray.classList.remove('ray-active');
-            const removeIdx = this.queue.findIndex(qw => qw.en === w.en);
-            if (removeIdx !== -1) {
-                this.queue.splice(removeIdx, 1);
-                const cand = this.fullList.filter(fw => !this.queue.find(qw => qw.en === fw.en) && !Profile.isBanned(fw.en));
-                if (cand.length > 0) this.queue.push(cand[0]);
-                this.idx--; 
-            }
-            this.idx++; this.play();
-        }, 600);
-    },
-    play() {
+    checkTimer() { if(!this.isPlaying) return; if(this.timeLimit > 0) { const l = this.timeLimit - (Date.now() - this.startTime); if(l <= 0) { alert("Time's Up!"); App.nav('home'); return; } const m = Math.floor(l / 60000); const s = Math.floor((l % 60000) / 1000); document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; requestAnimationFrame(() => this.checkTimer()); } },
+    syncAudioState() { if(!this.isPlaying) return; const wEl = document.getElementById('text-word'); const curr = this.queue[this.idx]; if(App.audioMode) { wEl.innerHTML = '<span style="font-size:40px">🔊</span><div style="font-size:14px; opacity:0.5; margin-top:5px">LISTEN & TYPE</div>'; wEl.classList.add('audio-active'); this.speak(curr); } else { wEl.innerText = Array.isArray(curr.es) ? curr.es[0].toUpperCase() : curr.es.toUpperCase(); wEl.classList.remove('audio-active'); } },
+    speak(w) { Game.speak(w.en); }, replayAudio() { if(App.audioMode) this.speak(this.queue[this.idx]); },
+    banActive() { const w = this.queue[this.idx]; Profile.ban(w.en); const ray = document.getElementById('text-space-ray'); ray.classList.add('ray-active'); setTimeout(() => { ray.classList.remove('ray-active'); const removeIdx = this.queue.findIndex(qw => qw.en === w.en); if (removeIdx !== -1) { this.queue.splice(removeIdx, 1); const cand = this.fullList.filter(fw => !this.queue.find(qw => qw.en === fw.en) && !Profile.isBanned(fw.en)); if (cand.length > 0) this.queue.push(cand[0]); this.idx--; } this.idx++; this.play(); }, 600); },
+    play() { 
         if (this.idx >= this.queue.length) { 
             this.idx = 0; 
-            if (this.queue.length === 0) { 
-                localStorage.removeItem('LN_SAVED_SESSION');
-                alert("Session Complete!"); 
-                App.nav('home'); 
-                return; 
-            } 
+            // Recargar cola del BatchManager
+            this.queue = App.getGameQueue(this.fullList);
+            if (this.queue.length === 0) { localStorage.removeItem('LN_SAVED_SESSION'); alert("Session Complete!"); App.nav('home'); return; } 
         }
-        clearTimeout(this.nextTimer);
-        document.getElementById('hint-text').style.display = 'none'; document.getElementById('hint-text').innerText = '';
-        document.getElementById('btn-hint').innerText = '💡 SHOW DEFINITION HINT'; document.getElementById('btn-hint').style.display = 'inline-block';
-        const curr = this.queue[this.idx]; this.fail = false; this.syncAudioState();
-        
-        const con = document.getElementById('text-inputs'); con.innerHTML = '';
-        const btn = document.getElementById('btn-text-action'); btn.innerText = "CHECK"; btn.classList.remove('active'); btn.onclick = () => this.validate();
-        
-        if (curr.cat.includes('verbs') && (this.cat !== 'custom')) { 
-            this.mkInp(con, 'Base', curr.en, true); 
-            this.mkInp(con, 'Past', curr.past, false); 
-            this.mkInp(con, 'Participle', curr.part, false); 
-        } else { 
-            this.mkInp(con, 'English', curr.en, true); 
-        }
-        setTimeout(() => { const i = con.querySelector('input'); if(i) i.focus(); }, 100);
+        clearTimeout(this.nextTimer); document.getElementById('hint-text').style.display = 'none'; document.getElementById('hint-text').innerText = ''; document.getElementById('btn-hint').innerText = '💡 SHOW DEFINITION HINT'; document.getElementById('btn-hint').style.display = 'inline-block'; const curr = this.queue[this.idx]; this.fail = false; this.syncAudioState(); const con = document.getElementById('text-inputs'); con.innerHTML = ''; const btn = document.getElementById('btn-text-action'); btn.innerText = "CHECK"; btn.classList.remove('active'); btn.onclick = () => this.validate(); if (curr.cat.includes('verbs') && (this.cat !== 'custom')) { this.mkInp(con, 'Base', curr.en, true); this.mkInp(con, 'Past', curr.past, false); this.mkInp(con, 'Participle', curr.part, false); } else { this.mkInp(con, 'English', curr.en, true); } setTimeout(() => { const i = con.querySelector('input'); if(i) i.focus(); }, 100); 
     },
-    mkInp(p, lbl, ans, isFirst) {
-        const d = document.createElement('div'); d.className = 'input-group';
-        let btnHtml = isFirst ? `<button class="input-ban-btn" onclick="TextGame.banActive()">💀</button>` : '';
-        d.innerHTML = `<span class="input-tag">${lbl}</span><input class="smart-input" data-ans="${ans}" autocomplete="off">${btnHtml}`;
-        const i = d.querySelector('input');
-        i.oninput = () => {
-            const all = [...document.querySelectorAll('.smart-input')]; const ready = all.every(x => x.value.trim().length > 0);
-            const btn = document.getElementById('btn-text-action');
-            if(ready) btn.classList.add('active'); else btn.classList.remove('active');
-        };
-        i.onkeydown = (e) => {
-            if(e.key === 'Enter') {
-                const all = [...document.querySelectorAll('.smart-input')]; const ix = all.indexOf(e.target);
-                if(ix < all.length - 1) all[ix+1].focus(); else if(document.getElementById('btn-text-action').classList.contains('active')) this.validate();
-            }
-        };
-        p.appendChild(d);
-    },
-    validate() {
-        const inps = document.querySelectorAll('.smart-input'); let pass = true;
-        inps.forEach(i => {
-            const row = i.parentElement; row.classList.remove('error', 'correct');
-            if(i.value.trim().toLowerCase() !== i.dataset.ans.toLowerCase()) { pass = false; row.classList.add('error'); i.value = ''; i.placeholder = i.dataset.ans.toUpperCase(); } 
-            else { row.classList.add('correct'); }
-        });
-        const w = this.queue[this.idx];
-        if(!pass) { this.fail = true; Profile.setProg(w.en, false); App.updateChart(this.queue); } 
-        else {
-            const newLvl = this.fail ? Profile.getLvl(w.en) : Profile.setProg(w.en, true);
-            if(!App.audioMode) this.speak(w);
-            if (newLvl === 4 && !this.fail) {
-                const removeIdx = this.queue.findIndex(qw => qw.en === w.en);
-                if (removeIdx !== -1) {
-                    this.queue.splice(removeIdx, 1);
-                    const cand = this.fullList.filter(fw => !this.queue.find(qw => qw.en === fw.en) && !Profile.isBanned(fw.en));
-                    if (cand.length > 0) this.queue.push(cand[0]);
-                    this.idx--; 
-                }
-            }
-            const btn = document.getElementById('btn-text-action'); btn.innerText = "NEXT";
-            btn.onclick = () => { clearTimeout(this.nextTimer); this.idx++; this.play(); };
-            App.updateChart(this.queue);
-            this.nextTimer = setTimeout(() => { this.idx++; this.play(); }, 1200);
-        }
-    },
-    checkOrNext() {
-        const btn = document.getElementById('btn-text-action');
-        if(btn.innerText === "NEXT") { clearTimeout(this.nextTimer); this.idx++; this.play(); } else { this.validate(); }
-    },
-    async getHint() {
-        const btn = document.getElementById('btn-hint'), txt = document.getElementById('hint-text'), w = this.queue[this.idx].en; 
-        btn.innerText = "SEARCHING...";
-        try {
-            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${w}`);
-            const data = await res.json();
-            if(data && data[0] && data[0].meanings && data[0].meanings[0].definitions) { txt.innerText = '"' + data[0].meanings[0].definitions[0].definition + '"'; txt.style.display = 'block'; btn.style.display = 'none'; } 
-            else { btn.innerText = "NO DEFINITION FOUND"; }
-        } catch(e) { btn.innerText = "OFFLINE / ERROR"; }
-    }
+    mkInp(p, lbl, ans, isFirst) { const d = document.createElement('div'); d.className = 'input-group'; let btnHtml = isFirst ? `<button class="input-ban-btn" onclick="TextGame.banActive()">💀</button>` : ''; d.innerHTML = `<span class="input-tag">${lbl}</span><input class="smart-input" data-ans="${ans}" autocomplete="off">${btnHtml}`; const i = d.querySelector('input'); i.oninput = () => { const all = [...document.querySelectorAll('.smart-input')]; const ready = all.every(x => x.value.trim().length > 0); const btn = document.getElementById('btn-text-action'); if(ready) btn.classList.add('active'); else btn.classList.remove('active'); }; i.onkeydown = (e) => { if(e.key === 'Enter') { const all = [...document.querySelectorAll('.smart-input')]; const ix = all.indexOf(e.target); if(ix < all.length - 1) all[ix+1].focus(); else if(document.getElementById('btn-text-action').classList.contains('active')) this.validate(); } }; p.appendChild(d); },
+    validate() { const inps = document.querySelectorAll('.smart-input'); let pass = true; inps.forEach(i => { const row = i.parentElement; row.classList.remove('error', 'correct'); if(i.value.trim().toLowerCase() !== i.dataset.ans.toLowerCase()) { pass = false; row.classList.add('error'); i.value = ''; i.placeholder = i.dataset.ans.toUpperCase(); } else { row.classList.add('correct'); } }); const w = this.queue[this.idx]; if(!pass) { this.fail = true; Profile.setProg(w.en, false); App.updateChart(this.queue); } else { const newLvl = this.fail ? Profile.getLvl(w.en) : Profile.setProg(w.en, true); if(!App.audioMode) this.speak(w); if (newLvl === 4 && !this.fail) { const removeIdx = this.queue.findIndex(qw => qw.en === w.en); if (removeIdx !== -1) { this.queue.splice(removeIdx, 1); const cand = this.fullList.filter(fw => !this.queue.find(qw => qw.en === fw.en) && !Profile.isBanned(fw.en)); if (cand.length > 0) this.queue.push(cand[0]); this.idx--; } } const btn = document.getElementById('btn-text-action'); btn.innerText = "NEXT"; btn.onclick = () => { clearTimeout(this.nextTimer); this.idx++; this.play(); }; App.updateChart(this.queue); this.nextTimer = setTimeout(() => { this.idx++; this.play(); }, 1200); } },
+    checkOrNext() { const btn = document.getElementById('btn-text-action'); if(btn.innerText === "NEXT") { clearTimeout(this.nextTimer); this.idx++; this.play(); } else { this.validate(); } },
+    async getHint() { const btn = document.getElementById('btn-hint'), txt = document.getElementById('hint-text'), w = this.queue[this.idx].en; btn.innerText = "SEARCHING..."; try { const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${w}`); const data = await res.json(); if(data && data[0] && data[0].meanings && data[0].meanings[0].definitions) { txt.innerText = '"' + data[0].meanings[0].definitions[0].definition + '"'; txt.style.display = 'block'; btn.style.display = 'none'; } else { btn.innerText = "NO DEFINITION FOUND"; } } catch(e) { btn.innerText = "OFFLINE / ERROR"; } }
 };
 
 window.onload = () => App.boot();
 window.addEventListener("beforeunload", () => { App.saveStateToDisk(); });
-window.addEventListener('message', (event) => {
-    if (event.data === 'FORCE_PAUSE') {
-        if(document.getElementById('view-game').classList.contains('active')) {
-            console.log("Nexus ordenó pausar el juego.");
-            App.headerBack();
-        }
-    }
-});
-</script>
+window.addEventListener('message', (event) => { if (event.data === 'FORCE_PAUSE') { if(document.getElementById('view-game').classList.contains('active')) { console.log("Nexus ordenó pausar el juego."); App.headerBack(); } } });
+
+    </script>
 
     </body>
 </html>
