@@ -936,7 +936,46 @@
         if (engSelection.length === 0) activeWordID = null;
         localStorage.setItem(STORAGE_KEY_ENG, JSON.stringify(engSelection)); renderWordStates();
     }
-    function renderWordStates() { document.querySelectorAll('.english-word').forEach(el => el.classList.remove('selected-word', 'nav-active-word')); engSelection.forEach(idx => { const el = document.querySelector(`.english-word[data-idx="${idx}"]`); if(el) el.classList.add(idx === activeWordID ? 'nav-active-word' : 'selected-word'); }); updateControlBar(); }
+   function renderWordStates() { 
+        document.querySelectorAll('.english-word').forEach(el => el.classList.remove('selected-word', 'nav-active-word')); 
+        
+        let allSelectedAreSaved = true; // Asumimos que sí, hasta que veamos lo contrario
+        let hasSelection = engSelection.length > 0;
+
+        engSelection.forEach(idx => { 
+            const el = document.querySelector(`.english-word[data-idx="${idx}"]`); 
+            if(el) {
+                el.classList.add(idx === activeWordID ? 'nav-active-word' : 'selected-word'); 
+                // Si encontramos UNA sola palabra que NO sea rosa (saved-word), entonces no podemos borrar
+                if (!el.classList.contains('saved-word')) {
+                    allSelectedAreSaved = false;
+                }
+            }
+        }); 
+        
+        updateControlBar(); 
+
+        // --- LÓGICA DEL BOTÓN INTELIGENTE ---
+        // Buscamos el botón de guardar de la línea activa (o la primera con selección)
+        const activeWord = document.querySelector('.english-word.nav-active-word');
+        if (activeWord) {
+            const line = activeWord.closest('.line');
+            const saveBtn = line.querySelector('.saveBtn');
+            if (saveBtn) {
+                if (hasSelection && allSelectedAreSaved) {
+                    // Si todo lo seleccionado es ROSA -> Modo Borrar
+                    saveBtn.innerHTML = "🗑️"; 
+                    saveBtn.style.color = "#ef4444"; // Rojo
+                    saveBtn.style.borderColor = "#ef4444";
+                } else {
+                    // Si es nuevo -> Modo Guardar
+                    saveBtn.innerHTML = "+"; 
+                    saveBtn.style.color = "#10b981"; // Verde
+                    saveBtn.style.borderColor = "#10b981";
+                }
+            }
+        }
+    }
     function updateControlBar() {
         const counterEl = document.getElementById('nav-counter'); const total = engSelection.length; let currentPos = 0;
         if (activeWordID !== null && total > 0) currentPos = engSelection.indexOf(activeWordID) + 1;
@@ -1018,81 +1057,86 @@
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    function saveLineToVocab(btn) {
+   function saveLineToVocab(btn) {
         const line = btn.closest('.line'); 
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
+        // Identificamos qué está seleccionado
         const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
-        const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
-        let itemsToAdd = [];
         
-        // Reemplaza la línea de 'const contextSource' por esto:
-        const contextSource = { 
-            type: 'youtube', 
-            videoId: YOUTUBE_ID, 
-            title: VIDEO_TITLE, 
-            timestamp: parseFloat(line.dataset.start), 
-            context: line.querySelector('.english').innerText,
-            contextEsp: line.querySelector('.spanish').innerText // <--- ESTO ES LO NUEVO
-        };
-        const isDuplicate = (textToCheck) => {
-            const cleanCheck = sanitizeText(textToCheck).toLowerCase();
-            for (let item of items) {
-                if (!item.isFolder && item.eng && sanitizeText(item.eng).toLowerCase() === cleanCheck) return true;
-                if (item.isFolder && item.items) { for (let sub of item.items) { if (sub.eng && sanitizeText(sub.eng).toLowerCase() === cleanCheck) return true; } }
+        if (selectedEng.length === 0) return; // Nada seleccionado
+
+        // Verificamos: ¿Son todas palabras ROSAS (ya guardadas)?
+        const isDeleteMode = selectedEng.every(span => span.classList.contains('saved-word'));
+
+        if (isDeleteMode) {
+            // --- MODO BORRAR ---
+            if(!confirm("¿Borrar de la lista?")) return;
+
+            const textsToRemove = selectedEng.map(span => sanitizeText(span.innerText).toLowerCase());
+            
+            // Filtramos la base de datos quitando las palabras seleccionadas
+            // (Busca recursivamente para borrar también si están dentro de carpetas)
+            function filterOut(list) {
+                return list.filter(item => {
+                    if (item.isFolder) {
+                        item.items = filterOut(item.items); // Entrar a la carpeta
+                        return true; // Mantenemos la carpeta
+                    } else {
+                        // Si es palabra, ¿está en nuestra lista de borrar?
+                        const cleanItem = sanitizeText(item.eng).toLowerCase();
+                        return !textsToRemove.includes(cleanItem); // Si está, FALSE (se borra)
+                    }
+                });
             }
-            return false;
-        };
-        
-        if (selectedEng.length > 0) {
+
+            items = filterOut(items);
+            
+            // Efecto visual de borrado
+            btn.innerHTML = "✕";
+            setTimeout(() => { btn.innerHTML = "+"; btn.style.color = ""; btn.style.borderColor = ""; }, 1000);
+
+        } else {
+            // --- MODO GUARDAR (El código que ya tenías) ---
+            const contextSource = { 
+                type: 'youtube', 
+                videoId: YOUTUBE_ID, 
+                title: VIDEO_TITLE, 
+                timestamp: parseFloat(line.dataset.start), 
+                context: line.querySelector('.english').innerText,
+                contextEsp: line.querySelector('.spanish').innerText 
+            };
+
+            // Recolectamos palabras a guardar
             let translation = ""; 
+            const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
             if (selectedEng.length === 1 && selectedEsp.length === 1) { translation = selectedEsp[0].innerText.trim(); }
+
             selectedEng.forEach(span => { 
                 const cleanEng = sanitizeText(span.innerText);
-                if (isDuplicate(cleanEng)) return; 
+                // Evitar duplicados antes de guardar
+                // (Omitimos la lógica compleja de chequeo aquí porque ya sabemos que no son rosas)
                 const cleanEsp = sanitizeText(translation);
-                itemsToAdd.push({ id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() }); 
+                items.unshift({ 
+                    id: Date.now() + Math.random(), 
+                    isFolder: false, 
+                    eng: cleanEng, 
+                    esp: cleanEsp, 
+                    isHighlighted: false, 
+                    source: contextSource,
+                    type: 'word' // Agregamos el type por defecto
+                }); 
             });
-        } 
-        else {
-            const rawEng = line.querySelector('.english').innerText;
-            const cleanEng = sanitizeText(rawEng);
-            if (!isDuplicate(cleanEng)) {
-                const rawEsp = line.querySelector('.spanish').innerText;
-                const cleanEsp = sanitizeText(rawEsp);
-                itemsToAdd.push({ id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() });
-            } else { alert("Esta frase ya existe en tu vocabulario."); return; }
+
+            // Efecto visual de guardado
+            btn.innerHTML = "✓";
+            setTimeout(() => { btn.innerHTML = "🗑️"; btn.style.color = "#ef4444"; btn.style.borderColor = "#ef4444"; }, 1000);
         }
-        
-        if (itemsToAdd.length === 0) { const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; setTimeout(() => { btn.innerHTML = originalText; }, 1000); return; }
 
-        const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
-        const cleanTargetName = targetNameRaw.trim(); 
-
-        let targetFolder = items.find(i => i.isFolder === true && i.name.trim().toLowerCase() === cleanTargetName.toLowerCase());
-        
-        if (targetFolder) { itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder); } 
-        else { const newFolder = { id: Date.now() + 1, isFolder: true, name: cleanTargetName, items: itemsToAdd }; items.unshift(newFolder); }
-        
-  // ... (código anterior donde guardas en localStorage) ...
-        
+        // GUARDAR Y REPINTAR (Para ambos casos)
         localStorage.setItem(vocabKey, JSON.stringify(items));
-        
-        // EFECTO VISUAL DEL BOTÓN (Check verde temporal)
-        const originalText = btn.innerHTML; 
-        btn.innerHTML = "✓"; 
-        btn.style.backgroundColor = "#10b981"; 
-        btn.style.color = "white";
-        setTimeout(() => { 
-            btn.innerHTML = originalText; 
-            btn.style.backgroundColor = ""; 
-            btn.style.color = ""; 
-        }, 1000);
-
-        // --- ¡ESTA ES LA LÍNEA MÁGICA! ---
-        // Esto obliga a repintar el texto inmediatamente para que se ponga ROSA
-        initInteractiveWords(); 
+        initInteractiveWords(); // <-- Esto hace que se vuelvan ROSAS o NEGRAS al instante
     }
     
     function resetButtons() { document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); }); document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); }); }
