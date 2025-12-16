@@ -1,13 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="en"> 
 <head>
     <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>MDC Studio Player (Creator Mode)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        /* === COLOR ROSA (#ec4899) === */
-        :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ec4899; --nav-active: #2563eb; }
+        :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --selected-word: #ef4444; --nav-active: #2563eb; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
         body { 
@@ -155,23 +154,9 @@
         
         .word-interactive { border-radius: 3px; padding: 0 1px; cursor: pointer; display: inline-block; }
         .word-interactive:hover { background-color: rgba(0,0,0,0.05); }
-        
-        /* ESTILO ROSA DE SELECCION */
-        .word-interactive.english-word.selected-word { color: var(--selected-word); font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(236, 72, 153, 0.3); }
+        .word-interactive.english-word.selected-word { color: var(--selected-word); font-weight: 800; text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: rgba(239, 68, 68, 0.3); }
         .word-interactive.english-word.nav-active-word { color: var(--nav-active) !important; text-decoration-color: var(--nav-active) !important; background-color: rgba(37, 99, 235, 0.1); border-radius: 4px; }
-        
-        .word-interactive.spanish-word.selected-word { color: #db2777; font-weight: 700; }
-
-        /* ESTILO DORADO PARA PALABRAS YA GUARDADAS */
-        .word-interactive.saved-in-db {
-            color: #d97706 !important; 
-            font-weight: 800;
-            border-bottom: 2px dotted #d97706;
-        }
-        .word-interactive.saved-in-db.selected-word {
-            color: var(--selected-word) !important;
-            border-bottom: 2px solid var(--selected-word);
-        }
+        .word-interactive.spanish-word.selected-word { color: #be123c; font-weight: 700; }
 
         /* === BARRA INFERIOR === */
         #control-bar { 
@@ -229,7 +214,15 @@
     }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .close-modal-btn { background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; }
-    
+
+
+        /* Estilo para palabras guardadas en Vocabulario */
+.word-interactive.saved-word {
+    color: #e91e63 !important; /* COLOR ROSA */
+    font-weight: 700;
+    /* Opcional: un subrayado rosa suave */
+    border-bottom: 2px solid rgba(233, 30, 99, 0.3);
+}
     </style>
 </head>
 <body>
@@ -485,13 +478,14 @@
         } catch (e) { alert("Error leyendo archivos: " + e); }
     }
 
-    // === GENERATE JSON ===
+    // === GENERATE JSON (FIXED) ===
     async function generateLibraryJSON() {
         const rawInput = document.getElementById('input-yt-id').value.trim();
         const category = document.getElementById('input-category').value;
         let extractedID = extractVideoID(rawInput);
         if (!extractedID && rawInput.length === 11) extractedID = rawInput;
         
+        // Validation with alert
         if (!extractedID) { alert("❌ ID invalido."); return; }
         const fileEn = document.getElementById('file-en').files[0];
         const fileEs = document.getElementById('file-es').files[0];
@@ -505,6 +499,9 @@
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
             
+            // REMOVED AUTOMATIC TITLE FETCH TO AVOID ERRORS
+            // Uses a placeholder so you can fill it later manually
+            
             const jsonObj = {
                 id: extractedID,
                 title: "TITULO_AQUI", 
@@ -515,6 +512,7 @@
             
             const jsonString = JSON.stringify(jsonObj, null, 2) + ",";
             
+            // Show Modal
             document.getElementById('json-output').value = jsonString;
             document.getElementById('json-modal').style.display = 'flex';
             
@@ -547,7 +545,7 @@
         cover.style.display = 'flex'; 
         renderSubtitles();
         initInteractiveWords();
-        loadPreferences(); // Aquí cargamos las preferencias (incluyendo el timing por video)
+        loadPreferences();
         if(window.YT && window.YT.Player) {
             if(player) { player.loadVideoById(id); player.setPlaybackRate(currentPlaybackRate); } 
             else { onYouTubeIframeAPIReady(); }
@@ -680,15 +678,10 @@
         return parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(sec) + parseInt(ms) / 1000;
     }
 
-    // --- VARIABLES GLOBALES DE TIMING ---
-    let timeOffset = 0.0, endPadding = 0.0; 
-    
+    let timeOffset = 0.0, endPadding = 0.0;
     const TTS_RATE = 0.65; const TTS_LANG = 'en-US';
     let STORAGE_KEY_ENG, STORAGE_KEY_ESP, STORAGE_KEY_TIME;
-    
-    // PREF_TIMING ya no se usará globalmente para guardar, pero lo mantenemos para la carga si quieres
     const PREF_SPEED='mdc_pref_speed', PREF_SCROLL='mdc_pref_scroll', PREF_TRANS='mdc_pref_trans', PREF_TIMING='mdc_pref_timing', PREF_OFFSET='mdc_pref_v_offset';
-    
     let player, checkInterval, isSegmentPlaying=false, segmentEndTime=0, scrollEnabled=true, autoScroll=true;
     let engSelection=[], activeWordID=null, currentPlaybackRate = 1.0, allVisible = false;
     let isLooping = false;
@@ -810,35 +803,16 @@
         STORAGE_KEY_ENG = 'mdc_eng_' + YOUTUBE_ID; STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
     }
 
-    // --- FUNCIÓN MODIFICADA: Guardar configuración POR VIDEO ---
     function updateTimingSettings() {
         timeOffset = parseFloat(document.getElementById('input-time-offset').value) || 0;
         endPadding = parseFloat(document.getElementById('input-end-padding').value) || 0;
-        
-        // Creamos una clave única usando el ID del video
-        const videoSpecificKey = 'mdc_timing_' + YOUTUBE_ID;
-        localStorage.setItem(videoSpecificKey, JSON.stringify({ offset: timeOffset, padding: endPadding }));
+        localStorage.setItem(PREF_TIMING, JSON.stringify({ offset: timeOffset, padding: endPadding }));
     }
 
-    // --- FUNCIÓN MODIFICADA: Cargar configuración POR VIDEO ---
     function loadTimingPrefs() {
-        // Intentamos cargar la config específica de este video
-        const videoSpecificKey = 'mdc_timing_' + YOUTUBE_ID;
-        const saved = localStorage.getItem(videoSpecificKey);
-
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            timeOffset = parseFloat(parsed.offset);
-            endPadding = parseFloat(parsed.padding);
-        } else {
-            // Si no hay config para este video, usamos valores por defecto
-            timeOffset = 0.0;
-            endPadding = 0.0;
-        }
-
-        document.getElementById('input-time-offset').value = timeOffset;
-        document.getElementById('input-end-padding').value = endPadding;
-        
+        const saved = localStorage.getItem(PREF_TIMING);
+        if (saved) { const parsed = JSON.parse(saved); timeOffset = parseFloat(parsed.offset); endPadding = parseFloat(parsed.padding); }
+        document.getElementById('input-time-offset').value = timeOffset; document.getElementById('input-end-padding').value = endPadding;
         const savedOffset = localStorage.getItem(PREF_OFFSET);
         if(savedOffset) { currentVerticalOffset = parseInt(savedOffset); document.getElementById('vertical-slider').value = currentVerticalOffset; }
     }
@@ -866,8 +840,7 @@
         }
         const sTrans = localStorage.getItem(PREF_TRANS);
         if(sTrans === 'true') { allVisible = true; document.getElementById('btn-toggle-trans').style.color = '#4f46e5'; }
-        
-        loadTimingPrefs(); // Carga los tiempos específicos del video
+        loadTimingPrefs();
     }
     function cycleSpeed() {
         currentPlaybackRate = parseFloat((currentPlaybackRate - 0.1).toFixed(1));
@@ -895,49 +868,50 @@
         if(isMirrorActive) btn.classList.add('active-state'); else btn.classList.remove('active-state');
     }
 
-    function getSavedVocabularySet() {
-        const raw = localStorage.getItem('mdc_vocab_list');
-        const items = raw ? JSON.parse(raw) : [];
-        const savedSet = new Set();
+  function initInteractiveWords() {
+        // 1. Leemos tus palabras guardadas (la base de datos)
+        const vocabList = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]');
         
-        const traverse = (list) => {
+        // 2. Creamos una lista rápida de palabras "limpias" (minúsculas, sin símbolos)
+        const savedWordsSet = new Set();
+        
+        // Función recursiva para sacar palabras de carpetas y listas sueltas
+        function extractWords(list) {
             list.forEach(item => {
                 if (item.isFolder) {
-                    traverse(item.items);
+                    extractWords(item.items);
                 } else if (item.eng) {
-                    savedSet.add(sanitizeText(item.eng).toLowerCase());
+                    // Limpiamos: "Bird!" -> "bird"
+                    const clean = sanitizeText(item.eng).toLowerCase();
+                    savedWordsSet.add(clean);
                 }
             });
-        };
-        traverse(items);
-        return savedSet;
-    }
+        }
+        extractWords(vocabList);
 
-    function initInteractiveWords() {
+        // 3. Pintamos el Inglés
         engSelection = JSON.parse(localStorage.getItem(STORAGE_KEY_ENG) || '[]');
-        const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
-        
-        const savedVocab = getSavedVocabularySet(); 
-
         let engIndex = 0;
 
         document.querySelectorAll('.english').forEach(el => {
             const rawText = el.textContent || ""; 
             const words = rawText.trim().split(/\s+/); 
-            
             el.innerHTML = words.map(word => {
                 if(!word) return '';
                 
+                // Verificamos si esta palabra está en tu lista rosa
                 const cleanWord = sanitizeText(word).toLowerCase();
-                const isSaved = savedVocab.has(cleanWord);
-                const savedClass = isSaved ? 'saved-in-db' : '';
+                const isSaved = savedWordsSet.has(cleanWord);
+                const savedClass = isSaved ? 'saved-word' : ''; // Aplica clase rosa
 
+                // Mantenemos la lógica de selección (nav-active, etc)
                 const span = `<span class="word-interactive english-word ${savedClass}" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
-                engIndex++; 
-                return span;
+                engIndex++; return span;
             }).join('');
         });
 
+        // 4. Pintamos el Español (Lógica estándar)
+        const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         let espIndex = 0;
         document.querySelectorAll('.spanish').forEach(el => {
             if(allVisible) el.classList.add('visible');
@@ -952,9 +926,8 @@
             }).join('');
         });
         
-        renderWordStates();
+        renderWordStates(); // Reaplica selecciones (rojo/azul) si las hubiera
     }
-
     function toggleWordSelection(element, event) {
         event.stopPropagation(); const lang = element.dataset.lang; const idx = parseInt(element.dataset.idx);
         if (lang === 'es') { element.classList.toggle('selected-word'); saveSelectionToStorage(STORAGE_KEY_ESP, '.spanish-word.selected-word'); return; }
@@ -996,16 +969,19 @@
                 const start = parseFloat(line.dataset.start) - timeOffset;
                 let rawEnd = parseFloat(line.dataset.end);
 
-                // 2. CORRECCIÓN DE SUPERPOSICIÓN
+                // 2. CORRECCIÓN DE SUPERPOSICIÓN (La magia ocurre aquí)
+                // Miramos si hay una línea siguiente
                 const nextLine = line.nextElementSibling;
                 if (nextLine && nextLine.classList.contains('line')) {
                     const nextStart = parseFloat(nextLine.dataset.start);
+                    // Si la línea actual termina DESPUÉS de que empiece la siguiente...
+                    // Cortamos la actual justo cuando empieza la siguiente.
                     if (rawEnd > nextStart) {
                         rawEnd = nextStart; 
                     }
                 }
 
-                // 3. Aplicar padding
+                // 3. Aplicar padding al final calculado
                 const end = rawEnd + endPadding;
 
                 if (btn.dataset.state === 'playing') { player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return; }
@@ -1028,7 +1004,9 @@
             });
         });
         
+        // ... El resto de attachButtonEvents (speakBtn) sigue igual ...
         document.querySelectorAll('.speakBtn').forEach(btn => {
+             // (Dejar este bloque igual que antes)
              btn.addEventListener('click', (e) => {
                 e.stopPropagation(); const line = btn.closest('.line'); const text = line.querySelector('.english').innerText;
                 if (btn.dataset.state === 'speaking') { window.speechSynthesis.cancel(); resetButtons(); return; }
@@ -1045,38 +1023,19 @@
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        let selectedEngElements = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
-        selectedEngElements.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
-
-        const selectedEspElements = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
-        selectedEspElements.sort((a, b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
-
-        if (selectedEngElements.length === 0) {
-            const rawEng = line.querySelector('.english').innerText;
-            selectedEngElements = [{ innerText: rawEng, dataset: { idx: -1 } }]; 
-        }
-
-        let groups = [];
-        if (selectedEngElements.length > 0) {
-            let currentGroup = [selectedEngElements[0]];
-            
-            for (let i = 1; i < selectedEngElements.length; i++) {
-                const prevIdx = parseInt(selectedEngElements[i-1].dataset.idx);
-                const currIdx = parseInt(selectedEngElements[i].dataset.idx);
-
-                if (currIdx === prevIdx + 1) {
-                    currentGroup.push(selectedEngElements[i]);
-                } else {
-                    groups.push(currentGroup);
-                    currentGroup = [selectedEngElements[i]];
-                }
-            }
-            groups.push(currentGroup);
-        }
-
+        const selectedEng = Array.from(line.querySelectorAll('.english-word.selected-word, .english-word.nav-active-word'));
+        const selectedEsp = Array.from(line.querySelectorAll('.spanish-word.selected-word'));
         let itemsToAdd = [];
-        const contextSource = { type: 'youtube', videoId: YOUTUBE_ID, title: VIDEO_TITLE, timestamp: parseFloat(line.dataset.start), context: line.querySelector('.english').innerText };
-
+        
+        // Reemplaza la línea de 'const contextSource' por esto:
+        const contextSource = { 
+            type: 'youtube', 
+            videoId: YOUTUBE_ID, 
+            title: VIDEO_TITLE, 
+            timestamp: parseFloat(line.dataset.start), 
+            context: line.querySelector('.english').innerText,
+            contextEsp: line.querySelector('.spanish').innerText // <--- ESTO ES LO NUEVO
+        };
         const isDuplicate = (textToCheck) => {
             const cleanCheck = sanitizeText(textToCheck).toLowerCase();
             for (let item of items) {
@@ -1085,66 +1044,53 @@
             }
             return false;
         };
-
-        let globalEspTranslation = "";
-        if (selectedEspElements.length > 0) {
-            globalEspTranslation = selectedEspElements.map(el => el.innerText).join(' ');
-        } else if (selectedEngElements.length === 1 && selectedEngElements[0].dataset.idx === undefined) { 
-             globalEspTranslation = line.querySelector('.spanish').innerText;
-        }
-
-        groups.forEach(group => {
-            const phraseEng = group.map(el => el.innerText).join(' ');
-            const cleanEng = sanitizeText(phraseEng);
-            
-            let phraseEsp = "";
-            if (groups.length === 1) {
-                phraseEsp = sanitizeText(globalEspTranslation);
-            } else if (group[0].dataset.idx === undefined) {
-                 phraseEsp = sanitizeText(globalEspTranslation);
-            }
-
+        
+        if (selectedEng.length > 0) {
+            let translation = ""; 
+            if (selectedEng.length === 1 && selectedEsp.length === 1) { translation = selectedEsp[0].innerText.trim(); }
+            selectedEng.forEach(span => { 
+                const cleanEng = sanitizeText(span.innerText);
+                if (isDuplicate(cleanEng)) return; 
+                const cleanEsp = sanitizeText(translation);
+                itemsToAdd.push({ id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() }); 
+            });
+        } 
+        else {
+            const rawEng = line.querySelector('.english').innerText;
+            const cleanEng = sanitizeText(rawEng);
             if (!isDuplicate(cleanEng)) {
-                itemsToAdd.push({ 
-                    id: Date.now() + Math.random(), 
-                    isFolder: false, 
-                    eng: cleanEng, 
-                    esp: phraseEsp, 
-                    isHighlighted: false, 
-                    source: contextSource, 
-                    dateAdded: Date.now() 
-                }); 
-            }
-        });
-
-        if (itemsToAdd.length === 0) { 
-            const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; 
-            setTimeout(() => { btn.innerHTML = originalText; }, 1000); 
-            return; 
+                const rawEsp = line.querySelector('.spanish').innerText;
+                const cleanEsp = sanitizeText(rawEsp);
+                itemsToAdd.push({ id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() });
+            } else { alert("Esta frase ya existe en tu vocabulario."); return; }
         }
+        
+        if (itemsToAdd.length === 0) { const originalText = btn.innerHTML; btn.innerHTML = "⚠️"; setTimeout(() => { btn.innerHTML = originalText; }, 1000); return; }
 
         const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
         const cleanTargetName = targetNameRaw.trim(); 
 
         let targetFolder = items.find(i => i.isFolder === true && i.name.trim().toLowerCase() === cleanTargetName.toLowerCase());
         
-        if (targetFolder) { 
-            itemsToAdd.forEach(item => targetFolder.items.unshift(item)); 
-            items = items.filter(i => i.id !== targetFolder.id); 
-            items.unshift(targetFolder); 
-        } 
-        else { 
-            const newFolder = { id: Date.now() + 1, isFolder: true, name: cleanTargetName, items: itemsToAdd }; 
-            items.unshift(newFolder); 
-        }
+        if (targetFolder) { itemsToAdd.reverse().forEach(item => targetFolder.items.unshift(item)); items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder); } 
+        else { const newFolder = { id: Date.now() + 1, isFolder: true, name: cleanTargetName, items: itemsToAdd }; items.unshift(newFolder); }
         
-        localStorage.setItem(vocabKey, JSON.stringify(items));
+      localStorage.setItem(vocabKey, JSON.stringify(items));
         
-        const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
-        
-        initInteractiveWords(); 
+        // EFECTO VISUAL DEL BOTÓN (Check verde temporal)
+        const originalText = btn.innerHTML; 
+        btn.innerHTML = "✓"; 
+        btn.style.backgroundColor = "#10b981"; 
+        btn.style.color = "white";
+        setTimeout(() => { 
+            btn.innerHTML = originalText; 
+            btn.style.backgroundColor = ""; 
+            btn.style.color = ""; 
+        }, 1000);
 
-        setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
+        // --- ¡ESTA ES LA LÍNEA MÁGICA! ---
+        // Esto obliga a repintar el texto inmediatamente para que se ponga ROSA
+        initInteractiveWords(); 
     }
     
     function resetButtons() { document.querySelectorAll('.playBtn').forEach(b => { b.textContent = "Play"; b.removeAttribute('data-state'); }); document.querySelectorAll('.speakBtn').forEach(b => { b.textContent = "Speak"; b.removeAttribute('data-state'); }); }
@@ -1185,6 +1131,12 @@
         portal.style.display = 'none';
         frame.src = '';
     }
+
+        window.addEventListener('storage', (e) => {
+        if (e.key === 'mdc_vocab_list') {
+            initInteractiveWords();
+        }
+    });
 
     </script>
 </body>
