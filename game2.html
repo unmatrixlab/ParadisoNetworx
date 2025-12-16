@@ -1265,6 +1265,7 @@ const Game = {
     drawJelly(ctx, x, y, baseR, color, time, isFilled = false) { ctx.beginPath(); const steps = 30; for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; if(isFilled) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); } ctx.shadowBlur = 0; },
     
     // === MAIN LOOP ===
+   // === MAIN LOOP (CORREGIDO) ===
     loop(now) {
         if(!this.isPlaying) return; const dt = (now - this.lastTime) / 16; this.lastTime = now;
         this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
@@ -1277,6 +1278,7 @@ const Game = {
         const cx = this.width / 2, cy = this.height / 2;
         
         if(['orbit', 'butterfly'].includes(this.mode)) { const centerColor = this.mode === 'butterfly' ? '#fcd34d' : '#3b82f6'; const centerSize = this.mode === 'butterfly' ? 40 : 35; this.drawJelly(this.ctx, cx, cy, centerSize, centerColor, now, true); }
+        
         if(this.activeWord) {
             const w = this.activeWord; 
             if(!this.banningPhase && !this.isResting) { 
@@ -1287,11 +1289,22 @@ const Game = {
                     this.ctx.globalCompositeOperation = 'lighter'; this.ctx.fillStyle = w.color; this.ctx.beginPath(); w.trail.forEach((p, i) => { this.ctx.moveTo(p.x, p.y); this.ctx.arc(p.x, p.y, w.size * (i / 20), 0, Math.PI * 2); }); this.ctx.globalAlpha = 0.4; this.ctx.fill(); this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1;
                 }
                 
+                // === ZONA DE CORRECCIÓN DE COLISIONES ===
                 let fail = false;
                 if(['meteor', 'flower'].includes(this.mode) && w.y > this.height - 50) fail = true;
                 else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true;
-                else if(['orbit', 'butterfly'].includes(this.mode) && Math.hypot(cx - w.x, cy - w.y) < 40) fail = true;
+                else if(['orbit', 'butterfly'].includes(this.mode)) {
+                    const distToCenter = Math.hypot(cx - w.x, cy - w.y);
+                    // 1. Fallo normal: Choca con el centro
+                    if(distToCenter < 40) fail = true;
+                    // 2. CORRECCIÓN ZOMBIE: Si se aleja demasiado (fuera de pantalla + margen), se considera fallo/reinicio
+                    // Esto previene que la palabra viaje al infinito si se redimensiona la ventana
+                    if(distToCenter > Math.max(this.width, this.height) + 150) fail = true;
+                }
+                
                 if(fail) this.fail();
+                // ========================================
+
             } else if (this.banningPhase) { w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); }
             
             this.ctx.save(); this.ctx.translate(w.x, w.y);
@@ -1308,7 +1321,7 @@ const Game = {
             else if(this.mode === 'butterfly') { const size = w.size, flap = Math.abs(Math.sin(Date.now() * 0.0025)); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, -size / 4, size / 2 * flap, size / 3, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, size / 4, size / 2.5 * flap, size / 4, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, -size / 4, size / 2 * flap, size / 3, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, size / 4, size / 2.5 * flap, size / 4, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.fillStyle = "#fff"; this.ctx.beginPath(); this.ctx.ellipse(0, 0, size / 8, size / 2, 0, 0, Math.PI * 2); this.ctx.fill(); }
             this.ctx.restore();
             
-            // DRAW PROGRESS DOTS (VISUAL FEEDBACK FOR BATCH PROGRESS)
+            // DRAW PROGRESS DOTS
             const currentLvl = Profile.getLvl(w.data.en);
             const dots = 4; const dotSize = 3; const spacing = 10; const startX = w.x - ((dots - 1) * spacing) / 2;
             for(let i = 0; i < dots; i++) {
