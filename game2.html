@@ -502,7 +502,7 @@
         </div>
     </main>
 
-    <script>
+<script>
 /* ================================================================
    MODULE 1: DATABASE HANDLING (CLEAN & ROBUST)
    ================================================================ */
@@ -521,14 +521,12 @@ const DB = {
             }, 50);
         });
     },
-    // Limpieza crítica para evitar duplicados por metadatos
     clean(txt) {
         if (!txt) return "";
         return txt.split('/')[0].trim();
     },
     getFolderWords(folderId) {
         let words = [];
-        // 1. Sistemas predefinidos
         if (folderId === 'sys_official') { 
             Object.keys(this.data).forEach(k => words = words.concat(this.data[k].map(x => ({...x, en: this.clean(x.en), cat:'official'}))));
             return words; 
@@ -539,7 +537,6 @@ const DB = {
         }
         if (folderId === 'sys_everything') { return this.getFolderWords('sys_official').concat(this.getFolderWords('sys_custom')); }
         
-        // 2. Búsqueda recursiva en carpetas de usuario
         const find = (l) => {
             for(let i of l) {
                 if(i.isFolder) { if(i.id === folderId) return i.items || []; const f = find(i.items || []); if(f) return f; }
@@ -549,7 +546,6 @@ const DB = {
         const raw = find(this.customData); 
         if(!raw) return [];
         
-        // Aplanar resultados
         const ext = (l) => l.forEach(i => { if(i.isFolder && i.items) ext(i.items); else if(i.eng) words.push({en:this.clean(i.eng), es:i.esp, cat:'custom'}); });
         ext(raw);
         return words;
@@ -592,7 +588,6 @@ const Profile = {
         if(!this.cfg.coins) this.cfg.coins = { silver:0, gold:0 }; 
         this.applyTheme();
         
-        // Restore inputs safely
         const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
         setVal('cfg-count', this.cfg.count);
         setVal('cfg-speed', this.cfg.speed || 1);
@@ -612,7 +607,7 @@ const Profile = {
         this.cfg.interaction = document.getElementById('cfg-interaction').value;
         this.cfg.restMode = document.getElementById('cfg-rest').value;
         this.save(); 
-        App.renderQueue(); 
+        App.renderQueuePreview(); // CORREGIDO: Nombre de función correcto
     },
     save() { localStorage.setItem('LN_V8_HYBRID', JSON.stringify(this.cfg)); },
     
@@ -628,7 +623,6 @@ const Profile = {
         return { lvl: parseInt(v.lvl), date: v.date }; 
     },
     
-    // === LÓGICA DE PROGRESO 0-4 ===
     setProg(w, ok) {
         const key = DB.clean(w); 
         let e = this.getData(key), l = e.lvl; 
@@ -685,33 +679,22 @@ const BatchManager = {
     currentBatch: [],
     phase: 'new', // 'new' (0->3) or 'review' (3->4)
     
-    // Obtiene las palabras para la sesión actual, gestionando los ciclos
     getBatch(fullPool) {
-        // 1. Limpiar lote actual: Quitar palabras que ya cumplieron el objetivo
-        // Si estamos en NEW: salen al llegar a Lvl 3.
-        // Si estamos en REVIEW: salen al llegar a Lvl 4.
         const target = this.phase === 'new' ? 3 : 4;
-        
-        // Filtramos el lote actual manteniendo solo las que NO han llegado al objetivo
         this.currentBatch = this.currentBatch.filter(w => {
             const l = Profile.getLvl(w.en);
             return l < target && !Profile.isBanned(w.en);
         });
 
-        // 2. Si el lote se vació (0 palabras), llenamos uno nuevo
         if (this.currentBatch.length === 0) {
             this.cyclePhase();
             this.fillBatch(fullPool);
         }
-
-        return [...this.currentBatch]; // Devolver copia
+        return [...this.currentBatch]; 
     },
 
     cyclePhase() {
-        // Alternar fase: Si estaba en new, toca review. Si review, toca new.
         this.phase = (this.phase === 'new') ? 'review' : 'new';
-        // Notificación visual (opcional)
-        console.log(`BATCH CYCLE: Switching to ${this.phase.toUpperCase()} phase.`);
     },
 
     fillBatch(fullPool) {
@@ -719,28 +702,22 @@ const BatchManager = {
         let candidates = [];
 
         if (this.phase === 'new') {
-            // Buscar palabras "Nuevas" (Lvl 0, 1, 2)
             candidates = fullPool.filter(w => Profile.getLvl(w.en) < 3 && !Profile.isBanned(w.en));
-            // Priorizar las de Lvl 0 (Totalmente nuevas)
             candidates.sort((a,b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));
         } else {
-            // Buscar palabras "Viejas" (Lvl 3) para pasar a Master (Lvl 4)
             candidates = fullPool.filter(w => Profile.getLvl(w.en) === 3 && !Profile.isBanned(w.en));
         }
 
-        // Si no hay candidatos para Review, volver forzosamente a New
         if (this.phase === 'review' && candidates.length === 0) {
             this.phase = 'new';
             this.fillBatch(fullPool);
             return;
         }
 
-        // Mezclar un poco los candidatos y tomar 10
         candidates.sort(() => Math.random() - 0.5);
         this.currentBatch = candidates.slice(0, batchSize);
     },
     
-    // Método para reiniciar el manager al cambiar de carpeta/scope
     reset() {
         this.currentBatch = [];
         this.phase = 'new';
@@ -758,7 +735,6 @@ const App = {
         Profile.load(); 
         Profile.calcStats();
         
-        // Recuperar sesión pausada
         const saved = localStorage.getItem('LN_SAVED_SESSION');
         if(saved) {
             try { this.pausedSession = JSON.parse(saved); } 
@@ -778,15 +754,14 @@ const App = {
         if(document.getElementById('view-game').classList.contains('active')) {
             const isText = Profile.cfg.interaction === 'text';
             const stateToSave = {
-                queue: isText ? TextGame.queue : Game.queue, // Guardamos la cola visual actual
-                fullList: isText ? TextGame.fullList : Game.fullList, // Guardamos el pool entero
+                queue: isText ? TextGame.queue : Game.queue, 
+                fullList: isText ? TextGame.fullList : Game.fullList, 
                 idx: isText ? TextGame.idx : Game.idx,
                 cat: isText ? TextGame.cat : Game.category,
                 scopeName: this.scopeName,
                 isScopeActive: !!this.activeScope,
                 time: isText ? TextGame.startTime : Game.startTime,
                 active: true,
-                // Guardar estado del BatchManager también
                 batchData: BatchManager.currentBatch,
                 batchPhase: BatchManager.phase
             };
@@ -845,7 +820,6 @@ const App = {
         const ps = this.pausedSession;
         if (ps.isScopeActive) { this.scopeName = ps.scopeName; }
         
-        // Restaurar estado del BatchManager
         if(ps.batchData) BatchManager.currentBatch = ps.batchData;
         if(ps.batchPhase) BatchManager.phase = ps.batchPhase;
 
@@ -885,7 +859,7 @@ const App = {
         this.activeScope = raw; 
         this.scopeName = fname;
         Profile.calcStats(raw);
-        BatchManager.reset(); // Reiniciar lotes al cambiar de carpeta
+        BatchManager.reset(); 
         this.prepGame(raw, 'custom', fname);
     },
     
@@ -893,11 +867,10 @@ const App = {
         const raw = DB.get(cat); 
         this.activeScope = null; 
         this.scopeName = null; 
-        BatchManager.reset(); // Reiniciar lotes al cambiar de categoría
+        BatchManager.reset(); 
         this.prepGame(raw, cat, cat === 'mixed' ? "MIXED BAG" : cat.toUpperCase()); 
     },
     
-    // Función auxiliar para obtener palabras del sistema de lotes
     getGameQueue(rawList) {
         return BatchManager.getBatch(rawList);
     },
@@ -911,9 +884,6 @@ const App = {
         } else {
             localStorage.removeItem('LN_SAVED_SESSION'); 
             this.pausedSession = null;
-            
-            // Aquí usamos el BatchManager para obtener el lote de 10
-            // 'rawOrQueue' es la lista completa de la categoría/carpeta
             queue = this.getGameQueue(rawOrQueue);
             sorted = rawOrQueue; 
 
@@ -955,7 +925,6 @@ const App = {
         }
     },
     
-    // UI Helpers
     setLibFilter(lvl, btn) { this.filterLvl = lvl; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); if(btn) btn.classList.add('active'); this.resetRender(); },
     clearScope() { 
         this.activeScope = null; this.scopeName = null; this.updateScopeUI(); 
@@ -992,7 +961,8 @@ const App = {
         });
         c.appendChild(frag);
     },
-   // === REEMPLAZAR ESTA FUNCIÓN ENTERA EN EL MÓDULO APP ===
+    
+    // === FUNCIÓN DE PREVISUALIZACIÓN MEJORADA (CON COMA AL FINAL) ===
     renderQueuePreview() {
         const con = document.getElementById('study-queue-list'); 
         if(!con) return; 
@@ -1002,64 +972,46 @@ const App = {
         let labelText = "";
         let colorStatus = "";
 
-        // CASO 1: HAY UN LOTE ACTIVO (Juego en curso o pausado)
         if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) {
-            source = [...BatchManager.currentBatch]; // Copia del lote real
+            source = [...BatchManager.currentBatch]; 
             labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)";
             colorStatus = "var(--primary)";
-        } 
-        // CASO 2: NO HAY JUEGO, PREDICCIÓN (Lo que tocaría jugar)
-        else {
-            // Usamos el scope activo o una mezcla general
+        } else {
             let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed');
             raw = raw.filter(w => !Profile.isBanned(w.en));
-            
-            // SIMULACIÓN DE LA INTELIGENCIA DEL BATCH MANAGER
-            // Primero buscamos las prioritarias (Nivel 0 - Nuevas)
             let priority = raw.filter(w => Profile.getLvl(w.en) === 0);
-            
-            // Si no hay nuevas, buscamos las que necesitan repaso (Nivel 1, 2, 3)
             if (priority.length < 5) {
                 const review = raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4);
                 priority = priority.concat(review);
             }
-            
-            // Si ya todo es Master, rellenamos con Master (Nivel 4)
             if (priority.length < 5) {
                 const masters = raw.filter(w => Profile.getLvl(w.en) === 4);
                 priority = priority.concat(masters);
             }
-
-            // Cortamos a 10 para la vista previa
             source = priority.slice(0, 10);
             labelText = "⚡ UP NEXT (SMART PREDICTION)";
             colorStatus = "var(--gold)";
         }
 
-        // Renderizado
         if(source.length === 0) { 
             con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; 
             return; 
         }
 
-        // Título de la sección
         con.innerHTML = `<div style="font-size:11px; color:${colorStatus}; margin-bottom:10px; font-weight:800; letter-spacing:1px;">${labelText}</div>`;
 
         source.forEach(w => {
             const l = Profile.getLvl(w.en);
-            // Definimos colores y etiquetas según el estado real
             const meta = {
-                0: { c: 'var(--c-noun)', t: 'NEW' },     // Azul
-                1: { c: 'var(--danger)', t: 'LEARNING' }, // Rojo
-                2: { c: 'var(--c-irreg)', t: 'HARD' },    // Naranja
-                3: { c: 'var(--primary)', t: 'REVIEW' },  // Violeta
-                4: { c: 'var(--success)', t: 'MASTER' }   // Verde
+                0: { c: 'var(--c-noun)', t: 'NEW' },     
+                1: { c: 'var(--danger)', t: 'LEARNING' }, 
+                2: { c: 'var(--c-irreg)', t: 'HARD' },    
+                3: { c: 'var(--primary)', t: 'REVIEW' },  
+                4: { c: 'var(--success)', t: 'MASTER' }   
             }[l] || { c: '#666', t: '?' };
 
             const d = document.createElement('div'); 
             d.className = 'queue-item'; 
-            
-            // Barra de progreso visual mini
             const pct = l * 25; 
             
             d.innerHTML = `
@@ -1074,10 +1026,23 @@ const App = {
                 </div>`; 
             con.appendChild(d);
         });
+    }, // <--- ¡AQUÍ ESTABA EL ERROR! FALTABA ESTA COMA
+
+    renderBannedList() {
+        const con = document.getElementById('banned-list-container'); if (!con) return; con.innerHTML = '';
+        const list = Profile.cfg.banned || [];
+        if (list.length === 0) { con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>'; return; }
+        list.forEach(w => {
+            const d = document.createElement('div'); d.className = 'banned-item';
+            d.innerHTML = `<span>${w.toUpperCase()}</span><span class="banned-icon">♻️ RESTORE</span>`;
+            d.onclick = () => { if(confirm(`Restore "${w}"?`)) Profile.unban(w); };
+            con.appendChild(d);
+        });
     }
+};
 
 /* ================================================================
-   MODULE 5: ARCADE GAME ENGINE (BATCH AWARE & SINGLE PENALTY)
+   MODULE 5: ARCADE GAME ENGINE
    ================================================================ */
 const Game = {
     canvas:null, ctx:null, queue:[], pool:[], fullList:[], idx:0, width:0, height:0, loopId:null, lastTime:0, activeWord:null, particles:[], stars:[], laser:null, ghosts:[], shockwaves:[], clouds:[], score:0, startTime:0, timeLimit:0, themeColor:'#fff', flashIntensity:0, combo:0, gridOffset:0, showingGhost:false, category:'', timerId:null, isPlaying:false, mode: 'meteor', speedMult: 1, 
@@ -1085,7 +1050,6 @@ const Game = {
 
     init(queue, cat, colorVar, fullList) {
         this.queue = queue; this.category = cat; this.fullList = fullList;
-        // Pool is just for distractors
         if (App.activeScope) { this.pool = App.activeScope; } 
         else { this.pool = (cat === 'custom' || cat === 'mixed') ? (this.fullList.length > 4 ? this.fullList : DB.all()) : DB.all(); }
         
@@ -1115,16 +1079,12 @@ const Game = {
     spawn() {
         if(!this.isPlaying || this.showingGhost || this.banningPhase || this.isResting) return;
         
-        // --- LOGICA DE COLA RECURSIVA ---
         if(this.idx >= this.queue.length) { 
             this.idx = 0; 
-            // Si llegamos al final de la cola visual, actualizamos el lote desde BatchManager
-            // Esto traerá las mismas palabras si no han subido de nivel, o nuevas si el lote se vació.
             this.queue = App.getGameQueue(this.fullList);
             App.updateChart(this.queue);
             
             if(this.queue.length === 0) {
-                // Caso extremo: Carpeta vacía o todo masterizado
                 alert("BATCH COMPLETED!"); 
                 this.stop(); App.nav('home'); return;
             }
@@ -1148,7 +1108,6 @@ const Game = {
             vy = fall ? (1 + Math.random()) * this.speedMult : (-1 - Math.random()) * this.speedMult; 
         }
         
-        // Agregar flag hasErrored para penalización única
         this.activeWord = {data, displayWord, x, y, vx, vy, rot:0, rotSpeed:(Math.random() - 0.5) * 0.02, size, color:this.themeColor, trail:[], hasErrored: false};
         this.renderButtons(data);
     },
@@ -1188,7 +1147,6 @@ const Game = {
         Profile.ban(w.en); 
         this.banningPhase = true; 
         setTimeout(() => {
-            // Remover de la cola local inmediatamente
             const qIdx = this.queue.findIndex(qw => qw.en === w.en);
             if(qIdx !== -1) this.queue.splice(qIdx, 1);
             if(qIdx < this.idx) this.idx--; else if(qIdx === this.idx) this.idx--;
@@ -1252,15 +1210,12 @@ const Game = {
                             layer.classList.remove('active'); this.isResting = false; this.activeWord = null; this.idx++; this.spawn();
                         }, restDuration);
                     } else {
-                        // LOGICA DE PROGRESO SOLO SI NO HUBO ERROR PREVIO
-                        // Si ya se equivocó, no sube nivel, pero sí se elimina de pantalla.
                         const newLvl = this.activeWord.hasErrored ? Profile.getLvl(cor.en) : Profile.setProg(cor.en, true);
                         App.updateChart(this.queue);
                         
                         this.activeWord = null; 
                         this.idx++; 
                         
-                        // Si subió a nivel 4 (Master), dar premio (solo si no hubo error esta vez)
                         if(newLvl >= 4 && !this.activeWord?.hasErrored) {
                             const reward = Profile.addMasteryPoint(); if (reward) this.showReward(reward);
                         }
@@ -1268,29 +1223,24 @@ const Game = {
                         if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                     }
                 } else {
-                    // ERROR LOGIC: PENALIZACIÓN ÚNICA
                     this.screenShake(); this.createExplosion(this.laser.x2, this.laser.y2, color); 
                     if(this.activeWord) this.spawnGhost(this.activeWord.x, this.activeWord.y, cor.es); 
                     this.combo = 0;
 
-                    // Solo penalizar si es el primer error de esta aparición
                     if (!this.activeWord.hasErrored) {
                         Profile.setProg(this.activeWord.data.en, false); 
                         this.activeWord.hasErrored = true;
                         App.updateChart(this.queue);
                     }
-                    // La palabra NO se destruye, sigue cayendo
                 }
             }
         };
     },
     
-    // Fallo por colisión (no disparo)
     fail() {
         if(App.audioMode) this.speak(this.activeWord.data.en); this.screenShake(); this.spawnGhost(this.activeWord.x, this.activeWord.y, this.activeWord.data.es);
         this.createExplosion(this.activeWord.x, this.activeWord.y, '#555');
         
-        // Penalizar solo si no se había penalizado ya por disparo erróneo
         if (!this.activeWord.hasErrored) {
             Profile.setProg(this.activeWord.data.en, false); 
             App.updateChart(this.queue);
@@ -1319,7 +1269,6 @@ const Game = {
     drawJelly(ctx, x, y, baseR, color, time, isFilled = false) { ctx.beginPath(); const steps = 30; for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; if(isFilled) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); } ctx.shadowBlur = 0; },
     
     // === MAIN LOOP ===
-   // === MAIN LOOP (CORREGIDO) ===
     loop(now) {
         if(!this.isPlaying) return; const dt = (now - this.lastTime) / 16; this.lastTime = now;
         this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
@@ -1349,16 +1298,10 @@ const Game = {
                 else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true;
                 else if(['orbit', 'butterfly'].includes(this.mode)) {
                     const distToCenter = Math.hypot(cx - w.x, cy - w.y);
-                    // 1. Fallo normal: Choca con el centro
                     if(distToCenter < 40) fail = true;
-                    // 2. CORRECCIÓN ZOMBIE: Si se aleja demasiado (fuera de pantalla + margen), se considera fallo/reinicio
-                    // Esto previene que la palabra viaje al infinito si se redimensiona la ventana
                     if(distToCenter > Math.max(this.width, this.height) + 150) fail = true;
                 }
-                
                 if(fail) this.fail();
-                // ========================================
-
             } else if (this.banningPhase) { w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); }
             
             this.ctx.save(); this.ctx.translate(w.x, w.y);
@@ -1405,9 +1348,6 @@ const Game = {
     }
 };
 
-// ================================================================
-// MODULE 6: TEXT MODE ENGINE (SIMPLIFIED FOR COMPATIBILITY)
-// ================================================================
 const TextGame = {
     queue: [], fullList: [], idx: 0, startTime: 0, timeLimit: 0, fail: false, isPlaying: false, cat: '', nextTimer: null,
     init(queue, cat, fullList) { this.queue = queue; this.cat = cat; this.fullList = fullList; this.idx = 0; this.startTime = Date.now(); this.timeLimit = Profile.cfg.time * 60 * 1000; this.isPlaying = true; document.getElementById('game-timer').style.display = this.timeLimit > 0 ? 'block' : 'none'; this.play(); this.checkTimer(); },
@@ -1419,7 +1359,6 @@ const TextGame = {
     play() { 
         if (this.idx >= this.queue.length) { 
             this.idx = 0; 
-            // Recargar cola del BatchManager
             this.queue = App.getGameQueue(this.fullList);
             if (this.queue.length === 0) { localStorage.removeItem('LN_SAVED_SESSION'); alert("Session Complete!"); App.nav('home'); return; } 
         }
@@ -1434,8 +1373,7 @@ const TextGame = {
 window.onload = () => App.boot();
 window.addEventListener("beforeunload", () => { App.saveStateToDisk(); });
 window.addEventListener('message', (event) => { if (event.data === 'FORCE_PAUSE') { if(document.getElementById('view-game').classList.contains('active')) { console.log("Nexus ordenó pausar el juego."); App.headerBack(); } } });
-
-    </script>
+            </script>
 
     </body>
 </html>
