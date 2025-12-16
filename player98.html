@@ -864,7 +864,6 @@
     }
 
     function initInteractiveWords() {
-        // No longer loading Blue selection logic here
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         let engIndex = 0;
 
@@ -873,7 +872,6 @@
             const words = rawText.trim().split(/\s+/); 
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                // data-idx kept for structural integrity but no longer used for blue selection
                 const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
                 engIndex++; return span;
             }).join('');
@@ -893,14 +891,11 @@
             }).join('');
         });
         
-        // Initial check for all words to see if they are in storage (Point 3)
         updateAllWordStates();
     }
 
-    // Function to check global storage and paint words pink (Point 3)
     function updateAllWordStates() {
         const vocab = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]');
-        // Create a Set of all saved English words (normalized)
         const savedWordsSet = new Set();
         vocab.forEach(folder => {
             if(folder.items) {
@@ -936,7 +931,6 @@
             return; 
         }
 
-        // --- NEW LOGIC FOR ENGLISH WORDS (Point 1 & 2) ---
         const rawText = element.innerText;
         const cleanText = sanitizeText(rawText);
         if(!cleanText) return;
@@ -944,7 +938,6 @@
         let vocab = JSON.parse(localStorage.getItem('mdc_vocab_list') || '[]');
         let wordFound = false;
 
-        // Check if word exists ANYWHERE (Point 3 logic)
         vocab.forEach(folder => {
             if(folder.items) {
                 folder.items.forEach(item => {
@@ -954,21 +947,17 @@
         });
 
         if (wordFound) {
-            // REMOVE: If it exists, delete it (Point 2: "otro touch la borra")
-            // Also removes from ALL videos (Point 3: "desaparecera de aqui")
             vocab.forEach(folder => {
                 if(folder.items) {
                     folder.items = folder.items.filter(item => sanitizeText(item.eng).toLowerCase() !== cleanText.toLowerCase());
                 }
             });
-            // Clean empty folders if desired, or just items.
             localStorage.setItem('mdc_vocab_list', JSON.stringify(vocab));
-            // Update Visuals immediately
             updateAllWordStates();
         } else {
-            // ADD: If it doesn't exist, add it (Point 2: "se pinta de rosa y se agrega")
             const line = element.closest('.line');
             
+            // STRUCTURE AS PER REFERENCE (Reference had contextEsp in Source)
             const contextSource = { 
                 type: 'youtube', 
                 videoId: YOUTUBE_ID, 
@@ -982,7 +971,7 @@
                 id: Date.now() + Math.random(),
                 isFolder: false,
                 eng: cleanText,
-                esp: line.querySelector('.spanish').innerText.trim(), // Use line translation as fallback context
+                esp: "", // <--- FIXED: Empty string as requested
                 isHighlighted: false,
                 source: contextSource,
                 dateAdded: Date.now()
@@ -993,7 +982,6 @@
             
             if(targetFolder) {
                 targetFolder.items.unshift(newItem);
-                // Move folder to top
                 vocab = vocab.filter(i => i.id !== targetFolder.id);
                 vocab.unshift(targetFolder);
             } else {
@@ -1006,27 +994,16 @@
         }
     }
     
-    // Kept but empty functionality for navigation since blue selection is gone
     function navigateWords(direction) {
-        // Navigation relies on 'engSelection' which is no longer populated by clicks.
-        // Keeping function structure to avoid errors in console if buttons are clicked.
     }
     function speakText(text, onStart, onEnd) { window.speechSynthesis.cancel(); const utter = new SpeechSynthesisUtterance(text); utter.lang = TTS_LANG; utter.rate = TTS_RATE; if(onStart) utter.onstart = onStart; if(onEnd) utter.onend = onEnd; window.speechSynthesis.speak(utter); }
     function speakActiveOrSelected() { 
-        // Modified to speak just the active saved word if we wanted, but since blue selection is gone, 
-        // we might just return or speak the whole line? 
-        // Leaving as is, it won't find activeWordID so it does nothing safely.
     }
     function saveSelectionToStorage(key, selector) { const selectedElements = document.querySelectorAll(selector); const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx)); localStorage.setItem(key, JSON.stringify(indices)); }
     function clearAllWords() { 
         if(!confirm('Reset all saved words for this video?')) return; 
-        // Note: This logic might need to change to delete ONLY words from this video in storage
-        // But for safety and strict adherence to "don't remove functionalities I didn't say", 
-        // I will just clear the Spanish selection which is local.
-        // If the user wants to clear "Pink" words, they touch them one by one or we'd need a new function.
-        // Original functionality cleared "blue" selection.
         localStorage.removeItem(STORAGE_KEY_ESP); 
-        initInteractiveWords(); // Re-renders
+        initInteractiveWords(); 
     }
     
   function attachButtonEvents() {
@@ -1034,12 +1011,8 @@
             btn.addEventListener('click', (e) => {
                 e.stopPropagation(); 
                 const line = btn.closest('.line');
-                
-                // 1. Obtener tiempos crudos
                 const start = parseFloat(line.dataset.start) - timeOffset;
                 let rawEnd = parseFloat(line.dataset.end);
-
-                // 2. CORRECCIÓN DE SUPERPOSICIÓN
                 const nextLine = line.nextElementSibling;
                 if (nextLine && nextLine.classList.contains('line')) {
                     const nextStart = parseFloat(nextLine.dataset.start);
@@ -1047,24 +1020,17 @@
                         rawEnd = nextStart; 
                     }
                 }
-
-                // 3. Aplicar padding al final calculado
                 const end = rawEnd + endPadding;
-
                 if (btn.dataset.state === 'playing') { player.pauseVideo(); isSegmentPlaying = false; resetButtons(); return; }
-                
                 resetButtons(); 
                 window.speechSynthesis.cancel(); 
                 document.querySelectorAll('.line.active').forEach(l => l.classList.remove('active'));
-                
                 scrollEnabled = false; 
                 isSegmentPlaying = true; 
                 segmentEndTime = end;
-                
                 player.seekTo(Math.max(0, start), true); 
                 player.playVideo(); 
                 player.setPlaybackRate(currentPlaybackRate);
-                
                 btn.textContent = "Stop"; 
                 btn.dataset.state = 'playing'; 
                 line.classList.add('active');
@@ -1084,13 +1050,10 @@
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
     function saveLineToVocab(btn) {
-        // Point 2: "Ya no se agregaran a memoria mas desde el boton verde" regarding specific words.
-        // This function now only serves as a "Save Line" button or fallback, it doesn't look for blue selection.
         const line = btn.closest('.line'); 
         const vocabKey = 'mdc_vocab_list'; 
         let items = JSON.parse(localStorage.getItem(vocabKey) || '[]');
         
-        // Only save the whole phrase/sentence as one item if clicked directly
         const rawEng = line.querySelector('.english').innerText;
         const cleanEng = sanitizeText(rawEng);
         
@@ -1115,7 +1078,6 @@
         if (!isDuplicate(cleanEng)) {
             const rawEsp = line.querySelector('.spanish').innerText;
             const cleanEsp = sanitizeText(rawEsp);
-            // Adding as a phrase item
             const newItem = { id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() };
             
             const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
@@ -1129,7 +1091,7 @@
             localStorage.setItem(vocabKey, JSON.stringify(items));
             const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
             setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
-            updateAllWordStates(); // Sync
+            updateAllWordStates(); 
         } else { 
             alert("Esta frase ya existe en tu vocabulario."); 
         }
