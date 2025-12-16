@@ -992,35 +992,89 @@ const App = {
         });
         c.appendChild(frag);
     },
+   // === REEMPLAZAR ESTA FUNCIÓN ENTERA EN EL MÓDULO APP ===
     renderQueuePreview() {
-        // En settings mostramos una mezcla simple para no confundir con la logica compleja de batch
-        let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed');
-        raw = raw.filter(w => !Profile.isBanned(w.en));
-        raw.sort(() => Math.random() - 0.5);
-        const nB = raw.slice(0, Profile.cfg.count);
-        
-        const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
-        if(nB.length === 0) { con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; return; }
-        con.innerHTML = `<div style="font-size:11px;color:var(--primary);margin-bottom:10px;font-weight:700;">PREVIEW (NEXT 10):</div>`;
-        nB.forEach(w => {
-            const l = Profile.getLvl(w.en), tc = 'tag-' + l, tt = l === 0 ? 'NEW' : (l === 4 ? 'MASTER' : `LVL ${l}`);
-            const d = document.createElement('div'); d.className = 'queue-item'; 
-            d.innerHTML = `<div><span style="font-weight:700;color:var(--txt-main)">${w.en.toUpperCase()}</span></div><div class="queue-tag ${tc}">${tt}</div>`; 
-            con.appendChild(d);
-        });
-    },
-    renderBannedList() {
-        const con = document.getElementById('banned-list-container'); if (!con) return; con.innerHTML = '';
-        const list = Profile.cfg.banned || [];
-        if (list.length === 0) { con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>'; return; }
-        list.forEach(w => {
-            const d = document.createElement('div'); d.className = 'banned-item';
-            d.innerHTML = `<span>${w.toUpperCase()}</span><span class="banned-icon">♻️ RESTORE</span>`;
-            d.onclick = () => { if(confirm(`Restore "${w}"?`)) Profile.unban(w); };
+        const con = document.getElementById('study-queue-list'); 
+        if(!con) return; 
+        con.innerHTML = '';
+
+        let source = [];
+        let labelText = "";
+        let colorStatus = "";
+
+        // CASO 1: HAY UN LOTE ACTIVO (Juego en curso o pausado)
+        if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) {
+            source = [...BatchManager.currentBatch]; // Copia del lote real
+            labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)";
+            colorStatus = "var(--primary)";
+        } 
+        // CASO 2: NO HAY JUEGO, PREDICCIÓN (Lo que tocaría jugar)
+        else {
+            // Usamos el scope activo o una mezcla general
+            let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed');
+            raw = raw.filter(w => !Profile.isBanned(w.en));
+            
+            // SIMULACIÓN DE LA INTELIGENCIA DEL BATCH MANAGER
+            // Primero buscamos las prioritarias (Nivel 0 - Nuevas)
+            let priority = raw.filter(w => Profile.getLvl(w.en) === 0);
+            
+            // Si no hay nuevas, buscamos las que necesitan repaso (Nivel 1, 2, 3)
+            if (priority.length < 5) {
+                const review = raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4);
+                priority = priority.concat(review);
+            }
+            
+            // Si ya todo es Master, rellenamos con Master (Nivel 4)
+            if (priority.length < 5) {
+                const masters = raw.filter(w => Profile.getLvl(w.en) === 4);
+                priority = priority.concat(masters);
+            }
+
+            // Cortamos a 10 para la vista previa
+            source = priority.slice(0, 10);
+            labelText = "⚡ UP NEXT (SMART PREDICTION)";
+            colorStatus = "var(--gold)";
+        }
+
+        // Renderizado
+        if(source.length === 0) { 
+            con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; 
+            return; 
+        }
+
+        // Título de la sección
+        con.innerHTML = `<div style="font-size:11px; color:${colorStatus}; margin-bottom:10px; font-weight:800; letter-spacing:1px;">${labelText}</div>`;
+
+        source.forEach(w => {
+            const l = Profile.getLvl(w.en);
+            // Definimos colores y etiquetas según el estado real
+            const meta = {
+                0: { c: 'var(--c-noun)', t: 'NEW' },     // Azul
+                1: { c: 'var(--danger)', t: 'LEARNING' }, // Rojo
+                2: { c: 'var(--c-irreg)', t: 'HARD' },    // Naranja
+                3: { c: 'var(--primary)', t: 'REVIEW' },  // Violeta
+                4: { c: 'var(--success)', t: 'MASTER' }   // Verde
+            }[l] || { c: '#666', t: '?' };
+
+            const d = document.createElement('div'); 
+            d.className = 'queue-item'; 
+            
+            // Barra de progreso visual mini
+            const pct = l * 25; 
+            
+            d.innerHTML = `
+                <div style="flex:1">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; color:var(--txt-main); font-size:15px;">${w.en.toUpperCase()}</span>
+                        <span style="font-size:10px; font-weight:800; background:${meta.c}; color:#fff; padding:2px 6px; border-radius:4px;">${meta.t}</span>
+                    </div>
+                    <div style="width:100%; height:3px; background:#333; margin-top:5px; border-radius:2px; overflow:hidden;">
+                        <div style="width:${pct}%; height:100%; background:${meta.c}; transition:width 0.3s;"></div>
+                    </div>
+                </div>`; 
             con.appendChild(d);
         });
     }
-};
 
 /* ================================================================
    MODULE 5: ARCADE GAME ENGINE (BATCH AWARE & SINGLE PENALTY)
