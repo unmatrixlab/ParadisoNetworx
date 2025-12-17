@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"> 
 <head>
-    <meta charset="utf-8" />    
+    <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Connected)</title>
+    <title>MDC Studio Player (Final Connected)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -376,6 +376,9 @@
     let REMOTE_LIBRARY = [];
     let activeCategoryFilter = 'All';
     let lastStorageString = "";
+    
+    // --- VARIABLES DE NAVEGACION (NUEVO) ---
+    let savedTimestamps = [];
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -929,6 +932,61 @@
                 el.classList.remove('saved-word');
             }
         });
+
+        updateNavigationIndex(); // <--- CRÍTICO: Actualizar barra inferior
+    }
+
+    function updateNavigationIndex() {
+        // 1. Escanear el DOM para ver qué lineas tienen palabras guardadas (clase .saved-word)
+        const lines = document.querySelectorAll('.line');
+        const uniqueTimes = new Set();
+        
+        lines.forEach(line => {
+            if (line.querySelector('.saved-word')) {
+                uniqueTimes.add(parseFloat(line.dataset.start));
+            }
+        });
+        
+        savedTimestamps = Array.from(uniqueTimes).sort((a, b) => a - b);
+        
+        // 2. Actualizar UI de la barra
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const counter = document.getElementById('nav-counter');
+        
+        if (savedTimestamps.length > 0) {
+            btnPrev.classList.remove('disabled');
+            btnNext.classList.remove('disabled');
+            counter.innerText = savedTimestamps.length; // Muestra total de marcas
+            counter.style.color = "#ec4899"; // Color rosa para indicar actividad
+        } else {
+            btnPrev.classList.add('disabled');
+            btnNext.classList.add('disabled');
+            counter.innerText = "0/0";
+            counter.style.color = "#e5e7eb";
+        }
+    }
+
+    function navigateWords(direction) {
+        if (savedTimestamps.length === 0 || !player || !player.getCurrentTime) return;
+        
+        const currentTime = player.getCurrentTime();
+        let targetTime = -1;
+
+        if (direction === 1) { // NEXT (▼)
+            const next = savedTimestamps.find(t => t > currentTime + 0.5);
+            if (next !== undefined) targetTime = next;
+            else targetTime = savedTimestamps[0]; // Loop
+        } else { // PREV (▲)
+            const prev = [...savedTimestamps].reverse().find(t => t < currentTime - 0.5);
+            if (prev !== undefined) targetTime = prev;
+            else targetTime = savedTimestamps[savedTimestamps.length - 1]; // Loop
+        }
+
+        if (targetTime !== -1) {
+            player.seekTo(targetTime);
+            player.playVideo(); 
+        }
     }
 
     function toggleWordSelection(element, event) {
@@ -967,10 +1025,7 @@
 
         if (found) {
             // === BORRAR (DE CUALQUIER LUGAR) ===
-            // Filtro items sueltos
             vocab = vocab.filter(i => i.isFolder || sanitizeText(i.eng).toLowerCase() !== cleanText.toLowerCase());
-            
-            // Filtro dentro de carpetas
             vocab.forEach(f => {
                 if(f.isFolder) {
                     f.items = f.items.filter(sub => sanitizeText(sub.eng).toLowerCase() !== cleanText.toLowerCase());
@@ -978,7 +1033,7 @@
             });
             
             localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
-            updateAllWordStates(); // Actualiza UI inmediatamente
+            updateAllWordStates(); 
             
         } else {
             // === AGREGAR ===
@@ -1007,7 +1062,6 @@
             
             if(targetFolder) {
                 targetFolder.items.unshift(newItem);
-                // Mueve la carpeta al principio
                 vocab = vocab.filter(i => i.id !== targetFolder.id);
                 vocab.unshift(targetFolder);
             } else {
@@ -1016,13 +1070,10 @@
             }
             
             localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
-            updateAllWordStates(); // Actualiza UI inmediatamente
+            updateAllWordStates(); 
         }
     }
     
-    function navigateWords(direction) {
-    }
-
     function speakText(text, onStart, onEnd) { 
         window.speechSynthesis.cancel(); 
         const utter = new SpeechSynthesisUtterance(text); 
@@ -1095,9 +1146,6 @@
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
     function saveLineToVocab(btn) {
-        // Esta función ahora usa la misma lógica robusta que toggleWordSelection pero para toda la linea
-        // Simplemente extrae texto y añade. Para consistencia, podríamos redirigirla.
-        // Pero mantengámosla simple para guardar la frase completa.
         
         const line = btn.closest('.line'); 
         let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
