@@ -394,9 +394,10 @@ const PREF_AUDIO_VOICE = 'nexus_audio_voice';
 const PREF_AUDIO_SPEED = 'nexus_audio_speed';
 let availableVoices = [];
 
-// PILL STATE
+// PILL STATE & WATCHER
 let currentStatsContext = null;
 let currentWordStats = { occurrences: "-", uniqueTotal: 0 };
+let lastStorageString = "";
 
 /* 3. INITIALIZATION */
 document.addEventListener('DOMContentLoaded', () => {
@@ -407,12 +408,53 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory('topicInput', 'topic-history');
     loadNexusHistory();
     loadVocabFolders();
+    startStorageWatcher(); // START WATCHER
     
     if(window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
         loadVoices();
     }
 });
+
+/* === REAL-TIME SYNC ENGINE === */
+function startStorageWatcher() {
+    // Inicializa el valor actual para no disparar al cargar
+    lastStorageString = localStorage.getItem(MDC_VOCAB_KEY) || "";
+    
+    setInterval(() => {
+        const currentString = localStorage.getItem(MDC_VOCAB_KEY) || "";
+        if (currentString !== lastStorageString) {
+            lastStorageString = currentString;
+            // 1. Actualizar lista de carpetas (Dropdown)
+            loadVocabFolders(); 
+            // 2. Actualizar visualmente el texto activo (Rosa y Stats)
+            refreshActiveView(); 
+        }
+    }, 500); // Check every 500ms for instant feel
+}
+
+function refreshActiveView() {
+    // Si no hay nada abierto, no hacemos nada
+    const activeContent = document.querySelector('.accordion-content.active .interactive-content');
+    if (!activeContent) return;
+
+    // Obtener DB fresca
+    const currentVocab = getVocabSet();
+
+    // Repintar todas las palabras
+    activeContent.querySelectorAll('.interactive-word').forEach(span => {
+        const clean = sanitizeText(span.innerText).toLowerCase();
+        if (currentVocab.has(clean)) {
+            span.classList.add('saved');
+        } else {
+            span.classList.remove('saved');
+        }
+    });
+
+    // Actualizar la Pildora
+    currentStatsContext = activeContent;
+    updateUnifiedPill(null);
+}
 
 /* === PILL LOGIC (UNIFIED) === */
 function updateUnifiedPill(translationData = null) {
@@ -448,8 +490,6 @@ function updateUnifiedPill(translationData = null) {
         transOrigin.innerText = translationData.origin;
         transResult.innerText = translationData.result;
     } else {
-        // If no translation active, keep pill small or keep previous?
-        // Let's hide translation part if null
         if (!transPart.dataset.hasActive) {
             divider.style.display = 'none';
             transPart.classList.remove('active');
@@ -459,9 +499,8 @@ function updateUnifiedPill(translationData = null) {
 
 async function translateWord(text) {
     const transPart = document.getElementById('pill-trans');
-    transPart.dataset.hasActive = "true"; // Flag to keep it open
+    transPart.dataset.hasActive = "true"; 
     
-    // Show loading state immediately in pill
     updateUnifiedPill({ origin: text, result: "..." });
 
     try {
@@ -476,7 +515,6 @@ async function translateWord(text) {
         updateUnifiedPill({ origin: text, result: "Error" });
     }
     
-    // Auto-hide translation part after 5s (optional, reverting to stats only)
     clearTimeout(window.transTimer);
     window.transTimer = setTimeout(() => { 
         const transPart = document.getElementById('pill-trans');
@@ -493,17 +531,18 @@ function toggleAccordion(id) {
     
     if (!isVisible) {
         content.classList.add('active');
+        // Force refresh to ensure colors match current DB state
+        setTimeout(refreshActiveView, 50); 
         currentStatsContext = content.querySelector('.interactive-content');
         currentWordStats.occurrences = "-";
-        updateUnifiedPill(null); // Show pill with stats only
+        updateUnifiedPill(null); 
     } else {
         currentStatsContext = null;
-        updateUnifiedPill(null); // Hide pill
+        updateUnifiedPill(null); 
     }
 }
 
 function saveWordToMDC(word, element) {
-    // 1. Translate & Show in Pill
     translateWord(word); 
     
     const cleanWord = sanitizeText(word);
@@ -533,10 +572,8 @@ function saveWordToMDC(word, element) {
     // 4. Save Logic (Toggle)
     const accordionItem = element.closest('.accordion-item');
     const folderName = accordionItem ? accordionItem.querySelector('.header-content strong').innerText.trim() : "AI Generator";
-    let isSaving = false;
-
+    
     if (!wordFound) {
-        isSaving = true;
         const newItem = { id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false, dateAdded: Date.now() };
         let targetFolder = items.find(i => i.isFolder && i.name.toLowerCase() === folderName.toLowerCase());
 
@@ -552,22 +589,12 @@ function saveWordToMDC(word, element) {
             if (folder.isFolder && folder.items) { folder.items = folder.items.filter(item => sanitizeText(item.eng).toLowerCase() !== checkEng); }
         });
         items = items.filter(i => i.isFolder || (i.eng && sanitizeText(i.eng).toLowerCase() !== checkEng));
-        isSaving = false;
     }
 
     localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
-    loadVocabFolders();
-
-    // 5. Update Visuals
-    document.querySelectorAll('.interactive-word').forEach(span => {
-        if (sanitizeText(span.innerText).toLowerCase() === checkEng) {
-            if (isSaving) span.classList.add('saved');
-            else span.classList.remove('saved');
-        }
-    });
-
-    // 6. Update Pill (Stats)
-    updateUnifiedPill(null); // Updates stats, keeps translation active if it was set
+    // NOTA: No necesitamos llamar manualmente a refreshActiveView aquí porque 
+    // el watcher (startStorageWatcher) detectará el cambio en el localStorage 
+    // y actualizará la vista automáticamente en <500ms.
 }
 
 /* === REST OF APP LOGIC === */
@@ -945,4 +972,3 @@ function filterResults() {
 </body>
 </html>
 
-```
