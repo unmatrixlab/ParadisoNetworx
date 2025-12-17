@@ -493,14 +493,34 @@ const App = {
     startFolder(fid, fname) { const raw = DB.getFolderWords(fid); if(raw.length === 0) return alert("Folder is empty!"); this.activeScope = raw; this.scopeName = fname; Profile.calcStats(raw); BatchManager.reset(); this.prepGame(raw, 'custom', fname); },
     start(cat) { const raw = DB.get(cat); this.activeScope = null; this.scopeName = null; BatchManager.reset(); this.prepGame(raw, cat, cat === 'mixed' ? "MIXED BAG" : cat.toUpperCase()); },
     getGameQueue(rawList) { return BatchManager.getBatch(rawList); },
-    prepGame(rawOrQueue, catKey, title, isResume = false) {
+ prepGame(rawOrQueue, catKey, title, isResume = false) {
         let queue, sorted;
         if(isResume) { queue = rawOrQueue; sorted = this.pausedSession.fullList; } else { localStorage.removeItem('LN_SAVED_SESSION'); this.pausedSession = null; queue = this.getGameQueue(rawOrQueue); sorted = rawOrQueue; if (queue.length === 0) return alert("No words available (Check banned list?)."); }
         if(!isResume) { Profile.sessionMastery = 0; }
         document.querySelectorAll('.view-screen').forEach(e => e.classList.remove('active')); document.getElementById('view-game').classList.add('active'); document.getElementById('btn-settings-nav').classList.remove('active');
+        
         const pills = { nouns:'--c-noun', adjectives:'--c-adj', verbs_reg:'--c-reg', verbs_irreg:'--c-irreg', functionals:'--c-func', mixed:'--c-mixed', custom:'--gold' };
-        const p = document.getElementById('game-cat-pill'); const cVar = (catKey === 'custom' || !pills[catKey]) ? '--gold' : pills[catKey]; p.innerText = title || this.scopeName; p.style.color = `var(${cVar})`; p.style.borderColor = `var(${cVar})`;
-        const phasePill = document.getElementById('game-phase-pill'); if(phasePill) { phasePill.textContent = BatchManager.phase === 'new' ? 'LEARNING' : 'REVIEW'; phasePill.className = BatchManager.phase === 'new' ? 'phase-pill' : 'phase-pill review'; }
+        
+        // 1. CONTROL DE LA PRIMERA ETIQUETA (CATEGORÍA)
+        const p = document.getElementById('game-cat-pill'); 
+        const cVar = (catKey === 'custom' || !pills[catKey]) ? '--gold' : pills[catKey]; 
+        
+        // Recortamos a 7 caracteres + ...
+        let rawTitle = title || this.scopeName;
+        p.innerText = rawTitle.length > 7 ? rawTitle.substring(0, 7) + ".." : rawTitle;
+        
+        p.style.color = `var(${cVar})`; 
+        p.style.borderColor = `var(${cVar})`;
+
+        // 2. CONTROL DE LA SEGUNDA ETIQUETA (FASE)
+        const phasePill = document.getElementById('game-phase-pill'); 
+        if(phasePill) {
+            phasePill.style.display = 'inline-flex'; // Nos aseguramos que se vea
+            // Usamos textos cortos para ahorrar espacio
+            phasePill.textContent = BatchManager.phase === 'new' ? 'LEARN' : 'REV'; 
+            phasePill.className = BatchManager.phase === 'new' ? 'phase-pill' : 'phase-pill review'; 
+        }
+
         if(Profile.cfg.interaction === 'text') { document.getElementById('mode-arcade').style.display = 'none'; document.getElementById('mode-text').style.display = 'flex'; TextGame.init(queue, catKey, sorted); if(isResume) TextGame.idx = this.pausedSession.idx; } else { document.getElementById('mode-arcade').style.display = 'flex'; document.getElementById('mode-text').style.display = 'none'; Game.init(queue, catKey, `var(${cVar})`, sorted); if(isResume) Game.idx = this.pausedSession.idx; setTimeout(() => Game.updatePhaseBackground(), 100); }
         this.updateChart(queue);
     },
