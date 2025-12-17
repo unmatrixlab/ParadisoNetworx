@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Polyglot Tutor V32 - Unified Pill Edition</title>
+    <title>Polyglot Tutor V33 - Fixed Logic</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dancing+Script:wght=700&family=Playfair+Display:wght=600&family=Courier+Prime:wght=700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
         :root {
@@ -15,7 +15,6 @@
             --text-main: #111111;
             --toolbar-bg: rgba(255, 255, 255, 0.95);
             --dropdown-bg: rgba(255, 255, 255, 0.98);
-            /* Colores heredados para la pildora */
             --saved-word: #ff69b4; 
         }
 
@@ -220,10 +219,10 @@
     background-color: rgba(0, 122, 255, 0.1);
     color: var(--primary);
 }
-.interactive-word.saved {
-    color: var(--saved-word);
-    font-weight: 700;
-    border-bottom-color: var(--saved-word);
+.interactive-word.word-added {
+    color: var(--saved-word) !important;
+    font-weight: 700 !important;
+    border-bottom-color: var(--saved-word) !important;
 }
 
 /* Botón de copiar pequeño */
@@ -569,7 +568,8 @@
         renderAiList(); 
         updateTransFlagsVisibility();
         initCustomDropdowns(); 
-        startStorageWatcher(); // START WATCHER
+        startStorageWatcher(); 
+        refreshActiveView(); // Force initial highlight
     });
 
     /* ====== WATCHER SYSTEM ====== */
@@ -579,7 +579,7 @@
             const currentString = localStorage.getItem(VOCAB_DB_KEY) || "";
             if (currentString !== lastStorageString) {
                 lastStorageString = currentString;
-                refreshActiveView(); // Update visuals immediately
+                refreshActiveView(); 
             }
         }, 500); 
     }
@@ -667,7 +667,7 @@
     }
 
     /* ====== INTERACTIVE HANDLER ====== */
-    window.handleWordClick = function(wordRaw, element) {
+    window.handleWordClick = function(wordRaw, element, canSave = true) {
         // 1. Translate
         translateWord(wordRaw);
 
@@ -679,6 +679,8 @@
             if (sanitizeText(el.innerText).toLowerCase() === checkEng) count++;
         });
         currentWordStats.occurrences = count;
+
+        if (!canSave) return; // FIX: Don't save translations
 
         // 3. Toggle Logic
         let items = JSON.parse(localStorage.getItem(VOCAB_DB_KEY) || '[]');
@@ -726,7 +728,7 @@
         
         // 5. Update Stats
         updateUnifiedPill(null); // Keep translation open, update numbers
-        window.saveNote(); // Persist blue highlights in editor state
+        window.saveNote(); 
     };
 
     /* ====== HELPER FUNCTIONS ====== */
@@ -752,7 +754,6 @@
         return set;
     }
 
-    /* ====== DB HELPER (For Prompt) ====== */
     function getDbWords(mode, count) {
         const raw = localStorage.getItem(VOCAB_DB_KEY);
         if(!raw) return [];
@@ -858,7 +859,6 @@
         const saved = localStorage.getItem(EDITOR_KEY);
         if(saved) {
             editorArea.innerHTML = saved;
-            // Force re-scan on load to sync colors
             setTimeout(refreshActiveView, 100);
         }
     }
@@ -1205,12 +1205,11 @@ function processJsonAndSave(rawString) {
     }
 
     // 2. Función para procesar texto y volverlo clickable
-    function makeInteractable(text) {
-        // Divide por espacios y envuelve en spans con el nuevo handler
+    function makeInteractable(text, canSave = true) {
         return text.split(' ').map(word => {
             const safeWord = word.replace(/'/g, "\\'"); 
-            // NUEVO: Usa handleWordClick en lugar de quickAddWord
-            return `<span class="interactive-word" onclick="window.handleWordClick('${safeWord}', this)">${word}</span>`;
+            // HERE: Pass canSave flag
+            return `<span class="interactive-word" onclick="window.handleWordClick('${safeWord}', this, ${canSave})">${word}</span>`;
         }).join(' ');
     }
 
@@ -1238,7 +1237,6 @@ function processJsonAndSave(rawString) {
         const theoryId = `theory-${id}-${insertTime}`; 
         const targetLang = item.lang || 'en';
 
-        // HEADER & THEORY CON BOTON COPIAR
         let htmlBlock = `
         <div class="exercise-box" contenteditable="false">
             <div class="exercise-header">
@@ -1253,10 +1251,9 @@ function processJsonAndSave(rawString) {
                 <div style="display:flex; justify-content:flex-end; margin-bottom:5px;">
                     <button class="btn-copy-text" onclick="window.copyDivText('${theoryId}-content', this)" title="Copy Theory">📋</button>
                 </div>
-                <div id="${theoryId}-content">${makeInteractable(item.theory || "No theory.")}</div>
+                <div id="${theoryId}-content">${makeInteractable(item.theory || "No theory.", true)}</div>
             </div>`;
 
-        // LOOP DE EJERCICIOS
         item.data.forEach((ex, index) => {
             const uId = `ex-${id}-${index}-${insertTime}`; 
             const hId = `hint-${id}-${index}-${insertTime}`; 
@@ -1266,7 +1263,6 @@ function processJsonAndSave(rawString) {
 
             if (ex.cloze_text) {
                 const parts = ex.cloze_text.split(/(\{.*?\})/g);
-                
                 let interactiveHtml = "";
                 
                 parts.forEach(part => {
@@ -1275,27 +1271,21 @@ function processJsonAndSave(rawString) {
                         const optsArr = content.split('|'); 
                         const correctAns = optsArr[0].trim(); 
                         const shuffled = [...optsArr].sort(() => Math.random() - 0.5);
-                        
                         let optsHtml = `<option value="" disabled selected>...</option>`;
                         shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`; });
-                        
                         interactiveHtml += `<span class="cloze-gap-container"><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(correctAns)}')">${optsHtml}</select></span>`;
                     } else {
-                        // AQUÍ APLICAMOS LA MAGIA DE HACER CLICKABLES LAS PALABRAS
-                        interactiveHtml += makeInteractable(part);
+                        interactiveHtml += makeInteractable(part, true);
                     }
                 });
-
                 exerciseContent = `<span><b>${index + 1}.</b> ${interactiveHtml}</span>`;
 
             } else {
                 let optsHtml = `<option value="" disabled selected>...</option>`; 
                 const shuffled = [...ex.options].sort(() => Math.random() - 0.5);
                 shuffled.forEach(opt => { optsHtml += `<option value="${escapeHtml(opt)}">${opt}</option>`; });
-                
-                const preText = makeInteractable(ex.pre || '');
-                const postText = makeInteractable(ex.post || '');
-
+                const preText = makeInteractable(ex.pre || '', true);
+                const postText = makeInteractable(ex.post || '', true);
                 exerciseContent = `<span><b>${index + 1}.</b> ${preText}</span><select class="ex-select" onchange="window.validateExercise(this, '${escapeHtml(ex.answer)}')">${optsHtml}</select><span>${postText}</span>`;
             }
 
@@ -1303,8 +1293,8 @@ function processJsonAndSave(rawString) {
             if (ex.translations) {
                 for (const [key, val] of Object.entries(ex.translations)) {
                     let f = "🇬🇧"; if (key === 'es') f = "🇪🇸"; if (key === 'pt') f = "🇧🇷"; if (key === 'it') f = "🇮🇹";
-                    // TRADUCCIONES TAMBIÉN CLICKABLES
-                    transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${makeInteractable(val)}</span></div>`;
+                    // TRANSLATIONS: canSave = false
+                    transContent += `<div class="trans-line"><button class="btn-mini-speak" contenteditable="false" onclick="window.speakText('${escapeHtml(val)}', '${key}')">🔊</button><span>${f} ${makeInteractable(val, false)}</span></div>`;
                 }
             } else { transContent = "No translation"; }
 
@@ -1322,7 +1312,7 @@ function processJsonAndSave(rawString) {
                         <span>💡 Tip</span>
                         <button class="btn-copy-text" onclick="window.copyDivText('${hId}-txt', this)" title="Copy Hint">📋</button>
                     </div>
-                    <div id="${hId}-txt">${makeInteractable(ex.hint)}</div>
+                    <div id="${hId}-txt">${makeInteractable(ex.hint, true)}</div>
                 </div>
                 
                 <div class="trans-box" id="${tId}">${transContent}</div>
@@ -1331,7 +1321,7 @@ function processJsonAndSave(rawString) {
         
         htmlBlock += '</div><p><br></p>';
         editorArea.insertAdjacentHTML('beforeend', htmlBlock);
-        // Force refresh to colorize newly inserted words immediately
+        // Force refresh
         setTimeout(() => { 
             refreshActiveView();
             editorArea.scrollTop = editorArea.scrollHeight; 
