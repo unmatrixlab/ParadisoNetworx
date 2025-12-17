@@ -376,6 +376,7 @@
     let REMOTE_LIBRARY = [];
     let activeCategoryFilter = 'All';
     let lastStorageString = "";
+    let currentWordStats = { occurrences: "-", uniqueTotal: 0 };
     
     // --- VARIABLES DE NAVEGACION (NUEVO) ---
     let savedTimestamps = [];
@@ -936,33 +937,52 @@
         updateNavigationIndex(); // <--- CRÍTICO: Actualizar barra inferior
     }
 
-    function updateNavigationIndex() {
-        // 1. Escanear el DOM para ver qué lineas tienen palabras guardadas (clase .saved-word)
+   function updateNavigationIndex() {
+        // 1. Calcular TOTAL DE PALABRAS ÚNICAS (Lado Derecho)
+        // Escaneamos todas las palabras que tienen la clase .saved-word
+        const allSavedElements = document.querySelectorAll('.english-word.saved-word');
+        const uniqueSet = new Set();
+        
+        // Guardamos el texto limpio en un Set para eliminar repetidos automáticamente
+        allSavedElements.forEach(el => {
+            uniqueSet.add(sanitizeText(el.innerText).toLowerCase());
+        });
+        
+        currentWordStats.uniqueTotal = uniqueSet.size;
+
+        // 2. Actualizar Timestamps para la navegación (Flechas)
+        // Seguimos necesitando esto para que las flechas sepan a dónde saltar
         const lines = document.querySelectorAll('.line');
         const uniqueTimes = new Set();
-        
         lines.forEach(line => {
             if (line.querySelector('.saved-word')) {
                 uniqueTimes.add(parseFloat(line.dataset.start));
             }
         });
-        
         savedTimestamps = Array.from(uniqueTimes).sort((a, b) => a - b);
         
-        // 2. Actualizar UI de la barra
+        // 3. Renderizar en la Barra
+        renderCounterUI();
+    }
+
+    function renderCounterUI() {
         const btnPrev = document.getElementById('btn-prev');
         const btnNext = document.getElementById('btn-next');
         const counter = document.getElementById('nav-counter');
         
-        if (savedTimestamps.length > 0) {
+        // Formato: [Ocurrencias de la actual] | [Total Únicas]
+        counter.innerText = `${currentWordStats.occurrences} | ${currentWordStats.uniqueTotal}`;
+        
+        // Estilo visual
+        if (currentWordStats.uniqueTotal > 0) {
             btnPrev.classList.remove('disabled');
             btnNext.classList.remove('disabled');
-            counter.innerText = savedTimestamps.length; // Muestra total de marcas
-            counter.style.color = "#ec4899"; // Color rosa para indicar actividad
+            counter.style.color = "#ec4899"; 
+            counter.style.fontWeight = "800";
+            counter.style.letterSpacing = "1px";
         } else {
             btnPrev.classList.add('disabled');
             btnNext.classList.add('disabled');
-            counter.innerText = "0/0";
             counter.style.color = "#e5e7eb";
         }
     }
@@ -989,10 +1009,11 @@
         }
     }
 
-    function toggleWordSelection(element, event) {
+  function toggleWordSelection(element, event) {
         event.stopPropagation(); 
         const lang = element.dataset.lang; 
         
+        // Lógica de español (se mantiene igual)
         if (lang === 'es') { 
             element.classList.toggle('selected-word'); 
             const idx = parseInt(element.dataset.idx);
@@ -1009,14 +1030,21 @@
 
         lastSelectedWordText = cleanText;
 
+        // === NUEVO: CALCULAR OCURRENCIAS EN ESTE TEXTO ===
+        // Contamos cuántas veces aparece esta palabra exacta en todo el video
+        let count = 0;
+        document.querySelectorAll('.english-word').forEach(el => {
+            if (sanitizeText(el.innerText).toLowerCase() === cleanText.toLowerCase()) {
+                count++;
+            }
+        });
+        currentWordStats.occurrences = count; 
+        // ===============================================
+
         let vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        
-        // 1. CHEQUEO SI EXISTE (DEEP SEARCH)
         let found = false;
         
-        // Busqueda en Items sueltos
         if(vocab.some(i => !i.isFolder && sanitizeText(i.eng).toLowerCase() === cleanText.toLowerCase())) found = true;
-        // Busqueda en Carpetas
         if(!found) {
             vocab.forEach(f => {
                 if(f.isFolder && f.items.some(sub => sanitizeText(sub.eng).toLowerCase() === cleanText.toLowerCase())) found = true;
@@ -1024,19 +1052,18 @@
         }
 
         if (found) {
-            // === BORRAR (DE CUALQUIER LUGAR) ===
+            // BORRAR
             vocab = vocab.filter(i => i.isFolder || sanitizeText(i.eng).toLowerCase() !== cleanText.toLowerCase());
             vocab.forEach(f => {
                 if(f.isFolder) {
                     f.items = f.items.filter(sub => sanitizeText(sub.eng).toLowerCase() !== cleanText.toLowerCase());
                 }
             });
-            
             localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
             updateAllWordStates(); 
             
         } else {
-            // === AGREGAR ===
+            // AGREGAR
             const line = element.closest('.line');
             const contextSource = { 
                 type: 'youtube', 
@@ -1051,7 +1078,7 @@
                 id: Date.now() + Math.random(),
                 isFolder: false,
                 eng: cleanText,
-                esp: "", // Pendiente para el vocab builder traducir
+                esp: "", 
                 isHighlighted: false,
                 source: contextSource,
                 dateAdded: Date.now()
