@@ -614,7 +614,7 @@ const App = {
         const btn = document.getElementById('btn-replay-folder');    
         const sub = document.getElementById('mastered-sub-text');    
 
-        if(sub) sub.innerHTML = `Folder Mastered:<br><strong style="color:var(--gold)">${fname}</strong>`;
+        if(sub) sub.innerHTML = `Carpeta completada:<br><strong style="color:var(--gold)">${fname}</strong>`;
         
         // Configuramos el clic del botón
         btn.onclick = () => {
@@ -824,7 +824,26 @@ const Game = {
                     if (Profile.cfg.restMode === 'true') { if (this.wordsCleared % 20 === 0) { isTriggerRest = true; restDuration = 20000; restTitle = "DEEP REST"; restMsg = "Take a deep breath..."; } else if (this.wordsCleared % 5 === 0) { isTriggerRest = true; restDuration = 6000; restTitle = "NICE!"; restMsg = "Brief pause..."; } }
                     if (isTriggerRest) { this.isResting = true; const layer = document.getElementById('brain-rest-layer'); document.getElementById('rest-title').innerText = restTitle; document.getElementById('rest-msg').innerText = restMsg; layer.classList.add('active'); if(this.recognition) this.recognition.stop(); setTimeout(() => { layer.classList.remove('active'); this.isResting = false; this.activeWord = null; this.idx++; this.spawn(); }, restDuration); } else {
                         const newLvl = this.activeWord.hasErrored ? Profile.getLvl(cor.en) : Profile.setProg(cor.en, true); App.updateChart(this.queue); this.activeWord = null; this.idx++; 
-                        if(newLvl >= 4 && !this.activeWord?.hasErrored) { this.createExplosion(targetWordRef.x, targetWordRef.y, color, 3); this.createConfetti(targetWordRef.x, targetWordRef.y); this.showMasteredText(); const reward = Profile.addMasteryPoint(); if (reward) this.showReward(reward); }
+                        
+                        // --- MODIFICACIÓN CLAVE: DETECTAR VICTORIA DE CARPETA AQUÍ ---
+                        if(newLvl >= 4 && !this.activeWord?.hasErrored) { 
+                            this.createExplosion(targetWordRef.x, targetWordRef.y, color, 3); 
+                            this.createConfetti(targetWordRef.x, targetWordRef.y); 
+                            this.showMasteredText(); 
+                            const reward = Profile.addMasteryPoint(); 
+                            if (reward) this.showReward(reward);
+                            
+                            // CHECKEO DE CARPETA COMPLETA
+                            const currentList = App.activeScope || Game.fullList;
+                            const isFolderDone = currentList.every(w => Profile.getLvl(w.en) === 4);
+                            if (isFolderDone) {
+                                Game.stop();
+                                App.showMasteredScreen(App.scopeName || Game.category, App.scopeName || Game.category, currentList);
+                                return;
+                            }
+                        }
+                        // -------------------------------------------------------------
+
                         if(!this.showingGhost) this.timerId = setTimeout(() => this.spawn(), 500);
                     }
                 } else {
