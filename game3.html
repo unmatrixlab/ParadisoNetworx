@@ -402,7 +402,7 @@
             </div>
             <div class="section-box">
                 <div class="section-head">SESSION</div>
-                <div class="row-ctrl"><span class="row-lbl">Words per Session (Reward Goal)</span><input type="number" id="cfg-count" class="num-inp" value="10" onchange="Profile.saveCfg()"></div>
+                <div class="row-ctrl"><span class="row-lbl">Words per Session (Reward Goal)</span><input type="number" id="cfg-count" class="num-inp" value="10" min="4" onchange="Profile.saveCfg()"></div>
                 <div class="row-ctrl"><span class="row-lbl">Time Limit (Min)</span><input type="number" id="cfg-time" class="num-inp" value="0" onchange="Profile.saveCfg()"></div>
             </div>
             <div class="section-box"><div class="section-head">DANGER ZONE</div><div class="row-ctrl"><span class="row-lbl" style="color:var(--danger)">Reset All Progress</span><button onclick="Profile.wipe()" style="background:var(--danger); color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:bold;">WIPE</button></div></div>
@@ -546,8 +546,21 @@ const Profile = {
         setVal('cfg-voice-diff', this.cfg.voiceDiff || 'normal');
         this.calcStats(); App.updateCoinUI();
     },
-    saveCfg() {
-        this.cfg.count = parseInt(document.getElementById('cfg-count').value) || 10;
+   saveCfg() {
+        // 1. Obtener referencia al elemento visual
+        const countInput = document.getElementById('cfg-count');
+        
+        // 2. Leer el valor. Si está vacío o es inválido, usar 10 por defecto.
+        let val = parseInt(countInput.value) || 10;
+
+        // 3. REGLA DE ORO: Si es menor a 4, forzarlo a 4
+        if (val < 4) {
+            val = 4;
+            countInput.value = 4; // Esto corrige visualmente el número en la pantalla
+        }
+
+        // 4. Guardar configuración
+        this.cfg.count = val;
         this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 1;
         this.cfg.time = parseInt(document.getElementById('cfg-time').value) || 0;
         this.cfg.gameMode = document.getElementById('cfg-mode').value;
@@ -555,20 +568,9 @@ const Profile = {
         this.cfg.restMode = document.getElementById('cfg-rest').value;
         this.cfg.speaking = document.getElementById('cfg-speaking').value;
         this.cfg.voiceDiff = document.getElementById('cfg-voice-diff').value;
-        this.save(); App.renderQueuePreview(); 
-    },
-    save() { localStorage.setItem('LN_V8_HYBRID', JSON.stringify(this.cfg)); },
-    ban(w) { const key = DB.clean(w); if(!this.cfg.banned.includes(key)) this.cfg.banned.push(key); this.save(); },
-    unban(w) { const key = DB.clean(w); this.cfg.banned = this.cfg.banned.filter(b => b !== key); this.save(); App.renderBannedList(); },
-    isBanned(w) { return (this.cfg.banned || []).includes(DB.clean(w)); },
-    getData(w) { const key = DB.clean(w); let v = this.cfg.prog[key]; if(v === undefined) return {lvl:0, date:0}; if(typeof v === 'number') return {lvl:v, date:0}; return { lvl: parseInt(v.lvl), date: v.date }; },
-    setProg(w, ok) { const key = DB.clean(w); let e = this.getData(key), l = e.lvl; if(ok) { if(l < 4) l++; } else { l = Math.max(0, l - 1); } this.cfg.prog[key] = {lvl:l, date:Date.now()}; this.save(); this.calcStats(App.activeScope); return l; },
-    
-    // --- NUEVO: REINICIAR PALABRA ---
-    resetWord(w) { 
-        const key = DB.clean(w); 
-        this.cfg.prog[key] = {lvl:0, date:Date.now()}; 
+        
         this.save(); 
+        App.renderQueuePreview(); 
     },
 
     getLvl(w) { return this.getData(w).lvl; },
@@ -720,14 +722,48 @@ const App = {
     renderMore() { this.renderCount += 50; this.renderLib(); },
     calculateFilteredList() { const s = document.getElementById('inp-search').value.toLowerCase(); const src = this.activeScope || DB.all(); this.filteredResults = src.filter(x => { const m = !s || x.en.toLowerCase().includes(s); if(!m) return false; if(this.filterLvl === 'all') return true; return Profile.getLvl(x.en) === this.filterLvl; }); },
     renderLib() { const c = document.getElementById('lib-list'); c.innerHTML = ''; const btn = document.getElementById('btn-load-more'); if(this.filteredResults.length > this.renderCount) { btn.style.display = 'block'; btn.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount})`; } else { btn.style.display = 'none'; } const frag = document.createDocumentFragment(); this.filteredResults.slice(0, this.renderCount).forEach(w => { const l = Profile.getLvl(w.en), pct = l * 25, d = document.createElement('div'); d.className = `lib-card lvl-${l}`; d.innerHTML = `<div class="lib-content"><span class="lib-badge">LVL ${l}</span><div class="lib-en">${w.en.toUpperCase()}</div><div class="lib-es">${Array.isArray(w.es) ? w.es[0].toUpperCase() : w.es.toUpperCase()}</div></div><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>`; frag.appendChild(d); }); c.appendChild(frag); },
-    renderQueuePreview() {
+ renderQueuePreview() {
         const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
+        
+        // 1. OBTENER EL LIMITE CONFIGURADO POR EL USUARIO
+        const limit = Profile.cfg.count || 10; 
+
         let source = []; let labelText = ""; let colorStatus = ""; let showProgress = false; let completed = 0; let total = 0;
-        if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) { source = [...BatchManager.currentBatch]; labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)"; colorStatus = "var(--primary)"; showProgress = true; const target = BatchManager.phase === 'new' ? 3 : 4; completed = source.filter(w => Profile.getLvl(w.en) >= target).length; total = source.length; } 
-        else { let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed'); raw = raw.filter(w => !Profile.isBanned(w.en)); let priority = raw.filter(w => Profile.getLvl(w.en) === 0); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); source = priority.slice(0, 10); labelText = "⚡ UP NEXT (SMART PREDICTION)"; colorStatus = "var(--gold)"; }
+        
+        if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) { 
+            // Si hay un batch activo, mostramos ese (ya tiene el tamaño correcto desde que se creó)
+            source = [...BatchManager.currentBatch]; 
+            labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)"; 
+            colorStatus = "var(--primary)"; 
+            showProgress = true; 
+            const target = BatchManager.phase === 'new' ? 3 : 4; 
+            completed = source.filter(w => Profile.getLvl(w.en) >= target).length; 
+            total = source.length; 
+        } 
+        else { 
+            // MODO PREDICCIÓN (Aquí estaba el error)
+            let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed'); 
+            raw = raw.filter(w => !Profile.isBanned(w.en)); 
+            
+            let priority = raw.filter(w => Profile.getLvl(w.en) === 0); 
+            
+            // Llenamos con palabras de otros niveles si faltan
+            if (priority.length < limit) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); 
+            if (priority.length < limit) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); 
+            
+            // AQUI ESTABA EL ERROR: Antes decía slice(0, 10), ahora usa 'limit'
+            source = priority.slice(0, limit); 
+            
+            labelText = "⚡ UP NEXT (SMART PREDICTION)"; 
+            colorStatus = "var(--gold)"; 
+        }
+
         if(source.length === 0) { con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; return; }
+        
         const phaseText = BatchManager.phase === 'new' ? 'LEARNING PHASE' : 'REVIEW PHASE';
+        
         con.innerHTML = `<div class="queue-header"><div style="font-size:11px; color:${colorStatus}; font-weight:800;">${labelText}</div><div class="phase-badge ${BatchManager.phase}">${phaseText}</div></div>${showProgress ? `<div style="font-size:12px; color:var(--txt-sec); margin-bottom:8px;">${completed}/${total} completed</div><div class="batch-progress"><div class="batch-progress-fill" style="width:${(completed/total)*100}%"></div></div>` : ''}`;
+        
         source.forEach(w => { const l = Profile.getLvl(w.en); const meta = { 0: { c: 'var(--c-noun)', t: 'NEW' }, 1: { c: 'var(--danger)', t: 'LEARNING' }, 2: { c: 'var(--c-irreg)', t: 'HARD' }, 3: { c: 'var(--primary)', t: 'REVIEW' }, 4: { c: 'var(--success)', t: 'MASTER' } }[l] || { c: '#666', t: '?' }; const d = document.createElement('div'); d.className = 'queue-item'; const pct = l * 25; d.innerHTML = `<div style="flex:1"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:var(--txt-main); font-size:15px;">${w.en.toUpperCase()}</span><span style="font-size:10px; font-weight:800; background:${meta.c}; color:#fff; padding:2px 6px; border-radius:4px;">${meta.t}</span></div><div style="width:100%; height:3px; background:#333; margin-top:5px; border-radius:2px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${meta.c}; transition:width 0.3s;"></div></div></div>`; con.appendChild(d); });
     },
     renderBannedList() { const con = document.getElementById('banned-list-container'); if (!con) return; con.innerHTML = ''; const list = Profile.cfg.banned || []; if (list.length === 0) { con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>'; return; } list.forEach(w => { const d = document.createElement('div'); d.className = 'banned-item'; d.innerHTML = `<span>${w.toUpperCase()}</span><span class="banned-icon">♻️ RESTORE</span>`; d.onclick = () => { if(confirm(`Restore "${w}"?`)) Profile.unban(w); }; con.appendChild(d); }); }
