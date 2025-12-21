@@ -612,7 +612,7 @@ const App = {
     renderFolderList() { const c = document.getElementById('folder-list-container'); c.innerHTML = ''; const sys = [{id:'sys_everything',name:'ULTIMATE DATABASE (ALL)',class:'sys-all',count:'FULL'},{id:'sys_official',name:'OFFICIAL DB (FULL)',class:'sys-off',count:'INT'},{id:'sys_custom',name:'IMPORTED DB (FULL)',class:'sys-imp',count:'EXT'}]; sys.forEach(f => { const d = document.createElement('div'); d.className = `folder-item ${f.class}`; d.innerHTML = `<div class="folder-info"><h4>${f.name}</h4><span style="font-weight:800;opacity:0.7;">${f.count}</span></div><div class="folder-play"><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`; d.onclick = () => this.startFolder(f.id, f.name); c.appendChild(d); }); const folders = DB.getFolderList(); if(folders.length > 0) { const sep = document.createElement('div'); sep.style.cssText = "margin-top:15px; margin-bottom:5px; font-size:11px; font-weight:700; color:var(--txt-sec); text-transform:uppercase; letter-spacing:1px;"; sep.innerText = "YOUR COLLECTIONS"; c.appendChild(sep); folders.forEach(f => { const d = document.createElement('div'); d.className = 'folder-item'; d.innerHTML = `<div class="folder-info"><h4>${f.name}</h4><span>${f.count} Words</span></div><div class="folder-play"><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`; d.onclick = () => this.startFolder(f.id, f.name); c.appendChild(d); }); } },
     
     // --- NUEVO: START FOLDER CON CHECK DE MASTERIZADO ---
-startFolder(fid, fname) { 
+    startFolder(fid, fname) { 
         const raw = DB.getFolderWords(fid); 
         if(raw.length === 0) return alert("Folder is empty!"); 
         
@@ -664,6 +664,9 @@ startFolder(fid, fname) {
                 overlay.classList.remove('active');
                 btn.innerText = "↺ REPLAY & RESET"; 
                 
+                // Descongelamos el juego si venía de ahí
+                Game.isFrozen = false;
+
                 // C. Iniciamos el juego automáticamente
                 this.activeScope = rawData; 
                 this.scopeName = fname; 
@@ -734,14 +737,19 @@ startFolder(fid, fname) {
    MODULE 5: ARCADE GAME ENGINE (VOICE COMMANDER PRO)
    ================================================================ */
 const Game = {
-    canvas:null, ctx:null, queue:[], pool:[], fullList:[], idx:0, width:0, height:0, loopId:null, lastTime:0, activeWord:null, particles:[], stars:[], laser:null, ghosts:[], shockwaves:[], clouds:[], score:0, startTime:0, timeLimit:0, themeColor:'#fff', flashIntensity:0, combo:0, gridOffset:0, showingGhost:false, category:'', timerId:null, isPlaying:false, mode: 'meteor', speedMult: 1, 
+    canvas:null, ctx:null, queue:[], pool:[], fullList:[], idx:0, width:0, height:0, loopId:null, lastTime:0, activeWord:null, particles:[], stars:[], laser:null, ghosts:[], shockwaves:[], clouds:[], score:0, startTime:0, timeLimit:0, themeColor:'#fff', flashIntensity:0, combo:0, gridOffset:0, showingGhost:false, category:'', timerId:null, mode: 'meteor', speedMult: 1, 
+    isPlaying: false, isFrozen: false, 
     banningPhase: false, banBeamColor: 0, wordsCleared: 0, isResting: false, speakingMode: false, recognition: null,
 
     init(queue, cat, colorVar, fullList) {
         this.queue = queue; this.category = cat; this.fullList = fullList;
         if (App.activeScope) { this.pool = App.activeScope; } 
         else { this.pool = (cat === 'custom' || cat === 'mixed') ? (this.fullList.length > 4 ? this.fullList : DB.all()) : DB.all(); }
-        this.idx = 0; this.score = 0; this.ghosts = []; this.shockwaves = []; this.combo = 0; this.showingGhost = false; this.isPlaying = true; this.banningPhase = false;
+        this.idx = 0; this.score = 0; this.ghosts = []; this.shockwaves = []; this.combo = 0; 
+        this.showingGhost = false; 
+        this.isPlaying = true; 
+        this.isFrozen = false; 
+        this.banningPhase = false;
         this.wordsCleared = 0; this.isResting = false; 
         this.speakingMode = Profile.cfg.speaking === 'true';
         this.canvas = document.getElementById('game-canvas'); this.ctx = this.canvas.getContext('2d'); this.resize();
@@ -770,7 +778,8 @@ const Game = {
         container.appendChild(wave); setTimeout(() => wave.remove(), 1600);
     },
     spawn() {
-        if(!this.isPlaying || this.showingGhost || this.banningPhase || this.isResting) return;
+        if(!this.isPlaying || this.showingGhost || this.banningPhase || this.isResting || this.isFrozen) return;
+        
         if(this.idx >= this.queue.length) { this.idx = 0; this.queue = App.getGameQueue(this.fullList); App.updateChart(this.queue); this.updatePhaseBackground(); if(this.queue.length === 0) { alert("BATCH COMPLETED!"); this.stop(); App.nav('home'); return; } }
         const data = this.queue[this.idx];
         let displayWord;
@@ -809,6 +818,7 @@ const Game = {
         this.recognition.maxAlternatives = 1;
 
         this.recognition.onresult = (event) => {
+            if (this.isFrozen || this.isResting) return;
             const transcript = event.results[0][0].transcript.trim().toLowerCase();
             const correctLower = DB.clean(correctAnswer).toLowerCase();
             let isMatch = false;
@@ -821,7 +831,7 @@ const Game = {
             if (isMatch) { this.fire({en: correctAnswer}, {en: correctAnswer}, null, true); } 
             else { console.log("Heard:", transcript, "Expected:", correctLower, "Diff:", diff); }
         };
-        this.recognition.onend = () => { if(this.isPlaying && this.activeWord && this.speakingMode) this.recognition.start(); };
+        this.recognition.onend = () => { if(this.isPlaying && this.activeWord && this.speakingMode && !this.isFrozen) this.recognition.start(); };
         try { this.recognition.start(); } catch(e) {}
     },
     renderButtons(cor) {
@@ -841,7 +851,71 @@ const Game = {
     spawnGhost(x, y, t) { if(!this.isPlaying || this.showingGhost) return; let gx = Math.max(50, Math.min(this.width - 50, x)), gy = Math.max(50, Math.min(this.height - 50, y)); this.ghosts.push({x:gx, y:gy, text:(Array.isArray(t) ? t[0] : t).toUpperCase(), life:1.0, vy:-0.5}); this.showingGhost = true; },
     showReward(type) { const overlay = document.getElementById('reward-overlay'); const title = document.getElementById('reward-title'); const desc = document.getElementById('reward-desc'); if (type === 'gold') { title.innerText = "RANK UP!"; title.style.color = "var(--gold)"; desc.innerText = "+1 GOLD COIN"; desc.style.color = "#000"; desc.style.background = "var(--gold)"; } else { title.innerText = "UNIT CLEAR!"; title.style.color = "#fff"; desc.innerText = "+1 SILVER COIN"; desc.style.color = "#fff"; desc.style.background = "rgba(0,0,0,0.8)"; } overlay.style.display = 'flex'; setTimeout(() => { overlay.style.display = 'none'; }, 1600); },
     showMasteredText() { const text = document.createElement('div'); text.className = 'mastered-text'; text.innerText = 'MASTERED!'; document.getElementById('game-canvas-container').appendChild(text); setTimeout(() => text.remove(), 2000); },
-  fire(sel, cor, btn, automated = false) {
+    
+    // --- RAYO DEL VACÍO: CAOS ELÉCTRICO Y MATERIA OSCURA ---
+    drawBanBeam(ctx, target) {
+        // Configuración de origen
+        let sx = this.width / 2;
+        let sy = this.height + 40;
+        if(this.mode === 'orbit' || this.mode === 'butterfly') { sx = this.width / 2; sy = this.height / 2; }
+
+        const dist = Math.hypot(target.x - sx, target.y - sy);
+        const angle = Math.atan2(target.y - sy, target.x - sx);
+        const segments = 20; // Más segmentos para más detalle
+        const step = dist / segments;
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Función para dibujar línea quebrada
+        const drawJagged = (width, color, glow, glowColor, amplitude) => {
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            for(let i=1; i<=segments; i++) {
+                const progress = i*step;
+                const baseX = sx + Math.cos(angle) * progress;
+                const baseY = sy + Math.sin(angle) * progress;
+                // Jitter aleatorio en cada frame
+                const perp = (Math.random() - 0.5) * amplitude * (i===segments?0:1); 
+                const px = baseX - Math.sin(angle) * perp;
+                const py = baseY + Math.cos(angle) * perp;
+                ctx.lineTo(px, py);
+            }
+            ctx.lineWidth = width;
+            ctx.strokeStyle = color;
+            if(glow) { ctx.shadowBlur = glow; ctx.shadowColor = glowColor; }
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Reset
+        };
+
+        // 1. Aura Sangrienta (Gruesa y borrosa)
+        drawJagged(18, "rgba(50, 0, 0, 0.7)", 30, "#ef4444", 25);
+        
+        // 2. Núcleo Rojo Intenso
+        drawJagged(8, "#dc2626", 15, "#ef4444", 25);
+        
+        // 3. Núcleo Eléctrico Blanco (Fino y errático)
+        drawJagged(3, "#ffffff", 10, "#ffffff", 25);
+
+        ctx.restore();
+
+        // Spawnear Partículas del Vacío (Cuadrados negros/rojos)
+         for(let k=0; k<2; k++) {
+            this.particles.push({
+                x: target.x + (Math.random() - 0.5) * 30,
+                y: target.y + (Math.random() - 0.5) * 30,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4 - 2, // Tendencia a subir
+                life: 1.0,
+                color: Math.random() > 0.5 ? '#000000' : '#ef4444',
+                size: 4 + Math.random() * 6,
+                isVoid: true // Marcador especial
+            });
+        }
+    },
+
+    fire(sel, cor, btn, automated = false) {
         if(!this.activeWord || this.banningPhase || (this.laser && !automated) || this.isFrozen) return;
         const targetWordRef = this.activeWord;
         let ox, oy;
@@ -858,8 +932,25 @@ const Game = {
                     this.shockwaves.push({x: this.activeWord.x, y: this.activeWord.y, radius: 10, alpha: 1.0, color: this.activeWord.color}); this.flashIntensity = 0.3; this.combo++; this.createExplosion(this.activeWord.x, this.activeWord.y, this.activeWord.color); this.wordsCleared++;
                     let isTriggerRest = false; let restDuration = 0; let restMsg = ""; let restTitle = "";
                     if (Profile.cfg.restMode === 'true') { if (this.wordsCleared % 20 === 0) { isTriggerRest = true; restDuration = 20000; restTitle = "DEEP REST"; restMsg = "Take a deep breath..."; } else if (this.wordsCleared % 5 === 0) { isTriggerRest = true; restDuration = 6000; restTitle = "NICE!"; restMsg = "Brief pause..."; } }
-                    if (isTriggerRest) { this.isResting = true; const layer = document.getElementById('brain-rest-layer'); document.getElementById('rest-title').innerText = restTitle; document.getElementById('rest-msg').innerText = restMsg; layer.classList.add('active'); if(this.recognition) this.recognition.stop(); setTimeout(() => { layer.classList.remove('active'); this.isResting = false; this.activeWord = null; this.idx++; this.spawn(); }, restDuration); } else {
-                        const newLvl = this.activeWord.hasErrored ? Profile.getLvl(cor.en) : Profile.setProg(cor.en, true); App.updateChart(this.queue); this.activeWord = null; this.idx++; 
+                    if (isTriggerRest) { 
+                        this.isResting = true; 
+                        const layer = document.getElementById('brain-rest-layer'); 
+                        document.getElementById('rest-title').innerText = restTitle; 
+                        document.getElementById('rest-msg').innerText = restMsg; 
+                        layer.classList.add('active'); 
+                        if(this.recognition) this.recognition.stop(); 
+                        setTimeout(() => { 
+                            layer.classList.remove('active'); 
+                            this.isResting = false; 
+                            this.activeWord = null; 
+                            this.idx++; 
+                            this.spawn(); 
+                        }, restDuration); 
+                    } else {
+                        const newLvl = this.activeWord.hasErrored ? Profile.getLvl(cor.en) : Profile.setProg(cor.en, true); 
+                        App.updateChart(this.queue); 
+                        this.activeWord = null; 
+                        this.idx++; 
                         
                         if(newLvl >= 4 && !this.activeWord?.hasErrored) { 
                             this.createExplosion(targetWordRef.x, targetWordRef.y, color, 3); 
@@ -868,7 +959,6 @@ const Game = {
                             const reward = Profile.addMasteryPoint(); 
                             if (reward) this.showReward(reward);
                             
-                            // --- CORRECCIÓN AQUÍ: Chequeamos Nivel 4 O Baneada ---
                             const currentList = App.activeScope || Game.fullList;
                             const isFolderDone = currentList.every(w => Profile.getLvl(w.en) === 4 || Profile.isBanned(w.en));
                             
@@ -898,18 +988,46 @@ const Game = {
     screenShake() { const c = this.canvas; c.style.transform = `translate(${Math.random() * 10 - 5}px,${Math.random() * 10 - 5}px)`; setTimeout(() => c.style.transform = 'none', 200); },
     drawWebLaser(ctx, l) { const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1); const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); if(l.life > 0.5) { ctx.shadowBlur = 15; ctx.shadowColor = l.color; } if(l.progress < 1) { l.progress += l.speed; if(l.progress > 1) l.progress = 1; } const ds = (w, o, f, m, lag) => { let currentDist = d * (l.progress * lag); if(currentDist > d) currentDist = d; ctx.beginPath(); ctx.strokeStyle = l.color; ctx.lineWidth = w; ctx.globalAlpha = l.life * o; for(let i = 0; i <= currentDist; i += 12) { const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life; const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); }; ds(6, 0.6, 0, 1.0, 1.0); ds(3, 1.0, 0.02, 1.2, 0.85); ctx.globalAlpha = 1; ctx.shadowBlur = 0; l.time += 0.05; },
     drawGrid(ctx) { ctx.strokeStyle = "rgba(59,130,246,0.2)"; ctx.lineWidth = 1; const h = this.height * 0.4; this.gridOffset = (this.gridOffset + 2) % 40; for(let x = -this.width; x < this.width * 2; x += 80) { ctx.beginPath(); ctx.moveTo(x, this.height); ctx.lineTo(this.width / 2 + (x - this.width / 2) * 0.2, h); ctx.stroke(); } for(let z = 0; z < this.height; z += 40) { let y = (z + this.gridOffset) % this.height; if(y < h) continue; let py = h + Math.pow((y - h) / (this.height - h), 2) * (this.height - h); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(this.width, py); ctx.stroke(); } const g = ctx.createLinearGradient(0, h, 0, this.height); g.addColorStop(0, "rgba(5,5,5,1)"); g.addColorStop(0.2, "rgba(5,5,5,0)"); ctx.fillStyle = g; ctx.fillRect(0, h, this.width, this.height - h); },
-    drawBanBeam(ctx, target) { this.banBeamColor += 15; const hue = this.banBeamColor % 360; const color = `hsl(${hue}, 100%, 60%)`; let sx = this.width / 2; let sy = this.height + 40; if(this.mode === 'orbit' || this.mode === 'butterfly') { sx = this.width / 2; sy = this.height / 2; } const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()}; this.drawWebLaser(ctx, l); for(let i = 0; i < 2; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 6 }); } },
+    
     getWobbleR(baseR, angle, time) { return baseR + Math.sin(angle * 7 + time * 0.004) * (baseR * 0.06) + Math.cos(angle * 3 - time * 0.002) * (baseR * 0.1); },
     drawJelly(ctx, x, y, baseR, color, time, isFilled = false) { ctx.beginPath(); const steps = 30; for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; if(isFilled) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); } ctx.shadowBlur = 0; },
+    
+    // --- BUCLE PRINCIPAL (MODIFICADO PARA SEGUIR DIBUJANDO SIEMPRE) ---
     loop(now) {
-        if(!this.isPlaying) return; const dt = (now - this.lastTime) / 16; this.lastTime = now;
+        if(!this.isPlaying) return; // Si el juego está APAGADO, salimos
+        const dt = (now - this.lastTime) / 16; this.lastTime = now;
+        
+        // 1. DIBUJAR FONDO Y EFECTOS (SIEMPRE, incluso si hay popup)
         this.ctx.fillStyle = '#050505'; this.ctx.fillRect(0, 0, this.width, this.height);
         const fem = ['flower', 'heart', 'butterfly'].includes(this.mode); if(!fem) this.drawGrid(this.ctx); else { const g = this.ctx.createLinearGradient(0, 0, 0, this.height); g.addColorStop(0, "#0f172a"); g.addColorStop(1, "#1e1b4b"); this.ctx.fillStyle = g; this.ctx.fillRect(0, 0, this.width, this.height); this.clouds.forEach(c => { c.x += c.speed; if(c.x > this.width + 100) c.x = -100; this.ctx.fillStyle = "rgba(255,255,255,0.3)"; this.ctx.beginPath(); this.ctx.arc(c.x, c.y, c.size, 0, Math.PI * 2); this.ctx.fill(); }); }
         if(!fem) this.stars.forEach(s => { s.y += s.speed; if(s.y > this.height) s.y = 0; this.ctx.globalAlpha = 0.3 + Math.random() * 0.5; this.ctx.beginPath(); this.ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2); this.ctx.fillStyle = '#fff'; this.ctx.fill(); }); this.ctx.globalAlpha = 1;
         const cx = this.width / 2, cy = this.height / 2;
         if(['orbit', 'butterfly'].includes(this.mode)) { const centerColor = this.mode === 'butterfly' ? '#fcd34d' : '#3b82f6'; const centerSize = this.mode === 'butterfly' ? 40 : 35; this.drawJelly(this.ctx, cx, cy, centerSize, centerColor, now, true); }
+
+        // 2. LOGICA DEL JUEGO (SOLO SI NO ESTÁ CONGELADO NI DESCANSANDO)
         if(this.activeWord) {
-            const w = this.activeWord; if(!this.banningPhase && !this.isResting) { w.x += w.vx * dt; w.y += w.vy * dt; w.rot += w.rotSpeed * dt; if(this.mode === 'meteor') { w.trail.push({x:w.x, y:w.y}); if(w.trail.length > 12) w.trail.shift(); this.ctx.globalCompositeOperation = 'lighter'; this.ctx.fillStyle = w.color; this.ctx.beginPath(); w.trail.forEach((p, i) => { this.ctx.moveTo(p.x, p.y); this.ctx.arc(p.x, p.y, w.size * (i / 20), 0, Math.PI * 2); }); this.ctx.globalAlpha = 0.4; this.ctx.fill(); this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1; } let fail = false; if(['meteor', 'flower'].includes(this.mode) && w.y > this.height - 50) fail = true; else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true; else if(['orbit', 'butterfly'].includes(this.mode)) { const distToCenter = Math.hypot(cx - w.x, cy - w.y); if(distToCenter < 40) fail = true; if(distToCenter > Math.max(this.width, this.height) + 150) fail = true; } if(fail) this.fail(); } else if (this.banningPhase) { w.x += (Math.random() - 0.5) * 5; w.y += (Math.random() - 0.5) * 5; this.drawBanBeam(this.ctx, w); }
+            const w = this.activeWord; 
+            
+            // MOVER LA PALABRA: Solo si NO hay ban, NO hay descanso y NO está congelado
+            if(!this.banningPhase && !this.isResting && !this.isFrozen) { 
+                w.x += w.vx * dt; w.y += w.vy * dt; w.rot += w.rotSpeed * dt; 
+                if(this.mode === 'meteor') { w.trail.push({x:w.x, y:w.y}); if(w.trail.length > 12) w.trail.shift(); } 
+                
+                // Checkear colisión solo si se mueve
+                let fail = false; 
+                if(['meteor', 'flower'].includes(this.mode) && w.y > this.height - 50) fail = true; 
+                else if(['bubble', 'heart'].includes(this.mode) && w.y < 50) fail = true; 
+                else if(['orbit', 'butterfly'].includes(this.mode)) { const distToCenter = Math.hypot(cx - w.x, cy - w.y); if(distToCenter < 40) fail = true; if(distToCenter > Math.max(this.width, this.height) + 150) fail = true; } 
+                if(fail) this.fail(); 
+            } else if (this.banningPhase) { 
+                // Vibración violenta de la palabra antes de morir
+                w.x += (Math.random() - 0.5) * 15; 
+                w.y += (Math.random() - 0.5) * 15; 
+                this.drawBanBeam(this.ctx, w); // Dibuja el nuevo RAYO DEL VACÍO
+            }
+            
+            // DIBUJAR LA PALABRA (Siempre se dibuja, aunque esté quieta)
+            if(this.mode === 'meteor' && !this.isFrozen) { this.ctx.globalCompositeOperation = 'lighter'; this.ctx.fillStyle = w.color; this.ctx.beginPath(); w.trail.forEach((p, i) => { this.ctx.moveTo(p.x, p.y); this.ctx.arc(p.x, p.y, w.size * (i / 20), 0, Math.PI * 2); }); this.ctx.globalAlpha = 0.4; this.ctx.fill(); this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1; }
             this.ctx.save(); this.ctx.translate(w.x, w.y); if(['orbit', 'butterfly'].includes(this.mode)) { const ang = Math.atan2(cy - w.y, cx - w.x); this.ctx.rotate(ang + Math.PI / 2); } else { this.ctx.rotate(w.rot); }
             if(this.mode !== 'bubble') { this.ctx.shadowBlur = 15; this.ctx.shadowColor = w.color; } if(fem) { this.ctx.fillStyle = w.color; } else { this.ctx.strokeStyle = w.color; this.ctx.lineWidth = 3; }
             this.ctx.beginPath(); if(this.mode === 'meteor') { for(let i = 0; i < 6; i++) this.ctx.lineTo(w.size * Math.cos(i * Math.PI / 3), w.size * Math.sin(i * Math.PI / 3)); this.ctx.closePath(); this.ctx.stroke(); this.ctx.fillStyle = "rgba(0,0,0,0.8)"; this.ctx.fill(); } else if(this.mode === 'bubble') { this.drawJelly(this.ctx, 0, 0, w.size, w.color, now, false); } else if(this.mode === 'orbit') { this.ctx.moveTo(0, 20); this.ctx.lineTo(-20, -20); this.ctx.lineTo(20, -20); this.ctx.closePath(); this.ctx.stroke(); this.ctx.fillStyle = "rgba(0,0,0,0.8)"; this.ctx.fill(); } else if(this.mode === 'flower') { const p = w.size / 2.5; for(let i = 0; i < 5; i++) { this.ctx.beginPath(); this.ctx.ellipse(Math.cos(i * 2 * Math.PI / 5) * p, Math.sin(i * 2 * Math.PI / 5) * p, p, p / 2, i * 2 * Math.PI / 5, 0, 2 * Math.PI); this.ctx.fill(); } this.ctx.beginPath(); this.ctx.arc(0, 0, w.size / 4, 0, Math.PI * 2); this.ctx.fillStyle = '#fffbea'; this.ctx.fill(); } else if(this.mode === 'heart') { const size = w.size; const h = size * 0.3; this.ctx.moveTo(0, h); this.ctx.bezierCurveTo(0, 0, -size / 2, 0, -size / 2, h); this.ctx.bezierCurveTo(-size / 2, (size + h) / 2, 0, (size + h) / 2, 0, size); this.ctx.bezierCurveTo(0, (size + h) / 2, size / 2, (size + h) / 2, size / 2, h); this.ctx.bezierCurveTo(size / 2, 0, 0, 0, 0, h); this.ctx.fill(); } else if(this.mode === 'butterfly') { const size = w.size, flap = Math.abs(Math.sin(Date.now() * 0.0025)); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, -size / 4, size / 2 * flap, size / 3, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(-size / 3, size / 4, size / 2.5 * flap, size / 4, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, -size / 4, size / 2 * flap, size / 3, Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.beginPath(); this.ctx.ellipse(size / 3, size / 4, size / 2.5 * flap, size / 4, -Math.PI / 4, 0, Math.PI * 2); this.ctx.fill(); this.ctx.fillStyle = "#fff"; this.ctx.beginPath(); this.ctx.ellipse(0, 0, size / 8, size / 2, 0, 0, Math.PI * 2); this.ctx.fill(); }
@@ -917,14 +1035,64 @@ const Game = {
             const currentLvl = Profile.getLvl(w.data.en); const dots = 4; const dotSize = 3; const spacing = 10; const startX = w.x - ((dots - 1) * spacing) / 2; for(let i = 0; i < dots; i++) { this.ctx.beginPath(); this.ctx.arc(startX + (i * spacing), w.y + 25, dotSize, 0, Math.PI * 2); if (i < currentLvl) { this.ctx.fillStyle = this.themeColor; this.ctx.fill(); } else { this.ctx.strokeStyle = "rgba(255,255,255,0.3)"; this.ctx.lineWidth = 1; this.ctx.stroke(); } }
             this.ctx.font = "bold 26px 'Bebas Neue'"; this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle"; this.ctx.shadowBlur = 0; this.ctx.lineWidth = 4; this.ctx.strokeStyle = "rgba(0,0,0,0.8)"; this.ctx.strokeText(w.displayWord.toUpperCase(), w.x, w.y); this.ctx.fillStyle = "#fff"; this.ctx.fillText(w.displayWord.toUpperCase(), w.x, w.y);
         }
+
+        // 3. ACTUALIZAR PARTICULAS Y EFECTOS (SIEMPRE)
         if(this.laser) { this.ctx.globalCompositeOperation = 'lighter'; this.drawWebLaser(this.ctx, this.laser); if (this.laser.progress >= 1) { if (this.laser.onHit) this.laser.onHit(); this.laser = null; } else { this.laser.life -= 0.005; } this.ctx.globalCompositeOperation = 'source-over'; }
-        if(this.particles.length > 0) { this.ctx.globalCompositeOperation = 'lighter'; for(let i = this.particles.length - 1; i >= 0; i--) { let p = this.particles[i]; p.x += p.vx; p.y += p.vy; if(p.gravity) { p.vy += p.gravity; } else if(!['orbit', 'butterfly'].includes(this.mode)) { p.vy += 0.05; } if(p.rotSpeed) p.rotation += p.rotSpeed; p.life -= 0.008; if(p.life <= 0) this.particles.splice(i, 1); else { this.ctx.globalAlpha = p.life; this.ctx.fillStyle = p.color; if(p.isConfetti) { this.ctx.save(); this.ctx.translate(p.x, p.y); this.ctx.rotate(p.rotation); this.ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); this.ctx.restore(); } else { this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); this.ctx.fill(); } } } this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1; }
+        
+        if(this.particles.length > 0) { 
+            this.ctx.globalCompositeOperation = 'lighter'; 
+            for(let i = this.particles.length - 1; i >= 0; i--) { 
+                let p = this.particles[i]; 
+                p.x += p.vx; p.y += p.vy; 
+                
+                // Gravedad normal o flotación para void particles
+                if (p.isVoid) {
+                    p.vy -= 0.1; // Flotan hacia arriba como humo
+                    p.rotSpeed = 0.1; // Rotan
+                    p.size *= 0.96; // Se achican rápido
+                } else if(p.gravity) { 
+                    p.vy += p.gravity; 
+                } else if(!['orbit', 'butterfly'].includes(this.mode)) { 
+                    p.vy += 0.05; 
+                } 
+                
+                if(p.rotSpeed) p.rotation = (p.rotation || 0) + p.rotSpeed; 
+                p.life -= 0.008; 
+                
+                if(p.life <= 0 || p.size < 0.5) this.particles.splice(i, 1); 
+                else { 
+                    this.ctx.globalAlpha = p.life; 
+                    this.ctx.fillStyle = p.color; 
+                    
+                    if(p.isConfetti) { 
+                        this.ctx.save(); this.ctx.translate(p.x, p.y); this.ctx.rotate(p.rotation); 
+                        this.ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size); this.ctx.restore(); 
+                    } else if (p.isVoid) {
+                        // PARTICULAS VOID: Cuadrados que giran (negros/rojos)
+                        this.ctx.save();
+                        this.ctx.translate(p.x, p.y);
+                        this.ctx.rotate(p.rotation);
+                        this.ctx.shadowBlur = 5;
+                        this.ctx.shadowColor = p.color;
+                        this.ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                        this.ctx.restore();
+                    } else { 
+                        this.ctx.beginPath(); this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); this.ctx.fill(); 
+                    } 
+                } 
+            } 
+            this.ctx.globalCompositeOperation = 'source-over'; this.ctx.globalAlpha = 1; 
+        }
+
         for(let i = this.shockwaves.length - 1; i >= 0; i--) { let s = this.shockwaves[i]; s.radius += 3; s.alpha -= 0.02; if(s.alpha <= 0) this.shockwaves.splice(i, 1); else { this.ctx.strokeStyle = s.color; this.ctx.lineWidth = 3; this.ctx.globalAlpha = s.alpha; this.ctx.beginPath(); this.ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2); this.ctx.stroke(); } }
         if(this.flashIntensity > 0) { this.ctx.fillStyle = this.themeColor; this.ctx.globalAlpha = this.flashIntensity; this.ctx.fillRect(0, 0, this.width, this.height); this.ctx.globalAlpha = 1; this.flashIntensity -= 0.02; }
         for(let i = this.ghosts.length - 1; i >= 0; i--) { let g = this.ghosts[i]; g.y += g.vy; g.life -= 0.003; if(g.life <= 0) { this.ghosts.splice(i, 1); this.showingGhost = false; if(!this.activeWord) this.spawn(); } else { this.ctx.save(); let s = 1 + (1 - g.life) * 0.3; this.ctx.translate(g.x, g.y); this.ctx.scale(s, s); this.ctx.translate(-g.x, -g.y); this.ctx.globalAlpha = Math.max(0, g.life); this.ctx.font = "bold 24px 'Inter'"; this.ctx.textAlign = "center"; this.ctx.lineWidth = 3; this.ctx.strokeStyle = "#000"; this.ctx.strokeText(g.text, g.x, g.y); this.ctx.fillStyle = "#fbbf24"; this.ctx.fillText(g.text, g.x, g.y); this.ctx.restore(); } }
         this.ctx.globalAlpha = 1;
         if(this.combo > 1) { this.ctx.font = "italic 900 30px 'Bebas Neue'"; this.ctx.fillStyle = "#fff"; this.ctx.strokeStyle = "#000"; this.ctx.lineWidth = 4; this.ctx.strokeText(`x${this.combo} COMBO!`, this.width - 70, 40); this.ctx.fillText(`x${this.combo} COMBO!`, this.width - 70, 40); }
-        if(this.timeLimit > 0) { const l = this.timeLimit - (Date.now() - this.startTime); if(l <= 0) { this.stop(); alert("TIME'S UP!"); App.nav('home'); return; } else { const m = Math.floor(l / 60000), s = Math.floor((l % 60000) / 1000); document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; } }
+        
+        // Timer solo corre si no hay pausa
+        if(this.timeLimit > 0 && !this.isResting && !this.isFrozen) { const l = this.timeLimit - (Date.now() - this.startTime); if(l <= 0) { this.stop(); alert("TIME'S UP!"); App.nav('home'); return; } else { const m = Math.floor(l / 60000), s = Math.floor((l % 60000) / 1000); document.getElementById('game-timer').innerText = `${m}:${s < 10 ? '0' : ''}${s}`; } }
+        
         this.loopId = requestAnimationFrame(t => this.loop(t));
     }
 };
