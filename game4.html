@@ -804,9 +804,15 @@
 
                 <div class="section-head">SESSION</div>
 
-                <div class="row-ctrl"><span class="row-lbl">Words per Session (Reward Goal)</span><input type="number" id="cfg-count" class="num-inp" value="10" onchange="Profile.saveCfg()"></div>
+       <div class="row-ctrl">
+    <span class="row-lbl">Words per Session (Reward Goal)</span>
+    <input type="number" id="cfg-count" class="num-inp" value="10" min="4" onchange="Profile.saveCfg()">
+</div>
 
-                <div class="row-ctrl"><span class="row-lbl">Time Limit (Min)</span><input type="number" id="cfg-time" class="num-inp" value="0" onchange="Profile.saveCfg()"></div>
+<div class="row-ctrl">
+    <span class="row-lbl">Time Limit (Min)</span>
+    <input type="number" id="cfg-time" class="num-inp" value="0" min="0" onchange="Profile.saveCfg()">
+</div>
 
             </div>
 
@@ -991,14 +997,24 @@ const Profile = {
         this.calcStats(); App.updateCoinUI();
     },
     saveCfg() {
-        this.cfg.count = parseInt(document.getElementById('cfg-count').value) || 10;
+        // --- VALIDACIÓN DE INPUTS (Mínimos y Máximos) ---
+        let rawCount = parseInt(document.getElementById('cfg-count').value) || 10;
+        if(rawCount < 4) rawCount = 4; // Mínimo 4 palabras para que funcione el juego
+        this.cfg.count = rawCount;
+        document.getElementById('cfg-count').value = rawCount; // Feedback visual
+
+        let rawTime = parseInt(document.getElementById('cfg-time').value) || 0;
+        if(rawTime < 0) rawTime = 0; // Mínimo 0 (Infinito)
+        this.cfg.time = rawTime;
+        document.getElementById('cfg-time').value = rawTime; // Feedback visual
+
         this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 1;
-        this.cfg.time = parseInt(document.getElementById('cfg-time').value) || 0;
         this.cfg.gameMode = document.getElementById('cfg-mode').value;
         this.cfg.interaction = document.getElementById('cfg-interaction').value;
         this.cfg.restMode = document.getElementById('cfg-rest').value;
         this.cfg.speaking = document.getElementById('cfg-speaking').value;
         this.cfg.voiceDiff = document.getElementById('cfg-voice-diff').value;
+        
         this.save(); App.renderQueuePreview(); 
     },
     save() { localStorage.setItem('LN_V8_HYBRID', JSON.stringify(this.cfg)); },
@@ -1039,7 +1055,6 @@ const App = {
     async boot() { await DB.init(); Profile.load(); Profile.calcStats(); const saved = localStorage.getItem('LN_SAVED_SESSION'); if(saved) { try { this.pausedSession = JSON.parse(saved); } catch(e) { console.log("Error recovering session"); } } this.nav('home'); },
     updateCoinUI() { const s = Profile.cfg.coins.silver; const g = Profile.cfg.coins.gold; ['menu-coin-s', 'game-coin-s'].forEach(id => { const el = document.getElementById(id); if(el) el.innerText = s; }); ['menu-coin-g', 'game-coin-g'].forEach(id => { const el = document.getElementById(id); if(el) el.innerText = g; }); },
     
-    // --- CORREGIDO: Guarda el tiempo transcurrido (elapsed) en lugar del tiempo absoluto ---
     saveStateToDisk() { 
         if(document.getElementById('view-game').classList.contains('active')) { 
             const isText = Profile.cfg.interaction === 'text'; 
@@ -1054,7 +1069,7 @@ const App = {
                 cat: isText ? TextGame.cat : Game.category, 
                 scopeName: this.scopeName, 
                 isScopeActive: !!this.activeScope, 
-                elapsed: currentElapsed, // <--- GUARDAMOS ELAPSED
+                elapsed: currentElapsed, 
                 active: true, 
                 batchData: BatchManager.currentBatch, 
                 batchPhase: BatchManager.phase 
@@ -1163,7 +1178,6 @@ const App = {
     calculateFilteredList() { const s = document.getElementById('inp-search').value.toLowerCase(); const src = this.activeScope || DB.all(); this.filteredResults = src.filter(x => { const m = !s || x.en.toLowerCase().includes(s); if(!m) return false; if(this.filterLvl === 'all') return true; return Profile.getLvl(x.en) === this.filterLvl; }); },
     renderLib() { const c = document.getElementById('lib-list'); c.innerHTML = ''; const btn = document.getElementById('btn-load-more'); if(this.filteredResults.length > this.renderCount) { btn.style.display = 'block'; btn.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount})`; } else { btn.style.display = 'none'; } const frag = document.createDocumentFragment(); this.filteredResults.slice(0, this.renderCount).forEach(w => { const l = Profile.getLvl(w.en), pct = l * 25, d = document.createElement('div'); d.className = `lib-card lvl-${l}`; d.innerHTML = `<div class="lib-content"><span class="lib-badge">LVL ${l}</span><div class="lib-en">${w.en.toUpperCase()}</div><div class="lib-es">${Array.isArray(w.es) ? w.es[0].toUpperCase() : w.es.toUpperCase()}</div></div><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>`; frag.appendChild(d); }); c.appendChild(frag); },
     
-    // --- CORREGIDO: Up Next ahora respeta Profile.cfg.count ---
     renderQueuePreview() {
         const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
         let source = []; let labelText = ""; let colorStatus = ""; let showProgress = false; let completed = 0; let total = 0;
@@ -1184,8 +1198,7 @@ const App = {
             if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); 
             if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); 
             
-            // --- AQUÍ APLICAMOS LA CORRECCIÓN ---
-            // Usamos la configuración del usuario en lugar de 10 fijos
+            // Usamos la configuración del usuario con fallback a 10
             const userLimit = parseInt(Profile.cfg.count) || 10;
             source = priority.slice(0, userLimit); 
             
@@ -1219,7 +1232,6 @@ const Game = {
         window.addEventListener('resize', () => this.resize());
         this.mode = Profile.cfg.gameMode; this.speedMult = Profile.cfg.speed === 1 ? 0.6 : (Profile.cfg.speed === 3 ? 1.5 : 1.0);
         
-        // --- CORREGIDO: RESTAURACIÓN DEL TIEMPO ---
         this.timeLimit = Profile.cfg.time * 60 * 1000;
         if(App.pausedSession && App.pausedSession.elapsed) {
             this.startTime = Date.now() - App.pausedSession.elapsed;
@@ -1413,7 +1425,6 @@ const TextGame = {
         this.queue = queue; this.cat = cat; this.fullList = fullList; this.idx = 0; 
         this.timeLimit = Profile.cfg.time * 60 * 1000; 
         
-        // --- CORREGIDO: RESTAURACIÓN DEL TIEMPO ---
         if(App.pausedSession && App.pausedSession.elapsed) {
             this.startTime = Date.now() - App.pausedSession.elapsed;
         } else {
