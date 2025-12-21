@@ -980,47 +980,42 @@ const Profile = {
         this.calcStats(); App.updateCoinUI();
     },
     
-saveCfg() {
-    // 1. Guardamos los valores del formulario
-    const newCount = Math.max(5, parseInt(document.getElementById('cfg-count').value) || 10); // mínimo 5 para evitar bugs
-    this.cfg.count = newCount;
-    this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 1;
-    this.cfg.time = parseInt(document.getElementById('cfg-time').value) || 0;
-    this.cfg.gameMode = document.getElementById('cfg-mode').value;
-    this.cfg.interaction = document.getElementById('cfg-interaction').value;
-    this.cfg.restMode = document.getElementById('cfg-rest').value;
-    this.cfg.speaking = document.getElementById('cfg-speaking').value;
-    this.cfg.voiceDiff = document.getElementById('cfg-voice-diff').value;
+    saveCfg() {
+        // 1. Guardamos los valores
+        const newCount = parseInt(document.getElementById('cfg-count').value) || 10;
+        this.cfg.count = newCount;
+        this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 1;
+        this.cfg.time = parseInt(document.getElementById('cfg-time').value) || 0;
+        this.cfg.gameMode = document.getElementById('cfg-mode').value;
+        this.cfg.interaction = document.getElementById('cfg-interaction').value;
+        this.cfg.restMode = document.getElementById('cfg-rest').value;
+        this.cfg.speaking = document.getElementById('cfg-speaking').value;
+        this.cfg.voiceDiff = document.getElementById('cfg-voice-diff').value;
+        
+        this.save();
+        App.renderQueuePreview(); 
 
-    this.save();
-
-    // 2. Siempre actualizamos la vista de la cola (incluso si estamos en Settings)
-    App.renderQueuePreview();
-
-    // 3. Si hay un batch activo (estamos jugando o pausado), lo redimensionamos AHORA
-    if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) {
-        const fullPool = App.activeScope || DB.get('mixed');
-        BatchManager.resizeBatch(newCount, fullPool);
-
-        // Si el juego está realmente activo, actualizamos la vista en vivo
+        // 2. Lógica de Redimensionamiento (Si el juego está activo)
         if (document.getElementById('view-game').classList.contains('active')) {
+            const fullPool = App.activeScope || (Game.fullList && Game.fullList.length ? Game.fullList : DB.get('mixed')); 
+            BatchManager.resizeBatch(newCount, fullPool);
+            
             if (Profile.cfg.interaction === 'text') {
                 TextGame.queue = BatchManager.currentBatch;
-                if (TextGame.idx >= TextGame.queue.length && TextGame.queue.length > 0) TextGame.idx = 0;
+                if (TextGame.idx >= TextGame.queue.length) TextGame.idx = 0;
                 TextGame.play();
             } else {
                 Game.queue = BatchManager.currentBatch;
-                if (Game.idx >= Game.queue.length && Game.queue.length > 0) Game.idx = 0;
+                if (Game.idx >= Game.queue.length) Game.idx = 0;
                 Game.spawn();
             }
         }
-    }
 
-    // 4. Toast de confirmación (solo si estamos en Settings)
-    if (document.getElementById('view-settings').classList.contains('active')) {
-        App.showToast(`Objetivo de sesión cambiado a ${this.cfg.count} palabras`);
-    }
-},
+        // 3. NUEVO: Toast de confirmación si estamos en Settings
+        if (document.getElementById('view-settings').classList.contains('active')) {
+            App.showToast(`Objetivo de sesión cambiado a ${this.cfg.count} palabras`);
+        }
+    },
 
     save() { localStorage.setItem('LN_V8_HYBRID', JSON.stringify(this.cfg)); },
     ban(w) { const key = DB.clean(w); if(!this.cfg.banned.includes(key)) this.cfg.banned.push(key); this.save(); },
@@ -1048,65 +1043,38 @@ const BatchManager = {
     reset() { this.currentBatch = []; this.phase = 'new'; },
 
     // LÓGICA DE REDIMENSIONAMIENTO INTELIGENTE
- resizeBatch(newSize, fullPool) {
-    if (this.currentBatch.length === 0) return;
+    resizeBatch(newSize, fullPool) {
+        if (this.currentBatch.length === 0) return;
+        Profile.cfg.count = newSize;
 
-    const oldSize = this.currentBatch.length;
-    Profile.cfg.count = newSize;  // actualizamos el objetivo global
+        // Ordenamos por nivel DESCENDENTE (más avanzadas primero)
+        this.currentBatch.sort((a, b) => Profile.getLvl(b.en) - Profile.getLvl(a.en));
 
-    // Ordenamos por nivel DESCENDENTE (más avanzadas primero)
-    this.currentBatch.sort((a, b) => Profile.getLvl(b.en) - Profile.getLvl(a.en));
-
-    let toastMessage = "";
-
-    if (this.currentBatch.length > newSize) {
-        // Acortamos: mantenemos las más avanzadas
-        this.currentBatch = this.currentBatch.slice(0, newSize);
-        
-        // Recompensa inmediata si ya se completó el nuevo objetivo
-        const target = this.phase === 'new' ? 3 : 4;
-        const completedInBatch = this.currentBatch.filter(w => Profile.getLvl(w.en) >= target).length;
-        if (completedInBatch >= newSize) {
-            const reward = Profile.addMasteryPoint();
-            if (reward) {
-                if (Profile.cfg.interaction === 'text') {
-                    // En modo texto no hay Game.showReward, así que usamos toast
-                    App.showToast(reward === 'gold' ? "¡RANK UP! +1 GOLD COIN" : "¡UNIT CLEAR! +1 SILVER COIN");
-                } else {
-                    Game.showReward(reward);
-                }
+        if (this.currentBatch.length > newSize) {
+            // Acortamos: mantenemos las más avanzadas
+            this.currentBatch = this.currentBatch.slice(0, newSize);
+            // Recompensa si ya se completó el objetivo
+            const completedInBatch = this.currentBatch.filter(w => Profile.getLvl(w.en) >= (this.phase === 'new' ? 3 : 4)).length;
+            if (completedInBatch >= newSize) {
+                const reward = Profile.addMasteryPoint();
+                if (reward) Game.showReward(reward);
             }
+            App.showToast(`Batch shortened to ${newSize} words. Kept hardest ones.`);
+        } else if (this.currentBatch.length < newSize) {
+            // Alargamos
+            let candidates = fullPool.filter(w => 
+                !this.currentBatch.find(b => b.en === w.en) && 
+                Profile.getLvl(w.en) < 4 && 
+                !Profile.isBanned(w.en)
+            );
+            candidates.sort((a, b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));
+            const toAdd = candidates.slice(0, newSize - this.currentBatch.length);
+            this.currentBatch = this.currentBatch.concat(toAdd);
+            App.showToast(`Batch extended to ${newSize} words. Added pending ones.`);
         }
-
-        toastMessage = `Batch acortado a ${newSize} palabras (se priorizaron las más avanzadas)`;
-    } 
-    else if (this.currentBatch.length < newSize) {
-        // Alargamos: añadimos las más débiles
-        let candidates = fullPool.filter(w =>
-            !this.currentBatch.find(b => b.en === w.en) &&
-            Profile.getLvl(w.en) < 4 &&
-            !Profile.isBanned(w.en)
-        );
-        candidates.sort((a, b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));  // menor nivel primero
-        const toAdd = candidates.slice(0, newSize - this.currentBatch.length);
-        this.currentBatch = this.currentBatch.concat(toAdd);
-
-        toastMessage = `Batch extendido a ${newSize} palabras (añadidas palabras pendientes)`;
+        App.updateChart(this.currentBatch);
+        App.renderQueuePreview();
     }
-    else {
-        // Solo cambió el objetivo pero el batch ya tenía ese tamaño
-        toastMessage = `Objetivo de sesión cambiado a ${newSize} palabras`;
-    }
-
-    // Mostramos el toast siempre que haya un mensaje
-    if (toastMessage) {
-        App.showToast(toastMessage);
-    }
-
-    // Actualizamos vistas
-    App.updateChart(this.currentBatch);
-    App.renderQueuePreview();
-}
 };
 
 /* ================================================================
