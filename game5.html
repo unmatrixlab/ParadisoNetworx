@@ -1328,20 +1328,14 @@ const Game = {
             label = DB.clean(label); b.innerText = label.toUpperCase(); b.onclick = () => this.fire(o, cor, b); d.appendChild(b); 
         });
     },
-    banActive(btnElement) { 
+  banActive(btnElement) { 
         if(!this.activeWord || this.banningPhase) return; 
         
-        // 1. Efecto Visual en el Botón
+        // 1. Guardamos la referencia del botón para usarla en el dibujo
+        this.banBtnRef = btnElement;
         if(btnElement) btnElement.classList.add('is-banning'); 
-        
-        // 2. DISPARAR EL RAYO DE LA MUERTE (NUEVO)
-        const ray = document.getElementById('arcade-ban-ray');
-        if(ray) {
-            ray.classList.add('ray-active');
-            setTimeout(() => ray.classList.remove('ray-active'), 600);
-        }
 
-        // 3. Lógica de Baneo
+        // 2. Lógica de Baneo estándar
         const w = this.activeWord.data; 
         Profile.ban(w.en); 
         this.banningPhase = true; 
@@ -1352,6 +1346,7 @@ const Game = {
             if(qIdx < this.idx) this.idx--; else if(qIdx === this.idx) this.idx--; 
             this.banningPhase = false; 
             this.activeWord = null; 
+            this.banBtnRef = null; // Limpiamos la referencia
             this.idx++; 
             this.spawn(); 
         }, 800); 
@@ -1415,7 +1410,38 @@ const Game = {
     screenShake() { const c = this.canvas; c.style.transform = `translate(${Math.random() * 10 - 5}px,${Math.random() * 10 - 5}px)`; setTimeout(() => c.style.transform = 'none', 200); },
     drawWebLaser(ctx, l) { const d = Math.hypot(l.x2 - l.x1, l.y2 - l.y1); const a = Math.atan2(l.y2 - l.y1, l.x2 - l.x1); if(l.life > 0.5) { ctx.shadowBlur = 15; ctx.shadowColor = l.color; } if(l.progress < 1) { l.progress += l.speed; if(l.progress > 1) l.progress = 1; } const ds = (w, o, f, m, lag) => { let currentDist = d * (l.progress * lag); if(currentDist > d) currentDist = d; ctx.beginPath(); ctx.strokeStyle = l.color; ctx.lineWidth = w; ctx.globalAlpha = l.life * o; for(let i = 0; i <= currentDist; i += 12) { const wb = Math.sin(i * 0.1 + l.time * 2) * 5 * l.life; const x = l.x1 + Math.cos(a) * i - Math.sin(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); const y = l.y1 + Math.sin(a) * i + Math.cos(a) * (Math.sin(i * (0.05 + f) + l.time) * (15 * l.life * m) + wb); if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); }; ds(6, 0.6, 0, 1.0, 1.0); ds(3, 1.0, 0.02, 1.2, 0.85); ctx.globalAlpha = 1; ctx.shadowBlur = 0; l.time += 0.05; },
     drawGrid(ctx) { ctx.strokeStyle = "rgba(59,130,246,0.2)"; ctx.lineWidth = 1; const h = this.height * 0.4; this.gridOffset = (this.gridOffset + 2) % 40; for(let x = -this.width; x < this.width * 2; x += 80) { ctx.beginPath(); ctx.moveTo(x, this.height); ctx.lineTo(this.width / 2 + (x - this.width / 2) * 0.2, h); ctx.stroke(); } for(let z = 0; z < this.height; z += 40) { let y = (z + this.gridOffset) % this.height; if(y < h) continue; let py = h + Math.pow((y - h) / (this.height - h), 2) * (this.height - h); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(this.width, py); ctx.stroke(); } const g = ctx.createLinearGradient(0, h, 0, this.height); g.addColorStop(0, "rgba(5,5,5,1)"); g.addColorStop(0.2, "rgba(5,5,5,0)"); ctx.fillStyle = g; ctx.fillRect(0, h, this.width, this.height - h); },
-    drawBanBeam(ctx, target) { this.banBeamColor += 15; const hue = this.banBeamColor % 360; const color = `hsl(${hue}, 100%, 60%)`; let sx = this.width / 2; let sy = this.height + 40; if(this.mode === 'orbit' || this.mode === 'butterfly') { sx = this.width / 2; sy = this.height / 2; } const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()}; this.drawWebLaser(ctx, l); for(let i = 0; i < 2; i++) { this.particles.push({ x: target.x, y: target.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 6 }); } },
+    drawBanBeam(ctx, target) { 
+        this.banBeamColor += 15; 
+        const hue = this.banBeamColor % 360; 
+        const color = `hsl(${hue}, 100%, 60%)`; 
+        
+        let sx, sy;
+
+        // --- CÁLCULO DE COORDENADAS DEL BOTÓN ---
+        if (this.banBtnRef) {
+            // Obtenemos la posición exacta del botón en la pantalla
+            const rect = this.banBtnRef.getBoundingClientRect();
+            // Obtenemos la posición del canvas para ajustar el desfase
+            const cRect = this.canvas.getBoundingClientRect();
+            
+            // Calculamos el centro del botón relativo al canvas
+            sx = (rect.left + rect.width / 2) - cRect.left;
+            sy = (rect.top + rect.height / 2) - cRect.top;
+        } else {
+            // Fallback por si acaso (centro abajo)
+            sx = this.width / 2; 
+            sy = this.height + 40; 
+        }
+
+        const l = {x1:sx, y1:sy, x2:target.x, y2:target.y, life:1.0, color:color, time: Date.now()}; 
+        
+        // Usamos el mismo efecto de láser ondulado que las respuestas correctas
+        this.drawWebLaser(ctx, l); 
+        
+        for(let i = 0; i < 2; i++) { 
+            this.particles.push({ x: target.x, y: target.y, vx: (Math.random() - 0.5) * 10, vy: (Math.random() - 0.5) * 10, life: 1.0, color: color, size: Math.random() * 6 }); 
+        } 
+    },
     getWobbleR(baseR, angle, time) { return baseR + Math.sin(angle * 7 + time * 0.004) * (baseR * 0.06) + Math.cos(angle * 3 - time * 0.002) * (baseR * 0.1); },
     drawJelly(ctx, x, y, baseR, color, time, isFilled = false) { ctx.beginPath(); const steps = 30; for (let i = 0; i <= steps; i++) { const a = (Math.PI * 2 / steps) * i; const r = this.getWobbleR(baseR, a, time); const px = x + Math.cos(a) * r; const py = y + Math.sin(a) * r; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.shadowColor = color; ctx.shadowBlur = 15; if(isFilled) { ctx.fillStyle = color; ctx.fill(); } else { ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke(); ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba'); ctx.fill(); } ctx.shadowBlur = 0; },
     loop(now) {
