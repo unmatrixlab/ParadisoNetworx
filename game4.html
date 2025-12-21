@@ -906,7 +906,7 @@
 
 <script>
 /* ================================================================
-   MODULE 1: DATABASE HANDLING (FIXED FOR CUSTOM DATA)
+   MODULE 1: DATABASE HANDLING
    ================================================================ */
 const DB = {
     data: {}, customData: [],
@@ -981,7 +981,7 @@ const Profile = {
     },
     
     saveCfg() {
-        // 1. Guardamos los valores del DOM en la config
+        // 1. Guardamos los valores
         const newCount = parseInt(document.getElementById('cfg-count').value) || 10;
         this.cfg.count = newCount;
         this.cfg.speed = parseInt(document.getElementById('cfg-speed').value) || 1;
@@ -998,11 +998,8 @@ const Profile = {
         // 2. Lógica de Redimensionamiento (Si el juego está activo)
         if (document.getElementById('view-game').classList.contains('active')) {
             const fullPool = App.activeScope || (Game.fullList && Game.fullList.length ? Game.fullList : DB.get('mixed')); 
-            
-            // Ejecutamos tu lógica mejorada
             BatchManager.resizeBatch(newCount, fullPool);
             
-            // Refrescamos la UI del juego
             if (Profile.cfg.interaction === 'text') {
                 TextGame.queue = BatchManager.currentBatch;
                 if (TextGame.idx >= TextGame.queue.length) TextGame.idx = 0;
@@ -1012,6 +1009,11 @@ const Profile = {
                 if (Game.idx >= Game.queue.length) Game.idx = 0;
                 Game.spawn();
             }
+        }
+
+        // 3. NUEVO: Toast de confirmación si estamos en Settings
+        if (document.getElementById('view-settings').classList.contains('active')) {
+            App.showToast(`Objetivo de sesión cambiado a ${this.cfg.count} palabras`);
         }
     },
 
@@ -1040,11 +1042,9 @@ const BatchManager = {
     fillBatch(fullPool) { const batchSize = Profile.cfg.count || 10; let candidates = []; if (this.phase === 'new') { candidates = fullPool.filter(w => Profile.getLvl(w.en) < 3 && !Profile.isBanned(w.en)); candidates.sort((a,b) => Profile.getLvl(a.en) - Profile.getLvl(b.en)); } else { candidates = fullPool.filter(w => Profile.getLvl(w.en) === 3 && !Profile.isBanned(w.en)); } if (this.phase === 'review' && candidates.length === 0) { this.phase = 'new'; this.fillBatch(fullPool); return; } candidates.sort(() => Math.random() - 0.5); this.currentBatch = candidates.slice(0, batchSize); },
     reset() { this.currentBatch = []; this.phase = 'new'; },
 
-    // --- NUEVA LÓGICA DE REDIMENSIONAMIENTO INTELIGENTE ---
+    // LÓGICA DE REDIMENSIONAMIENTO INTELIGENTE
     resizeBatch(newSize, fullPool) {
         if (this.currentBatch.length === 0) return;
-
-        // Aseguramos que la config esté actualizada
         Profile.cfg.count = newSize;
 
         // Ordenamos por nivel DESCENDENTE (más avanzadas primero)
@@ -1053,31 +1053,25 @@ const BatchManager = {
         if (this.currentBatch.length > newSize) {
             // Acortamos: mantenemos las más avanzadas
             this.currentBatch = this.currentBatch.slice(0, newSize);
-
-            // Si ya había superado el nuevo objetivo → dar recompensa ya
+            // Recompensa si ya se completó el objetivo
             const completedInBatch = this.currentBatch.filter(w => Profile.getLvl(w.en) >= (this.phase === 'new' ? 3 : 4)).length;
             if (completedInBatch >= newSize) {
                 const reward = Profile.addMasteryPoint();
-                if (reward) Game.showReward(reward);  // Recompensa visual
+                if (reward) Game.showReward(reward);
             }
-
-            // Mensaje opcional
             App.showToast(`Batch shortened to ${newSize} words. Kept hardest ones.`);
         } else if (this.currentBatch.length < newSize) {
-            // Alargamos: añadimos las más débiles (nuevas)
+            // Alargamos
             let candidates = fullPool.filter(w => 
                 !this.currentBatch.find(b => b.en === w.en) && 
                 Profile.getLvl(w.en) < 4 && 
                 !Profile.isBanned(w.en)
             );
-            candidates.sort((a, b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));  // menor nivel primero
+            candidates.sort((a, b) => Profile.getLvl(a.en) - Profile.getLvl(b.en));
             const toAdd = candidates.slice(0, newSize - this.currentBatch.length);
             this.currentBatch = this.currentBatch.concat(toAdd);
-
             App.showToast(`Batch extended to ${newSize} words. Added pending ones.`);
         }
-
-        // Actualizamos vistas
         App.updateChart(this.currentBatch);
         App.renderQueuePreview();
     }
@@ -1106,21 +1100,17 @@ const App = {
         if (ps.isScopeActive) { this.scopeName = ps.scopeName; } 
         if(ps.batchData) BatchManager.currentBatch = ps.batchData; 
         if(ps.batchPhase) BatchManager.phase = ps.batchPhase; 
-        
-        // Redimensionamiento inteligente al reanudar
         const fullPool = this.activeScope || (ps.cat ? DB.get(ps.cat) : []); 
         BatchManager.resizeBatch(Profile.cfg.count, fullPool);
-
         this.prepGame(ps.queue, ps.cat, ps.scopeName || ps.cat, true); 
     },
     
-    // --- NUEVO: FUNCIÓN TOAST PARA MENSAJES FLOTANTES ---
+    // FUNCIÓN TOAST
     showToast(msg) {
         const t = document.createElement('div');
         t.innerText = msg;
         t.style.cssText = 'position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(20,20,20,0.95); color:var(--gold); padding:10px 20px; border-radius:30px; z-index:10000; font-weight:800; font-size:12px; border:1px solid rgba(255,255,255,0.1); box-shadow:0 5px 15px rgba(0,0,0,0.5); text-align:center;';
         document.body.appendChild(t);
-        // Animación de entrada
         t.animate([{opacity:0, transform:'translateX(-50%) translateY(-10px)'}, {opacity:1, transform:'translateX(-50%) translateY(0)'}], {duration:200});
         setTimeout(() => {
             t.animate([{opacity:1}, {opacity:0}], {duration:200}).onfinish = () => t.remove();
@@ -1203,19 +1193,93 @@ const App = {
     renderMore() { this.renderCount += 50; this.renderLib(); },
     calculateFilteredList() { const s = document.getElementById('inp-search').value.toLowerCase(); const src = this.activeScope || DB.all(); this.filteredResults = src.filter(x => { const m = !s || x.en.toLowerCase().includes(s); if(!m) return false; if(this.filterLvl === 'all') return true; return Profile.getLvl(x.en) === this.filterLvl; }); },
     renderLib() { const c = document.getElementById('lib-list'); c.innerHTML = ''; const btn = document.getElementById('btn-load-more'); if(this.filteredResults.length > this.renderCount) { btn.style.display = 'block'; btn.innerText = `LOAD MORE (${this.filteredResults.length - this.renderCount})`; } else { btn.style.display = 'none'; } const frag = document.createDocumentFragment(); this.filteredResults.slice(0, this.renderCount).forEach(w => { const l = Profile.getLvl(w.en), pct = l * 25, d = document.createElement('div'); d.className = `lib-card lvl-${l}`; d.innerHTML = `<div class="lib-content"><span class="lib-badge">LVL ${l}</span><div class="lib-en">${w.en.toUpperCase()}</div><div class="lib-es">${Array.isArray(w.es) ? w.es[0].toUpperCase() : w.es.toUpperCase()}</div></div><div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>`; frag.appendChild(d); }); c.appendChild(frag); },
+
+    // --- NUEVA FUNCIÓN RENDER PREVIEW MEJORADA ---
     renderQueuePreview() {
-        const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
-        let source = []; let labelText = ""; let colorStatus = ""; let showProgress = false; let completed = 0; let total = 0;
-        if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) { 
-            source = [...BatchManager.currentBatch]; labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)"; colorStatus = "var(--primary)"; showProgress = true; const target = BatchManager.phase === 'new' ? 3 : 4; completed = source.filter(w => Profile.getLvl(w.en) >= target).length; total = source.length; 
-        } 
-        else { let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed'); raw = raw.filter(w => !Profile.isBanned(w.en)); let priority = raw.filter(w => Profile.getLvl(w.en) === 0); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); source = priority.slice(0, 10); labelText = "⚡ UP NEXT (SMART PREDICTION)"; colorStatus = "var(--gold)"; }
-        
-        if(source.length === 0) { con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; return; }
+        const con = document.getElementById('study-queue-list');
+        if (!con) return;
+        con.innerHTML = '';
+
+        let source = [];
+        let labelText = "";
+        let colorStatus = "";
+        let showProgress = false;
+        let completed = 0;
+        let total = 0;
+
+        // CASO 1: Hay un batch activo (estamos jugando o pausados)
+        if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) {
+            source = [...BatchManager.currentBatch];
+            labelText = "🔥 LIVE BATCH";
+            colorStatus = "var(--primary)";
+            showProgress = true;
+            const target = BatchManager.phase === 'new' ? 3 : 4;
+            completed = source.filter(w => Profile.getLvl(w.en) >= target).length;
+            total = source.length;
+
+            // Aviso si el tamaño del batch no coincide con el objetivo actual
+            if (source.length !== Profile.cfg.count) {
+                labelText = `🔥 LIVE BATCH (ajustado: ${source.length}/${Profile.cfg.count})`;
+            }
+        }
+        // CASO 2: No hay batch activo → predicción normal
+        else {
+            let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed');
+            raw = raw.filter(w => !Profile.isBanned(w.en));
+            let priority = raw.filter(w => Profile.getLvl(w.en) === 0);
+            if (priority.length < 10) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4));
+            if (priority.length < 10) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4));
+            source = priority.slice(0, 10);
+            labelText = "⚡ UP NEXT (SMART PREDICTION)";
+            colorStatus = "var(--gold)";
+        }
+
+        if (source.length === 0) {
+            con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>';
+            return;
+        }
+
         const phaseText = BatchManager.phase === 'new' ? 'LEARNING PHASE' : 'REVIEW PHASE';
-        con.innerHTML = `<div class="queue-header"><div style="font-size:11px; color:${colorStatus}; font-weight:800;">${labelText}</div><div class="phase-badge ${BatchManager.phase}">${phaseText}</div></div>${showProgress ? `<div style="font-size:12px; color:var(--txt-sec); margin-bottom:8px;">${completed}/${total} completed</div><div class="batch-progress"><div class="batch-progress-fill" style="width:${(completed/total)*100}%"></div></div>` : ''}`;
-        source.forEach(w => { const l = Profile.getLvl(w.en); const meta = { 0: { c: 'var(--c-noun)', t: 'NEW' }, 1: { c: 'var(--danger)', t: 'LEARNING' }, 2: { c: 'var(--c-irreg)', t: 'HARD' }, 3: { c: 'var(--primary)', t: 'REVIEW' }, 4: { c: 'var(--success)', t: 'MASTER' } }[l] || { c: '#666', t: '?' }; const d = document.createElement('div'); d.className = 'queue-item'; const pct = l * 25; d.innerHTML = `<div style="flex:1"><div style="display:flex; justify-content:space-between; align-items:center;"><span style="font-weight:700; color:var(--txt-main); font-size:15px;">${w.en.toUpperCase()}</span><span style="font-size:10px; font-weight:800; background:${meta.c}; color:#fff; padding:2px 6px; border-radius:4px;">${meta.t}</span></div><div style="width:100%; height:3px; background:#333; margin-top:5px; border-radius:2px; overflow:hidden;"><div style="width:${pct}%; height:100%; background:${meta.c}; transition:width 0.3s;"></div></div></div>`; con.appendChild(d); });
+
+        con.innerHTML = `
+            <div class="queue-header">
+                <div style="font-size:11px; color:${colorStatus}; font-weight:800;">${labelText}</div>
+                <div class="phase-badge ${BatchManager.phase}">${phaseText}</div>
+            </div>
+            ${showProgress ? `
+                <div style="font-size:12px; color:var(--txt-sec); margin-bottom:8px;">${completed}/${total} completed</div>
+                <div class="batch-progress"><div class="batch-progress-fill" style="width:${(completed/total)*100}%"></div></div>
+            ` : ''}
+        `;
+
+        source.forEach(w => {
+            const l = Profile.getLvl(w.en);
+            const meta = { 
+                0: { c: 'var(--c-noun)', t: 'NEW' }, 
+                1: { c: 'var(--danger)', t: 'LEARNING' }, 
+                2: { c: 'var(--c-irreg)', t: 'HARD' }, 
+                3: { c: 'var(--primary)', t: 'REVIEW' }, 
+                4: { c: 'var(--success)', t: 'MASTER' } 
+            }[l] || { c: '#666', t: '?' };
+
+            const d = document.createElement('div');
+            d.className = 'queue-item';
+            const pct = l * 25;
+            d.innerHTML = `
+                <div style="flex:1">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; color:var(--txt-main); font-size:15px;">${w.en.toUpperCase()}</span>
+                        <span style="font-size:10px; font-weight:800; background:${meta.c}; color:#fff; padding:2px 6px; border-radius:4px;">${meta.t}</span>
+                    </div>
+                    <div style="width:100%; height:3px; background:#333; margin-top:5px; border-radius:2px; overflow:hidden;">
+                        <div style="width:${pct}%; height:100%; background:${meta.c}; transition:width 0.3s;"></div>
+                    </div>
+                </div>
+            `;
+            con.appendChild(d);
+        });
     },
+
     renderBannedList() { const con = document.getElementById('banned-list-container'); if (!con) return; con.innerHTML = ''; const list = Profile.cfg.banned || []; if (list.length === 0) { con.innerHTML = '<div style="text-align:center;padding:10px;color:#666;font-size:12px;">The graveyard is empty.</div>'; return; } list.forEach(w => { const d = document.createElement('div'); d.className = 'banned-item'; d.innerHTML = `<span>${w.toUpperCase()}</span><span class="banned-icon">♻️ RESTORE</span>`; d.onclick = () => { if(confirm(`Restore "${w}"?`)) Profile.unban(w); }; con.appendChild(d); }); }
 };
 
