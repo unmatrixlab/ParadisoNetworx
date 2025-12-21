@@ -568,7 +568,7 @@
 
     </style>
 
-    </head>
+</head>
 
 <body class="is-home">
 
@@ -833,7 +833,6 @@ const Profile = {
         this.applyTheme();
         const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
         
-        // Ensure count is valid (min 4) on load
         if (this.cfg.count < 4) this.cfg.count = 4;
 
         setVal('cfg-count', this.cfg.count); setVal('cfg-speed', this.cfg.speed || 1); setVal('cfg-time', this.cfg.time || 0);
@@ -843,7 +842,6 @@ const Profile = {
         this.calcStats(); App.updateCoinUI();
     },
     saveCfg() {
-        // --- CORRECCIÓN LÍMITE MÍNIMO DE 4 ---
         let c = parseInt(document.getElementById('cfg-count').value) || 10;
         if (c < 4) {
             c = 4;
@@ -921,9 +919,7 @@ const App = {
         if(folders.length > 0) { 
             const sep = document.createElement('div'); sep.style.cssText = "margin-top:15px; margin-bottom:5px; font-size:11px; font-weight:700; color:var(--txt-sec); text-transform:uppercase; letter-spacing:1px;"; sep.innerText = "YOUR COLLECTIONS"; c.appendChild(sep); 
             folders.forEach(f => { 
-                // --- CORRECCIÓN: FILTRAR CARPETAS PEQUEÑAS ---
                 if (f.count < 4) return;
-
                 const d = document.createElement('div'); d.className = 'folder-item'; d.innerHTML = `<div class="folder-info"><h4>${f.name}</h4><span>${f.count} Words</span></div><div class="folder-play"><svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>`; d.onclick = () => this.startFolder(f.id, f.name); c.appendChild(d); 
             }); 
         } 
@@ -1020,7 +1016,19 @@ const App = {
         const con = document.getElementById('study-queue-list'); if(!con) return; con.innerHTML = '';
         let source = []; let labelText = ""; let colorStatus = ""; let showProgress = false; let completed = 0; let total = 0;
         if (BatchManager.currentBatch && BatchManager.currentBatch.length > 0) { source = [...BatchManager.currentBatch]; labelText = "🔥 LIVE BATCH (CURRENTLY PLAYING)"; colorStatus = "var(--primary)"; showProgress = true; const target = BatchManager.phase === 'new' ? 3 : 4; completed = source.filter(w => Profile.getLvl(w.en) >= target).length; total = source.length; } 
-        else { let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed'); raw = raw.filter(w => !Profile.isBanned(w.en)); let priority = raw.filter(w => Profile.getLvl(w.en) === 0); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); source = priority.slice(0, 10); labelText = "⚡ UP NEXT (SMART PREDICTION)"; colorStatus = "var(--gold)"; }
+        else { 
+            let raw = this.activeScope ? [...this.activeScope] : DB.get('mixed'); 
+            raw = raw.filter(w => !Profile.isBanned(w.en)); 
+            let priority = raw.filter(w => Profile.getLvl(w.en) === 0); 
+            if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) > 0 && Profile.getLvl(w.en) < 4)); 
+            if (priority.length < 5) priority = priority.concat(raw.filter(w => Profile.getLvl(w.en) === 4)); 
+            
+            // --- CORRECCIÓN AQUÍ: USAR EL LÍMITE CONFIGURADO ---
+            const limit = Profile.cfg.count || 10;
+            source = priority.slice(0, limit); 
+            
+            labelText = "⚡ UP NEXT (SMART PREDICTION)"; colorStatus = "var(--gold)"; 
+        }
         if(source.length === 0) { con.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt-sec)">No words available.</div>'; return; }
         const phaseText = BatchManager.phase === 'new' ? 'LEARNING PHASE' : 'REVIEW PHASE';
         con.innerHTML = `<div class="queue-header"><div style="font-size:11px; color:${colorStatus}; font-weight:800;">${labelText}</div><div class="phase-badge ${BatchManager.phase}">${phaseText}</div></div>${showProgress ? `<div style="font-size:12px; color:var(--txt-sec); margin-bottom:8px;">${completed}/${total} completed</div><div class="batch-progress"><div class="batch-progress-fill" style="width:${(completed/total)*100}%"></div></div>` : ''}`;
