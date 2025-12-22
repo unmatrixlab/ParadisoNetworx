@@ -248,6 +248,19 @@
 /* Animación suave para cuando borras */
 .word-interactive { transition: background-color 0.2s, color 0.2s; }
 
+        /* --- BLOQUEO DE SELECCIÓN NATIVA (UX APP) --- */
+.line, .word-interactive, .english, .spanish, .h-title, .setup-card {
+    -webkit-user-select: none; /* Safari/Chrome */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE/Edge */
+    user-select: none;         /* Estándar */
+}
+
+/* El español ya no debe parecer clickeable */
+.spanish-word {
+    cursor: default !important;
+}
+
         
     </style>
 </head>
@@ -914,16 +927,16 @@
     }
 
     // --- NUEVA GENERACIÓN DE HTML (CON DETECTORES DE TIEMPO) ---
-    function initInteractiveWords() {
+function initInteractiveWords() {
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         let engIndex = 0;
 
+        // --- INGLÉS (Mantiene toda la lógica de clicks y tiempos) ---
         document.querySelectorAll('.english').forEach(el => {
             const rawText = el.textContent || ""; 
             const words = rawText.trim().split(/\s+/); 
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                // AQUI SE AGREGAN LOS EVENTOS startPress, endPress y click
                 const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" 
                     onmousedown="startPress(this)" 
                     ontouchstart="startPress(this)" 
@@ -934,17 +947,17 @@
             }).join('');
         });
 
-        let espIndex = 0;
+        // --- ESPAÑOL (AHORA ES TEXTO PLANO VISUAL) ---
+        // Ya no tiene eventos onclick, ni data-idx, ni se guarda nada.
         document.querySelectorAll('.spanish').forEach(el => {
             if(allVisible) el.classList.add('visible');
             const rawText = el.textContent || "";
             const words = rawText.trim().split(/\s+/);
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                const isSelected = savedEsp.includes(espIndex);
-                const cssClass = `word-interactive spanish-word ${isSelected ? 'selected-word' : ''}`;
-                const span = `<span class="${cssClass}" data-lang="es" data-idx="${espIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
-                espIndex++; return span;
+                // Solo mantenemos la clase 'spanish-word' si la necesitas para estilos, 
+                // pero quitamos 'word-interactive' y los eventos.
+                return `<span class="spanish-word">${word}</span> `;
             }).join('');
         });
         
@@ -1147,28 +1160,22 @@
         updateAllWordStates(); 
     }
 
-    function toggleWordSelection(element, event) {
+  function toggleWordSelection(element, event) {
         event.stopPropagation(); 
         const lang = element.dataset.lang; 
         
-        if (lang === 'es') { 
-            element.classList.toggle('selected-word'); 
-            const idx = parseInt(element.dataset.idx);
-            let indices = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
-            if(element.classList.contains('selected-word')) indices.push(idx);
-            else indices = indices.filter(i => i !== idx);
-            localStorage.setItem(STORAGE_KEY_ESP, JSON.stringify(indices)); 
-            return; 
-        }
+        // El bloque de 'es' (español) ha sido eliminado por completo.
+        
+        if (lang !== 'en') return; // Seguridad extra
 
-        // LOGICA DE PALABRA INDIVIDUAL (ROSA)
+        // LOGICA DE PALABRA INDIVIDUAL (ROSA) - INGLÉS
         const rawText = element.innerText;
         const cleanText = sanitizeText(rawText);
         if(!cleanText) return;
 
         lastSelectedWordText = cleanText;
 
-        // CALCULAR OCURRENCIAS
+        // Calcular ocurrencias visuales
         let count = 0;
         document.querySelectorAll('.english-word').forEach(el => {
             if (sanitizeText(el.innerText).toLowerCase() === cleanText.toLowerCase()) {
@@ -1177,6 +1184,7 @@
         });
         currentWordStats.occurrences = count; 
 
+        // Lógica de base de datos (Guardar/Borrar Rosa)
         let vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         let found = false;
         
@@ -1188,7 +1196,7 @@
         }
 
         if (found) {
-            // BORRAR INDIVIDUAL
+            // BORRAR
             vocab = vocab.filter(i => i.isFolder || sanitizeText(i.eng).toLowerCase() !== cleanText.toLowerCase());
             vocab.forEach(f => {
                 if(f.isFolder) {
@@ -1199,7 +1207,7 @@
             updateAllWordStates(); 
             
         } else {
-            // AGREGAR INDIVIDUAL
+            // AGREGAR
             const line = element.closest('.line');
             const contextSource = { 
                 type: 'youtube', 
@@ -1214,7 +1222,7 @@
                 id: Date.now() + Math.random(),
                 isFolder: false,
                 eng: cleanText,
-                esp: "", 
+                esp: "", // Palabra suelta no lleva traducción forzada, usa el contexto.
                 isHighlighted: false,
                 source: contextSource,
                 dateAdded: Date.now()
