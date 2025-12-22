@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS | V4 Safe-Area</title>
+    <title>NEXUS | V5 Sync-Fix</title>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
@@ -13,10 +13,9 @@
            ========================================= */
         :root {
             --bg-body: #050505;
-            --glass-base: rgba(20, 20, 20, 0.6);
             --glass-border: rgba(255, 255, 255, 0.08);
             
-            /* Colores Neón Intensos */
+            /* Colores Neón */
             --neon-1: #0ea5e9;
             --neon-2: #d946ef;
             --neon-3: #22c55e;
@@ -29,21 +28,14 @@
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
 
-        /* --- CORRECCIÓN DEL BODY PARA QUE NO SE ESCONDA ARRIBA --- */
         body {
             background-color: var(--bg-body);
             color: #fff;
             font-family: 'Inter', sans-serif;
             margin: 0;
-            
-            /* FIX 1: Usar min-height dinámico para móviles */
             min-height: 100dvh; 
-            
-            /* FIX 2: Respetar el 'Notch' del iPhone y dar aire arriba */
             padding-top: max(40px, env(safe-area-inset-top)); 
             padding-bottom: 40px;
-            
-            /* Mantener scroll suave */
             overflow-y: auto;
             overflow-x: hidden;
         }
@@ -103,7 +95,7 @@
         }
 
         /* =========================================
-           4. HEADER
+           4. HEADER & ICONO
            ========================================= */
         .card-header {
             padding: 20px 24px;
@@ -113,7 +105,6 @@
         }
 
         .card.active .card-header {
-            /* Ajustamos padding top para cuando está abierto en full screen */
             padding-top: max(20px, env(safe-area-inset-top));
             background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(255,255,255,0.1);
         }
@@ -138,14 +129,24 @@
             background: rgba(0,0,0,0.5); box-shadow: 0 0 10px -2px var(--accent-color);
         }
 
+        /* --- LOGICA DEL ICONO Y ANIMACION --- */
         .card-icon {
             color: #333; 
             transition: transform 0.4s var(--ease-snap), color 0.4s ease, opacity 0.4s ease;
             opacity: 0.3;
+            /* La animación se inyecta inline en el HTML */
         }
+
+        /* FIX CLAVE: Cuando está activo, NO quitamos la animación con 'animation: none'.
+           Simplemente forzamos los estilos visuales encima con !important.
+           Esto permite que el "reloj" de la animación siga corriendo de fondo.
+        */
         .card.active .card-icon {
-            color: #fff; transform: rotate(180deg);
-            text-shadow: none !important; opacity: 1 !important; animation: none !important;
+            color: #fff !important; 
+            /* Forzamos escala 1 para que no palpite si justo le tocó el turno de brillar */
+            transform: rotate(180deg) scale(1) !important; 
+            text-shadow: none !important; 
+            opacity: 1 !important; 
         }
 
         /* =========================================
@@ -172,7 +173,7 @@
                 opacity: 0.3;
             }
             10% { 
-                color: #fff; 
+                color: #fff; /* Núcleo blanco */
                 transform: scale(1.3);
                 opacity: 1;
                 text-shadow: 
@@ -221,6 +222,7 @@
 
         container.innerHTML = appData.map((item, index) => {
             const delay = index * speedPerItem;
+            // Esta animación NO se tocará con JS nunca más para evitar el error de sync
             const animStyle = `animation: kitt-scanner-neon ${totalDuration}s infinite ease-in-out; animation-delay: ${delay}s;`;
 
             return `
@@ -255,45 +257,43 @@
                 renderApp(); 
             }
         });
-
-        container.classList.add('idle-mode');
+        
+        // Ya no necesitamos la clase idle-mode porque la animación siempre corre
     }
 
-    // === 3. LÓGICA DE APERTURA ===
+    // === 3. LÓGICA DE APERTURA (LIMPIA) ===
     function toggleCard(id) {
         const card = document.querySelector(`.card[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
         const iframe = content.querySelector('iframe');
         const isActive = card.classList.contains('active');
-        const container = document.getElementById('nexus-container');
-
+        
+        // 1. CERRAR CARTA
         if (isActive) {
             if(iframe && iframe.contentWindow) {
                 iframe.contentWindow.postMessage('FORCE_PAUSE', '*');
             }
             card.classList.remove('active');
             document.body.classList.remove('locked');
-            container.classList.add('idle-mode');
-            const icon = card.querySelector('.card-icon');
-            icon.style.animationPlayState = 'running';
+            // NOTA: NO tocamos la animación aquí. CSS se encarga de mostrarla de nuevo.
             return;
         }
 
+        // 2. CERRAR OTRAS
         document.querySelectorAll('.card.active').forEach(c => {
             const otherIframe = c.querySelector('iframe');
             if(otherIframe && otherIframe.contentWindow) {
                 otherIframe.contentWindow.postMessage('FORCE_PAUSE', '*');
             }
             c.classList.remove('active');
-            c.querySelector('.card-icon').style.animationPlayState = 'running';
         });
 
+        // 3. ABRIR CARTA ACTUAL
         card.classList.add('active');
         document.body.classList.add('locked');
-        container.classList.remove('idle-mode');
-        const activeIcon = card.querySelector('.card-icon');
-        activeIcon.style.animation = 'none';
-
+        
+        // NOTA: NO detenemos la animación con JS. El CSS (.active .card-icon) la oculta visualmente.
+        
         if (!iframe.src) {
             iframe.src = iframe.getAttribute('data-src');
         }
