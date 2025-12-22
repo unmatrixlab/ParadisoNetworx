@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC Cloud Dashboard v2.5</title>
+    <title>MDC Cloud Dashboard v2.7 (Universal)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -51,7 +51,7 @@
         .btn-cloud-mix { background: var(--card-bg); color: var(--success); border: 2px solid var(--success); }
         .file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
         
-        /* BOTONES DE ARCHIVO MEJORADOS */
+        /* BOTONES DE ARCHIVO */
         .btn-file { 
             background: #f3f4f6; 
             color: #000000; 
@@ -124,7 +124,7 @@
                 <div class="data-value" id="stat-vocab">...</div>
             </div>
             <div class="data-row">
-                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Historial</div>
+                <div class="data-label"><div class="app-icon" style="background: #ef4444;">PL</div>Total Videos</div>
                 <div class="data-value" id="stat-player">...</div>
             </div>
             <div class="data-row">
@@ -142,6 +142,10 @@
             <div class="data-row">
                 <div class="data-label"><div class="app-icon" style="background: #bb86fc; color: #000;">PE</div>Prompt Eng.</div>
                 <div class="data-value" id="stat-prompt">...</div>
+            </div>
+            <div class="data-row">
+                <div class="data-label"><div class="app-icon" style="background: #374151; color: #fff;">NT</div>Notas de Video</div>
+                <div class="data-value" id="stat-notes">...</div>
             </div>
         </div>
 
@@ -178,7 +182,8 @@
         
         const KEYS = { 
             vocab: 'mdc_vocab_list', 
-            history: 'mdc_simple_history', // <--- CAMBIO CLAVE AQUÍ PARA LEER EL NUEVO PLAYER
+            historyStudio: 'mdc_studio_history', // Version con subtitulos
+            historyLite: 'mdc_simple_history',   // Version ligera
             ai: 'mdc_ai_exercises', 
             game: 'LN_V8_HYBRID', 
             generator: 'nexus_ai_decks',
@@ -250,46 +255,24 @@
                 const cloudData = val.data;
                 let changesCount = 0;
 
-                // A. VOCAB
-                if(cloudData[KEYS.vocab]) {
-                    const localVocab = JSON.parse(localStorage.getItem(KEYS.vocab) || '[]');
-                    const cloudVocab = JSON.parse(cloudData[KEYS.vocab]); 
-                    const existingIds = new Set(localVocab.map(item => item.id));
-                    cloudVocab.forEach(item => {
-                        if(!existingIds.has(item.id)) { localVocab.unshift(item); existingIds.add(item.id); changesCount++; }
-                    });
-                    localStorage.setItem(KEYS.vocab, JSON.stringify(localVocab));
-                }
-                // B. HISTORY (Adaptado para el Lite Player)
-                if(cloudData[KEYS.history]) {
-                    const localHist = JSON.parse(localStorage.getItem(KEYS.history) || '[]');
-                    const cloudHist = typeof cloudData[KEYS.history] === 'string' ? JSON.parse(cloudData[KEYS.history]) : cloudData[KEYS.history];
-                    const existingVideoIds = new Set(localHist.map(v => v.id));
-                    cloudHist.forEach(video => {
-                        if(!existingVideoIds.has(video.id)) { localHist.push(video); existingVideoIds.add(video.id); changesCount++; }
-                    });
-                    localStorage.setItem(KEYS.history, JSON.stringify(localHist));
-                }
-                // C. GENERATOR
-                if(cloudData[KEYS.generator]) {
-                    const localDecks = JSON.parse(localStorage.getItem(KEYS.generator) || '[]');
-                    const cloudDecks = typeof cloudData[KEYS.generator] === 'string' ? JSON.parse(cloudData[KEYS.generator]) : cloudData[KEYS.generator];
-                    const existingDeckIds = new Set(localDecks.map(d => d.id));
-                    cloudDecks.forEach(deck => {
-                        if(!existingDeckIds.has(deck.id)) { localDecks.push(deck); existingDeckIds.add(deck.id); changesCount++; }
-                    });
-                    localStorage.setItem(KEYS.generator, JSON.stringify(localDecks));
-                }
-                // D. PROMPTS
-                if(cloudData[KEYS.prompt]) {
-                    const localPrompts = JSON.parse(localStorage.getItem(KEYS.prompt) || '[]');
-                    const cloudPrompts = typeof cloudData[KEYS.prompt] === 'string' ? JSON.parse(cloudData[KEYS.prompt]) : cloudData[KEYS.prompt];
-                    const existingPromptIds = new Set(localPrompts.map(p => p.id));
-                    cloudPrompts.forEach(p => {
-                        if(!existingPromptIds.has(p.id)) { localPrompts.unshift(p); existingPromptIds.add(p.id); changesCount++; }
-                    });
-                    localStorage.setItem(KEYS.prompt, JSON.stringify(localPrompts));
-                }
+                // FUNCION DE MEZCLA GENERICA
+                const mergeList = (key) => {
+                    if(cloudData[key]) {
+                        const localList = JSON.parse(localStorage.getItem(key) || '[]');
+                        const cloudList = typeof cloudData[key] === 'string' ? JSON.parse(cloudData[key]) : cloudData[key];
+                        const existingIds = new Set(localList.map(item => item.id));
+                        cloudList.forEach(item => {
+                            if(!existingIds.has(item.id)) { localList.unshift(item); existingIds.add(item.id); changesCount++; }
+                        });
+                        localStorage.setItem(key, JSON.stringify(localList));
+                    }
+                };
+
+                mergeList(KEYS.vocab);
+                mergeList(KEYS.historyStudio); // Mezclar Studio
+                mergeList(KEYS.historyLite);   // Mezclar Lite
+                mergeList(KEYS.generator);
+                mergeList(KEYS.prompt);
 
                 hideLoading();
                 alert(`✅ Mezcla completada.\n\nSe agregaron ${changesCount} elementos nuevos.`);
@@ -396,12 +379,24 @@
                 } catch(e) {}
             }
 
+            // CONTAR NOTAS
+            let notesCount = 0;
+            for(let i=0; i<localStorage.length; i++){
+                if(localStorage.key(i).startsWith('mdc_notes_')) notesCount++;
+            }
+
+            // CONTAR VIDEOS (AMBAS VERSIONES)
+            const studioVideos = getLen(KEYS.historyStudio);
+            const liteVideos = getLen(KEYS.historyLite);
+            const totalVideos = studioVideos + liteVideos;
+
             updateRow('stat-vocab', getLen(KEYS.vocab) + " items", getLen(KEYS.vocab)>0);
-            updateRow('stat-player', getLen(KEYS.history) + " videos", getLen(KEYS.history)>0);
+            updateRow('stat-player', totalVideos + " videos", totalVideos>0);
             updateRow('stat-ai', getLen(KEYS.ai) + " sets", getLen(KEYS.ai)>0);
             updateRow('stat-game', gameText, gameActive); 
             updateRow('stat-generator', getLen(KEYS.generator) + " decks", getLen(KEYS.generator)>0);
             updateRow('stat-prompt', getLen(KEYS.prompt) + " prompts", getLen(KEYS.prompt)>0);
+            updateRow('stat-notes', notesCount + " notas", notesCount > 0);
         }
 
         function updateRow(id, text, active) {
