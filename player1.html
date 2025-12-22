@@ -427,7 +427,7 @@
     // --- VARIABLES DE NAVEGACION ---
     let savedTimestamps = [];
 
-    // --- VARIABLES DE INTERACCION (NUEVO) ---
+    // --- VARIABLES DE INTERACCION ---
     let pressTimer;
     let isLongPressHandled = false;
 
@@ -926,12 +926,12 @@
         if(isMirrorActive) btn.classList.add('active-state'); else btn.classList.remove('active-state');
     }
 
-    // --- NUEVA GENERACIÓN DE HTML (CON DETECTORES DE TIEMPO) ---
-function initInteractiveWords() {
+    // --- GENERACIÓN HTML ---
+    function initInteractiveWords() {
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         let engIndex = 0;
 
-        // --- INGLÉS (Mantiene toda la lógica de clicks y tiempos) ---
+        // INGLÉS (Interactivo)
         document.querySelectorAll('.english').forEach(el => {
             const rawText = el.textContent || ""; 
             const words = rawText.trim().split(/\s+/); 
@@ -947,16 +947,13 @@ function initInteractiveWords() {
             }).join('');
         });
 
-        // --- ESPAÑOL (AHORA ES TEXTO PLANO VISUAL) ---
-        // Ya no tiene eventos onclick, ni data-idx, ni se guarda nada.
+        // ESPAÑOL (Texto plano, sin eventos)
         document.querySelectorAll('.spanish').forEach(el => {
             if(allVisible) el.classList.add('visible');
             const rawText = el.textContent || "";
             const words = rawText.trim().split(/\s+/);
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                // Solo mantenemos la clase 'spanish-word' si la necesitas para estilos, 
-                // pero quitamos 'word-interactive' y los eventos.
                 return `<span class="spanish-word">${word}</span> `;
             }).join('');
         });
@@ -964,13 +961,12 @@ function initInteractiveWords() {
         updateAllWordStates();
     }
 
-    // --- CEREBRO PRINCIPAL DE ESTADOS (ROSA vs AMBAR) ---
+    // --- ESTADOS (ROSA vs AMBAR) ---
     function updateAllWordStates() {
         const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        const savedWordsSet = new Set();  // Pila de palabras sueltas
-        const savedPhrases = [];          // Pila de frases
+        const savedWordsSet = new Set(); 
+        const savedPhrases = []; 
         
-        // 1. Clasificar Vocabulario
         vocab.forEach(item => {
             const extract = (obj) => {
                 const text = sanitizeText(obj.eng).toLowerCase();
@@ -988,13 +984,11 @@ function initInteractiveWords() {
             }
         });
 
-        // 2. Limpieza Inicial
         document.querySelectorAll('.english-word').forEach(el => {
             el.classList.remove('saved-word', 'phrase-word');
             delete el.dataset.phraseParent;
         });
 
-        // 3. Pintar ROSAS (Palabras sueltas)
         document.querySelectorAll('.english-word').forEach(el => {
             const clean = sanitizeText(el.innerText).toLowerCase();
             if (savedWordsSet.has(clean)) {
@@ -1002,8 +996,7 @@ function initInteractiveWords() {
             }
         });
 
-        // 4. Pintar ÁMBAR (Frases)
-        savedPhrases.sort((a, b) => b.length - a.length); // Frases largas primero
+        savedPhrases.sort((a, b) => b.length - a.length); 
 
         document.querySelectorAll('.line').forEach(line => {
             const wordsElements = Array.from(line.querySelectorAll('.english-word'));
@@ -1014,7 +1007,6 @@ function initInteractiveWords() {
                 if (lineTextStr.includes(phrase)) {
                     const phraseArr = phrase.split(" ");
                     
-                    // Algoritmo de coincidencia secuencial
                     for (let i = 0; i <= lineTextArr.length - phraseArr.length; i++) {
                         let match = true;
                         for (let j = 0; j < phraseArr.length; j++) {
@@ -1027,7 +1019,7 @@ function initInteractiveWords() {
                             for (let k = 0; k < phraseArr.length; k++) {
                                 const targetEl = wordsElements[i + k];
                                 targetEl.classList.add('phrase-word');
-                                targetEl.dataset.phraseParent = phrase; // Tatuaje para borrar después
+                                targetEl.dataset.phraseParent = phrase; 
                             }
                         }
                     }
@@ -1086,11 +1078,11 @@ function initInteractiveWords() {
         const currentTime = player.getCurrentTime();
         let targetTime = -1;
 
-        if (direction === 1) { // NEXT
+        if (direction === 1) { 
             const next = savedTimestamps.find(t => t > currentTime + 0.5);
             if (next !== undefined) targetTime = next;
             else targetTime = savedTimestamps[0]; 
-        } else { // PREV
+        } else { 
             const prev = [...savedTimestamps].reverse().find(t => t < currentTime - 0.5);
             if (prev !== undefined) targetTime = prev;
             else targetTime = savedTimestamps[savedTimestamps.length - 1]; 
@@ -1102,13 +1094,13 @@ function initInteractiveWords() {
        }
     }
 
-    // --- NUEVOS MANEJADORES DE GESTOS (TOUCH/MOUSE) ---
+    // --- GESTOS ---
     function startPress(el) {
         isLongPressHandled = false; 
         pressTimer = setTimeout(() => {
             handleLongPressLogic(el); 
             isLongPressHandled = true; 
-        }, 500); // 0.5 segundos = Click Largo
+        }, 500); 
     }
 
     function endPress(el, e) {
@@ -1164,9 +1156,7 @@ function initInteractiveWords() {
         event.stopPropagation(); 
         const lang = element.dataset.lang; 
         
-        // El bloque de 'es' (español) ha sido eliminado por completo.
-        
-        if (lang !== 'en') return; // Seguridad extra
+        if (lang !== 'en') return; 
 
         // LOGICA DE PALABRA INDIVIDUAL (ROSA) - INGLÉS
         const rawText = element.innerText;
@@ -1184,7 +1174,6 @@ function initInteractiveWords() {
         });
         currentWordStats.occurrences = count; 
 
-        // Lógica de base de datos (Guardar/Borrar Rosa)
         let vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         let found = false;
         
@@ -1222,7 +1211,7 @@ function initInteractiveWords() {
                 id: Date.now() + Math.random(),
                 isFolder: false,
                 eng: cleanText,
-                esp: "", // Palabra suelta no lleva traducción forzada, usa el contexto.
+                esp: "", // Se guarda VACÍO
                 isHighlighted: false,
                 source: contextSource,
                 dateAdded: Date.now()
@@ -1316,22 +1305,19 @@ function initInteractiveWords() {
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
-    // --- NUEVO BOTON VERDE (INTELIGENTE: FRASE vs LINEA) ---
+    // --- BOTON VERDE (CORREGIDO: esp = "") ---
     function saveLineToVocab(btn) {
         const line = btn.closest('.line'); 
         let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         
-        // Buscamos palabras que el usuario haya pintado de Ámbar manualmente
         const manualSelection = Array.from(line.querySelectorAll('.english-word.phrase-word')).filter(el => el.dataset.userSelected === "true");
         
         let textToSave = "";
         
         if (manualSelection.length > 0) {
-            // MODO FRASE
             manualSelection.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
             textToSave = manualSelection.map(el => sanitizeText(el.innerText)).join(" ");
         } else {
-            // MODO LINEA
             textToSave = sanitizeText(line.querySelector('.english').innerText);
         }
 
@@ -1360,7 +1346,7 @@ function initInteractiveWords() {
                 id: Date.now() + Math.random(), 
                 isFolder: false, 
                 eng: textToSave, 
-                esp: contextSource.contextEsp, 
+                esp: "", // AQUI ESTABA EL ERROR. AHORA SE GUARDA VACÍO.
                 isHighlighted: false, 
                 source: contextSource, 
                 dateAdded: Date.now() 
