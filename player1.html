@@ -6,7 +6,7 @@
     <title>MDC Studio Player (Final Connected)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
+        :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
         body { 
@@ -23,7 +23,7 @@
         #mdc-header { display: none !important; }
         
         /* === SETUP SCREEN === */
-        #setup-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f9fafb; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 40px 20px; overflow-y: auto; }
+        #setup-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #31353b; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 40px 20px; overflow-y: auto; }
         .setup-container { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
         @media (max-width: 800px) { .setup-container { grid-template-columns: 1fr; } }
         
@@ -216,7 +216,39 @@
     }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
     .close-modal-btn { background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 700; }
+
+
+/* Solo para pantallas mayores a 800px (PC) */
+@media (min-width: 801px) {
+    .video-inner {
+        border-radius: 20px; /* Ajusta el nivel de redondeo aquí */
+        overflow: hidden;    /* Necesario para que el redondeo se aplique al iframe */
+        mask-image: radial-gradient(white, black); /* Ayuda a suavizar bordes en algunos navegadores */
+    }
     
+    .video-wrapper {
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+    #video-cover {
+        border-radius: 20px;
+    }
+}
+
+        /* --- ESTILOS NUEVOS --- */
+.word-interactive.phrase-word {
+    background-color: #f59e0b !important; /* Ámbar gana a Rosa */
+    color: white !important;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    margin: 0 1px;
+}
+
+/* Animación suave para cuando borras */
+.word-interactive { transition: background-color 0.2s, color 0.2s; }
+
+        
     </style>
 </head>
 <body>
@@ -365,7 +397,8 @@
   <div id="nexus-portal">
         <iframe id="nexus-frame" src=""></iframe>
     </div>
-    <script>
+
+<script>
     let YOUTUBE_ID = '';
     let VIDEO_TITLE = 'Saved from Studio';
     let SUBTITLES_DATA = [];
@@ -378,8 +411,12 @@
     let lastStorageString = "";
     let currentWordStats = { occurrences: "-", uniqueTotal: 0 };
     
-    // --- VARIABLES DE NAVEGACION (NUEVO) ---
+    // --- VARIABLES DE NAVEGACION ---
     let savedTimestamps = [];
+
+    // --- VARIABLES DE INTERACCION (NUEVO) ---
+    let pressTimer;
+    let isLongPressHandled = false;
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -389,16 +426,14 @@
 
     // --- WATCHER SYSTEM (ESPEJO) ---
     function startStorageWatcher() {
-        // Inicializa el estado
         lastStorageString = localStorage.getItem(VOCAB_KEY) || "";
-        
         setInterval(() => {
             const currentString = localStorage.getItem(VOCAB_KEY) || "";
             if (currentString !== lastStorageString) {
                 lastStorageString = currentString;
-                updateAllWordStates(); // Actualiza visualmente si la DB cambia
+                updateAllWordStates(); 
             }
-        }, 1000); // Revisa cada segundo
+        }, 1000); 
     }
 
     function setCategoryFilter(category) {
@@ -878,6 +913,7 @@
         if(isMirrorActive) btn.classList.add('active-state'); else btn.classList.remove('active-state');
     }
 
+    // --- NUEVA GENERACIÓN DE HTML (CON DETECTORES DE TIEMPO) ---
     function initInteractiveWords() {
         const savedEsp = JSON.parse(localStorage.getItem(STORAGE_KEY_ESP) || '[]');
         let engIndex = 0;
@@ -887,7 +923,13 @@
             const words = rawText.trim().split(/\s+/); 
             el.innerHTML = words.map(word => {
                 if(!word) return '';
-                const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" onclick="toggleWordSelection(this, event)">${word}</span> `;
+                // AQUI SE AGREGAN LOS EVENTOS startPress, endPress y click
+                const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" 
+                    onmousedown="startPress(this)" 
+                    ontouchstart="startPress(this)" 
+                    onmouseup="endPress(this, event)" 
+                    ontouchend="endPress(this, event)"
+                    onclick="handleShortClick(this, event)">${word}</span> `;
                 engIndex++; return span;
             }).join('');
         });
@@ -909,59 +951,99 @@
         updateAllWordStates();
     }
 
-    // --- LOGICA PROFUNDA DE INTERCONEXION ---
+    // --- CEREBRO PRINCIPAL DE ESTADOS (ROSA vs AMBAR) ---
     function updateAllWordStates() {
         const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        const savedWordsSet = new Set();
+        const savedWordsSet = new Set();  // Pila de palabras sueltas
+        const savedPhrases = [];          // Pila de frases
         
-        // Aplana la estructura (extrae todas las palabras, sueltas o en carpetas)
+        // 1. Clasificar Vocabulario
         vocab.forEach(item => {
+            const extract = (obj) => {
+                const text = sanitizeText(obj.eng).toLowerCase();
+                if (text.includes(" ")) {
+                    savedPhrases.push(text);
+                } else {
+                    savedWordsSet.add(text);
+                }
+            };
+
             if(item.isFolder && item.items) {
-                item.items.forEach(sub => {
-                    if(sub.eng) savedWordsSet.add(sanitizeText(sub.eng).toLowerCase());
-                });
+                item.items.forEach(sub => extract(sub));
             } else if (!item.isFolder && item.eng) {
-                savedWordsSet.add(sanitizeText(item.eng).toLowerCase());
+                extract(item);
             }
         });
 
+        // 2. Limpieza Inicial
+        document.querySelectorAll('.english-word').forEach(el => {
+            el.classList.remove('saved-word', 'phrase-word');
+            delete el.dataset.phraseParent;
+        });
+
+        // 3. Pintar ROSAS (Palabras sueltas)
         document.querySelectorAll('.english-word').forEach(el => {
             const clean = sanitizeText(el.innerText).toLowerCase();
             if (savedWordsSet.has(clean)) {
                 el.classList.add('saved-word');
-            } else {
-                el.classList.remove('saved-word');
             }
         });
 
-        updateNavigationIndex(); // <--- CRÍTICO: Actualizar barra inferior
+        // 4. Pintar ÁMBAR (Frases)
+        savedPhrases.sort((a, b) => b.length - a.length); // Frases largas primero
+
+        document.querySelectorAll('.line').forEach(line => {
+            const wordsElements = Array.from(line.querySelectorAll('.english-word'));
+            const lineTextArr = wordsElements.map(el => sanitizeText(el.innerText).toLowerCase());
+            const lineTextStr = lineTextArr.join(" ");
+
+            savedPhrases.forEach(phrase => {
+                if (lineTextStr.includes(phrase)) {
+                    const phraseArr = phrase.split(" ");
+                    
+                    // Algoritmo de coincidencia secuencial
+                    for (let i = 0; i <= lineTextArr.length - phraseArr.length; i++) {
+                        let match = true;
+                        for (let j = 0; j < phraseArr.length; j++) {
+                            if (lineTextArr[i + j] !== phraseArr[j]) {
+                                match = false; break;
+                            }
+                        }
+                        
+                        if (match) {
+                            for (let k = 0; k < phraseArr.length; k++) {
+                                const targetEl = wordsElements[i + k];
+                                targetEl.classList.add('phrase-word');
+                                targetEl.dataset.phraseParent = phrase; // Tatuaje para borrar después
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        updateNavigationIndex();
     }
 
-   function updateNavigationIndex() {
-        // 1. Calcular TOTAL DE PALABRAS ÚNICAS (Lado Derecho)
-        // Escaneamos todas las palabras que tienen la clase .saved-word
-        const allSavedElements = document.querySelectorAll('.english-word.saved-word');
+    function updateNavigationIndex() {
+        const allSavedElements = document.querySelectorAll('.english-word.saved-word, .english-word.phrase-word');
         const uniqueSet = new Set();
         
-        // Guardamos el texto limpio en un Set para eliminar repetidos automáticamente
         allSavedElements.forEach(el => {
             uniqueSet.add(sanitizeText(el.innerText).toLowerCase());
         });
         
         currentWordStats.uniqueTotal = uniqueSet.size;
 
-        // 2. Actualizar Timestamps para la navegación (Flechas)
-        // Seguimos necesitando esto para que las flechas sepan a dónde saltar
         const lines = document.querySelectorAll('.line');
         const uniqueTimes = new Set();
         lines.forEach(line => {
-            if (line.querySelector('.saved-word')) {
+            if (line.querySelector('.saved-word') || line.querySelector('.phrase-word')) {
                 uniqueTimes.add(parseFloat(line.dataset.start));
             }
         });
         savedTimestamps = Array.from(uniqueTimes).sort((a, b) => a - b);
         
-        // 3. Renderizar en la Barra
         renderCounterUI();
     }
 
@@ -970,10 +1052,8 @@
         const btnNext = document.getElementById('btn-next');
         const counter = document.getElementById('nav-counter');
         
-        // Formato: [Ocurrencias de la actual] | [Total Únicas]
         counter.innerText = `${currentWordStats.occurrences} | ${currentWordStats.uniqueTotal}`;
         
-        // Estilo visual
         if (currentWordStats.uniqueTotal > 0) {
             btnPrev.classList.remove('disabled');
             btnNext.classList.remove('disabled');
@@ -993,27 +1073,84 @@
         const currentTime = player.getCurrentTime();
         let targetTime = -1;
 
-        if (direction === 1) { // NEXT (▼)
+        if (direction === 1) { // NEXT
             const next = savedTimestamps.find(t => t > currentTime + 0.5);
             if (next !== undefined) targetTime = next;
-            else targetTime = savedTimestamps[0]; // Loop
-        } else { // PREV (▲)
+            else targetTime = savedTimestamps[0]; 
+        } else { // PREV
             const prev = [...savedTimestamps].reverse().find(t => t < currentTime - 0.5);
             if (prev !== undefined) targetTime = prev;
-            else targetTime = savedTimestamps[savedTimestamps.length - 1]; // Loop
+            else targetTime = savedTimestamps[savedTimestamps.length - 1]; 
         }
 
-        if (targetTime !== -1) {
-            player.seekTo(targetTime);
-            player.playVideo(); 
+       if (targetTime !== -1) {
+           player.seekTo(targetTime);
+           player.playVideo(); 
+       }
+    }
+
+    // --- NUEVOS MANEJADORES DE GESTOS (TOUCH/MOUSE) ---
+    function startPress(el) {
+        isLongPressHandled = false; 
+        pressTimer = setTimeout(() => {
+            handleLongPressLogic(el); 
+            isLongPressHandled = true; 
+        }, 500); // 0.5 segundos = Click Largo
+    }
+
+    function endPress(el, e) {
+        clearTimeout(pressTimer);
+        if(e.type === 'touchend' && isLongPressHandled) {
+            e.preventDefault(); 
         }
     }
 
- async function toggleWordSelection(element, event) {
+    function handleShortClick(el, event) {
+        if (isLongPressHandled) return; 
+        toggleWordSelection(el, event); 
+    }
+
+    function handleLongPressLogic(el) {
+        if (navigator.vibrate) navigator.vibrate(50); 
+
+        // CASO 1: BORRAR FRASE YA GUARDADA
+        if (el.dataset.phraseParent) {
+            deletePhraseFromMemory(el.dataset.phraseParent);
+            return;
+        }
+
+        // CASO 2: SELECCIONAR PARA NUEVA FRASE
+        el.classList.toggle('phrase-word');
+        if (el.classList.contains('phrase-word')) {
+            el.dataset.userSelected = "true"; 
+        } else {
+            delete el.dataset.userSelected;
+        }
+    }
+
+    function deletePhraseFromMemory(phraseText) {
+        let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
+        const cleanPhrase = phraseText.toLowerCase();
+
+        items = items.filter(i => {
+            if (!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === cleanPhrase) return false;
+            return true;
+        });
+
+        items.forEach(folder => {
+            if (folder.isFolder && folder.items) {
+                folder.items = folder.items.filter(sub => sanitizeText(sub.eng).toLowerCase() !== cleanPhrase);
+            }
+        });
+
+        localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
+        updateAllWordStates(); 
+    }
+
+    function toggleWordSelection(element, event) {
         event.stopPropagation(); 
         const lang = element.dataset.lang; 
         
-        // --- LOGICA ESPAÑOL (Igual que antes) ---
         if (lang === 'es') { 
             element.classList.toggle('selected-word'); 
             const idx = parseInt(element.dataset.idx);
@@ -1024,45 +1161,45 @@
             return; 
         }
 
-        // --- LOGICA INGLÉS ---
+        // LOGICA DE PALABRA INDIVIDUAL (ROSA)
         const rawText = element.innerText;
         const cleanText = sanitizeText(rawText);
         if(!cleanText) return;
 
         lastSelectedWordText = cleanText;
 
-        // Calcular ocurrencias
+        // CALCULAR OCURRENCIAS
         let count = 0;
         document.querySelectorAll('.english-word').forEach(el => {
-            if (sanitizeText(el.innerText).toLowerCase() === cleanText.toLowerCase()) count++;
+            if (sanitizeText(el.innerText).toLowerCase() === cleanText.toLowerCase()) {
+                count++;
+            }
         });
         currentWordStats.occurrences = count; 
 
         let vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         let found = false;
-        const checkMatch = (txt) => sanitizeText(txt).toLowerCase() === cleanText.toLowerCase();
         
-        // Buscar existencia
-        if(vocab.some(i => !i.isFolder && ( (i.en && checkMatch(i.en)) || (i.eng && checkMatch(i.eng)) ) )) found = true;
+        if(vocab.some(i => !i.isFolder && sanitizeText(i.eng).toLowerCase() === cleanText.toLowerCase())) found = true;
         if(!found) {
             vocab.forEach(f => {
-                if(f.isFolder && f.items.some(sub => ( (sub.en && checkMatch(sub.en)) || (sub.eng && checkMatch(sub.eng)) ) )) found = true;
+                if(f.isFolder && f.items.some(sub => sanitizeText(sub.eng).toLowerCase() === cleanText.toLowerCase())) found = true;
             });
         }
 
         if (found) {
-            // --- BORRAR (Igual que antes) ---
-            vocab = vocab.filter(i => i.isFolder || !( (i.en && checkMatch(i.en)) || (i.eng && checkMatch(i.eng)) ));
+            // BORRAR INDIVIDUAL
+            vocab = vocab.filter(i => i.isFolder || sanitizeText(i.eng).toLowerCase() !== cleanText.toLowerCase());
             vocab.forEach(f => {
                 if(f.isFolder) {
-                    f.items = f.items.filter(sub => !( (sub.en && checkMatch(sub.en)) || (sub.eng && checkMatch(sub.eng)) ));
+                    f.items = f.items.filter(sub => sanitizeText(sub.eng).toLowerCase() !== cleanText.toLowerCase());
                 }
             });
             localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
             updateAllWordStates(); 
             
         } else {
-            // --- AGREGAR CON TRADUCCIÓN AUTOMÁTICA ---
+            // AGREGAR INDIVIDUAL
             const line = element.closest('.line');
             const contextSource = { 
                 type: 'youtube', 
@@ -1073,14 +1210,11 @@
                 contextEsp: line.querySelector('.spanish').innerText 
             };
 
-            // 1. Creamos ID único
-            const tempId = Date.now() + Math.random();
-
             const newItem = {
-                id: tempId,
+                id: Date.now() + Math.random(),
                 isFolder: false,
-                en: cleanText,
-                es: "(Traduciento...)", // Placeholder visual
+                eng: cleanText,
+                esp: "", 
                 isHighlighted: false,
                 source: contextSource,
                 dateAdded: Date.now()
@@ -1089,7 +1223,6 @@
             const targetName = VIDEO_TITLE || "Saved from Studio";
             let targetFolder = vocab.find(i => i.isFolder && i.name === targetName);
             
-            // Guardamos inmediatamente el placeholder
             if(targetFolder) {
                 targetFolder.items.unshift(newItem);
                 vocab = vocab.filter(i => i.id !== targetFolder.id);
@@ -1101,39 +1234,6 @@
             
             localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
             updateAllWordStates(); 
-
-            // 2. BUSCAMOS LA TRADUCCIÓN REAL (Async)
-            const translation = await fetchTranslation(cleanText);
-            
-            // 3. ACTUALIZAMOS LA BASE DE DATOS
-            // Volvemos a leer localStorage por si el usuario hizo algo más mientras tanto
-            let currentVocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-            
-            // Buscamos el item por su ID único que creamos antes
-            let itemFound = false;
-            
-            // Buscar en raíz
-            currentVocab.forEach(i => {
-                if(i.id === tempId) { i.es = translation || ""; itemFound = true; }
-            });
-            
-            // Buscar en carpetas
-            if(!itemFound) {
-                currentVocab.forEach(f => {
-                    if(f.isFolder && f.items) {
-                        f.items.forEach(sub => {
-                            if(sub.id === tempId) { 
-                                // Si la API falla, usamos el contexto completo como respaldo
-                                sub.es = translation || ""; // O usar: translation || contextSource.contextEsp
-                            }
-                        });
-                    }
-                });
-            }
-
-            // Guardamos la versión final traducida
-            localStorage.setItem(VOCAB_KEY, JSON.stringify(currentVocab));
-            console.log(`Traducción guardada para ${cleanText}: ${translation}`);
         }
     }
     
@@ -1208,22 +1308,26 @@
 
     function cycleSpeedInternal() { localStorage.setItem(PREF_SPEED, currentPlaybackRate); if(player && player.setPlaybackRate) player.setPlaybackRate(currentPlaybackRate); document.getElementById('btn-speed').innerText = currentPlaybackRate + 'x'; }
 
+    // --- NUEVO BOTON VERDE (INTELIGENTE: FRASE vs LINEA) ---
     function saveLineToVocab(btn) {
-        
         const line = btn.closest('.line'); 
         let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         
-        const rawEng = line.querySelector('.english').innerText;
-        const cleanEng = sanitizeText(rawEng);
+        // Buscamos palabras que el usuario haya pintado de Ámbar manualmente
+        const manualSelection = Array.from(line.querySelectorAll('.english-word.phrase-word')).filter(el => el.dataset.userSelected === "true");
         
-        const contextSource = { 
-            type: 'youtube', 
-            videoId: YOUTUBE_ID, 
-            title: VIDEO_TITLE, 
-            timestamp: parseFloat(line.dataset.start), 
-            context: line.querySelector('.english').innerText,
-            contextEsp: line.querySelector('.spanish').innerText 
-        };
+        let textToSave = "";
+        
+        if (manualSelection.length > 0) {
+            // MODO FRASE
+            manualSelection.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
+            textToSave = manualSelection.map(el => sanitizeText(el.innerText)).join(" ");
+        } else {
+            // MODO LINEA
+            textToSave = sanitizeText(line.querySelector('.english').innerText);
+        }
+
+        if (!textToSave) return;
 
         const isDuplicate = (textToCheck) => {
             const cleanCheck = sanitizeText(textToCheck).toLowerCase();
@@ -1233,23 +1337,40 @@
             }
             return false;
         };
-        
-        if (!isDuplicate(cleanEng)) {
-            const rawEsp = line.querySelector('.spanish').innerText;
-            const cleanEsp = sanitizeText(rawEsp);
-            const newItem = { id: Date.now() + Math.random(), isFolder: false, eng: cleanEng, esp: cleanEsp, isHighlighted: false, source: contextSource, dateAdded: Date.now() };
+
+        if (!isDuplicate(textToSave)) {
+            const contextSource = { 
+                type: 'youtube', 
+                videoId: YOUTUBE_ID, 
+                title: VIDEO_TITLE, 
+                timestamp: parseFloat(line.dataset.start), 
+                context: line.querySelector('.english').innerText,
+                contextEsp: line.querySelector('.spanish').innerText 
+            };
+
+            const newItem = { 
+                id: Date.now() + Math.random(), 
+                isFolder: false, 
+                eng: textToSave, 
+                esp: contextSource.contextEsp, 
+                isHighlighted: false, 
+                source: contextSource, 
+                dateAdded: Date.now() 
+            };
             
             const targetNameRaw = VIDEO_TITLE || "Saved from Studio";
             const cleanTargetName = targetNameRaw.trim(); 
-
             let targetFolder = items.find(i => i.isFolder === true && i.name.trim().toLowerCase() === cleanTargetName.toLowerCase());
             
             if (targetFolder) { targetFolder.items.unshift(newItem); items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder); } 
             else { const newFolder = { id: Date.now() + 1, isFolder: true, name: cleanTargetName, items: [newItem] }; items.unshift(newFolder); }
             
             localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
+            
             const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
             setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
+            
+            manualSelection.forEach(el => delete el.dataset.userSelected);
             updateAllWordStates(); 
         } else { 
             alert("Esta frase ya existe en tu vocabulario."); 
@@ -1294,25 +1415,7 @@
         portal.style.display = 'none';
         frame.src = '';
     }
-
-        // --- NUEVA FUNCIÓN: TRADUCTOR INTEGRADO ---
-    async function fetchTranslation(text) {
-        try {
-            // Usamos MyMemory API (Gratis y no requiere Key para uso moderado)
-            const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|es`;
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            if(data && data.responseData && data.responseData.translatedText) {
-                return data.responseData.translatedText;
-            }
-            return ""; // Si falla, devuelve vacío
-        } catch (e) {
-            console.error("Error traduciendo:", e);
-            return "";
-        }
-    }
-
-    </script>
+</script>
+    
 </body>
 </html>
