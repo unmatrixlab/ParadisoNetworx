@@ -1388,17 +1388,44 @@
 
     const NEXUS_URL = 'https://paradisonetworx.com/echo2';
 
-    function openNexus() {
+function openNexus() {
         const portal = document.getElementById('nexus-portal');
         const frame = document.getElementById('nexus-frame');
         portal.style.display = 'block';
+        
         frame.onload = function() {
-            const vocabData = localStorage.getItem(VOCAB_KEY) || '[]';
+            // 1. Obtenemos los datos originales
+            let rawData = localStorage.getItem(VOCAB_KEY) || '[]';
+            let vocabData = JSON.parse(rawData);
+
+            // 2. EL TRUCO: Modificamos los datos SOLO para el envío
+            // Recorremos todo y cambiamos espacio normal ( ) por espacio protegido (&nbsp; / \u00A0)
+            const modifiedData = vocabData.map(folder => {
+                if(folder.isFolder && folder.items) {
+                    // Creamos una copia de los items para no dañar la base de datos original
+                    const newItems = folder.items.map(item => {
+                        // Si tiene texto en inglés y contiene espacios...
+                        if(item.eng && item.eng.includes(' ')) {
+                            // ...creamos una copia del item con el "Espacio Invisible"
+                            return { 
+                                ...item, 
+                                eng: item.eng.replace(/ /g, '\u00A0') // \u00A0 es el Non-Breaking Space
+                            };
+                        }
+                        return item;
+                    });
+                    return { ...folder, items: newItems };
+                }
+                return folder;
+            });
+
+            // 3. Enviamos los datos "Trucados" a la fábrica
             frame.contentWindow.postMessage({
                 action: 'IMPORT_DATA',
-                data: vocabData
+                data: JSON.stringify(modifiedData) // Enviamos la versión modificada
             }, '*');
         };
+
         frame.src = NEXUS_URL;
         if(player && typeof player.pauseVideo === 'function') { player.pauseVideo(); }
     }
