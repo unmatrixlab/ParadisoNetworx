@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en">   
+<head> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt Generator (Fixed Double Selection)</title>
+    <title>AI Prompt Generator (Full Hybrid)</title>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -17,7 +17,7 @@
             --accent-active: #2196F3;
             --danger: #cf6679;
             
-            /* === COLORES DE VOCABULARIO === */
+            /* === COLORES DE VOCABULARIO (IDÉNTICOS AL CÓDIGO 2) === */
             --saved-word: #ec4899;  /* Rosa (Palabra suelta) */
             --phrase-word: #f59e0b; /* Ámbar (Frase completa) */
             
@@ -34,26 +34,20 @@
             display: flex; flex-direction: column; align-items: center;
             overflow-x: hidden; width: 100%; padding-bottom: 80px; 
             
-            /* GLOBAL USER SELECT BLOCK */
+            /* GLOBAL USER SELECT BLOCK (UX APP) */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
         }
 
-        /* --- BLOQUEO DE SELECCIÓN NATIVA --- */
-        .interactive-word, .accordion-header, h2, .mode-label, .vocab-badge, .daw-panel {
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            cursor: pointer;
-        }
-
+        /* Elementos interactivos */
+        .interactive-word, .accordion-header, h2, .mode-label, .vocab-badge, .daw-panel { cursor: pointer; }
+        
+        /* Excepciones para inputs */
         input, textarea, .prompt-source, #prompt-output {
             -webkit-user-select: text !important;
             -moz-user-select: text !important;
-            -ms-user-select: text !important;
             user-select: text !important;
             cursor: text;
         }
@@ -175,7 +169,7 @@
         .save-phrase-btn { background: #374151; color: white; border: 1px solid #4b5563; opacity: 0.5; pointer-events: none; transition: all 0.2s; }
         .save-phrase-btn.ready { opacity: 1; pointer-events: all; background: var(--phrase-word); border-color: white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
 
-        /* === INTERACTIVE WORDS (LÓGICA HÍBRIDA CORREGIDA) === */
+        /* === INTERACTIVE WORDS (LÓGICA HÍBRIDA IDÉNTICA AL CÓDIGO 2) === */
         .interactive-word { 
             cursor: pointer; 
             border-bottom: 2px solid transparent; 
@@ -187,7 +181,6 @@
         .interactive-word:hover { background: rgba(255, 255, 255, 0.1); }
         
         /* 1. PALABRA GUARDADA (ROSA) */
-        /* Define el borde inferior. Si se combina con .phrase-saved, este borde DEBE persistir */
         .interactive-word.saved { 
             color: var(--saved-word); 
             font-weight: bold; 
@@ -196,7 +189,7 @@
         }
 
         /* 2. FRASE GUARDADA (ÁMBAR) */
-        /* Define fondo y color de texto, pero NO toca el borde */
+        /* Nota: NO usamos !important en el borde para permitir que el rosa sobrescriba si es necesario */
         .interactive-word.phrase-saved {
             background-color: var(--phrase-word) !important;
             color: white !important;
@@ -204,19 +197,22 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             margin: 0 1px;
             font-weight: normal;
+            border-bottom: none; /* Por defecto no tiene borde */
             text-shadow: none !important;
-            /* IMPORTANTE: No ponemos 'border-bottom: none' aquí para permitir que se vea el rosa si existe */
         }
 
-        /* 3. CASO HÍBRIDO (AMBAS CLASES) */
-        /* Solo para asegurar que el borde se vea encima del fondo naranja */
+        /* 3. COEXISTENCIA: ES AMBAS COSAS */
+        /* Si tiene ambas clases, queremos el fondo ámbar (ya lo tiene por !important arriba) */
+        /* Pero queremos el borde y color rosa para indicar que es una saved word */
         .interactive-word.saved.phrase-saved {
+            color: var(--saved-word) !important; /* El texto vuelve a ser rosa sobre fondo naranja */
             border-bottom: 2px solid var(--saved-word) !important;
+            font-weight: bold;
         }
 
         /* 4. SELECCIÓN ACTIVA (LONG PRESS) */
         .interactive-word.phrase-selecting {
-            background-color: rgba(245, 158, 11, 0.5) !important; /* Ámbar translúcido */
+            background-color: rgba(245, 158, 11, 0.5) !important; 
             color: white !important;
             border: 1px dashed var(--phrase-word);
             border-radius: 4px;
@@ -391,7 +387,7 @@
     <div id="results-container"></div>
 
 <script>
-/* 1. CONFIG DATA */
+/* 1. CONFIG DATA (FULL RESTORED) */
 const COMMON_DATA = {
     MODES: [
         { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
@@ -513,23 +509,17 @@ function sanitizeText(text) {
 }
 
 function refreshActiveView() {
-    // 1. Detectar dónde estamos
     const activeContent = document.querySelector('.accordion-content.active .interactive-content');
     if (!activeContent) return;
 
-    // 2. Obtener datos de LocalStorage
     const rawData = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
     const savedWordsSet = new Set();
     const savedPhrases = [];
 
-    // 3. Aplanar la base de datos (Extraer palabras y frases)
     const extract = (obj) => {
         const text = sanitizeText(obj.eng).toLowerCase();
-        if(text.includes(" ")) {
-            savedPhrases.push(text); // Es frase
-        } else {
-            savedWordsSet.add(text); // Es palabra
-        }
+        if(text.includes(" ")) savedPhrases.push(text);
+        else savedWordsSet.add(text);
     };
 
     rawData.forEach(item => {
@@ -537,20 +527,19 @@ function refreshActiveView() {
         else if(!item.isFolder && item.eng) extract(item);
     });
 
-    // Ordenar frases por longitud
     savedPhrases.sort((a, b) => b.length - a.length);
 
-    // 4. Limpieza inicial del DOM
     const allWords = Array.from(activeContent.querySelectorAll('.interactive-word'));
+    
+    // 1. Limpieza base
     allWords.forEach(el => {
-        // No tocamos lo que el usuario está seleccionando manualmente ahora mismo
         if (!el.classList.contains('phrase-selecting')) {
             el.classList.remove('saved', 'phrase-saved');
             delete el.dataset.phraseParent;
         }
     });
 
-    // 5. PASADA 1: Pintar Palabras Sueltas (ROSA)
+    // 2. Pintar Palabras (ROSA)
     allWords.forEach(el => {
         const clean = sanitizeText(el.innerText).toLowerCase();
         if (savedWordsSet.has(clean) && !el.classList.contains('phrase-selecting')) {
@@ -558,29 +547,25 @@ function refreshActiveView() {
         }
     });
 
-    // 6. PASADA 2: Pintar Frases (ÁMBAR) - ADITIVO (NO BORRA SAVED)
-    // Creamos un array de texto limpio para comparar
+    // 3. Pintar Frases (AMBAR) - SIN BORRAR ROSA
     const lineTextArr = allWords.map(el => sanitizeText(el.innerText).toLowerCase());
 
     savedPhrases.forEach(phrase => {
         const phraseArr = phrase.split(" ");
         const phraseLen = phraseArr.length;
 
-        // Recorremos el texto buscando coincidencias de la frase
         for (let i = 0; i <= lineTextArr.length - phraseLen; i++) {
             let match = true;
             for (let j = 0; j < phraseLen; j++) {
                 if (lineTextArr[i + j] !== phraseArr[j]) { match = false; break; }
             }
 
-            // Si hay coincidencia exacta
             if (match) {
                 for (let k = 0; k < phraseLen; k++) {
                     const targetEl = allWords[i + k];
-                    
-                    // Aplicamos estilo ÁMBAR (Inclusivo, no destructivo)
                     if (!targetEl.classList.contains('phrase-selecting')) {
-                        // NOTA: NO borramos 'saved'. Dejamos que coexistan.
+                        // AQUÍ ESTÁ LA CLAVE DEL CÓDIGO 2:
+                        // No borramos 'saved', solo añadimos 'phrase-saved'
                         targetEl.classList.add('phrase-saved');
                         targetEl.dataset.phraseParent = phrase; 
                     }
@@ -589,18 +574,18 @@ function refreshActiveView() {
         }
     });
 
-    // 7. Actualizar estadísticas de la píldora flotante
+    // Pill update
     currentStatsContext = activeContent;
     updateUnifiedPill(null);
 }
 
-/* === LONG PRESS LOGIC === */
+/* === INTERACTION LOGIC (LONG PRESS = DELETE PHRASE) === */
 function startPress(el) {
     isLongPressHandled = false;
     pressTimer = setTimeout(() => {
         handleLongPress(el);
         isLongPressHandled = true;
-    }, 500); // 0.5s para activar selección de frase
+    }, 500); 
 }
 
 function endPress(el, e) {
@@ -612,16 +597,40 @@ function endPress(el, e) {
 
 function handleShortClick(el) {
     if (isLongPressHandled) return; 
-
-    // AQUI ESTA LA MAGIA: Permitimos guardar palabra individual INCLUSO si es parte de una frase.
-    // El clic corto siempre intenta guardar/borrar la palabra individual.
+    // Siempre permite guardar/borrar palabra individual, aunque sea parte de frase
     saveWordToMDC(el.innerText, el); 
 }
 
 function handleLongPress(el) {
     if (navigator.vibrate) navigator.vibrate(50);
-    el.classList.toggle('phrase-selecting');
-    checkSelectionState(el);
+    
+    // Si la palabra es parte de una frase existente (Ámbar)...
+    if (el.dataset.phraseParent) {
+        // ...el clic largo inicia la lógica de BORRAR FRASE (Igual al Código 2)
+        deletePhraseFromMemory(el.dataset.phraseParent);
+    } else {
+        // ...si no, inicia selección manual
+        el.classList.toggle('phrase-selecting');
+        checkSelectionState(el);
+    }
+}
+
+function deletePhraseFromMemory(phraseText) {
+    if(!confirm(`Delete phrase: "${phraseText}"?`)) return;
+
+    let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    const cleanPhrase = phraseText.toLowerCase();
+
+    items = items.filter(i => !(!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === cleanPhrase));
+
+    items.forEach(folder => {
+        if (folder.isFolder && folder.items) {
+            folder.items = folder.items.filter(sub => sanitizeText(sub.eng).toLowerCase() !== cleanPhrase);
+        }
+    });
+
+    localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+    refreshActiveView();
 }
 
 function checkSelectionState(element) {
@@ -644,15 +653,11 @@ function savePhraseSelection(btn) {
     
     if (selected.length === 0) return;
 
-    // Ordenar por índice para que la frase tenga sentido
     selected.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
-    
     const phraseText = selected.map(el => sanitizeText(el.innerText)).join(" ");
     
-    // Guardar forzosamente (esp vacio)
     forceSavePhrase(phraseText, contentDiv);
 
-    // Limpiar UI
     selected.forEach(el => el.classList.remove('phrase-selecting'));
     btn.classList.remove('ready');
     btn.innerHTML = `💾 Save Phrase`;
@@ -665,7 +670,6 @@ function forceSavePhrase(cleanPhrase, elementContext) {
     let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
     const checkEng = cleanPhrase.toLowerCase();
 
-    // Chequeo simple de duplicados en memoria
     let exists = false;
     items.forEach(i => {
         if (!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === checkEng) exists = true;
@@ -679,7 +683,6 @@ function forceSavePhrase(cleanPhrase, elementContext) {
     const accordionItem = elementContext.closest('.accordion-item');
     const folderName = accordionItem ? accordionItem.querySelector('.header-content strong').innerText.trim() : "AI Generator";
     
-    // IMPORTANTE: esp: "" (Vacio), tal como solicitaste
     const newItem = { 
         id: Date.now(), 
         isFolder: false, 
@@ -715,7 +718,6 @@ function updateUnifiedPill(translationData = null) {
 
     pill.classList.add('visible');
 
-    // Stats ahora cuenta palabras guardadas INDIVIDUALES
     const savedElements = currentStatsContext.querySelectorAll('.interactive-word.saved');
     const uniqueSet = new Set();
     savedElements.forEach(el => uniqueSet.add(sanitizeText(el.innerText).toLowerCase()));
@@ -758,13 +760,12 @@ async function translateWord(text) {
     }, 5000);
 }
 
-// --- CORE INTERACTION LOGIC (ORIGINAL) ---
+// --- CORE INTERACTION LOGIC ---
 function toggleAccordion(id) {
     const content = document.getElementById(`content-${id}`);
     const isVisible = content.classList.contains('active');
     document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
     
-    // Limpiar selección manual
     document.querySelectorAll('.phrase-selecting').forEach(el => el.classList.remove('phrase-selecting'));
     document.querySelectorAll('.save-phrase-btn').forEach(btn => { btn.classList.remove('ready'); btn.innerHTML = "💾 Save Phrase"; });
 
@@ -788,7 +789,6 @@ function saveWordToMDC(word, element) {
     let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
     const checkEng = cleanWord.toLowerCase();
 
-    // Check Duplicates
     let wordFound = false;
     items.forEach(i => {
         if (!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === checkEng) wordFound = true;
@@ -801,7 +801,6 @@ function saveWordToMDC(word, element) {
     const folderName = accordionItem ? accordionItem.querySelector('.header-content strong').innerText.trim() : "AI Generator";
     
     if (!wordFound) {
-        // ESP: "" (VACIO)
         const newItem = { id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false, dateAdded: Date.now() };
         let targetFolder = items.find(i => i.isFolder && i.name.toLowerCase() === folderName.toLowerCase());
 
@@ -947,7 +946,7 @@ function removeFromNexusHistory(id) { nexusHistory = nexusHistory.filter(item =>
 function formatInteractiveContent(text) {
     if (!text) return "";
     const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    let i = 0; // Índice para ordenamiento de frases
+    let i = 0; 
     return safeText.split(/(\s+)/).map(token => {
         if (token.match(/^\s+$/)) return token; 
         const span = `<span class="interactive-word" data-idx="${i}" 
