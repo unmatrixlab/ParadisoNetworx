@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt Generator (Final UX)</title>
+    <title>AI Prompt Generator (Hybrid Logic)</title>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -41,17 +41,15 @@
             user-select: none;
         }
 
-        /* --- BLOQUEO DE SELECCIÓN NATIVA (UX APP - IGUAL AL CÓDIGO 2) --- */
-        /* Esto asegura que no aparezca el cursor de texto ni la selección azul */
+        /* --- BLOQUEO DE SELECCIÓN NATIVA --- */
         .interactive-word, .accordion-header, h2, .mode-label, .vocab-badge, .daw-panel {
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
-            cursor: pointer; /* Fuerza el cursor de mano para indicar interactividad */
+            cursor: pointer;
         }
 
-        /* EXCEPCIÓN: Permitir seleccionar texto en inputs y áreas de texto */
         input, textarea, .prompt-source, #prompt-output {
             -webkit-user-select: text !important;
             -moz-user-select: text !important;
@@ -177,7 +175,7 @@
         .save-phrase-btn { background: #374151; color: white; border: 1px solid #4b5563; opacity: 0.5; pointer-events: none; transition: all 0.2s; }
         .save-phrase-btn.ready { opacity: 1; pointer-events: all; background: var(--phrase-word); border-color: white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
 
-        /* === INTERACTIVE WORDS (LÓGICA PRIORITARIA DEL CÓDIGO 2) === */
+        /* === INTERACTIVE WORDS (LÓGICA HÍBRIDA) === */
         .interactive-word { 
             cursor: pointer; 
             border-bottom: 2px solid transparent; 
@@ -190,13 +188,13 @@
         
         /* 1. PALABRA GUARDADA (ROSA) */
         .interactive-word.saved { 
-            color: var(--saved-word) !important; 
+            color: var(--saved-word); 
             font-weight: bold; 
             border-bottom: 2px solid var(--saved-word);
             text-shadow: none;
         }
 
-        /* 2. FRASE GUARDADA (ÁMBAR) - Gana a Rosa con !important */
+        /* 2. FRASE GUARDADA (ÁMBAR) */
         .interactive-word.phrase-saved {
             background-color: var(--phrase-word) !important;
             color: white !important;
@@ -204,11 +202,18 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             margin: 0 1px;
             font-weight: normal;
-            border-bottom: none !important;
+            border-bottom: none; /* Por defecto sin borde */
             text-shadow: none !important;
         }
 
-        /* 3. SELECCIÓN ACTIVA (LONG PRESS) */
+        /* 3. ESTADO HÍBRIDO: ES FRASE (AMBAR) Y PALABRA (ROSA) A LA VEZ */
+        .interactive-word.saved.phrase-saved {
+            /* Mantiene fondo ambar y texto blanco de .phrase-saved */
+            /* Pero añade el indicador visual de palabra guardada */
+            border-bottom: 3px solid var(--saved-word) !important; /* Borde rosa más grueso */
+        }
+
+        /* 4. SELECCIÓN ACTIVA (LONG PRESS) */
         .interactive-word.phrase-selecting {
             background-color: rgba(245, 158, 11, 0.5) !important; /* Ámbar translúcido */
             color: white !important;
@@ -485,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/* === REAL-TIME SYNC ENGINE (LÓGICA EXACTA DEL CÓDIGO 2) === */
+/* === REAL-TIME SYNC ENGINE (HYBRID LOGIC) === */
 function startStorageWatcher() {
     lastStorageString = localStorage.getItem(MDC_VOCAB_KEY) || "";
     
@@ -531,7 +536,7 @@ function refreshActiveView() {
         else if(!item.isFolder && item.eng) extract(item);
     });
 
-    // Ordenar frases por longitud (las más largas tienen prioridad visual)
+    // Ordenar frases por longitud
     savedPhrases.sort((a, b) => b.length - a.length);
 
     // 4. Limpieza inicial del DOM
@@ -552,7 +557,7 @@ function refreshActiveView() {
         }
     });
 
-    // 6. PASADA 2: Pintar Frases (ÁMBAR) - Algoritmo de Ventana Deslizante
+    // 6. PASADA 2: Pintar Frases (ÁMBAR) - PERO SIN BORRAR EL ROSA
     // Creamos un array de texto limpio para comparar
     const lineTextArr = allWords.map(el => sanitizeText(el.innerText).toLowerCase());
 
@@ -563,13 +568,8 @@ function refreshActiveView() {
         // Recorremos el texto buscando coincidencias de la frase
         for (let i = 0; i <= lineTextArr.length - phraseLen; i++) {
             let match = true;
-            
-            // Verificamos si las siguientes X palabras coinciden con la frase
             for (let j = 0; j < phraseLen; j++) {
-                if (lineTextArr[i + j] !== phraseArr[j]) { 
-                    match = false; 
-                    break; 
-                }
+                if (lineTextArr[i + j] !== phraseArr[j]) { match = false; break; }
             }
 
             // Si hay coincidencia exacta
@@ -577,11 +577,11 @@ function refreshActiveView() {
                 for (let k = 0; k < phraseLen; k++) {
                     const targetEl = allWords[i + k];
                     
-                    // Aplicamos estilo ÁMBAR y quitamos ROSA (Prioridad)
+                    // Aplicamos estilo ÁMBAR (Inclusivo, no destructivo)
                     if (!targetEl.classList.contains('phrase-selecting')) {
-                        targetEl.classList.remove('saved'); // El Ámbar mata al Rosa
+                        // NOTA: NO borramos 'saved'. Dejamos que coexistan.
                         targetEl.classList.add('phrase-saved');
-                        targetEl.dataset.phraseParent = phrase; // Meta-dato útil
+                        targetEl.dataset.phraseParent = phrase; 
                     }
                 }
             }
@@ -612,13 +612,13 @@ function endPress(el, e) {
 function handleShortClick(el) {
     if (isLongPressHandled) return; 
 
-    // Si ya es una frase guardada, traducimos la frase completa
-    if (el.classList.contains('phrase-saved') && el.dataset.phraseParent) {
-         translateWord(el.dataset.phraseParent);
-         return;
-    }
-
-    // Comportamiento normal: Guardar/Borrar palabra suelta (Rosa)
+    // AQUI ESTA LA MAGIA: Permitimos guardar palabra individual INCLUSO si es parte de una frase.
+    // Simplemente llamamos a la función de guardar.
+    // Si queremos ver la traducción de la frase completa, solo si tiene phraseParent
+    
+    // Prioridad: Si es parte de una frase PERO no está guardada como palabra individual,
+    // al hacer click corto la guardamos como palabra (Rosa).
+    
     saveWordToMDC(el.innerText, el); 
 }
 
@@ -719,7 +719,8 @@ function updateUnifiedPill(translationData = null) {
 
     pill.classList.add('visible');
 
-    const savedElements = currentStatsContext.querySelectorAll('.interactive-word.saved, .interactive-word.phrase-saved');
+    // Stats ahora cuenta palabras guardadas INDIVIDUALES
+    const savedElements = currentStatsContext.querySelectorAll('.interactive-word.saved');
     const uniqueSet = new Set();
     savedElements.forEach(el => uniqueSet.add(sanitizeText(el.innerText).toLowerCase()));
     
