@@ -261,6 +261,22 @@
     cursor: default !important;
 }
 
+/* CORRECCIÓN #1: Asegura que la traducción no desaparezca en móvil */
+#trans-result-box {
+    font-size: 13px; 
+    color: #a5f3fc; 
+    font-weight: 600; 
+    max-width: 100px; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    margin-left: 8px; 
+    display: none;
+    
+    /* Esta línea es clave para móviles: impide que flexbox lo aplaste a 0px */
+    flex-shrink: 0; 
+}
+
         
     </style>
 </head>
@@ -396,10 +412,7 @@
             
             <button class="bar-btn" id="btn-speak-word" onclick="speakActiveOrSelected()">📢</button>
             
-            <div id="trans-result-box" style="
-                font-size: 13px; color: #a5f3fc; font-weight: 600; 
-                max-width: 100px; white-space: nowrap; overflow: hidden; 
-                text-overflow: ellipsis; margin-left: 8px; display:none;">...</div>
+            <div id="trans-result-box">...</div>
 
             <div class="bar-divider"></div>
             <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
@@ -1341,7 +1354,7 @@
 
     function saveSelectionToStorage(key, selector) { const selectedElements = document.querySelectorAll(selector); const indices = Array.from(selectedElements).map(el => parseInt(el.dataset.idx)); localStorage.setItem(key, JSON.stringify(indices)); }
     
-    // --- FUNCIÓN DE LIMPIEZA REACTIVADA Y MEJORADA ---
+    // --- FUNCIÓN DE LIMPIEZA CORREGIDA (RESET CONTADOR) ---
     function clearAllWords() { 
         if(!confirm('¿Eliminar todas las palabras guardadas QUE APARECEN en este video de tu vocabulario?')) return; 
         
@@ -1359,23 +1372,26 @@
         // 2. Filtrar la base de datos real (VOCAB_KEY)
         let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         
-        // Filtrar items sueltos
         items = items.filter(i => {
             if(!i.isFolder && i.eng && wordsToDelete.has(sanitizeText(i.eng).toLowerCase())) return false;
             return true;
         });
 
-        // Filtrar dentro de carpetas
         items.forEach(folder => {
             if(folder.isFolder && folder.items) {
                 folder.items = folder.items.filter(sub => !wordsToDelete.has(sanitizeText(sub.eng).toLowerCase()));
             }
         });
 
-        // 3. Guardar y refrescar
+        // 3. Guardar, resetear UI manualmente y refrescar
         localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
+        
+        // CORRECCION CRÍTICA: Forzamos el reset de variables antes de repintar
+        currentWordStats = { occurrences: "-", uniqueTotal: 0 }; 
+        
         updateAllWordStates();
         translateWordForBar(""); // Limpiar caja de traducción
+        renderCounterUI(); // Forzar renderizado del "0"
     }
     
   function attachButtonEvents() {
