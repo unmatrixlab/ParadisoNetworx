@@ -385,8 +385,8 @@
     let pressTimer;
     let isLongPressHandled = false;
 
-    // RASTREO PARA SELECCIÓN DE FRASES (Actualización 1)
-    let lastSelectionTracker = { idx: -1, line: null };
+    // RASTREO PARA EL SISTEMA DE FRASES (AMBAR)
+    let pendingPhraseWord = null;
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -1005,6 +1005,7 @@
     }
 
     function renderCounterUI() {
+        // Mantenemos la lógica de habilitar/deshabilitar aunque no haya flechas
         const btnClear = document.getElementById('btn-clear');
         const counter = document.getElementById('nav-counter');
         
@@ -1021,7 +1022,6 @@
         }
     }
 
-    // Navegación se mantiene intacta pero sin botones visuales
     function navigateWords(direction) {
         if (savedTimestamps.length === 0 || !player || !player.getCurrentTime) return;
         
@@ -1059,67 +1059,79 @@
         }
     }
 
-    // ACTUALIZACIÓN 1: Selección inteligente de frases
+    // CLIC CORTO (ROSA)
     function handleShortClick(el, event) {
         if (isLongPressHandled) return; 
         
-        const currentIdx = parseInt(el.dataset.idx);
-        const currentLine = el.closest('.line');
+        // Si hay un ambar pendiente, se cancela al hacer clic corto
+        pendingPhraseWord = null;
 
-        // Lógica de detección de rango hasta 6 palabras
-        if (lastSelectionTracker.line === currentLine) {
-            const prevIdx = lastSelectionTracker.idx;
-            const diff = Math.abs(currentIdx - prevIdx);
-
-            if (diff > 0 && diff <= 6) {
-                // Seleccionar todas en el medio
-                const start = Math.min(prevIdx, currentIdx);
-                const end = Math.max(prevIdx, currentIdx);
-                const wordsInLine = currentLine.querySelectorAll('.english-word');
-                
-                let phraseArr = [];
-                wordsInLine.forEach(w => {
-                    const wIdx = parseInt(w.dataset.idx);
-                    if (wIdx >= start && wIdx <= end) {
-                        phraseArr.push(sanitizeText(w.innerText));
-                    }
-                });
-
-                const fullPhrase = phraseArr.join(" ");
-                saveCustomPhrase(fullPhrase, currentLine);
-                
-                // Limpiar rastreador para la siguiente selección
-                lastSelectionTracker = { idx: -1, line: null };
-                return;
-            }
-        }
-
-        // Si no hay rango, guardamos este click como el posible inicio de una frase
-        lastSelectionTracker = { idx: currentIdx, line: currentLine };
-        
         const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
         translateWordForBar(rawText);
         toggleWordSelection(el, event); 
     }
 
-    // Helper para guardar frases detectadas por rango
-    function saveCustomPhrase(phraseText, lineElement) {
+    // TOQUE LARGO (AMBAR)
+    function handleLongPressLogic(el) {
+        if (navigator.vibrate) navigator.vibrate(50); 
+
+        // Si ya es parte de una frase guardada, lo borramos (funcionalidad original)
+        if (el.dataset.phraseParent) {
+            deletePhraseFromMemory(el.dataset.phraseParent);
+            pendingPhraseWord = null;
+            return;
+        }
+
+        const currentIdx = parseInt(el.dataset.idx);
+        const currentLine = el.closest('.line');
+
+        // MAGIA DEL RANGO (Selección de Frase)
+        if (pendingPhraseWord && pendingPhraseWord.line === currentLine) {
+            const startIdx = pendingPhraseWord.idx;
+            const diff = Math.abs(currentIdx - startIdx);
+
+            if (diff > 0 && diff <= 6) {
+                const wordsElements = Array.from(currentLine.querySelectorAll('.english-word'));
+                const min = Math.min(startIdx, currentIdx);
+                const max = Math.max(startIdx, currentIdx);
+                
+                let wordsToJoin = [];
+                wordsElements.forEach(wordEl => {
+                    const idx = parseInt(wordEl.dataset.idx);
+                    if (idx >= min && idx <= max) {
+                        wordsToJoin.push(sanitizeText(wordEl.innerText));
+                    }
+                });
+
+                const fullPhrase = wordsToJoin.join(" ");
+                savePhraseToVocabDirect(fullPhrase, currentLine);
+                
+                pendingPhraseWord = null; // Reiniciamos el rastreador
+                return;
+            }
+        }
+
+        // Si no hay nada pendiente o está fuera de rango, este toque largo es el nuevo inicio
+        pendingPhraseWord = { idx: currentIdx, line: currentLine };
+    }
+
+    function savePhraseToVocabDirect(text, line) {
         let vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        const cleanPhrase = sanitizeText(phraseText);
-        
+        const cleanText = sanitizeText(text);
+
         const contextSource = { 
             type: 'youtube', 
             videoId: YOUTUBE_ID, 
             title: VIDEO_TITLE, 
-            timestamp: parseFloat(lineElement.dataset.start), 
-            context: lineElement.querySelector('.english').innerText,
-            contextEsp: lineElement.querySelector('.spanish').innerText 
+            timestamp: parseFloat(line.dataset.start), 
+            context: line.querySelector('.english').innerText,
+            contextEsp: line.querySelector('.spanish').innerText 
         };
 
         const newItem = {
             id: Date.now() + Math.random(),
             isFolder: false,
-            eng: cleanPhrase,
+            eng: cleanText,
             esp: "",
             isHighlighted: false,
             source: contextSource,
@@ -1140,22 +1152,6 @@
         
         localStorage.setItem(VOCAB_KEY, JSON.stringify(vocab));
         updateAllWordStates();
-    }
-
-    function handleLongPressLogic(el) {
-        if (navigator.vibrate) navigator.vibrate(50); 
-
-        if (el.dataset.phraseParent) {
-            deletePhraseFromMemory(el.dataset.phraseParent);
-            return;
-        }
-
-        el.classList.toggle('phrase-word');
-        if (el.classList.contains('phrase-word')) {
-            el.dataset.userSelected = "true"; 
-        } else {
-            delete el.dataset.userSelected;
-        }
     }
 
     function deletePhraseFromMemory(phraseText) {
