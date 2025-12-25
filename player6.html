@@ -152,7 +152,7 @@
         /* TABLE PRO STYLES */
         .frag-table { width: 100%; border-collapse: collapse; color: #e5e7eb; font-size: 13px; }
         .frag-table th { text-align: left; padding: 10px; border-bottom: 2px solid #374151; color: #9ca3af; text-transform: uppercase; font-size: 11px; white-space: nowrap; }
-        .frag-table td { padding: 8px 10px; border-bottom: 1px solid #374151; vertical-align: middle; white-space: nowrap; } /* NO LINE BREAKS */
+        .frag-table td { padding: 8px 10px; border-bottom: 1px solid #374151; vertical-align: middle; white-space: nowrap; }
         .frag-row:hover { background: rgba(255,255,255,0.03); }
         .frag-row.active-loop { background: rgba(79, 70, 229, 0.1); border-left: 3px solid var(--primary); }
 
@@ -164,11 +164,18 @@
         .metric-pill { background: #374151; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; color: #a5f3fc; display: inline-block; margin: 1px; }
         
         /* TIME EDIT STYLES */
-        .time-edit-group { display: flex; align-items: center; gap: 4px; }
-        .time-input { width: 80px; background: rgba(0,0,0,0.2); border: 1px solid #4b5563; color: white; border-radius: 4px; padding: 4px; font-family: monospace; font-size: 12px; text-align: center; }
-        .time-input:focus { border-color: var(--primary); outline: none; }
-        .btn-set-time { background: #4b5563; border: none; color: white; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+        .time-inputs-container { display: flex; align-items: center; gap: 4px; }
+        .frag-input-qty { width: 32px; background: rgba(0,0,0,0.2); border: 1px solid #4b5563; color: white; border-radius: 4px; padding: 4px 0; font-family: monospace; font-size: 12px; text-align: center; }
+        .frag-input-qty:focus { border-color: var(--primary); outline: none; }
+        .btn-set-time { background: #4b5563; border: none; color: white; border-radius: 4px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; margin-left: 6px;}
         .btn-set-time:hover { background: var(--primary); }
+        
+        .frag-btn-del {
+            background: transparent; border: none; color: #ef4444; font-size: 16px; cursor: pointer;
+            width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: 0.2s;
+        }
+        .frag-btn-del:hover { background: rgba(239, 68, 68, 0.1); }
 
         body.focus-mode .line:not(.active-loop-range) { opacity: 0.2; filter: blur(2px); pointer-events: none; transition: all 0.5s; }
         .line.active-loop-range { opacity: 1; filter: none; transform: scale(1.01); border-left-color: #f59e0b; background: white; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
@@ -274,11 +281,12 @@
                         <tr>
                             <th style="width: 80px;">Status</th>
                             <th>Name</th>
-                            <th>Start (H:M:S)</th>
-                            <th>End (H:M:S)</th>
+                            <th>Start (H : M : S)</th>
+                            <th>End (H : M : S)</th>
                             <th>Vocab Saved</th>
                             <th>Time Spent</th>
-                            <th>Actions</th>
+                            <th style="width: 100px;">Actions</th>
+                            <th style="width: 40px;"></th>
                         </tr>
                     </thead>
                     <tbody id="frag-table-body">
@@ -426,7 +434,9 @@
                 <div class="h-thumb" style="background-image: url('https://img.youtube.com/vi/${item.id}/default.jpg')"></div>
                 <div class="h-info">
                     <div class="h-title">${item.title}</div>
-                    <div class="h-date" style="color:#4f46e5; font-weight:600;">☁️ ${catDisplay}</div>
+                    <div class="h-date">
+                        <div class="h-tag">${catDisplay}</div>
+                    </div>
                 </div>
                 <div style="font-size:18px; color:#aaa;">▶</div>`;
             list.appendChild(div);
@@ -857,23 +867,30 @@
         }
     }
 
-    // === TIME FORMATTERS (HH:MM:SS) ===
-    function formatTimeForInput(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    // === SPLIT TIME HELPER (HH:MM:SS) ===
+    function makeTimeInputHTML(id, type, totalSeconds) {
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = Math.floor(totalSeconds % 60);
+        
+        return `
+        <div class="time-inputs-container">
+            <input type="number" min="0" class="frag-input-qty" value="${h}" onchange="updateFragTimeFromParts('${id}', '${type}', this.parentNode)">:
+            <input type="number" min="0" max="59" class="frag-input-qty" value="${m}" onchange="updateFragTimeFromParts('${id}', '${type}', this.parentNode)">:
+            <input type="number" min="0" max="59" class="frag-input-qty" value="${s}" onchange="updateFragTimeFromParts('${id}', '${type}', this.parentNode)">
+            <button class="btn-set-time" onclick="captureTimeForFragment('${id}', '${type}')" title="Set to Now">📍</button>
+        </div>`;
     }
 
-    function parseTimeFromInput(timeStr) {
-        const parts = timeStr.split(':').map(Number);
-        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-        if (parts.length === 2) return (parts[0] * 60) + parts[1];
-        if (parts.length === 1) return parts[0];
-        return 0;
+    function updateFragTimeFromParts(id, type, parentDiv) {
+        const inputs = parentDiv.querySelectorAll('input');
+        const h = parseInt(inputs[0].value) || 0;
+        const m = parseInt(inputs[1].value) || 0;
+        const s = parseInt(inputs[2].value) || 0;
+        
+        const totalSecs = (h * 3600) + (m * 60) + s;
+        updateFragmentTime(id, type, totalSecs);
     }
-
-    function pad(num) { return num < 10 ? '0' + num : num; }
 
     function renderFragmentList() {
         const tbody = document.getElementById('frag-table-body');
@@ -891,22 +908,11 @@
             const statusClass = frag.status === 'master' ? 'st-master' : (frag.status === 'study' ? 'st-study' : 'st-new');
             const statusLabel = frag.status === 'master' ? 'Mastered' : (frag.status === 'study' ? 'Studying' : 'New');
 
-            // NEW: Inputs with HH:MM:SS format
             tr.innerHTML = `
                 <td><span class="status-badge ${statusClass}" onclick="cycleFragmentStatus('${frag.id}')">${statusLabel}</span></td>
                 <td contenteditable="true" onblur="updateFragmentName('${frag.id}', this.innerText)">${frag.name}</td>
-                <td>
-                    <div class="time-edit-group">
-                        <input type="text" class="time-input" value="${formatTimeForInput(frag.start)}" onchange="updateFragmentTime('${frag.id}', 'start', this.value)">
-                        <button class="btn-set-time" onclick="captureTimeForFragment('${frag.id}', 'start')" title="Set Start to Now">📍</button>
-                    </div>
-                </td>
-                <td>
-                    <div class="time-edit-group">
-                        <input type="text" class="time-input" value="${formatTimeForInput(frag.end)}" onchange="updateFragmentTime('${frag.id}', 'end', this.value)">
-                        <button class="btn-set-time" onclick="captureTimeForFragment('${frag.id}', 'end')" title="Set End to Now">📍</button>
-                    </div>
-                </td>
+                <td>${makeTimeInputHTML(frag.id, 'start', frag.start)}</td>
+                <td>${makeTimeInputHTML(frag.id, 'end', frag.end)}</td>
                 <td>
                     <span class="metric-pill">📖 ${stats.phrases} Phr</span>
                     <span class="metric-pill">🔑 ${stats.words} Wrd</span>
@@ -917,7 +923,9 @@
                         ? `<button class="frag-btn" onclick="stopFragmentLoop()" style="background:#ef4444">⏹ Stop</button>`
                         : `<button class="frag-btn primary" onclick="playFragment('${frag.id}')">▶ Focus</button>`
                     }
-                    <button style="margin-top:5px; font-size:10px; color:red; background:none; border:none; cursor:pointer;" onclick="deleteFragment('${frag.id}')">Delete</button>
+                </td>
+                <td>
+                    <button class="frag-btn-del" onclick="deleteFragment('${frag.id}')">✕</button>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -929,14 +937,12 @@
     function updateFragmentTime(id, type, value) {
         const frag = videoFragments.find(f => f.id === id);
         if (frag) {
-            // Check if value is string (from input) or number (from button)
-            if (typeof value === 'string') {
-                frag[type] = parseTimeFromInput(value);
-            } else {
-                frag[type] = value;
-            }
+            frag[type] = parseFloat(value);
             localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
-            renderFragmentList(); 
+            // Just re-render table to refresh stats
+            if (!document.activeElement.classList.contains('frag-input-qty')) {
+                renderFragmentList(); 
+            }
         }
     }
 
@@ -944,6 +950,7 @@
         if (!player) return;
         const current = player.getCurrentTime();
         updateFragmentTime(id, type, current);
+        renderFragmentList(); // Force redraw inputs
     }
 
     function calculateFragmentStats(start, end) {
