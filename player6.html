@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Optimized)</title>
+    <title>MDC Studio Player (Mastery Edition)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -254,28 +254,79 @@
             flex-shrink: 0; 
         }
 
-
-/* Estado: Esperando Punto B (Amarillo) */
-.bar-btn.ab-wait {
-    background: #f59e0b !important; /* Ambar */
-    color: white !important;
-    animation: pulse 1.5s infinite;
-}
-
-/* Estado: Bucle Activo (Verde) */
-.bar-btn.ab-active {
-    background: #10b981 !important; /* Verde */
-    color: white !important;
-    box-shadow: 0 0 10px #10b981;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.6; }
-    100% { opacity: 1; }
-}
-
+        /* === FRAGMENT MANAGER STYLES === */
+        #fragment-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .frag-container {
+            background: #1f2937;
+            width: 90%; max-width: 800px;
+            height: 80%;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #374151;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        .frag-header {
+            padding: 20px;
+            border-bottom: 1px solid #374151;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #111827;
+        }
+        .frag-title { color: white; font-size: 18px; font-weight: 700; }
+        .frag-close { background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; }
+        .frag-body { flex: 1; overflow-y: auto; padding: 20px; }
         
+        .frag-controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .frag-btn { 
+            background: #374151; color: white; border: none; padding: 8px 16px; 
+            border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+            display: flex; align-items: center; gap: 6px; transition: 0.2s;
+        }
+        .frag-btn:hover { background: #4b5563; }
+        .frag-btn.primary { background: var(--primary); }
+        .frag-btn.primary:hover { background: var(--primary-hover); }
+
+        .frag-table { width: 100%; border-collapse: collapse; color: #e5e7eb; font-size: 13px; }
+        .frag-table th { text-align: left; padding: 10px; border-bottom: 2px solid #374151; color: #9ca3af; text-transform: uppercase; font-size: 11px; }
+        .frag-table td { padding: 12px 10px; border-bottom: 1px solid #374151; vertical-align: middle; }
+        .frag-row:hover { background: rgba(255,255,255,0.03); }
+        .frag-row.active-loop { background: rgba(79, 70, 229, 0.1); border-left: 3px solid var(--primary); }
+
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; cursor: pointer; display: inline-block; min-width: 70px; text-align: center; }
+        .st-new { background: #fee2e2; color: #991b1b; }
+        .st-study { background: #fef3c7; color: #92400e; }
+        .st-master { background: #d1fae5; color: #065f46; }
+
+        .metric-pill { background: #374151; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; color: #a5f3fc; }
+        
+        /* FOCUS MODE BLUR EFFECT */
+        body.focus-mode .line:not(.active-loop-range) {
+            opacity: 0.2;
+            filter: blur(2px);
+            pointer-events: none;
+            transition: all 0.5s;
+        }
+        .line.active-loop-range {
+            opacity: 1;
+            filter: none;
+            transform: scale(1.01);
+            border-left-color: #f59e0b;
+            background: white;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -360,6 +411,39 @@
     </div>
 </div>
 
+<div id="fragment-modal">
+    <div class="frag-container">
+        <div class="frag-header">
+            <div class="frag-title">🧩 Study Fragments</div>
+            <button class="frag-close" onclick="toggleFragmentsMenu()">×</button>
+        </div>
+        <div class="frag-body">
+            <div class="frag-controls">
+                <button class="frag-btn primary" onclick="addFragment()">
+                    <span>➕ New Fragment (Current Time)</span>
+                </button>
+                <div style="margin-left: auto; display: flex; gap: 10px; align-items: center; color: #9ca3af; font-size: 12px;">
+                    <span id="total-time-studied">Total Study: 0m</span>
+                </div>
+            </div>
+            <table class="frag-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Range</th>
+                        <th>Vocab Saved</th>
+                        <th>Time Spent</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="frag-table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <div id="player-ui">
     <button id="home-btn" onclick="goHome()">🏠 Back</button>
 
@@ -398,10 +482,12 @@
         <div id="trans-result-box">...</div>
 
         <div class="bar-divider"></div>
+        
+        <button class="bar-btn" id="btn-fragments" onclick="toggleFragmentsMenu()" title="Manage Fragments" style="font-size: 16px;">🧩</button>
+        
         <button class="bar-btn" id="btn-speed" onclick="cycleSpeed()" style="width:auto; padding:0 8px; font-size:12px; font-weight:700;">1x</button>
         <button class="bar-btn" id="btn-timing" onclick="toggleMenu('timing-menu')" style="font-size: 16px;">⏱️</button>
         <button class="bar-btn" id="btn-position" onclick="toggleMenu('position-menu')" style="font-size: 18px;">↕️</button>
-        <button class="bar-btn" id="btn-ab-loop" onclick="handleABLoop()" style="font-size: 14px; width: auto; min-width: 36px; font-weight: 700;">A-B</button>
         <div class="bar-divider"></div>
         <button class="bar-btn" id="btn-loop" onclick="toggleLoop()" style="font-size: 16px;">🔁</button>
         <button class="bar-btn" id="btn-mirror" onclick="toggleMirror()" style="font-size: 16px;">🪞</button>
@@ -432,14 +518,13 @@
     let savedTimestamps = [];
     let pressTimer;
     let isLongPressHandled = false;
-    let pendingPhraseStartIdx = null; // NUEVA VARIABLE GLOBAL
+    let pendingPhraseStartIdx = null; 
 
-
-    // ... tus otras variables ...
-let abStart = null;
-let abEnd = null;
-let isABLooping = false;
-// ...
+    // === FRAGMENT MANAGER VARS ===
+    let STORAGE_KEY_FRAGMENTS = "";
+    let videoFragments = []; // Array of {id, start, end, name, status, timeSpent}
+    let activeFragmentId = null; // ID of current loop
+    let fragmentStartTime = null; // For tracking session time
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -481,45 +566,6 @@ let isABLooping = false;
         } catch (error) {
             console.error(error);
             list.innerHTML = `<div class="empty-history" style="color:#ef4444;">❌ No se pudo cargar la biblioteca.</div>`;
-        }
-    }
-
-    function handleABLoop() {
-        const btn = document.getElementById('btn-ab-loop');
-        const currentTime = player.getCurrentTime();
-
-        // ESTADO 1: Nada marcado -> Marcar A
-        if (abStart === null) {
-            abStart = currentTime;
-            btn.innerText = "A-?";
-            btn.classList.add('ab-wait');
-            // Opcional: Feedback visual
-            // alert("Punto A marcado. Reproduce hasta donde quieras y pulsa de nuevo.");
-        } 
-        // ESTADO 2: A marcado -> Marcar B y Activar
-        else if (abStart !== null && abEnd === null) {
-            // Asegurar que B sea mayor que A
-            if (currentTime <= abStart) {
-                alert("El punto B debe ser posterior al punto A");
-                return;
-            }
-            abEnd = currentTime;
-            isABLooping = true;
-            btn.innerText = "A-B";
-            btn.classList.remove('ab-wait');
-            btn.classList.add('ab-active');
-            
-            // Llevar el video al inicio del bucle inmediatamente
-            player.seekTo(abStart);
-        }
-        // ESTADO 3: Activo -> Borrar todo
-        else {
-            abStart = null;
-            abEnd = null;
-            isABLooping = false;
-            btn.innerText = "A-B";
-            btn.classList.remove('ab-wait');
-            btn.classList.remove('ab-active');
         }
     }
 
@@ -574,9 +620,7 @@ let isABLooping = false;
 
    async function startNewSession() {
         const rawInput = document.getElementById('input-yt-id').value.trim();
-        // 1. CAPTURAR EL TÍTULO MANUAL
         const manualTitle = document.getElementById('input-video-title').value.trim();
-        
         const category = document.getElementById('input-category').value;
         let extractedID = extractVideoID(rawInput);
         
@@ -593,12 +637,7 @@ let isABLooping = false;
         try {
             const textEn = await readFile(fileEn);
             const textEs = await readFile(fileEs);
-            
-            // 2. LOGICA DE PRIORIDAD DE TÍTULO
-            // Si el usuario escribió un título, úsalo. Si no, usa el placeholder.
-            const finalTitle = manualTitle.length > 0 ? manualTitle : "No name chargued";
-            
-            // Actualizamos la variable global inmediatamente
+            const finalTitle = manualTitle.length > 0 ? manualTitle : "Video Cargado";
             VIDEO_TITLE = finalTitle; 
 
             processAndLaunch(textEn, textEs, YOUTUBE_ID, finalTitle);
@@ -804,9 +843,6 @@ let isABLooping = false;
 
   function onPlayerReady(event) {
         const data = player.getVideoData();
-        
-        // Solo sobrescribir si el título actual es el genérico "Video Cargado"
-        // Si el usuario puso uno manual, NO lo tocamos.
         if(data && data.title && VIDEO_TITLE === 'Video Cargado') { 
             VIDEO_TITLE = data.title; 
             updateHistoryTitle(YOUTUBE_ID, data.title); 
@@ -833,18 +869,48 @@ let isABLooping = false;
     function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
+        if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+        
+        // === FRAGMENT LOOP LOGIC ===
+        if (activeFragmentId) {
+            const frag = videoFragments.find(f => f.id === activeFragmentId);
+            if (frag) {
+                // FOCUS VISUAL EFFECT
+                if (!document.body.classList.contains('focus-mode')) {
+                    document.body.classList.add('focus-mode');
+                    document.querySelectorAll('.line').forEach(line => {
+                        const lStart = parseFloat(line.dataset.start);
+                        if (lStart >= frag.start - 1 && lStart <= frag.end) {
+                            line.classList.add('active-loop-range');
+                        } else {
+                            line.classList.remove('active-loop-range');
+                        }
+                    });
+                }
 
-        // === NUEVO BLOQUE PARA A-B LOOP ===
-        if (isABLooping && abStart !== null && abEnd !== null) {
-            // Si nos pasamos del final (B) o estamos antes del inicio (A) (por si el usuario retrocede manual)
-            // Le damos un margen de 0.5s para que no corte el audio muy brusco
-            if (currentTime >= abEnd || currentTime < abStart) {
-                player.seekTo(abStart);
-                return; // Importante: Salimos para que no interfiera con otras lógicas
+                // LOOP BOUNDARIES
+                if (currentTime >= frag.end || currentTime < frag.start - 0.5) {
+                    player.seekTo(frag.start);
+                    return; 
+                }
+
+                // TIME TRACKING (Only count if playing)
+                if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    trackFragmentTime(frag);
+                }
+            } else {
+                // Fragment deleted but ID active? Reset.
+                activeFragmentId = null;
+            }
+        } else {
+            // CLEANUP VISUALS IF NO FRAGMENT ACTIVE
+            if (document.body.classList.contains('focus-mode')) {
+                document.body.classList.remove('focus-mode');
+                document.querySelectorAll('.active-loop-range').forEach(l => l.classList.remove('active-loop-range'));
             }
         }
-        
-        if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+        // ============================
+
         if (isSegmentPlaying && currentTime >= segmentEndTime) {
             if (isMirrorActive) {
                 player.pauseVideo(); isSegmentPlaying = false; 
@@ -880,6 +946,18 @@ let isABLooping = false;
             player.pauseVideo(); isSegmentPlaying = false; resetButtons(); scrollEnabled = true; return;
         }
         if (scrollEnabled) highlightCurrentLine(currentTime);
+    }
+
+    // === TIME TRACKING HELPER ===
+    function trackFragmentTime(fragment) {
+        // Only update every second to avoid heavy IO
+        const now = Math.floor(Date.now() / 1000);
+        if (fragmentStartTime !== now) {
+            fragmentStartTime = now;
+            fragment.timeSpent = (fragment.timeSpent || 0) + 1;
+            // Save to memory immediately (or use debounce for better perf)
+            localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        }
     }
 
     function highlightCurrentLine(time) {
@@ -924,7 +1002,183 @@ let isABLooping = false;
         attachButtonEvents();
         initLazyObserver();
         
-        STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
+        STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; 
+        STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
+        STORAGE_KEY_FRAGMENTS = 'mdc_fragments_' + YOUTUBE_ID; // Init key
+        loadFragments(); // Load data
+    }
+
+    // === FRAGMENT MANAGER LOGIC ===
+
+    function loadFragments() {
+        const raw = localStorage.getItem(STORAGE_KEY_FRAGMENTS);
+        if (raw) {
+            try { videoFragments = JSON.parse(raw); } catch (e) { videoFragments = []; }
+        } else {
+            videoFragments = [];
+        }
+    }
+
+    function toggleFragmentsMenu() {
+        const modal = document.getElementById('fragment-modal');
+        if (modal.style.display === 'flex') {
+            modal.style.display = 'none';
+            if (player) player.playVideo();
+        } else {
+            modal.style.display = 'flex';
+            if (player) player.pauseVideo();
+            renderFragmentList();
+        }
+    }
+
+    function renderFragmentList() {
+        const tbody = document.getElementById('frag-table-body');
+        tbody.innerHTML = '';
+        let totalSecs = 0;
+
+        videoFragments.forEach(frag => {
+            totalSecs += (frag.timeSpent || 0);
+            
+            // Calculate stats intelligently
+            const stats = calculateFragmentStats(frag.start, frag.end);
+            const duration = Math.round(frag.end - frag.start);
+            const timeStudied = formatTime(frag.timeSpent || 0);
+
+            const tr = document.createElement('tr');
+            tr.className = 'frag-row ' + (activeFragmentId === frag.id ? 'active-loop' : '');
+            
+            // Status Badge
+            const statusClass = frag.status === 'master' ? 'st-master' : (frag.status === 'study' ? 'st-study' : 'st-new');
+            const statusLabel = frag.status === 'master' ? 'Mastered' : (frag.status === 'study' ? 'Studying' : 'New');
+
+            tr.innerHTML = `
+                <td><span class="status-badge ${statusClass}" onclick="cycleFragmentStatus('${frag.id}')">${statusLabel}</span></td>
+                <td contenteditable="true" onblur="updateFragmentName('${frag.id}', this.innerText)">${frag.name}</td>
+                <td style="color:#6b7280">${formatTimeShort(frag.start)} - ${formatTimeShort(frag.end)} (${duration}s)</td>
+                <td>
+                    <span class="metric-pill">📖 ${stats.phrases} Phr</span>
+                    <span class="metric-pill">🔑 ${stats.words} Wrd</span>
+                </td>
+                <td style="font-weight:700; color:#4f46e5;">${timeStudied}</td>
+                <td>
+                    ${activeFragmentId === frag.id 
+                        ? `<button class="frag-btn" onclick="stopFragmentLoop()" style="background:#ef4444">⏹ Stop</button>`
+                        : `<button class="frag-btn primary" onclick="playFragment('${frag.id}')">▶ Focus</button>`
+                    }
+                    <button style="margin-top:5px; font-size:10px; color:red; background:none; border:none; cursor:pointer;" onclick="deleteFragment('${frag.id}')">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('total-time-studied').innerText = `Total Study: ${formatTime(totalSecs)}`;
+    }
+
+    function calculateFragmentStats(start, end) {
+        let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
+        let phrases = 0;
+        let words = 0;
+
+        const scan = (list) => {
+            list.forEach(item => {
+                if (item.isFolder && item.items) scan(item.items);
+                else {
+                    // Check if item belongs to this video AND this time range
+                    if (item.source && item.source.videoId === YOUTUBE_ID) {
+                        if (item.source.timestamp >= start && item.source.timestamp <= end) {
+                            if (item.eng.includes(' ')) phrases++; else words++;
+                        }
+                    }
+                }
+            });
+        };
+        scan(items);
+        return { phrases, words };
+    }
+
+    function addFragment() {
+        if (!player) return;
+        const current = player.getCurrentTime();
+        // Create a 15 second fragment around current time
+        const start = Math.max(0, current - 5);
+        const end = current + 10;
+        
+        const newFrag = {
+            id: Date.now().toString(),
+            name: `Fragment ${videoFragments.length + 1}`,
+            start: start,
+            end: end,
+            status: 'new',
+            timeSpent: 0
+        };
+        
+        videoFragments.push(newFrag);
+        localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        renderFragmentList();
+    }
+
+    function playFragment(id) {
+        const frag = videoFragments.find(f => f.id === id);
+        if (!frag) return;
+        
+        activeFragmentId = id;
+        
+        // Close modal
+        document.getElementById('fragment-modal').style.display = 'none';
+        
+        // Auto seek and play
+        player.seekTo(frag.start);
+        player.playVideo();
+        
+        // Update status if it was new
+        if (frag.status === 'new') {
+            frag.status = 'study';
+            localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        }
+    }
+
+    function stopFragmentLoop() {
+        activeFragmentId = null;
+        renderFragmentList();
+    }
+
+    function cycleFragmentStatus(id) {
+        const frag = videoFragments.find(f => f.id === id);
+        if (!frag) return;
+        if (frag.status === 'new') frag.status = 'study';
+        else if (frag.status === 'study') frag.status = 'master';
+        else frag.status = 'new';
+        
+        localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        renderFragmentList();
+    }
+
+    function updateFragmentName(id, name) {
+        const frag = videoFragments.find(f => f.id === id);
+        if (frag) {
+            frag.name = name;
+            localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        }
+    }
+
+    function deleteFragment(id) {
+        if(!confirm("Delete this fragment?")) return;
+        videoFragments = videoFragments.filter(f => f.id !== id);
+        if (activeFragmentId === id) activeFragmentId = null;
+        localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        renderFragmentList();
+    }
+
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}m ${s}s`;
+    }
+    
+    function formatTimeShort(seconds) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0'+s : s}`;
     }
 
     function updateTimingSettings() {
@@ -1180,29 +1434,25 @@ let isABLooping = false;
         // 1. Si es una frase guardada, borrarla
         if (el.dataset.phraseParent) {
             deletePhraseFromMemory(el.dataset.phraseParent);
-            pendingPhraseStartIdx = null; // Resetear si borramos
+            pendingPhraseStartIdx = null; 
             return;
         }
 
         const currentIdx = parseInt(el.dataset.idx);
 
         // 2. Lógica de selección de frase
-        // Si no hay punto de inicio pendiente
         if (pendingPhraseStartIdx === null) {
             el.classList.add('phrase-word');
             el.dataset.userSelected = "true";
             pendingPhraseStartIdx = currentIdx;
         } 
-        // Si ya hay un punto de inicio
         else {
             const diff = Math.abs(currentIdx - pendingPhraseStartIdx);
 
             if (diff > 0 && diff <= 6) {
-                // Rango válido, rellenar el medio
                 const start = Math.min(pendingPhraseStartIdx, currentIdx);
                 const end = Math.max(pendingPhraseStartIdx, currentIdx);
 
-                // Buscar elementos en el DOM dentro de este rango de indices
                 document.querySelectorAll('.english-word').forEach(word => {
                     const wIdx = parseInt(word.dataset.idx);
                     if (wIdx >= start && wIdx <= end) {
@@ -1210,19 +1460,15 @@ let isABLooping = false;
                         word.dataset.userSelected = "true";
                     }
                 });
-                pendingPhraseStartIdx = null; // Terminar selección
+                pendingPhraseStartIdx = null; 
             } 
             else if (diff === 0) {
-                 // Clic en la misma palabra, deseleccionar
                  el.classList.remove('phrase-word');
                  delete el.dataset.userSelected;
                  pendingPhraseStartIdx = null;
             }
             else {
-                // Distancia > 6 palabras. REGLA: No agregar nada.
-                // Reiniciamos la selección para que el usuario empiece de nuevo desde aquí si quiere
                 pendingPhraseStartIdx = null;
-                // Tratamos este clic como un nuevo inicio limpio
                 el.classList.add('phrase-word');
                 el.dataset.userSelected = "true";
                 pendingPhraseStartIdx = currentIdx;
@@ -1299,16 +1545,16 @@ let isABLooping = false;
                 contextEsp: line.querySelector('.spanish').innerText 
             };
 
-            const newItem = {
-                id: Date.now() + Math.random(),
-                isFolder: false,
-                eng: cleanText,
-                esp: "",
-                isHighlighted: false,
-                source: contextSource,
-                dateAdded: Date.now()
+            const newItem = { 
+                id: Date.now() + Math.random(), 
+                isFolder: false, 
+                eng: cleanText, 
+                esp: "", 
+                isHighlighted: false, 
+                source: contextSource, 
+                dateAdded: Date.now() 
             };
-
+            
             const targetName = VIDEO_TITLE || "Saved from Studio";
             let targetFolder = vocab.find(i => i.isFolder && i.name === targetName);
             
