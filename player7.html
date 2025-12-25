@@ -451,6 +451,8 @@ body.focus-mode .line:not(.active-loop-range) {
     let isLongPressHandled = false;
     let pendingPhraseStartIdx = null; // NUEVA VARIABLE GLOBAL
 
+    let STORAGE_KEY_AB; // Agrega esto arriba con las otras variables let
+
 
     // ... tus otras variables ...
 let abStart = null;
@@ -501,21 +503,18 @@ let isABLooping = false;
         }
     }
 
-    function handleABLoop() {
+ function handleABLoop() {
         const btn = document.getElementById('btn-ab-loop');
         const currentTime = player.getCurrentTime();
 
-        // ESTADO 1: Nada marcado -> Marcar A
+        // ESTADO 1: Marcar A
         if (abStart === null) {
             abStart = currentTime;
             btn.innerText = "A-?";
             btn.classList.add('ab-wait');
-            // Opcional: Feedback visual
-            // alert("Punto A marcado. Reproduce hasta donde quieras y pulsa de nuevo.");
         } 
-        // ESTADO 2: A marcado -> Marcar B y Activar
+        // ESTADO 2: Marcar B y Activar (GUARDAR AQUI)
         else if (abStart !== null && abEnd === null) {
-            // Asegurar que B sea mayor que A
             if (currentTime <= abStart) {
                 alert("El punto B debe ser posterior al punto A");
                 return;
@@ -526,10 +525,16 @@ let isABLooping = false;
             btn.classList.remove('ab-wait');
             btn.classList.add('ab-active');
             
-            // Llevar el video al inicio del bucle inmediatamente
             player.seekTo(abStart);
+
+            // === GUARDAR EN MEMORIA ===
+            localStorage.setItem(STORAGE_KEY_AB, JSON.stringify({
+                start: abStart,
+                end: abEnd,
+                active: true
+            }));
         }
-        // ESTADO 3: Activo -> Borrar todo
+        // ESTADO 3: Borrar todo (BORRAR DE MEMORIA)
         else {
             abStart = null;
             abEnd = null;
@@ -537,6 +542,42 @@ let isABLooping = false;
             btn.innerText = "A-B";
             btn.classList.remove('ab-wait');
             btn.classList.remove('ab-active');
+            
+            // === BORRAR DE MEMORIA ===
+            localStorage.removeItem(STORAGE_KEY_AB);
+            
+            // Limpiar efectos visuales
+            if (document.body.classList.contains('focus-mode')) {
+                document.body.classList.remove('focus-mode');
+                document.querySelectorAll('.active-loop-range').forEach(l => l.classList.remove('active-loop-range'));
+            }
+        }
+    }
+
+    function loadABSettings() {
+        const raw = localStorage.getItem(STORAGE_KEY_AB);
+        if (!raw) return; // No hay nada guardado
+
+        try {
+            const data = JSON.parse(raw);
+            if (data.active && data.start !== null && data.end !== null) {
+                abStart = data.start;
+                abEnd = data.end;
+                isABLooping = true;
+
+                // Restaurar el botón visualmente
+                const btn = document.getElementById('btn-ab-loop');
+                if (btn) {
+                    btn.innerText = "A-B";
+                    btn.classList.add('ab-active');
+                }
+                
+                // NOTA: El efecto visual "focus-mode" (blur) se activará solo 
+                // cuando la función checkTime() corra por primera vez, 
+                // así que no hace falta forzarlo aquí.
+            }
+        } catch (e) {
+            console.error("Error cargando bucle A-B", e);
         }
     }
 
@@ -963,7 +1004,7 @@ let isABLooping = false;
         attachButtonEvents();
         initLazyObserver();
         
-        STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
+        STORAGE_KEY_ESP = 'mdc_esp_' + YOUTUBE_ID; STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;STORAGE_KEY_AB = 'mdc_ab_' + YOUTUBE_ID;
     }
 
     function updateTimingSettings() {
