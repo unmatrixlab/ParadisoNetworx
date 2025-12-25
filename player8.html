@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Mastery V9 - Mobile Fix)</title>
+    <title>MDC Studio Player (Fix V10)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -203,8 +203,6 @@
         .line.active-loop-range { opacity: 1; filter: none; transform: scale(1.01); border-left-color: #f59e0b; background: white; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
 
         /* === FIX: PRIORIDAD DE LINEA ACTIVA === */
-        /* Esto asegura que la línea que se reproduce AHORA MISMO siempre destaque,
-           incluso si está dentro de un fragmento o modo focus */
         .line.active {
             border-left-color: var(--primary) !important; /* Borde Azul */
             background-color: #eef2ff !important;         /* Fondo Azulado */
@@ -1331,13 +1329,20 @@
         });
 
         document.querySelectorAll('.english-word').forEach(el => {
-            el.classList.remove('saved-word', 'phrase-word');
-            delete el.dataset.phraseParent;
+            el.classList.remove('saved-word'); 
+            
+            // FIX: DO NOT remove phrase-word if user is manually selecting it
+            if (el.dataset.userSelected !== "true") {
+                el.classList.remove('phrase-word');
+                delete el.dataset.phraseParent;
+            }
         });
 
         document.querySelectorAll('.english-word').forEach(el => {
             const clean = sanitizeText(el.innerText).toLowerCase();
-            if (savedWordsSet.has(clean)) {
+            // Saved status (Pink) wins, but only if not currently selected (Amber)
+            // Or both can coexist, but let's prioritize saved for now unless selection overrides
+            if (savedWordsSet.has(clean) && el.dataset.userSelected !== "true") {
                 el.classList.add('saved-word');
             }
         });
@@ -1364,8 +1369,11 @@
                         if (match) {
                             for (let k = 0; k < phraseArr.length; k++) {
                                 const targetEl = wordsElements[i + k];
-                                targetEl.classList.add('phrase-word');
-                                targetEl.dataset.phraseParent = phrase; 
+                                // Only apply saved phrase style if not manually selected
+                                if (targetEl.dataset.userSelected !== "true") {
+                                    targetEl.classList.add('phrase-word');
+                                    targetEl.dataset.phraseParent = phrase; 
+                                }
                             }
                         }
                     }
@@ -1736,7 +1744,7 @@
             const newItem = { 
                 id: Date.now() + Math.random(), 
                 isFolder: false, 
-                eng: cleanText, 
+                eng: textToSave, 
                 esp: "", 
                 isHighlighted: false, 
                 source: contextSource, 
@@ -1755,7 +1763,12 @@
             const originalText = btn.innerHTML; btn.innerHTML = "✓"; btn.style.backgroundColor = "#10b981"; btn.style.color = "white";
             setTimeout(() => { btn.innerHTML = originalText; btn.style.backgroundColor = ""; btn.style.color = ""; }, 1000);
             
-            manualSelection.forEach(el => delete el.dataset.userSelected);
+            // CLEAN UP MANUAL SELECTION
+            manualSelection.forEach(el => {
+                delete el.dataset.userSelected;
+                el.classList.remove('phrase-word'); // Remove Amber immediately
+            });
+            
             updateAllWordStates(); 
         } else { 
             alert("Esta frase ya existe en tu vocabulario."); 
