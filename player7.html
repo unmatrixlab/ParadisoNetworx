@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Auto-Slice Edition)</title>
+    <title>MDC Studio Player (Mastery V6)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -159,12 +159,20 @@
         .frag-btn.auto-slice { background: #6366f1; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); }
         .frag-btn.auto-slice:hover { transform: translateY(-1px); box-shadow: 0 6px 15px rgba(79, 70, 229, 0.4); }
 
+        /* Delete All Button Style */
+        .frag-btn-danger-text { background: transparent; color: #ef4444; border: 1px solid #7f1d1d; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .frag-btn-danger-text:hover { background: rgba(239, 68, 68, 0.1); border-color: #ef4444; }
+
         /* TABLE PRO STYLES */
         .frag-table { width: 100%; border-collapse: collapse; color: #e5e7eb; font-size: 13px; }
         .frag-table th { text-align: left; padding: 10px; border-bottom: 2px solid #374151; color: #9ca3af; text-transform: uppercase; font-size: 11px; white-space: nowrap; }
         .frag-table td { padding: 8px 10px; border-bottom: 1px solid #374151; vertical-align: middle; white-space: nowrap; }
         .frag-row:hover { background: rgba(255,255,255,0.03); }
         .frag-row.active-loop { background: rgba(79, 70, 229, 0.1); border-left: 3px solid var(--primary); }
+        
+        /* MANUAL ROW STYLE (DIFFERENT COLOR) */
+        .frag-row.manual { border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.05); }
+        .frag-row.manual:hover { background: rgba(59, 130, 246, 0.1); }
 
         .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; cursor: pointer; display: inline-block; min-width: 70px; text-align: center; }
         .st-new { background: #fee2e2; color: #991b1b; }
@@ -274,7 +282,10 @@
     <div class="frag-container">
         <div class="frag-header">
             <div class="frag-title">🧩 Study Fragments</div>
-            <button class="frag-close" onclick="toggleFragmentsMenu()">×</button>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="frag-btn-danger-text" onclick="deleteAllFragments()">🗑 Delete All</button>
+                <button class="frag-close" onclick="toggleFragmentsMenu()">×</button>
+            </div>
         </div>
         <div class="frag-body">
             
@@ -934,7 +945,8 @@
                 start: start,
                 end: end,
                 status: 'new',
-                timeSpent: 0
+                timeSpent: 0,
+                type: 'auto'
             };
             videoFragments.push(newFrag);
         }
@@ -979,7 +991,12 @@
             const timeStudied = formatTime(frag.timeSpent || 0);
 
             const tr = document.createElement('tr');
-            tr.className = 'frag-row ' + (activeFragmentId === frag.id ? 'active-loop' : '');
+            
+            // CLASS LOGIC: Manual vs Auto vs Active
+            let rowClass = 'frag-row';
+            if (activeFragmentId === frag.id) rowClass += ' active-loop';
+            if (frag.type === 'manual') rowClass += ' manual';
+            tr.className = rowClass;
             
             const statusClass = frag.status === 'master' ? 'st-master' : (frag.status === 'study' ? 'st-study' : 'st-new');
             const statusLabel = frag.status === 'master' ? 'Mastered' : (frag.status === 'study' ? 'Studying' : 'New');
@@ -1059,16 +1076,22 @@
     function addFragment() {
         if (!player) return;
         const current = player.getCurrentTime();
-        const start = Math.max(0, current - 5);
-        const end = current + 10;
+        
+        // MANUAL MODE: Start current, End +5 mins (or duration end)
+        const start = current;
+        let end = current + 300; // 5 minutes default
+        if (player.getDuration && end > player.getDuration()) {
+            end = player.getDuration();
+        }
         
         const newFrag = {
             id: Date.now().toString(),
-            name: `Fragment ${videoFragments.length + 1}`,
+            name: `Manual Fragment ${videoFragments.length + 1}`,
             start: start,
             end: end,
             status: 'new',
-            timeSpent: 0
+            timeSpent: 0,
+            type: 'manual' // Mark as manual for blue color
         };
         
         videoFragments.push(newFrag);
@@ -1120,6 +1143,16 @@
         if(!confirm("Delete this fragment?")) return;
         videoFragments = videoFragments.filter(f => f.id !== id);
         if (activeFragmentId === id) activeFragmentId = null;
+        localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
+        renderFragmentList();
+    }
+    
+    function deleteAllFragments() {
+        if(videoFragments.length === 0) return;
+        if(!confirm("⚠️ Are you sure you want to DELETE ALL fragments? This cannot be undone.")) return;
+        
+        videoFragments = [];
+        activeFragmentId = null;
         localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
         renderFragmentList();
     }
