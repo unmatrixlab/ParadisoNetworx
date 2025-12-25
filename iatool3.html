@@ -1123,17 +1123,48 @@ async function handlePasteResponse() {
     try {
         const text = await navigator.clipboard.readText();
         if(!text) return alert("Clipboard is empty.");
+
+        // 1. Obtenemos inputs manuales
+        const contextVal = document.getElementById('contextInput').value.trim();
+        const topicVal = document.getElementById('topicInput').value.trim();
+
+        // 2. Función auxiliar para extraer título del contenido pegado
+        const extractTitle = (content) => {
+            // Separa por líneas y busca la primera que no esté vacía
+            const lines = content.split('\n');
+            const firstLine = lines.find(line => line.trim().length > 0);
+            
+            if (!firstLine) return null;
+
+            // Limpia caracteres de Markdown típicos (#, ##, **, -)
+            let clean = firstLine.replace(/^[#\*\-\s>]+/, '').trim();
+
+            // Si es muy larga (más de 50 caracteres), cortarla y poner puntos suspensivos
+            if (clean.length > 50) {
+                clean = clean.substring(0, 50).trim() + "...";
+            }
+            return clean;
+        };
+
+        // 3. Lógica de Prioridad: Contexto > Tópico > Extraído > Default
+        let finalTitle = contextVal || topicVal || extractTitle(text) || "Untitled Result";
+
         const data = {
             id: Date.now(),
             modeName: document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text,
-            topic: document.getElementById('topicInput').value || "Untitled Result",
+            topic: finalTitle, // <--- Título inteligente asignado aquí
             prompt: lastGeneratedPrompt,
             content: text
         };
+
         addToNexusHistory(data);
         renderAccordionDOM(data);
         toggleGenerator(false);
-    } catch (err) { alert("Permission denied or error reading clipboard."); }
+
+    } catch (err) { 
+        console.error(err);
+        alert("Permission denied or error reading clipboard."); 
+    }
 }
 
 function toggleGenerator(show) {
