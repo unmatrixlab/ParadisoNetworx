@@ -1334,14 +1334,16 @@
         updateAllWordStates(); 
     }
 
-    function updateAllWordStates() {
+   function updateAllWordStates() {
         const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         const savedWordsSet = new Set(); 
         const savedPhrases = []; 
         
+        // 1. Extraer palabras y frases
         vocab.forEach(item => {
             const extract = (obj) => {
                 const text = sanitizeText(obj.eng).toLowerCase();
+                // Si tiene espacios, es frase
                 if (text.includes(" ")) {
                     savedPhrases.push(text);
                 } else {
@@ -1356,36 +1358,43 @@
             }
         });
 
+        // 2. Limpiar estados previos (Importante para evitar glitches)
         document.querySelectorAll('.english-word').forEach(el => {
-            el.classList.remove('saved-word'); 
-            
-            // FIX: DO NOT remove phrase-word if user is manually selecting it
+            // Solo borramos si NO está siendo seleccionado por el usuario en este momento
             if (el.dataset.userSelected !== "true") {
-                el.classList.remove('phrase-word');
+                el.classList.remove('saved-word', 'phrase-word');
                 delete el.dataset.phraseParent;
             }
         });
 
+        // 3. Pintar palabras sueltas (ROSA)
         document.querySelectorAll('.english-word').forEach(el => {
             const clean = sanitizeText(el.innerText).toLowerCase();
-            // Saved status (Pink) wins, but only if not currently selected (Amber)
-            // Or both can coexist, but let's prioritize saved for now unless selection overrides
             if (savedWordsSet.has(clean) && el.dataset.userSelected !== "true") {
                 el.classList.add('saved-word');
             }
         });
 
+        // 4. Pintar Frases (ÁMBAR) - MEJORADA
+        // Ordenamos por longitud para pintar las frases más largas primero
         savedPhrases.sort((a, b) => b.length - a.length); 
 
         document.querySelectorAll('.line').forEach(line => {
             const wordsElements = Array.from(line.querySelectorAll('.english-word'));
+            // Mapeamos el texto limpio de cada elemento
             const lineTextArr = wordsElements.map(el => sanitizeText(el.innerText).toLowerCase());
+            
+            // Unimos la línea para búsqueda rápida preliminar
             const lineTextStr = lineTextArr.join(" ");
 
             savedPhrases.forEach(phrase => {
+                // Solo si la frase podría estar en esta línea
                 if (lineTextStr.includes(phrase)) {
-                    const phraseArr = phrase.split(" ");
                     
+                    // CORRECCIÓN: Usar split regex para manejar múltiples espacios
+                    const phraseArr = phrase.split(/\s+/); 
+                    
+                    // Recorremos la línea buscando coincidencia secuencial
                     for (let i = 0; i <= lineTextArr.length - phraseArr.length; i++) {
                         let match = true;
                         for (let j = 0; j < phraseArr.length; j++) {
@@ -1395,12 +1404,14 @@
                         }
                         
                         if (match) {
+                            // ¡Coincidencia encontrada! Pintamos el rango
                             for (let k = 0; k < phraseArr.length; k++) {
                                 const targetEl = wordsElements[i + k];
-                                // Only apply saved phrase style if not manually selected
-                                if (targetEl.dataset.userSelected !== "true") {
+                                if (targetEl && targetEl.dataset.userSelected !== "true") {
                                     targetEl.classList.add('phrase-word');
-                                    targetEl.dataset.phraseParent = phrase; 
+                                    targetEl.dataset.phraseParent = phrase;
+                                    // Removemos 'saved-word' si es parte de una frase (prioridad al ámbar)
+                                    targetEl.classList.remove('saved-word'); 
                                 }
                             }
                         }
