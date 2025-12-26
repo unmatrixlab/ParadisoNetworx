@@ -1801,6 +1801,7 @@ function openNexus() {
             let rawData = localStorage.getItem(VOCAB_KEY) || '[]';
             let vocabData = JSON.parse(rawData);
 
+            // Preparar datos (Sanitización de espacios)
             const modifiedData = vocabData.map(folder => {
                 if(folder.isFolder && folder.items) {
                     const newItems = folder.items.map(item => {
@@ -1817,9 +1818,28 @@ function openNexus() {
                 return folder;
             });
 
+            // --- NUEVO: DETECTAR FRAGMENTO ACTIVO ---
+            let activeRange = null;
+            
+            // Si hay un fragmento seleccionado en la tabla...
+            if (activeFragmentId) {
+                const frag = videoFragments.find(f => f.id === activeFragmentId);
+                if (frag) {
+                    activeRange = {
+                        videoId: YOUTUBE_ID, // Solo filtrar ESTE video
+                        start: frag.start,
+                        end: frag.end,
+                        name: frag.name
+                    };
+                }
+            }
+            // ----------------------------------------
+
+            // Enviamos los datos Y el filtro de rango
             frame.contentWindow.postMessage({
                 action: 'IMPORT_DATA',
-                data: JSON.stringify(modifiedData)
+                data: JSON.stringify(modifiedData),
+                filter: activeRange // <--- Aquí va la magia
             }, '*');
         };
 
