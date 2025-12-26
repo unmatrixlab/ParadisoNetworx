@@ -1640,38 +1640,56 @@
         }
     }
 
-    function clearAllWords() { 
-        if(!confirm('¿Eliminar todas las palabras guardadas QUE APARECEN en este video de tu vocabulario?')) return; 
-        
-        const wordsToDelete = new Set();
-        document.querySelectorAll('.english-word.saved-word, .english-word.phrase-word').forEach(el => {
-            wordsToDelete.add(sanitizeText(el.innerText).toLowerCase());
-        });
-
-        if (wordsToDelete.size === 0) {
-            alert("No hay palabras guardadas en este video para borrar.");
-            return;
+   function clearAllWords() { 
+        // 1. Verificación de seguridad
+        if (currentWordStats.uniqueTotal === 0) {
+            return alert("No hay palabras guardadas en este video.");
         }
 
-        let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
+        // 2. Confirmación
+        if(!confirm('⚠️ ¿Estás seguro? \n\nEsto eliminará TODAS las palabras y frases guardadas asociadas a ESTE VIDEO (ID: ' + YOUTUBE_ID + ').')) return; 
         
-        items = items.filter(i => {
-            if(!i.isFolder && i.eng && wordsToDelete.has(sanitizeText(i.eng).toLowerCase())) return false;
+        let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
+        let countDeleted = 0;
+
+        // 3. Función auxiliar para detectar si un ítem pertenece a este video
+        const belongsToCurrentVideo = (item) => {
+            // Verifica si tiene "source" y si el ID coincide
+            if (item.source && item.source.videoId === YOUTUBE_ID) return true;
+            // Soporte legacy (por si guardaste algo solo con título antes)
+            if (item.source && !item.source.videoId && item.source.title === VIDEO_TITLE) return true;
+            return false;
+        };
+
+        // 4. Filtrado profundo (Raíz y Carpetas)
+        items = items.filter(item => {
+            // Si es una carpeta, entramos a limpiar su contenido
+            if (item.isFolder && item.items) {
+                const initialLength = item.items.length;
+                item.items = item.items.filter(sub => !belongsToCurrentVideo(sub));
+                countDeleted += (initialLength - item.items.length);
+                return true; // Mantenemos la carpeta (aunque quede vacía)
+            }
+            
+            // Si es palabra suelta en la raíz
+            if (belongsToCurrentVideo(item)) {
+                countDeleted++;
+                return false; // La borramos
+            }
             return true;
         });
 
-        items.forEach(folder => {
-            if(folder.isFolder && folder.items) {
-                folder.items = folder.items.filter(sub => !wordsToDelete.has(sanitizeText(sub.eng).toLowerCase()));
-            }
-        });
-
+        // 5. Guardar cambios y actualizar interfaz
         localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
-        currentWordStats = { occurrences: "-", uniqueTotal: 0 }; 
         
-        updateAllWordStates();
+        // Reiniciar contadores y visuales
+        currentWordStats = { occurrences: "-", uniqueTotal: 0 }; 
+        updateAllWordStates(); // Esto quitará el color rosa/neón de todo el texto
         translateWordForBar(""); 
-        renderCounterUI(); 
+        renderCounterUI(); // Esto pondrá el contador en 0/0 y desactivará el botón
+        
+        // Feedback
+        alert(`✅ Se eliminaron ${countDeleted} elementos de este video.`);
     }
     
   function attachButtonEvents() {
