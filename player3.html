@@ -1578,6 +1578,7 @@ function updateAllWordStates() {
     }
 
    // Helper para limpiar SOLO lo que el usuario está seleccionando manualmente (amarillo temporal)
+// Helper para limpiar SOLO lo que el usuario está seleccionando manualmente
     function clearManualSelection() {
         document.querySelectorAll('.english-word[data-user-selected="true"]').forEach(el => {
             el.classList.remove('phrase-word');
@@ -1592,7 +1593,6 @@ function updateAllWordStates() {
         // 1. MODO BORRADO (Prioridad Máxima)
         // Si tocas una frase YA guardada (tiene dueño), la borramos.
         if (el.dataset.phraseParent) {
-            // Primero limpiamos cualquier selección manual pendiente para evitar mezclas
             clearManualSelection(); 
             deletePhraseFromMemory(el.dataset.phraseParent);
             return;
@@ -1604,70 +1604,67 @@ function updateAllWordStates() {
         
         // A. Inicio de Selección (Primer punto)
         if (pendingPhraseStartIdx === null) {
-            // CRÍTICO: Limpiar cualquier selección manual vieja antes de empezar una nueva
-            clearManualSelection();
+            clearManualSelection(); // Limpiar residuos anteriores
 
             el.classList.add('phrase-word');
             el.dataset.userSelected = "true";
             pendingPhraseStartIdx = currentIdx;
         } 
         // B. Cierre de Selección (Segundo punto - Rellenar hueco)
-       else {
-            // Recopilamos el elemento de inicio original
-            const startEl = document.querySelector(`.english-word[data-idx="${pendingPhraseStartIdx}"]`);
-            
+        else {
+            // --- VALIDACIONES DE SEGURIDAD ---
+
             // REGLA 3: Fronteras de Subtítulo (Cross-Line Check)
-            // Verificamos si el inicio y el final viven en la misma caja (.line)
+            const startEl = document.querySelector(`.english-word[data-idx="${pendingPhraseStartIdx}"]`);
             const startLine = startEl ? startEl.closest('.line') : null;
             const endLine = el.closest('.line');
 
             if (!startLine || !endLine || startLine !== endLine) {
-                // Si son líneas diferentes, CANCELAMOS.
-                if (navigator.vibrate) navigator.vibrate([50, 50]); // Vibración de error
+                if (navigator.vibrate) navigator.vibrate([50, 50]); 
                 clearManualSelection();
-                // alert("Por favor, selecciona frases dentro del mismo subtítulo."); // Opcional
                 return;
             }
 
-            // ... (Aquí siguen la Regla 1 de distancia y Regla 2 de colisiones) ...
-            
+            // Calculamos Start y End (Esto te faltaba en tu código anterior)
             const start = Math.min(pendingPhraseStartIdx, currentIdx);
-            // REGLA 2: Detección de Colisiones (El FIX real)
-            // Vamos a simular el camino desde A hasta B. 
-            // Si chocamos con una frase guardada, la selección es ILEGAL.
-            
+            const end = Math.max(pendingPhraseStartIdx, currentIdx);
+            const distance = end - start;
+
+            // REGLA 1: Distancia Máxima (Seguridad)
+            if (distance > 12) {
+                if (navigator.vibrate) navigator.vibrate([50, 50]);
+                clearManualSelection();
+                return;
+            }
+
+            // REGLA 2: Detección de Colisiones (Atomic Locking)
             const allWords = Array.from(document.querySelectorAll('.english-word'));
             const wordsInRange = [];
             let pathBlocked = false;
 
-            // Recorremos solo las palabras dentro del rango visual
-            // (Usamos find porque los índices pueden no ser contiguos en el DOM si hay saltos de línea, aunque data-idx sí lo es)
+            // Recorremos buscando choques
             for (let i = start; i <= end; i++) {
-                // Buscamos el elemento con ese índice exacto
                 const wordEl = allWords.find(w => parseInt(w.dataset.idx) === i);
-                
                 if (wordEl) {
-                    // ¿Tiene dueño esta palabra? (Es parte de una frase guardada?)
+                    // Si encontramos una palabra que YA es parte de una frase guardada...
                     if (wordEl.dataset.phraseParent) {
                         pathBlocked = true;
-                        break; // ¡Choque detectado!
+                        break; 
                     }
                     wordsInRange.push(wordEl);
                 }
             }
 
             if (pathBlocked) {
-                // Si el camino está bloqueado, CANCELAMOS todo.
-                // Esto evita crear frases "Frankenstein" mezcladas.
-                if (navigator.vibrate) navigator.vibrate([50, 50, 50]); // Feedback de error (vibración doble)
+                // Si chocamos, cancelamos todo
+                if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
                 clearManualSelection(); 
             } else {
-                // CAMINO LIBRE: Pintamos todo el rango
+                // CAMINO LIBRE: Pintamos
                 wordsInRange.forEach(w => {
                     w.classList.add('phrase-word');
                     w.dataset.userSelected = "true";
                 });
-                // Cerramos el ciclo (pending null) para que el próximo click sea un nuevo inicio
                 pendingPhraseStartIdx = null; 
             }
         }
