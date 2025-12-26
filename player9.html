@@ -231,6 +231,53 @@
             filter: none !important;                      /* Nunca borroso */
             box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2) !important;
         }
+
+
+
+        /* === ESTILOS DEL MINI ESTUDIO (NATIVO) === */
+#mini-flashcards-ui {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #111827; z-index: 6000; flex-direction: column; align-items: center; justify-content: center;
+}
+
+.fc-card-container {
+    width: 90%; max-width: 500px; aspect-ratio: 4/3;
+    perspective: 1000px; cursor: pointer; position: relative;
+    margin-bottom: 20px;
+}
+
+.fc-card {
+    width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+    transition: transform 0.6s; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+}
+
+.fc-card.flipped { transform: rotateY(180deg); }
+
+.fc-face {
+    position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden;
+    border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 30px; text-align: center; border: 2px solid #374151;
+}
+
+.fc-front { background: #1f2937; color: white; }
+.fc-back { background: #fff; color: #1f2937; transform: rotateY(180deg); border-color: #4f46e5; }
+
+.fc-word { font-size: 32px; font-weight: 800; margin-bottom: 10px; color: #a5f3fc; }
+.fc-context { font-size: 16px; color: #9ca3af; font-style: italic; margin-top: 20px; line-height: 1.5; }
+.fc-translation { font-size: 24px; font-weight: 700; color: #4f46e5; margin-bottom: 15px; }
+.fc-context-esp { font-size: 14px; color: #6b7280; margin-top: 10px; }
+
+.fc-controls { display: flex; gap: 15px; width: 90%; max-width: 500px; justify-content: space-between; }
+.fc-btn {
+    padding: 12px 24px; border-radius: 12px; border: none; font-weight: 700; font-size: 16px; cursor: pointer; transition: 0.2s; flex: 1;
+}
+.fc-btn-prev { background: #374151; color: white; }
+.fc-btn-next { background: #4f46e5; color: white; }
+.fc-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+
+.fc-progress { color: #6b7280; font-size: 12px; margin-top: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.fc-close { position: absolute; top: 20px; right: 20px; background: transparent; color: #6b7280; border: none; font-size: 30px; cursor: pointer; z-index: 10; }
+.fc-close:hover { color: white; }
     </style>
 </head>
 <body>
@@ -412,6 +459,33 @@
 
 <div id="nexus-portal">
     <iframe id="nexus-frame" src=""></iframe>
+</div>
+
+    <div id="mini-flashcards-ui">
+    <button class="fc-close" onclick="closeMiniCards()">×</button>
+    
+    <div class="fc-card-container" onclick="flipCard()">
+        <div class="fc-card" id="fc-current-card">
+            <div class="fc-face fc-front">
+                <div style="font-size: 50px; margin-bottom: 20px;">🇬🇧</div>
+                <div class="fc-word" id="fc-text-eng">...</div>
+                <div class="fc-context" id="fc-ctx-eng">...</div>
+                <div style="margin-top:auto; font-size:12px; opacity:0.5;">(Tap to flip)</div>
+            </div>
+            <div class="fc-face fc-back">
+                <div style="font-size: 50px; margin-bottom: 20px;">🇪🇸</div>
+                <div class="fc-translation" id="fc-text-esp">...</div>
+                <div class="fc-context-esp" id="fc-ctx-esp">...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fc-controls">
+        <button class="fc-btn fc-btn-prev" onclick="prevCard(event)">← Prev</button>
+        <button class="fc-btn fc-btn-next" onclick="nextCard(event)">Next →</button>
+    </div>
+    
+    <div class="fc-progress" id="fc-counter">Card 1 / 10</div>
 </div>
 
 <script>
@@ -1863,137 +1937,116 @@
         frame.src = '';
     }
 
-    /* === LÓGICA PARA ESTUDIAR FRAGMENTO (NUEVO) === */
- /* === LÓGICA CORREGIDA: ESTUDIAR FRAGMENTO === */
-    function studyFragmentVocab(fragId) {
-        const frag = videoFragments.find(f => f.id === fragId);
-        if (!frag) return;
+ /* === LOGICA DEL SISTEMA DE TARJETAS ESPECIAL (NATIVO) === */
+let studyQueue = [];
+let studyIndex = 0;
 
-        if(player && typeof player.pauseVideo === 'function') player.pauseVideo();
+function studyFragmentVocab(fragId) {
+    const frag = videoFragments.find(f => f.id === fragId);
+    if (!frag) return;
 
-        // 1. Obtener todo el vocabulario actual
-        const allVocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        let filteredItems = [];
+    if(player && typeof player.pauseVideo === 'function') player.pauseVideo();
 
-        // 2. Función estricta para validar tiempo y video
-        const isRelevant = (item) => {
-            // Si el item no tiene fuente, lo descartamos
-            if (!item.source || typeof item.source.timestamp !== 'number') return false;
-            
-            // Validar ID del video (si el item tiene ID guardado)
-            if (item.source.videoId && item.source.videoId !== YOUTUBE_ID) return false;
-            
-            // Si no tiene ID pero tiene título, validamos título (compatibilidad antigua)
-            if (!item.source.videoId && item.source.title !== VIDEO_TITLE) return false;
+    // 1. LEER DATOS (SOLO LECTURA)
+    const rawVocab = localStorage.getItem(VOCAB_KEY);
+    const allVocab = JSON.parse(rawVocab || '[]');
+    let filteredItems = [];
 
-            // Validar Tiempo (con margen de 1 segundo)
-            // El timestamp debe ser mayor o igual al inicio Y menor o igual al final
-            const t = item.source.timestamp;
-            return t >= (frag.start - 1.0) && t <= (frag.end + 1.0);
-        };
+    // 2. FILTRAR POR TIEMPO (Lógica estricta)
+    const isRelevant = (item) => {
+        if (!item.source || typeof item.source.timestamp !== 'number') return false;
+        
+        // Validar Video ID o Título
+        const isSameVideo = (item.source.videoId === YOUTUBE_ID) || 
+                            (!item.source.videoId && item.source.title === VIDEO_TITLE);
+        if (!isSameVideo) return false;
 
-        // 3. Filtrar recursivamente buscando items sueltos o en carpetas
-        allVocab.forEach(folder => {
-            if (folder.isFolder && folder.items) {
-                // Si es carpeta, miramos dentro
-                const matchingItems = folder.items.filter(isRelevant);
-                if (matchingItems.length > 0) {
-                    // Agregamos los items encontrados a nuestra lista plana
-                    filteredItems.push(...matchingItems);
-                }
-            } else {
-                // Si es un item suelto en la raíz
-                if (isRelevant(folder)) filteredItems.push(folder);
-            }
+        // Validar Rango de Tiempo
+        const t = item.source.timestamp;
+        return t >= (frag.start - 1.0) && t <= (frag.end + 1.0);
+    };
+
+    const scan = (list) => {
+        list.forEach(item => {
+            if (item.isFolder && item.items) scan(item.items);
+            else if (isRelevant(item)) filteredItems.push(item);
         });
+    };
+    scan(allVocab);
 
-        if (filteredItems.length === 0) {
-            alert(`No hay palabras guardadas en este tramo (${formatTimeShort(frag.start)} - ${formatTimeShort(frag.end)}).`);
-            return;
-        }
-
-        // 4. Crear estructura de carpeta ÚNICA para Nexus
-        // Esto fuerza a Nexus a ver solo una carpeta con el nombre del fragmento
-        const studySessionData = [{
-            id: 'frag_session_' + Date.now(),
-            isFolder: true,
-            name: `🎯 Fragmento: ${frag.name}`,
-            items: filteredItems
-        }];
-
-        openNexusWithPayload(studySessionData);
+    if (filteredItems.length === 0) {
+        alert(`No hay palabras guardadas en el fragmento: ${frag.name}`);
+        return;
     }
 
-    function openNexusWithPayload(customData) {
-        const portal = document.getElementById('nexus-portal');
-        const frame = document.getElementById('nexus-frame');
-        portal.style.display = 'block';
-        
-        // Reiniciamos el src para forzar recarga limpia
-        frame.src = 'about:blank';
-        
-        setTimeout(() => {
-            frame.src = NEXUS_URL;
-        }, 50);
+    // 3. INICIAR MODO ESTUDIO NATIVO
+    studyQueue = filteredItems;
+    studyIndex = 0;
+    openMiniCards();
+}
 
-        frame.onload = function() {
-            // Preparamos los datos conservando TODAS las propiedades (incluido 'esp')
-            const formattedData = customData.map(folder => {
-                if(folder.isFolder && folder.items) {
-                    const newItems = folder.items.map(item => {
-                        // Clonamos el item para no modificar el original
-                        const itemClone = { ...item };
-                        
-                        // Aseguramos que 'esp' exista, aunque sea vacío
-                        if (!itemClone.esp) itemClone.esp = "";
+function openMiniCards() {
+    document.getElementById('mini-flashcards-ui').style.display = 'flex';
+    renderCurrentCard();
+}
 
-                        // Aplicamos el formato de espacios para frases (esto activa el estilo visual en Nexus)
-                        if(itemClone.eng && itemClone.eng.includes(' ')) {
-                            itemClone.eng = itemClone.eng.replace(/ /g, '\u00A0');
-                        }
-                        return itemClone;
-                    });
-                    return { ...folder, items: newItems };
-                }
-                return folder;
-            });
+function closeMiniCards() {
+    document.getElementById('mini-flashcards-ui').style.display = 'none';
+}
 
-            // Enviamos el mensaje con un pequeño retraso para asegurar que Nexus esté escuchando
-            setTimeout(() => {
-                frame.contentWindow.postMessage({
-                    action: 'IMPORT_DATA',
-                    data: JSON.stringify(formattedData)
-                }, '*');
-            }, 500); // Retraso de 500ms vital para evitar condiciones de carrera
-        };
+function renderCurrentCard() {
+    if (studyQueue.length === 0) return;
+    
+    const item = studyQueue[studyIndex];
+    const card = document.getElementById('fc-current-card');
+    
+    // Resetear giro
+    card.classList.remove('flipped');
+    
+    // Rellenar Datos (Con seguridad de que existen)
+    document.getElementById('fc-text-eng').innerText = item.eng || "???";
+    document.getElementById('fc-text-esp').innerText = item.esp || "(Sin traducción)";
+    
+    // Contexto (si existe en la fuente)
+    if (item.source) {
+        document.getElementById('fc-ctx-eng').innerText = `"${item.source.context || '...'}"`;
+        document.getElementById('fc-ctx-esp').innerText = `"${item.source.contextEsp || '...'}"`;
+    } else {
+        document.getElementById('fc-ctx-eng').innerText = "";
+        document.getElementById('fc-ctx-esp').innerText = "";
     }
 
-    async function copyHistoryData(e, id, btnElement) {
-        e.stopPropagation(); 
-        
-        const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-        const item = history.find(i => i.id === id);
-        
-        if(!item) return alert("Error: No se encontraron datos.");
+    // Actualizar contador
+    document.getElementById('fc-counter').innerText = `FRAGMENT CARD ${studyIndex + 1} / ${studyQueue.length}`;
+}
 
-        try {
-            const dataToCopy = JSON.stringify(item);
-            await navigator.clipboard.writeText(dataToCopy);
-            
-            const originalText = btnElement.innerText;
-            btnElement.innerText = "✅"; 
-            btnElement.style.opacity = "1";
-            
-            setTimeout(() => {
-                btnElement.innerText = originalText;
-                btnElement.style.opacity = "";
-            }, 1000);
-            
-        } catch (err) {
-            console.error('Error al copiar:', err);
-            alert("No se pudo copiar al portapapeles.");
+function flipCard() {
+    document.getElementById('fc-current-card').classList.toggle('flipped');
+}
+
+function nextCard(e) {
+    if(e) e.stopPropagation();
+    if (studyIndex < studyQueue.length - 1) {
+        studyIndex++;
+        renderCurrentCard();
+    } else {
+        // Opción: Volver al principio o cerrar
+        if(confirm("¡Fin del fragmento! ¿Repasar de nuevo?")) {
+            studyIndex = 0;
+            renderCurrentCard();
+        } else {
+            closeMiniCards();
         }
     }
+}
+
+function prevCard(e) {
+    if(e) e.stopPropagation();
+    if (studyIndex > 0) {
+        studyIndex--;
+        renderCurrentCard();
+    }
+}
 </script>
 
 <script>
