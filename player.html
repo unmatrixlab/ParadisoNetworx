@@ -1334,112 +1334,82 @@
         updateAllWordStates(); 
     }
 
-   function updateAllWordStates() {
-        const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
-        const savedWordsSet = new Set(); 
-        const savedPhrases = []; 
-        
-        // 1. Extraer palabras y frases
-        vocab.forEach(item => {
-            const extract = (obj) => {
-                const text = sanitizeText(obj.eng).toLowerCase();
-                // Si tiene espacios, es frase
-                if (text.includes(" ")) {
-                    savedPhrases.push(text);
-                } else {
-                    savedWordsSet.add(text);
-                }
-            };
+ function updateAllWordStates() {
+    const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
+    const savedWordsSet = new Set();
+    const savedPhrases = [];
 
-            if(item.isFolder && item.items) {
-                item.items.forEach(sub => extract(sub));
-            } else if (!item.isFolder && item.eng) {
-                extract(item);
+    // 1. Recopilar palabras y frases guardadas
+    const collect = (list) => {
+        list.forEach(item => {
+            if (item.isFolder && item.items) return collect(item.items);
+            if (!item.eng) return;
+            const clean = sanitizeText(item.eng).toLowerCase();
+            if (clean.includes(' ')) {
+                savedPhrases.push(clean);
+            } else if (clean) {
+                savedWordsSet.add(clean);
             }
         });
+    };
+    collect(vocab);
 
-        // 2. Limpiar estados previos (Importante para evitar glitches)
-        document.querySelectorAll('.english-word').forEach(el => {
-            // Solo borramos si NO está siendo seleccionado por el usuario en este momento
-            if (el.dataset.userSelected !== "true") {
-                el.classList.remove('saved-word', 'phrase-word');
-                delete el.dataset.phraseParent;
-            }
-        });
+    // Ordenar frases de más larga a más corta (crucial para prioridad)
+    savedPhrases.sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length);
 
-        // 3. Pintar palabras sueltas (ROSA)
-        document.querySelectorAll('.english-word').forEach(el => {
-            const clean = sanitizeText(el.innerText).toLowerCase();
-            if (savedWordsSet.has(clean) && el.dataset.userSelected !== "true") {
-                el.classList.add('saved-word');
-            }
-        });
+    // 2. Limpiar SOLO lo necesario (sin tocar selecciones manuales del usuario)
+    document.querySelectorAll('.english-word').forEach(el => {
+        if (el.dataset.userSelected !== "true") {
+            el.classList.remove('saved-word', 'phrase-word');
+            delete el.dataset.phraseParent;
+        }
+    });
 
-        // 4. Pintar Frases (ÁMBAR) - MEJORADA
-        // Ordenamos por longitud para pintar las frases más largas primero
-        savedPhrases.sort((a, b) => b.length - a.length); 
+    // 3. Pintar FRASES primero (prioridad ámbar)
+    document.querySelectorAll('.line').forEach(line => {
+        const wordsEls = Array.from(line.querySelectorAll('.english-word'));
+        const wordsText = wordsEls.map(el => sanitizeText(el.innerText).toLowerCase());
 
-        document.querySelectorAll('.line').forEach(line => {
-            const wordsElements = Array.from(line.querySelectorAll('.english-word'));
-            // Mapeamos el texto limpio de cada elemento
-            const lineTextArr = wordsElements.map(el => sanitizeText(el.innerText).toLowerCase());
-            
-            // Unimos la línea para búsqueda rápida preliminar
-            const lineTextStr = lineTextArr.join(" ");
+        savedPhrases.forEach(phrase => {
+            const phraseWords = phrase.split(/\s+/).filter(Boolean);
+            if (phraseWords.length === 0) return;
 
-            savedPhrases.forEach(phrase => {
-                // Solo si la frase podría estar en esta línea
-                if (lineTextStr.includes(phrase)) {
-                    
-                    // CORRECCIÓN: Usar split regex para manejar múltiples espacios
-                    const phraseArr = phrase.split(/\s+/); 
-                    
-                    // Recorremos la línea buscando coincidencia secuencial
-                    for (let i = 0; i <= lineTextArr.length - phraseArr.length; i++) {
-                        let match = true;
-                        for (let j = 0; j < phraseArr.length; j++) {
-                            if (lineTextArr[i + j] !== phraseArr[j]) {
-                                match = false; break;
-                            }
-                        }
-                        
-                 if (match) {
-
-                            // ¡Coincidencia encontrada! Pintamos el rango
-
-                            for (let k = 0; k < phraseArr.length; k++) {
-
-                                const targetEl = wordsElements[i + k];
-
-                                if (targetEl && targetEl.dataset.userSelected !== "true") {
-
-                                    targetEl.classList.add('phrase-word');
-
-                                    targetEl.dataset.phraseParent = phrase;
-
-                                    // Removemos 'saved-word' si es parte de una frase (prioridad al ámbar)
-
-                                    targetEl.classList.remove('saved-word'); 
-
-                                }
-
-                            }
-
-                        }
-
+            for (let i = 0; i <= wordsText.length - phraseWords.length; i++) {
+                let match = true;
+                for (let j = 0; j < phraseWords.length; j++) {
+                    if (wordsText[i + j] !== phraseWords[j]) {
+                        match = false;
+                        break;
                     }
-
                 }
-
-            });
-
+                if (match) {
+                    // Pintar toda la frase en ámbar y marcar
+                    for (let j = 0; j < phraseWords.length; j++) {
+                        const el = wordsEls[i + j];
+                        if (el && el.dataset.userSelected !== "true") {
+                            el.classList.add('phrase-word');
+                            el.classList.remove('saved-word');  // ← Prioridad ámbar
+                            el.dataset.phraseParent = phrase;
+                        }
+                    }
+                }
+            }
         });
+    });
 
+    // 4. Pintar palabras sueltas (rosa) SOLO si NO forman parte de una frase
+    document.querySelectorAll('.english-word').forEach(el => {
+        if (el.dataset.userSelected === "true") return;
+        if (el.classList.contains('phrase-word')) return;  // ← Ya es parte de frase
 
+        const clean = sanitizeText(el.innerText).toLowerCase();
+        if (savedWordsSet.has(clean)) {
+            el.classList.add('saved-word');
+        }
+    });
 
-        updateNavigationIndex();
-
-    }
+    updateNavigationIndex();
+}
 
     function updateNavigationIndex() {
         const allSavedElements = document.querySelectorAll('.english-word.saved-word, .english-word.phrase-word');
