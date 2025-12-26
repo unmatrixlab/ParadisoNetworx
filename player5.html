@@ -558,116 +558,88 @@ let isLocalMode = false;
         return (match && match[1]) ? match[1] : false;
     }
 
- async function startNewSession() {
-    const rawInput = document.getElementById('input-yt-id').value.trim();
-    const manualTitle = document.getElementById('input-video-title').value.trim();
-    const category = document.getElementById('input-category').value;
-    
-    // 1. VERIFICAR SI ES LOCAL O YOUTUBE
-    if (localVideoFile) {
-        isLocalMode = true;
-        YOUTUBE_ID = "LOCAL_" + localVideoFile.name.replace(/[^a-zA-Z0-9]/g, ""); // ID Falso único
-        VIDEO_TITLE = manualTitle || localVideoFile.name;
-    } else {
-        isLocalMode = false;
-        let extractedID = extractVideoID(rawInput);
-        if (!extractedID && rawInput.length === 11) extractedID = rawInput;
-        if (!extractedID) return alert("❌ URL, ID o Archivo inválido.");
-        YOUTUBE_ID = extractedID;
+async function startNewSession() {
+        const rawInput = document.getElementById('input-yt-id').value.trim();
+        const manualTitle = document.getElementById('input-video-title').value.trim();
+        const category = document.getElementById('input-category').value;
+        
+        // 1. GENERAR ID ÚNICO Y CLAVES DE MEMORIA
+        if (localVideoFile) {
+            isLocalMode = true;
+            // Usamos el nombre del archivo limpio como ID
+            YOUTUBE_ID = "LOCAL_" + localVideoFile.name.replace(/[^a-zA-Z0-9]/g, ""); 
+            VIDEO_TITLE = manualTitle || localVideoFile.name;
+        } else {
+            isLocalMode = false;
+            let extractedID = extractVideoID(rawInput);
+            if (!extractedID && rawInput.length === 11) extractedID = rawInput;
+            if (!extractedID) return alert("❌ URL, ID o Archivo inválido.");
+            YOUTUBE_ID = extractedID;
+        }
+
+        // === FIX CRÍTICO: Definir claves AHORA, antes de cargar nada ===
+        STORAGE_KEY_TIME = 'mdc_time_' + YOUTUBE_ID;
+        STORAGE_KEY_FRAGMENTS = 'mdc_fragments_' + YOUTUBE_ID;
+        // ==============================================================
+
+        const fileEn = document.getElementById('file-en').files[0];
+        const fileEs = document.getElementById('file-es').files[0];
+
+        if(!fileEn || !fileEs) return alert("⚠️ Carga ambos archivos SRT.");
+
+        try {
+            const textEn = await readFile(fileEn);
+            const textEs = await readFile(fileEs);
+            const finalTitle = manualTitle.length > 0 ? manualTitle : (isLocalMode ? localVideoFile.name : "Video Cargado");
+            VIDEO_TITLE = finalTitle; 
+
+            if (isLocalMode) {
+                launchLocalPlayer(textEn, textEs, YOUTUBE_ID);
+            } else {
+                processAndLaunch(textEn, textEs, YOUTUBE_ID, finalTitle);
+            }
+            
+            addToHistory(YOUTUBE_ID, finalTitle, textEn, textEs, category);
+
+        } catch (e) { alert("Error leyendo archivos: " + e); }
     }
 
-    const fileEn = document.getElementById('file-en').files[0];
-    const fileEs = document.getElementById('file-es').files[0];
+   function launchLocalPlayer(srtEn, srtEs, id) {
+        // 1. Preparar Subtítulos
+        const parsedEn = parseSRT(srtEn);
+        const parsedEs = parseSRT(srtEs);
+        let globalWordCount = 0;
+        SUBTITLES_DATA = parsedEn.map((item, index) => {
+            const esItem = parsedEs[index] ? parsedEs[index].text : "...";
+            const currentStartIdx = globalWordCount;
+            const wordCount = item.text.trim().split(/\s+/).length; 
+            globalWordCount += wordCount;
+            return { s: item.start, e: item.end, en: item.text, es: esItem, wordStart: currentStartIdx };
+        });
 
-    if(!fileEn || !fileEs) return alert("⚠️ Carga ambos archivos SRT.");
-
-    try {
-        const textEn = await readFile(fileEn);
-        const textEs = await readFile(fileEs);
-        const finalTitle = manualTitle.length > 0 ? manualTitle : (isLocalMode ? localVideoFile.name : "Video Cargado");
-        VIDEO_TITLE = finalTitle; 
-
-        // LANZAMIENTO
-        if (isLocalMode) {
-            launchLocalPlayer(textEn, textEs, YOUTUBE_ID); // Nueva función para local
-        } else {
-            processAndLaunch(textEn, textEs, YOUTUBE_ID, finalTitle); // Tu función normal
-        }
+        // 2. Configurar Interfaz
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('player-ui').style.display = 'flex';
+        document.getElementById('video-cover').style.display = 'none';
         
-        // No guardamos videos locales en el historial online porque el archivo no persiste
-        // pero sí funcionará el historial local mientras no limpies caché.
-        addToHistory(YOUTUBE_ID, finalTitle, textEn, textEs, category);
+        const videoEl = document.getElementById('html5-player');
+        const ytEl = document.getElementById('player');
+        ytEl.style.display = 'none';
+        videoEl.style.display = 'block';
+        videoEl.src = URL.createObjectURL(localVideoFile);
+        
+        renderSubtitles();
+        loadPreferences();
 
-    } catch (e) { alert("Error leyendo archivos: " + e); }
-}
-
-    function launchLocalPlayer(srtEn, srtEs, id) {
-    // 1. Preparar UI
-    const parsedEn = parseSRT(srtEn);
-    const parsedEs = parseSRT(srtEs);
-    
-    let globalWordCount = 0;
-    SUBTITLES_DATA = parsedEn.map((item, index) => {
-        const esItem = parsedEs[index] ? parsedEs[index].text : "...";
-        const currentStartIdx = globalWordCount;
-        const wordCount = item.text.trim().split(/\s+/).length; 
-        globalWordCount += wordCount;
-        return { s: item.start, e: item.end, en: item.text, es: esItem, wordStart: currentStartIdx };
-    });
-
-    document.getElementById('setup-screen').style.display = 'none';
-    document.getElementById('player-ui').style.display = 'flex';
-    document.getElementById('video-cover').style.display = 'none'; // Sin portada en local
-    
-    // 2. Configurar Elemento de Video
-    const videoEl = document.getElementById('html5-player');
-    const ytEl = document.getElementById('player');
-    
-    ytEl.style.display = 'none'; // Ocultar div de YouTube
-    videoEl.style.display = 'block'; // Mostrar video local
-    videoEl.src = URL.createObjectURL(localVideoFile);
-    
-    renderSubtitles();
-    loadPreferences();
-
-    // 3. CREAR EL "ADAPTER" (El Falso Player de YouTube)
-    // Esto hace que 'player.seekTo', 'player.getCurrentTime', etc. funcionen con el video local
-    player = {
-        playVideo: () => videoEl.play(),
-        pauseVideo: () => videoEl.pause(),
-        stopVideo: () => { videoEl.pause(); videoEl.currentTime = 0; },
-        seekTo: (seconds) => { videoEl.currentTime = seconds; },
-        getCurrentTime: () => videoEl.currentTime,
-        getDuration: () => videoEl.duration,
-        setPlaybackRate: (rate) => { videoEl.playbackRate = rate; },
-        getVideoData: () => ({ title: VIDEO_TITLE, video_id: id }),
-        getPlayerState: () => {
-            if (videoEl.ended) return YT.PlayerState.ENDED;
-            if (videoEl.paused) return YT.PlayerState.PAUSED;
-            return YT.PlayerState.PLAYING;
-        },
-        destroy: () => { videoEl.pause(); URL.revokeObjectURL(videoEl.src); }
-    };
-
-    // 4. Conectar Eventos Nativos a tu Lógica
-    videoEl.onplay = () => {
-        clearInterval(checkInterval);
-        checkInterval = setInterval(checkTime, 100); // Usamos tu checkTime existente
-    };
-    
-    videoEl.onpause = () => {
-        clearInterval(checkInterval);
-        saveCurrentPosition(); // Usamos tu guardado de V11
-    };
-
-    // 5. Restaurar Memoria (Usando tu lógica V11)
-    videoEl.onloadedmetadata = () => {
-        const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
-        if (savedTime) {
-            const t = parseFloat(savedTime);
-            if(t > 0) {
+        // 3. RESTAURACIÓN DE MEMORIA (Agresiva)
+        const restoreMemory = () => {
+            const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
+            if (savedTime && parseFloat(savedTime) > 0) {
+                const t = parseFloat(savedTime);
+                console.log("Local Memory Restored: " + t);
                 videoEl.currentTime = t;
                 highlightCurrentLine(t);
+                
                 // Scroll forzado
                 const activeLine = document.querySelector('.line.active');
                 const container = document.querySelector('.dialogue-container');
@@ -676,9 +648,50 @@ let isLocalMode = false;
                     container.scrollTo({ top: target, behavior: "auto" }); 
                 }
             }
-        }
-    };
-}
+        };
+
+        // Ejecutar restauración al cargar metadatos
+        videoEl.onloadedmetadata = restoreMemory;
+
+        // 4. ADAPTER (Puente HTML5 -> Sistema Studio)
+        player = {
+            playVideo: () => videoEl.play(),
+            pauseVideo: () => videoEl.pause(),
+            stopVideo: () => { videoEl.pause(); videoEl.currentTime = 0; },
+            seekTo: (seconds) => { videoEl.currentTime = seconds; },
+            getCurrentTime: () => videoEl.currentTime,
+            getDuration: () => videoEl.duration,
+            setPlaybackRate: (rate) => { videoEl.playbackRate = rate; },
+            getVideoData: () => ({ title: VIDEO_TITLE, video_id: id }),
+            getPlayerState: () => {
+                if (videoEl.ended) return YT.PlayerState.ENDED;
+                if (videoEl.paused) return YT.PlayerState.PAUSED;
+                return YT.PlayerState.PLAYING;
+            },
+            destroy: () => { videoEl.pause(); URL.revokeObjectURL(videoEl.src); }
+        };
+
+        // 5. SINCRONIZACIÓN
+        // Usamos checkTime para la lógica compleja (fragmentos, bucles)
+        // Pero añadimos un guardado nativo extra por seguridad.
+        videoEl.onplay = () => {
+            clearInterval(checkInterval);
+            checkInterval = setInterval(checkTime, 100);
+        };
+        
+        videoEl.onpause = () => {
+            clearInterval(checkInterval);
+            saveCurrentPosition();
+        };
+        
+        // Guardado nativo redundante (cada vez que el tiempo cambia)
+        videoEl.ontimeupdate = () => {
+            if(Math.abs(videoEl.currentTime - lastSavedTime) > 1) {
+                localStorage.setItem(STORAGE_KEY_TIME, videoEl.currentTime);
+                lastSavedTime = videoEl.currentTime;
+            }
+        };
+    }
 
     function loadFromHistory(id) {
         const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
