@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cloud Dashboard v2.9 (Multi-Slot)</title>
+    <title>Cloud Dashboard v3.1 (Safe Mode)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -16,14 +16,14 @@
             --text-main: #1c1c1e; --text-sec: #8e8e93; --border: #e5e5ea;
             --bg-badge-neutral: #e5e5ea; --bg-badge-success: #d1fae5; --bg-badge-danger: #fee2e2;
             --card-header-bg: rgba(255,255,255,0.5);
-            --input-bg: #f2f2f7; /* NUEVO */
+            --input-bg: #f2f2f7;
         }
         body.dark-mode {
             --bg-body: #000000; --card-bg: #1c1c1e; --text-main: #f4f4f5; 
             --text-sec: #a1a1aa; --border: #2c2c2e;
             --bg-badge-neutral: #2c2c2e; --bg-badge-success: rgba(52, 199, 89, 0.2);
             --bg-badge-danger: rgba(255, 59, 48, 0.2); --card-header-bg: rgba(255,255,255,0.05);
-            --input-bg: #2c2c2e; /* NUEVO */
+            --input-bg: #2c2c2e;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { 
@@ -60,7 +60,6 @@
         .btn-cloud-mix { background: var(--card-bg); color: var(--success); border: 2px solid var(--success); }
         .file-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px; }
         
-        /* NUEVO: Estilos para inputs de nombre */
         .backup-controls {
             padding: 0 0 15px 0;
             display: flex;
@@ -82,7 +81,22 @@
             border-color: var(--primary);
         }
         
-        /* FILE BUTTONS */
+        /* Contenedor flexible para el select y el botón de borrar */
+        .select-group {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-delete {
+            background: var(--bg-badge-danger);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            border-radius: 8px;
+            padding: 0 15px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
         .btn-file { 
             background: #f3f4f6; 
             color: #000000; 
@@ -127,7 +141,7 @@
 
     <div class="container">
         <div class="header">
-            <h1>Sync Center v2.9</h1>
+            <h1>Sync Center v3.1</h1>
             <div style="display:flex; gap:10px; justify-content:center; margin-top:5px;">
                 <span id="connection-status" class="status-badge">Connecting...</span>
                 <span id="sync-health" class="status-badge" style="display:none;">Checking...</span>
@@ -137,13 +151,13 @@
         <div class="card">
             <div class="card-header">
                 <span>☁️ CLOUD ACTIONS</span>
-                <span style="font-size:10px;">MULTI-VERSION</span>
+                <span style="font-size:10px;">SAFE MODE</span>
             </div>
             <div style="padding: 20px;">
                 
                 <div class="backup-controls">
                     <label style="font-size:12px; font-weight:bold; color:var(--text-sec);">CREATE NEW / OVERWRITE:</label>
-                    <input type="text" id="backup-name" class="backup-input" placeholder="Name (e.g., Philosophy, Tech)...">
+                    <input type="text" id="backup-name" class="backup-input" placeholder="Type name OR Select from list below...">
                     
                     <button class="btn btn-cloud-save" onclick="saveToCloud()">
                         ⬆️ SAVE TO CLOUD
@@ -151,10 +165,15 @@
 
                     <hr style="width:100%; border:0; border-top:1px solid var(--border); margin: 10px 0;">
 
-                    <label style="font-size:12px; font-weight:bold; color:var(--text-sec);">RESTORE FROM:</label>
-                    <select id="backup-select" class="backup-select">
-                        <option value="" disabled selected>Loading backups...</option>
-                    </select>
+                    <label style="font-size:12px; font-weight:bold; color:var(--text-sec);">MANAGE BACKUPS:</label>
+                    
+                    <div class="select-group">
+                        <select id="backup-select" class="backup-select">
+                            <option value="" disabled selected>Loading backups...</option>
+                        </select>
+                        <button class="btn-delete" onclick="deleteBackup()" title="Delete Selected Backup">🗑️</button>
+                    </div>
+
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -251,7 +270,6 @@
             prompt: 'nexus_prompt_history'
         };
 
-        // NUEVO: Función para limpiar el nombre (quitar símbolos raros)
         function sanitizeName(name) {
             return name.replace(/[^a-zA-Z0-9_-]/g, '_');
         }
@@ -264,7 +282,7 @@
                 const badge = document.getElementById('connection-status');
                 if (snap.val() === true) {
                     badge.innerText = "🟢 Online"; badge.className = "status-badge online";
-                    loadBackupList(); // Cargar lista al conectar
+                    loadBackupList(); 
                 } else {
                     badge.innerText = "⚪ Offline"; badge.className = "status-badge";
                 }
@@ -275,9 +293,12 @@
             refreshStats();
             updateDateDisplay();
             
-            // Listener para actualizar info al cambiar el select
             document.getElementById('backup-select').addEventListener('change', (e) => {
-                checkSelectedBackupStatus(e.target.value);
+                const selectedName = e.target.value;
+                checkSelectedBackupStatus(selectedName);
+                if(selectedName) {
+                    document.getElementById('backup-name').value = selectedName;
+                }
             });
         });
 
@@ -288,28 +309,30 @@
             }
         });
 
-        // NUEVO: Cargar lista de backups disponibles
         function loadBackupList() {
             const select = document.getElementById('backup-select');
             db.ref('backups').on('value', (snap) => {
+                // Guardar la selección actual si es posible
+                const currentVal = select.value;
+                
                 select.innerHTML = '<option value="" disabled selected>Select a Backup...</option>';
                 const backups = snap.val();
                 if(backups) {
                     Object.keys(backups).forEach(key => {
                         const opt = document.createElement('option');
                         opt.value = key;
-                        // Mostrar nombre y fecha si existe
                         const date = backups[key].meta ? backups[key].meta.date_str.split(',')[0] : '';
                         opt.innerText = `${key} (${date})`;
                         select.appendChild(opt);
                     });
+                    // Intentar restaurar selección
+                    if(backups[currentVal]) select.value = currentVal;
                 } else {
                     select.innerHTML = '<option value="" disabled>No backups found</option>';
                 }
             });
         }
 
-        // NUEVO: Verificar estado de backup seleccionado
         async function checkSelectedBackupStatus(backupName) {
             if(!backupName) return;
             try {
@@ -327,14 +350,12 @@
         }
 
         async function mixFromCloud() {
-            // NUEVO: Obtener nombre del selector
             const backupName = document.getElementById('backup-select').value;
             if(!backupName) return alert("⚠️ Please select a backup from the list first.");
 
             if(!db) return alert("No connection.");
             showLoading("Merging from " + backupName + "...");
             try {
-                // NUEVO: Ruta dinámica
                 const snapshot = await db.ref(`backups/${backupName}`).once('value');
                 const val = snapshot.val();
                 if (!val || !val.data) throw new Error("Cloud is empty.");
@@ -371,28 +392,67 @@
             } catch (error) { hideLoading(); alert("❌ Error: " + error.message); }
         }
 
+        // NUEVO: Función para borrar backup
+        async function deleteBackup() {
+            const backupName = document.getElementById('backup-select').value;
+            if(!backupName) return alert("⚠️ Please select a backup to delete first.");
+
+            if(confirm(`🚨 DELETE WARNING 🚨\n\nAre you sure you want to PERMANENTLY delete the backup: '${backupName}'?\n\nThis cannot be undone.`)) {
+                showLoading("Deleting " + backupName + "...");
+                try {
+                    await db.ref(`backups/${backupName}`).remove();
+                    hideLoading();
+                    alert("🗑️ Backup deleted successfully.");
+                    // Limpiar el input si tenía ese nombre
+                    if(document.getElementById('backup-name').value === backupName) {
+                        document.getElementById('backup-name').value = '';
+                    }
+                    // La lista se actualiza sola gracias al listener .on()
+                } catch (e) {
+                    hideLoading();
+                    alert("❌ Error deleting: " + e.message);
+                }
+            }
+        }
+
         async function saveToCloud() {
-            // NUEVO: Obtener nombre del input
             let rawName = document.getElementById('backup-name').value.trim();
             if(!rawName) return alert("⚠️ Please name your backup (e.g. 'Philosophy', 'Tech').");
             
-            const safeName = sanitizeName(rawName); // Limpiar nombre
+            const safeName = sanitizeName(rawName);
 
-            showLoading(`Saving to '${safeName}'...`);
-            const payload = {};
-            let count = 0;
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (PREFIXES.some(p => key.startsWith(p))) {
-                    payload[key] = localStorage.getItem(key);
-                    count++;
-                }
-            }
-            if(count === 0) { hideLoading(); return alert("No local data."); }
+            showLoading(`Checking '${safeName}'...`);
+            
+            // NUEVO: Verificar si existe antes de guardar
             try {
+                const snapshot = await db.ref(`backups/${safeName}`).once('value');
+                const exists = snapshot.exists();
+
+                if (exists) {
+                    hideLoading(); // Ocultar spinner para mostrar el confirm
+                    if(!confirm(`⚠️ WARNING: Backup '${safeName}' ALREADY EXISTS.\n\nDo you want to OVERWRITE it with current local data?`)) {
+                        return; // Cancelar guardado
+                    }
+                    showLoading(`Overwriting '${safeName}'...`);
+                } else {
+                    // Si es nuevo, solo actualizar mensaje
+                    showLoading(`Saving new backup '${safeName}'...`);
+                }
+
+                // Proceder a guardar
+                const payload = {};
+                let count = 0;
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (PREFIXES.some(p => key.startsWith(p))) {
+                        payload[key] = localStorage.getItem(key);
+                        count++;
+                    }
+                }
+                if(count === 0) { hideLoading(); return alert("No local data."); }
+
                 const now = Date.now();
                 const dateStr = new Date().toLocaleString();
-                // NUEVO: Guardar en ruta con nombre
                 await db.ref(`backups/${safeName}`).set({
                     data: payload,
                     meta: { timestamp: now, date_str: dateStr, device: navigator.userAgent }
@@ -402,21 +462,18 @@
                 localStorage.setItem('mdc_last_sync_ts', now);
                 updateDateDisplay(); 
                 hideLoading();
-                alert(`✅ Upload successful to '${safeName}'.`);
-                // Limpiar input
-                document.getElementById('backup-name').value = '';
+                alert(`✅ Saved successfully to '${safeName}'.`);
+
             } catch (error) { hideLoading(); alert("❌ Error: " + error.message); }
         }
 
         async function loadFromCloud() {
-            // NUEVO: Obtener nombre del selector
             const backupName = document.getElementById('backup-select').value;
             if(!backupName) return alert("⚠️ Please select a backup from the list first.");
 
             if(!confirm(`⚠️ REPLACE will delete everything local and load '${backupName}'. Are you sure?`)) return;
             showLoading("Downloading " + backupName + "...");
             try {
-                // NUEVO: Ruta dinámica
                 const snapshot = await db.ref(`backups/${backupName}`).once('value');
                 const val = snapshot.val();
                 if (!val || !val.data) throw new Error("Cloud empty.");
