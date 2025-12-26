@@ -1334,7 +1334,7 @@
         updateAllWordStates(); 
     }
 
- function updateAllWordStates() {
+function updateAllWordStates() {
     const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
     const savedWordsSet = new Set();
     const savedPhrases = [];
@@ -1354,7 +1354,7 @@
     };
     collect(vocab);
 
-    // Ordenar frases de más larga a más corta (crucial para prioridad)
+    // Ordenar frases de más larga a más corta (CRUCIAL: las largas reclaman primero)
     savedPhrases.sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length);
 
     // 2. Limpiar SOLO lo necesario (sin tocar selecciones manuales del usuario)
@@ -1365,7 +1365,7 @@
         }
     });
 
-    // 3. Pintar FRASES primero (prioridad ámbar)
+    // 3. Pintar FRASES primero
     document.querySelectorAll('.line').forEach(line => {
         const wordsEls = Array.from(line.querySelectorAll('.english-word'));
         const wordsText = wordsEls.map(el => sanitizeText(el.innerText).toLowerCase());
@@ -1374,6 +1374,7 @@
             const phraseWords = phrase.split(/\s+/).filter(Boolean);
             if (phraseWords.length === 0) return;
 
+            // Buscar coincidencias
             for (let i = 0; i <= wordsText.length - phraseWords.length; i++) {
                 let match = true;
                 for (let j = 0; j < phraseWords.length; j++) {
@@ -1382,14 +1383,23 @@
                         break;
                     }
                 }
+                
                 if (match) {
-                    // Pintar toda la frase en ámbar y marcar
+                    // Pintar la frase
                     for (let j = 0; j < phraseWords.length; j++) {
                         const el = wordsEls[i + j];
-                        if (el && el.dataset.userSelected !== "true") {
+                        
+                        // === FIX CRÍTICO 1: PROTECCIÓN ===
+                        // Agregamos: && !el.dataset.phraseParent
+                        // Si la palabra ya tiene dueño (una frase más larga procesada antes), NO la tocamos.
+                        if (el && el.dataset.userSelected !== "true" && !el.dataset.phraseParent) {
+                            
                             el.classList.add('phrase-word');
-                            el.classList.remove('saved-word');  // ← Prioridad ámbar
                             el.dataset.phraseParent = phrase;
+                            
+                            // === FIX CRÍTICO 2: CONVIVENCIA ===
+                            // Eliminada la línea: el.classList.remove('saved-word');
+                            // Esto permite que la palabra sea Individual y Frase a la vez.
                         }
                     }
                 }
@@ -1397,11 +1407,14 @@
         });
     });
 
-    // 4. Pintar palabras sueltas (rosa) SOLO si NO forman parte de una frase
+    // 4. Pintar palabras sueltas (rosa)
     document.querySelectorAll('.english-word').forEach(el => {
         if (el.dataset.userSelected === "true") return;
-        if (el.classList.contains('phrase-word')) return;  // ← Ya es parte de frase
-
+        
+        // === FIX CRÍTICO 3: NO SALTAR ===
+        // Eliminada la línea: if (el.classList.contains('phrase-word')) return;
+        // Ahora pintamos "saved-word" aunque ya sea parte de una frase.
+        
         const clean = sanitizeText(el.innerText).toLowerCase();
         if (savedWordsSet.has(clean)) {
             el.classList.add('saved-word');
