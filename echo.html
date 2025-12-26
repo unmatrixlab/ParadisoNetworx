@@ -161,41 +161,71 @@
     <div id="stream-container">
         </div>
 
-    <script>
-        const STORAGE_KEY = 'mdc_vocab_list';
+ <script>
         let items = [];
-        let players = {}; // Almacena instancias de YT Players
+        let players = {}; 
         let observer;
         let blindMode = false;
 
         // --- 1. INITIALIZATION ---
         function init() {
-            loadData();
-            renderStream();
+            // Ya no cargamos datos directamente. Esperamos al Padre.
+            console.log("Echo Stream: Waiting for data...");
             setupObserver();
         }
 
-        function loadData() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                const all = JSON.parse(raw || '[]');
-                
-                // FILTRO MÁGICO: Solo items que tengan datos de video (Source Youtube)
-                // y que no sean carpetas.
-                items = all.filter(i => 
-                    !i.isFolder && 
-                    i.source && 
-                    i.source.type === 'youtube' && 
-                    i.source.videoId
-                );
+        // --- 2. NEXUS COMMUNICATION (DATA RECEIVER) ---
+        window.addEventListener('message', function(event) {
+            
+            // A) COMANDO PARA IMPORTAR DATOS (Desde el Studio)
+            if (event.data && event.data.action === 'IMPORT_DATA') {
+                try {
+                    const rawData = JSON.parse(event.data.data || '[]');
+                    const filter = event.data.filter; // Si hay filtro de foco (Focus Mode)
 
-                // Barajar para que sea divertido (Shuffle)
-                items.sort(() => Math.random() - 0.5);
+                    // PROCESAMIENTO RECURSIVO: Extraer todo de las carpetas
+                    items = extractAllItems(rawData);
 
-            } catch (e) { items = []; }
+                    // APLICAR FILTRO DE FOCO (Si existe)
+                    if (filter) {
+                        items = items.filter(i => 
+                            i.source.videoId === filter.videoId &&
+                            i.source.timestamp >= filter.start &&
+                            i.source.timestamp <= filter.end
+                        );
+                    } else {
+                        // Si no hay filtro, mezclar todo para modo aleatorio
+                        items.sort(() => Math.random() - 0.5);
+                    }
+
+                    renderStream();
+                } catch (e) {
+                    console.error("Nexus Data Error:", e);
+                }
+            }
+
+            // B) COMANDO DE PAUSA FORZADA
+            if (event.data === 'FORCE_PAUSE') {
+                Object.keys(players).forEach(idx => destroyVideo(idx));
+            }
+        });
+
+        // Función auxiliar para sacar items de carpetas (FIX DEL BORRADO VISUAL)
+        function extractAllItems(list) {
+            let results = [];
+            list.forEach(item => {
+                if (item.isFolder && item.items) {
+                    // Si es carpeta, entramos recursivamente
+                    results = results.concat(extractAllItems(item.items));
+                } else if (!item.isFolder && item.source && item.source.type === 'youtube' && item.source.videoId) {
+                    // Si es item válido, lo guardamos
+                    results.push(item);
+                }
+            });
+            return results;
         }
 
-        // --- 2. RENDER LOGIC ---
+        // --- 3. RENDER LOGIC ---
         function renderStream() {
             const container = document.getElementById('stream-container');
             container.innerHTML = '';
@@ -205,8 +235,8 @@
                     <div class="empty-state">
                         <div class="empty-icon">📡</div>
                         <h2>NO SIGNAL DETECTED</h2>
-                        <p>Use the <b>PLAYER</b> module to save words from videos.</p>
-                        <p style="font-size:12px; margin-top:10px; color:#555;">(Only new words saved with the update will appear here)</p>
+                        <p>No valid flashcards found via Nexus Link.</p>
+                        <p style="font-size:12px; margin-top:10px; color:#555;">(Check your Saved Library)</p>
                     </div>
                 `;
                 return;
@@ -218,10 +248,14 @@
                 card.id = `card-${index}`;
                 card.dataset.index = index;
                 card.dataset.videoId = item.source.videoId;
-                // Calculamos tiempos: Start = timestamp - 1.5s, End = timestamp + 3s
-                const startT = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
-                const endT = parseFloat(item.source.timestamp) + 3.0;
                 
+                // Tiempos: Inicio un poco antes para contexto
+                const startT = Math.max(0, parseFloat(item.source.timestamp) - 1.5);
+                // Final: Usamos el final real si existe, o calculamos +3s
+                let endT = item.source.timestampEnd 
+                           ? parseFloat(item.source.timestampEnd) + 1.0 
+                           : parseFloat(item.source.timestamp) + 3.0;
+
                 card.dataset.start = startT;
                 card.dataset.end = endT;
 
@@ -234,7 +268,7 @@
                     <div class="hud-layer" id="hud-${index}">
                         <div class="meta-tag">
                             <span>● REC</span>
-                            <span>${new Date(item.id).toLocaleDateString()}</span>
+                            <span>${new Date(item.dateAdded || Date.now()).toLocaleDateString()}</span>
                         </div>
                         <div class="main-word">${item.eng}</div>
                         <div class="translation">${item.esp || '...'}</div>
@@ -248,15 +282,15 @@
                 `;
 
                 container.appendChild(card);
+                if (observer) observer.observe(card);
             });
         }
 
-        // --- 3. INTERSECTION OBSERVER (THE ENGINE) ---
+        // --- 4. INTERSECTION OBSERVER (THE ENGINE) ---
         function setupObserver() {
-            // Este observador detecta qué tarjeta está en pantalla
             const options = {
                 root: document.getElementById('stream-container'),
-                threshold: 0.6 // Cuando el 60% de la tarjeta es visible
+                threshold: 0.6 
             };
 
             observer = new IntersectionObserver((entries) => {
@@ -269,80 +303,60 @@
                     }
                 });
             }, options);
-
-            document.querySelectorAll('.echo-card').forEach(card => {
-                observer.observe(card);
-            });
         }
 
-        // --- 4. YOUTUBE PLAYER MANAGEMENT (LAZY LOADING) ---
+        // --- 5. YOUTUBE PLAYER MANAGEMENT (LAZY LOADING) ---
         function loadAndPlayVideo(index) {
             const card = document.getElementById(`card-${index}`);
+            if(!card) return;
             const wrapperId = `video-wrapper-${index}`;
             const videoId = card.dataset.videoId;
             const start = Math.floor(parseFloat(card.dataset.start));
             const end = Math.ceil(parseFloat(card.dataset.end));
 
-            // Si ya existe, solo asegurarnos de que corra
-            if (players[index]) {
-                // players[index].seekTo(start);
-                // players[index].playVideo();
-                return; 
-            }
+            if (players[index]) return; 
 
-            // Crear div temporal para la API
             const tempDiv = document.createElement('div');
             tempDiv.id = `yt-player-${index}`;
-            document.getElementById(wrapperId).innerHTML = ''; // Limpiar
-            document.getElementById(wrapperId).appendChild(tempDiv);
+            const wrapper = document.getElementById(wrapperId);
+            if(wrapper) {
+                wrapper.innerHTML = ''; 
+                wrapper.appendChild(tempDiv);
 
-            players[index] = new YT.Player(`yt-player-${index}`, {
-                height: '100%',
-                width: '100%',
-                videoId: videoId,
-                playerVars: {
-                    'autoplay': 1,
-                    'controls': 0,
-                    'rel': 0,
-                    'showinfo': 0,
-                    'modestbranding': 1,
-                    'playsinline': 1,
-                    'start': start,
-                    'end': end,
-                    'iv_load_policy': 3,
-                    'fs': 0,
-                    'disablekb': 1
-                },
-                events: {
-                    'onReady': (event) => {
-                        event.target.mute(); // Mute inicial forzoso por políticas de autoplay móvil
-                        event.target.playVideo();
-                        
-                        // Unmute hack: intentamos desmutear tras 1s (si el usuario interactuó con la página antes, funcionará)
-                        setTimeout(() => {
-                            event.target.unMute();
-                            event.target.setVolume(100);
-                        }, 500);
-
-                        card.querySelector('.loader').style.display = 'none';
-                        card.classList.add('playing');
+                players[index] = new YT.Player(`yt-player-${index}`, {
+                    height: '100%',
+                    width: '100%',
+                    videoId: videoId,
+                    playerVars: {
+                        'autoplay': 1, 'controls': 0, 'rel': 0, 'showinfo': 0,
+                        'modestbranding': 1, 'playsinline': 1,
+                        'start': start, 'end': end,
+                        'iv_load_policy': 3, 'fs': 0, 'disablekb': 1
                     },
-                    'onStateChange': (event) => {
-                        // LOOP LOGIC MANUAL
-                        if (event.data === YT.PlayerState.ENDED) {
-                            event.target.seekTo(start);
+                    events: {
+                        'onReady': (event) => {
+                            event.target.mute(); 
                             event.target.playVideo();
+                            setTimeout(() => {
+                                try { event.target.unMute(); event.target.setVolume(100); } catch(e){}
+                            }, 500);
+                            card.querySelector('.loader').style.display = 'none';
+                            card.classList.add('playing');
+                        },
+                        'onStateChange': (event) => {
+                            if (event.data === YT.PlayerState.ENDED) {
+                                event.target.seekTo(start);
+                                event.target.playVideo();
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         }
 
         function destroyVideo(index) {
             if (players[index]) {
-                try {
-                    players[index].destroy();
-                } catch(e){}
+                try { players[index].destroy(); } catch(e){}
                 delete players[index];
                 const card = document.getElementById(`card-${index}`);
                 if(card) {
@@ -352,12 +366,10 @@
             }
         }
 
-        // --- 5. CONTROLS ---
+        // --- 6. CONTROLS ---
         window.toggleBlindMode = function(btn) {
             blindMode = !blindMode;
             btn.classList.toggle('active', blindMode);
-            
-            // Aplicar clase a todas las cards actuales y futuras
             document.querySelectorAll('.echo-card').forEach(card => {
                 if(blindMode) card.querySelector('.hud-layer').classList.add('blind-active');
                 else card.querySelector('.hud-layer').classList.remove('blind-active');
@@ -373,20 +385,7 @@
             }
         };
 
-        // --- 6. GLOBAL API READY ---
-        // La API de YouTube requiere esta función global
-        window.onYouTubeIframeAPIReady = function() {
-            // No hacemos nada aquí, el observer inicia los players bajo demanda
-            console.log("Echo Stream: Audio Engine Ready");
-        };
-
-        // --- 7. NEXUS COMMUNICATION ---
-        window.addEventListener('message', function(event) {
-            if (event.data === 'FORCE_PAUSE') {
-                // Destruir todos los players para ahorrar memoria si cierran la tarjeta
-                Object.keys(players).forEach(idx => destroyVideo(idx));
-            }
-        });
+        window.onYouTubeIframeAPIReady = function() { console.log("Engine Ready"); };
 
         // Start
         init();
