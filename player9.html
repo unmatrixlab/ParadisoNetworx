@@ -2132,26 +2132,29 @@
 (function() {
     const VOCAB_KEY = 'mdc_vocab_list';
     let isTranslating = false;
-
     const originalSetItem = localStorage.setItem;
-    
+
+    // 1. Interceptor de guardado
     localStorage.setItem = function(key, value) {
         originalSetItem.apply(this, arguments);
         if (key === VOCAB_KEY && !isTranslating) {
-            setTimeout(checkAndFixTranslations, 100);
+            // Esperamos un poco para no saturar si hay guardados rápidos
+            setTimeout(checkAndFixTranslations, 500); 
         }
     };
 
+    // 2. Evento de cambios en otras pestañas
     window.addEventListener('storage', (e) => {
         if (e.key === VOCAB_KEY && !isTranslating) {
             checkAndFixTranslations();
         }
     });
 
+    // 3. Revisión al iniciar
     document.addEventListener('DOMContentLoaded', checkAndFixTranslations);
 
     async function checkAndFixTranslations() {
-        if (isTranslating) return; 
+        if (isTranslating) return;
         
         const raw = localStorage.getItem(VOCAB_KEY);
         if (!raw) return;
@@ -2160,27 +2163,51 @@
         try { items = JSON.parse(raw); } catch(e) { return; }
         
         let updated = false;
+        let translationCount = 0;
 
+        // Función de traducción con Logs de error
         const translate = async (text) => {
             try {
-                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=${encodeURIComponent(text)}`;
+                // Usamos un endpoint alternativo que a veces es más permisivo
+                const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(text)}`;
                 const res = await fetch(url);
+                
+                if (!res.ok) {
+                    console.warn(`⚠️ Error Google Translate (${res.status}): Bloqueo temporal.`);
+                    return null;
+                }
+
                 const data = await res.json();
                 return (data && data[0]) ? data[0].map(s => s[0]).join('') : null;
-            } catch (e) { return null; }
+            } catch (e) { 
+                console.error("Error de red al traducir:", e);
+                return null; 
+            }
         };
 
+        // Escáner recursivo
         const scanItems = async (list) => {
             for (let item of list) {
-                if (item.isFolder) {
+                if (item.isFolder && item.items) {
                     await scanItems(item.items);
                 } else {
+                    // Solo traducimos si hay inglés y FALTA español
                     if (item.eng && (!item.esp || item.esp.trim() === "")) {
-                        isTranslating = true; 
+                        // Activamos modo traducción
+                        if (!isTranslating) {
+                            isTranslating = true;
+                            console.log("🔄 Iniciando traducciones automáticas...");
+                        }
+
+                        // RETRASO ARTIFICIAL PARA EVITAR BLOQUEO (300ms)
+                        await new Promise(r => setTimeout(r, 300));
+
                         const translation = await translate(item.eng);
                         if (translation) {
                             item.esp = translation.replace(/['`‘´]/g, "’").replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
                             updated = true;
+                            translationCount++;
+                            console.log(`✅ Traducido: "${item.eng}" -> "${item.esp}"`);
                         }
                     }
                 }
@@ -2190,19 +2217,21 @@
         await scanItems(items);
 
         if (updated) {
+            // Guardamos sin disparar el evento de nuevo inmediatamente
             originalSetItem.call(localStorage, VOCAB_KEY, JSON.stringify(items));
-            refreshCurrentPage(items);
+            console.log(`💾 Guardado: ${translationCount} nuevas traducciones.`);
+            
+            // Refrescar UI si existen las funciones
+            if (typeof updateAllWordStates === 'function') updateAllWordStates();
+            if (typeof renderFragmentList === 'function') renderFragmentList(); // Actualizar tabla si estamos ahí
+            if (typeof openMiniCards === 'function' && document.getElementById('mini-flashcards-ui').style.display === 'flex') {
+                // Si las tarjetas están abiertas, recargar la actual para ver la traducción
+                if(typeof renderCurrentCard === 'function') renderCurrentCard();
+            }
         }
         
-        isTranslating = false; 
+        isTranslating = false;
     }
-
-    function refreshCurrentPage(items) {
-        if (typeof updateAllWordStates === 'function') updateAllWordStates();
-        if (typeof loadVocab === 'function') loadVocab();
-        else if (typeof renderList === 'function') renderList(items);
-    }
-
 })();
 </script>
     
