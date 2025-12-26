@@ -1864,50 +1864,60 @@
     }
 
     /* === LÓGICA PARA ESTUDIAR FRAGMENTO (NUEVO) === */
+ /* === LÓGICA CORREGIDA: ESTUDIAR FRAGMENTO === */
     function studyFragmentVocab(fragId) {
         const frag = videoFragments.find(f => f.id === fragId);
         if (!frag) return;
 
         if(player && typeof player.pauseVideo === 'function') player.pauseVideo();
 
-        // Obtener todo el vocabulario
+        // 1. Obtener todo el vocabulario actual
         const allVocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         let filteredItems = [];
 
-        // Función para saber si una palabra cae dentro del tiempo del fragmento
+        // 2. Función estricta para validar tiempo y video
         const isRelevant = (item) => {
-            if (!item.source) return false;
+            // Si el item no tiene fuente, lo descartamos
+            if (!item.source || typeof item.source.timestamp !== 'number') return false;
             
-            // 1. Coincidir Video
-            const isSameVideo = (item.source.videoId === YOUTUBE_ID) || 
-                                (!item.source.videoId && item.source.title === VIDEO_TITLE);
-            if (!isSameVideo) return false;
+            // Validar ID del video (si el item tiene ID guardado)
+            if (item.source.videoId && item.source.videoId !== YOUTUBE_ID) return false;
+            
+            // Si no tiene ID pero tiene título, validamos título (compatibilidad antigua)
+            if (!item.source.videoId && item.source.title !== VIDEO_TITLE) return false;
 
-            // 2. Coincidir Tiempo (con 1 segundo de margen)
+            // Validar Tiempo (con margen de 1 segundo)
+            // El timestamp debe ser mayor o igual al inicio Y menor o igual al final
             const t = item.source.timestamp;
-            return t >= (frag.start - 1) && t <= (frag.end + 1);
+            return t >= (frag.start - 1.0) && t <= (frag.end + 1.0);
         };
 
-        // Filtrar recursivamente
+        // 3. Filtrar recursivamente buscando items sueltos o en carpetas
         allVocab.forEach(folder => {
             if (folder.isFolder && folder.items) {
+                // Si es carpeta, miramos dentro
                 const matchingItems = folder.items.filter(isRelevant);
-                if (matchingItems.length > 0) filteredItems.push(...matchingItems);
+                if (matchingItems.length > 0) {
+                    // Agregamos los items encontrados a nuestra lista plana
+                    filteredItems.push(...matchingItems);
+                }
             } else {
+                // Si es un item suelto en la raíz
                 if (isRelevant(folder)) filteredItems.push(folder);
             }
         });
 
         if (filteredItems.length === 0) {
-            alert(`No hay palabras guardadas entre ${formatTimeShort(frag.start)} y ${formatTimeShort(frag.end)}.`);
+            alert(`No hay palabras guardadas en este tramo (${formatTimeShort(frag.start)} - ${formatTimeShort(frag.end)}).`);
             return;
         }
 
-        // Preparar paquete de datos para Nexus
+        // 4. Crear estructura de carpeta ÚNICA para Nexus
+        // Esto fuerza a Nexus a ver solo una carpeta con el nombre del fragmento
         const studySessionData = [{
             id: 'frag_session_' + Date.now(),
             isFolder: true,
-            name: `Fragmento: ${frag.name}`,
+            name: `🎯 Fragmento: ${frag.name}`,
             items: filteredItems
         }];
 
@@ -1919,31 +1929,46 @@
         const frame = document.getElementById('nexus-frame');
         portal.style.display = 'block';
         
+        // Reiniciamos el src para forzar recarga limpia
+        frame.src = 'about:blank';
+        
+        setTimeout(() => {
+            frame.src = NEXUS_URL;
+        }, 50);
+
         frame.onload = function() {
-            // Formatear espacios para que no se rompan las frases (igual que el original)
+            // Preparamos los datos conservando TODAS las propiedades (incluido 'esp')
             const formattedData = customData.map(folder => {
                 if(folder.isFolder && folder.items) {
                     const newItems = folder.items.map(item => {
-                        if(item.eng && item.eng.includes(' ')) {
-                            return { ...item, eng: item.eng.replace(/ /g, '\u00A0') };
+                        // Clonamos el item para no modificar el original
+                        const itemClone = { ...item };
+                        
+                        // Aseguramos que 'esp' exista, aunque sea vacío
+                        if (!itemClone.esp) itemClone.esp = "";
+
+                        // Aplicamos el formato de espacios para frases (esto activa el estilo visual en Nexus)
+                        if(itemClone.eng && itemClone.eng.includes(' ')) {
+                            itemClone.eng = itemClone.eng.replace(/ /g, '\u00A0');
                         }
-                        return item;
+                        return itemClone;
                     });
                     return { ...folder, items: newItems };
                 }
                 return folder;
             });
 
-            // Enviar datos filtrados
-            frame.contentWindow.postMessage({
-                action: 'IMPORT_DATA',
-                data: JSON.stringify(formattedData)
-            }, '*');
+            // Enviamos el mensaje con un pequeño retraso para asegurar que Nexus esté escuchando
+            setTimeout(() => {
+                frame.contentWindow.postMessage({
+                    action: 'IMPORT_DATA',
+                    data: JSON.stringify(formattedData)
+                }, '*');
+            }, 500); // Retraso de 500ms vital para evitar condiciones de carrera
         };
-        frame.src = NEXUS_URL;
     }
 
-async function copyHistoryData(e, id, btnElement) {
+    async function copyHistoryData(e, id, btnElement) {
         e.stopPropagation(); 
         
         const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -2048,6 +2073,3 @@ async function copyHistoryData(e, id, btnElement) {
 
 })();
 </script>
-    
-</body>
-</html>
