@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />   
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fix Resume V11.2)</title>
+    <title>MDC Studio Player (Fix V11 - Memory)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -31,11 +31,6 @@
         
         .start-btn { background: var(--primary); color: white; border: none; width: 100%; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(79, 70, 229, 0.2); }
         .start-btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
-
-        /* NUEVO: BOTÓN DE RESUME */
-        .resume-btn { background: #10b981; color: white; border: none; width: 100%; padding: 16px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; margin-bottom: 20px; transition: 0.2s; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3); display: none; text-align: left; position: relative; overflow: hidden; }
-        .resume-btn:hover { background: #059669; transform: translateY(-2px); }
-        .resume-btn span { display: block; font-size: 12px; font-weight: 500; opacity: 0.9; margin-top: 2px;}
 
         .backup-btn { position: relative; flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; color: var(--text-main); font-weight: 600; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 5px; overflow: hidden; }
         .backup-btn:hover { background: #f9fafb; border-color: var(--primary); color: var(--primary); }
@@ -224,12 +219,6 @@
 <div id="setup-screen">
     <div class="setup-container">
         <div class="setup-card">
-            
-            <button id="resume-btn" class="resume-btn" onclick="resumeLastSession()">
-                🔄 RESUME LAST SESSION
-                <span id="resume-title">...</span>
-            </button>
-
             <div class="setup-title">✨ New Session</div>
             <div class="input-group">
                 <label class="input-label">1. Video ID or URL</label>
@@ -419,7 +408,6 @@
     let lastSelectedWordText = ""; 
     const HISTORY_KEY = 'mdc_studio_history';
     const VOCAB_KEY = 'mdc_vocab_list';
-    const SESSION_KEY = 'mdc_active_session_v11'; // NUEVA CLAVE
     const LIBRARY_URL = 'https://paradisonetworx.com/biblioteca.json'; 
     let REMOTE_LIBRARY = [];
     let activeCategoryFilter = 'All';
@@ -438,39 +426,15 @@
     let activeFragmentId = null; 
     let fragmentStartTime = null; 
     let fragmentSliceMinutes = 0; // 0 = Manual, >0 = Auto Slice
+    
+    // === MEMORY VARS ===
+    let lastSavedTime = -1;
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
         loadRemoteLibrary(); 
         startStorageWatcher();
-        checkActiveSession(); // NUEVO CHECK AL INICIO
     });
-
-    // NUEVO: Verificar si hay sesión guardada
-    function checkActiveSession() {
-        const saved = localStorage.getItem(SESSION_KEY);
-        if (saved) {
-            const s = JSON.parse(saved);
-            const btn = document.getElementById('resume-btn');
-            const titleSpan = document.getElementById('resume-title');
-            if (s && s.id && s.title) {
-                btn.style.display = 'block';
-                titleSpan.innerText = "📺 " + s.title;
-            }
-        }
-    }
-
-    // NUEVO: Reanudar sesión
-    function resumeLastSession() {
-        const saved = localStorage.getItem(SESSION_KEY);
-        if (saved) {
-            const s = JSON.parse(saved);
-            // Restaurar variables globales antes de lanzar
-            YOUTUBE_ID = s.id;
-            VIDEO_TITLE = s.title;
-            processAndLaunch(s.srtEn, s.srtEs, s.id, s.title);
-        }
-    }
 
     function startStorageWatcher() {
         lastStorageString = localStorage.getItem(VOCAB_KEY) || "";
@@ -481,6 +445,22 @@
                 updateAllWordStates(); 
             }
         }, 1000); 
+    }
+
+    // === MEMORY PROTECTION: SAVE ON CLOSE ===
+    window.addEventListener('beforeunload', saveCurrentPosition);
+    document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState === 'hidden') saveCurrentPosition();
+    });
+
+    function saveCurrentPosition() {
+        if(player && player.getCurrentTime) {
+            const t = player.getCurrentTime();
+            if(t > 1) {
+                localStorage.setItem(STORAGE_KEY_TIME, t);
+                console.log("Positions saved: " + t);
+            }
+        }
     }
 
     function setCategoryFilter(category) {
@@ -599,15 +579,6 @@
     }
 
     function processAndLaunch(srtEn, srtEs, id, title) {
-        // NUEVO: Guardar en sesión activa inmediatamente
-        localStorage.setItem(SESSION_KEY, JSON.stringify({
-            id: id,
-            title: title,
-            srtEn: srtEn,
-            srtEs: srtEs,
-            timestamp: Date.now()
-        }));
-
         const parsedEn = parseSRT(srtEn);
         const parsedEs = parseSRT(srtEs);
         
@@ -646,29 +617,17 @@
         }
     }
 
-    // === LÓGICA DE ACTIVACIÓN SEGURA (FIXED) ===
     function activateVideo() {
-        if(player && typeof player.playVideo === 'function') { 
-            player.playVideo(); 
-            
-            // INTENTO DE RECUPERACIÓN DE TIEMPO (Solo al activar)
-            const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
-            if (savedTime && parseFloat(savedTime) > 0.5) { 
-                // Pequeño delay para asegurar que el playVideo ya arrancó el motor
-                setTimeout(() => {
-                    player.seekTo(parseFloat(savedTime));
-                }, 500); 
-            }
-        } 
+        if(player && typeof player.playVideo === 'function') { player.playVideo(); } 
         else { setTimeout(activateVideo, 500); }
     }
 
     function goHome() {
         if(player) player.pauseVideo();
+        saveCurrentPosition(); // FORCE SAVE
         document.getElementById('player-ui').style.display = 'none';
         document.getElementById('setup-screen').style.display = 'flex';
         renderHistoryList();
-        checkActiveSession(); // Re-verificar al volver al home
     }
 
     function addToHistory(id, title, srtEn, srtEs, category = 'Other') {
@@ -806,31 +765,37 @@
         });
     };
 
-    // === MODIFICADO: ELIMINADO EL SEEK AUTOMÁTICO ===
-    function onPlayerReady(event) {
+ function onPlayerReady(event) {
         const data = player.getVideoData();
         if(data && data.title && VIDEO_TITLE === 'Video Cargado') { 
             VIDEO_TITLE = data.title; 
             updateHistoryTitle(YOUTUBE_ID, data.title); 
         }
         
-        // NO HACEMOS SEEK AQUÍ PARA EVITAR EL BUG.
-        // Solo restauramos la posición visual del texto.
-        
+        // === RESTORE TIME LOGIC (AGGRESSIVE) ===
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
         if (savedTime) { 
             const t = parseFloat(savedTime);
-            
-            // 1. Calculamos y marcamos visualmente cuál es la línea activa en este segundo
-            highlightCurrentLine(t);
-            
-            // 2. Forzamos el scroll a esa línea
-            const activeLine = document.querySelector('.line.active');
-            const container = document.querySelector('.dialogue-container');
-            
-            if (activeLine && container) {
-                const target = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.offsetHeight / 2) + currentVerticalOffset;
-                container.scrollTo({ top: target, behavior: "auto" }); 
+            if(t > 0) {
+                console.log("Restoring to: " + t);
+                player.seekTo(t); 
+                player.pauseVideo(); 
+                
+                // === FIX: RESTAURAR POSICIÓN DE SCROLL ===
+                // 1. Calculamos y marcamos visualmente cuál es la línea activa en este segundo
+                highlightCurrentLine(t);
+                
+                // 2. Forzamos el scroll a esa línea (manual, por si el autoscroll estaba apagado)
+                const activeLine = document.querySelector('.line.active');
+                const container = document.querySelector('.dialogue-container');
+                
+                if (activeLine && container) {
+                    // Calculamos la posición para que quede centrada
+                    const target = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.offsetHeight / 2) + currentVerticalOffset;
+                    
+                    // Usamos behavior: "auto" para que el salto sea instantáneo (sin animación) al cargar
+                    container.scrollTo({ top: target, behavior: "auto" }); 
+                }
             }
         }
         player.setPlaybackRate(currentPlaybackRate);
@@ -845,10 +810,10 @@
         }
         else { 
             clearInterval(checkInterval); 
+            // Save on Pause/Buffering/Ended
             if(player && player.getCurrentTime) {
-                // Protección básica contra sobrescribir con 0 accidentalmente
-                const ct = player.getCurrentTime();
-                if(ct > 1) localStorage.setItem(STORAGE_KEY_TIME, ct); 
+                const t = player.getCurrentTime();
+                if(t > 0) localStorage.setItem(STORAGE_KEY_TIME, t); 
             }
         }
     }
@@ -856,13 +821,12 @@
     function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
-        
-        // === PROTECCIÓN CRÍTICA ===
-        // Si el tiempo es 0 (inicio) o muy bajo, NO guardamos todavía para no borrar el progreso
-        if (currentTime > 1 && Math.floor(currentTime) % 5 === 0) {
+
+        // === SAVE LOGIC: SAVE EVERY SECOND ===
+        if(Math.abs(currentTime - lastSavedTime) > 1) {
             localStorage.setItem(STORAGE_KEY_TIME, currentTime);
+            lastSavedTime = currentTime;
         }
-        // ===========================
         
         if (activeFragmentId) {
             const frag = videoFragments.find(f => f.id === activeFragmentId);
@@ -875,6 +839,8 @@
                 document.querySelectorAll('.line').forEach(line => {
                     const lStart = parseFloat(line.dataset.start);
                     const lEnd = parseFloat(line.dataset.end);
+                    // Intersection: Line starts before fragment ends AND Line ends after fragment starts
+                    // Added small padding (0.5s) to be generous with overlap
                     if (lStart < frag.end && lEnd > frag.start) {
                         line.classList.add('active-loop-range');
                     } else {
@@ -1797,7 +1763,7 @@ function updateAllWordStates() {
             
         } else {
             const line = element.closest('.line');
-             const contextSource = { 
+         const contextSource = { 
                 type: 'youtube', 
                 videoId: YOUTUBE_ID, 
                 title: VIDEO_TITLE, 
@@ -1877,7 +1843,7 @@ function updateAllWordStates() {
         }
     }
 
-    function clearAllWords() { 
+   function clearAllWords() { 
         // 1. Verificación de seguridad
         if (currentWordStats.uniqueTotal === 0) {
             return alert("No hay palabras guardadas en este video.");
@@ -2001,7 +1967,7 @@ function updateAllWordStates() {
                 type: 'youtube', 
                 videoId: YOUTUBE_ID, 
                 title: VIDEO_TITLE, 
-                timestamp: parseFloat(line.dataset.start),
+                timestamp: parseFloat(line.dataset.start), 
                 context: line.querySelector('.english').innerText,
                 contextEsp: line.querySelector('.spanish').innerText 
             };
@@ -2081,9 +2047,18 @@ function openNexus(mode = 'ALL') {
             let vocabData = JSON.parse(rawData);
 
             // Preparación de datos (Sanitización de espacios)
+            // ... dentro de openNexus ...
             const modifiedData = vocabData.map(folder => {
                 if(folder.isFolder && folder.items) {
                     const newItems = folder.items.map(item => {
+                        // ELIMINAR O COMENTAR ESTE BLOQUE CULPABLE:
+                        /* if(item.eng && item.eng.includes(' ')) {
+                            return { 
+                                ...item, 
+                                eng: item.eng.replace(/ /g, '\u00A0') 
+                            };
+                        }
+                        */
                         // Devolver el item limpio tal cual está
                         return item; 
                     });
@@ -2091,6 +2066,7 @@ function openNexus(mode = 'ALL') {
                 }
                 return folder;
             });
+            // ...
 
             // --- LÓGICA DE FILTRO ---
             let filterToSend = null;
