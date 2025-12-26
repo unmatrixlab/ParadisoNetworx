@@ -23,7 +23,7 @@
             font-family: 'Inter', sans-serif;
             margin: 0;
             height: 100vh;
-            overflow: hidden; /* Controlamos el scroll por secciones */
+            overflow: hidden;
         }
 
         /* === 1. LIBRARY VIEW (DASHBOARD) === */
@@ -33,17 +33,16 @@
             overflow-y: auto;
             display: flex; flex-direction: column;
             background: radial-gradient(circle at top, #1a1a1a, #000);
-            position: relative; /* Para posicionar la X absoluta */
+            position: relative;
         }
 
-        /* ESTILO DEL NUEVO BOTÓN X GRIS */
         .hub-close-btn {
             position: absolute;
             top: 15px;
             right: 15px;
             width: 35px;
             height: 35px;
-            background: #333; /* Gris oscuro */
+            background: #333;
             border: 1px solid #444;
             color: #ccc;
             border-radius: 50%;
@@ -62,13 +61,12 @@
             border-color: #666;
         }
 
-        /* Header eliminado, ajustamos el grid */
         .grid-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
             gap: 20px;
             padding-bottom: 50px;
-            padding-top: 40px; /* Espacio extra arriba ya que no hay header */
+            padding-top: 40px;
         }
 
         .video-card {
@@ -107,7 +105,7 @@
 
         /* === 2. STREAM VIEW (PLAYER) === */
         #stream-view {
-            display: none; /* Oculto por defecto */
+            display: none;
             width: 100%; height: 100%;
             position: fixed; top: 0; left: 0;
             background: #000;
@@ -121,7 +119,6 @@
             scroll-behavior: smooth;
         }
 
-        /* Botón Flotante "Volver" (Dentro del Stream) */
         .exit-btn {
             position: fixed; top: 20px; left: 20px; z-index: 200;
             background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
@@ -131,7 +128,7 @@
             font-size: 20px; cursor: pointer;
         }
 
-        /* === ESTILOS DEL PLAYER (Heredados y mejorados) === */
+        /* === PLAYER STYLES === */
         .echo-card { width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; position: relative; overflow: hidden; }
         .video-layer { position: absolute; top: -15%; left: -15%; width: 130%; height: 130%; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
         .echo-card.playing .video-layer { opacity: 1; }
@@ -142,12 +139,12 @@
         .hud-layer { position: absolute; bottom: 0; left: 0; width: 100%; padding: 20px 20px 90px 20px; z-index: 10; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%); pointer-events: none; }
         .main-word { font-family: 'Syncopate', sans-serif; font-size: 32px; color: #fff; text-transform: uppercase; text-shadow: 0 0 15px rgba(0, 243, 255, 0.4); margin-bottom: 5px; }
         .translation { 
-    font-size: 18px; 
-    color: #ffd700; /* Amarillo Subtítulo (Gold) */
-    font-weight: 600; 
-    margin-bottom: 10px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.9); /* Sombra negra para máxima legibilidad */
-}
+            font-size: 18px; 
+            color: #ffd700; 
+            font-weight: 600; 
+            margin-bottom: 10px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+        }
         .context-sentence { font-size: 14px; color: #ccc; font-style: italic; border-left: 3px solid var(--neon-blue); padding-left: 10px; }
         .blind-active .main-word, .blind-active .translation, .blind-active .context-sentence { filter: blur(12px); opacity: 0; }
         .progress-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.1); z-index: 20; }
@@ -179,6 +176,7 @@
         const STORAGE_KEY = 'mdc_vocab_list';
         let allItems = [];
         let groupedByVideo = {};
+        let currentFilter = null; // NUEVO: Para guardar el filtro de fragmento
         
         // Variables del Player
         let activeItems = [];
@@ -190,7 +188,6 @@
         // --- 0. COMUNICACIÓN CON PADRE (CERRAR IFRAME) ---
         function notifyParentClose() {
             try {
-                // Intentamos llamar a la función closeNexus del Código 1
                 if(window.parent && window.parent.closeNexus) {
                     window.parent.closeNexus();
                 } else {
@@ -214,14 +211,12 @@
                 allItems = [];
                 groupedByVideo = {};
 
-                // 1. Aplanar carpetas (extraer todo a una lista simple)
                 const flatten = (list) => {
                     list.forEach(item => {
                         if (item.isFolder && item.items) flatten(item.items);
                         else if (item.source && item.source.type === 'youtube') {
                             allItems.push(item);
                             
-                            // 2. Agrupar por ID de video
                             const vId = item.source.videoId;
                             if (!groupedByVideo[vId]) {
                                 groupedByVideo[vId] = {
@@ -257,9 +252,8 @@
                 const group = groupedByVideo[vId];
                 const card = document.createElement('div');
                 card.className = 'video-card';
-                card.onclick = () => startStream(vId); // Click para filtrar por este video
+                card.onclick = () => startStream(vId);
 
-                // Truco: Usar miniatura de YT automática
                 const thumbUrl = `https://img.youtube.com/vi/${vId}/mqdefault.jpg`;
 
                 card.innerHTML = `
@@ -276,13 +270,26 @@
             });
         }
 
-        // --- 3. LÓGICA DE TRANSICIÓN (HUB -> STREAM) ---
+        // --- 3. LÓGICA DE TRANSICIÓN (HUB -> STREAM) [MODIFICADO] ---
         function startStream(filterVideoId) {
             // Determinar qué ítems mostrar
             if (filterVideoId) {
                 // Modo: Video Específico
-                activeItems = [...groupedByVideo[filterVideoId].items];
-                // Ordenar por timestamp para seguir la narrativa del video
+                let sourceItems = groupedByVideo[filterVideoId] ? groupedByVideo[filterVideoId].items : [];
+                
+                // --- NUEVO: FILTRADO POR FRAGMENTO ---
+                if (currentFilter && currentFilter.videoId === filterVideoId) {
+                    activeItems = sourceItems.filter(item => {
+                        const t = parseFloat(item.source.timestamp);
+                        return t >= currentFilter.start && t <= currentFilter.end;
+                    });
+                } else {
+                    // Sin filtro: Todo el video
+                    activeItems = [...sourceItems];
+                }
+                // ------------------------------------
+
+                // Ordenar por timestamp
                 activeItems.sort((a, b) => parseFloat(a.source.timestamp) - parseFloat(b.source.timestamp));
             } else {
                 // Modo: Shuffle All (Mezcla todo)
@@ -290,7 +297,7 @@
                 activeItems.sort(() => Math.random() - 0.5);
             }
 
-            if(activeItems.length === 0) return alert("No items to play.");
+            if(activeItems.length === 0) return alert("No words found in this fragment/video.");
 
             // Renderizar Player
             renderStreamCards();
@@ -314,7 +321,7 @@
         // --- 4. MOTOR DEL STREAM (Lógica Visual) ---
         function renderStreamCards() {
             const container = document.getElementById('stream-container');
-            container.innerHTML = ''; // Limpiar anterior
+            container.innerHTML = ''; 
 
             activeItems.forEach((item, index) => {
                 const card = document.createElement('div');
@@ -453,6 +460,41 @@
                 card.classList.remove('paused-state');
             }
         };
+
+        // --- 6. ESCUCHA DE MENSAJES (NUEVO: RECIBE DATOS + FILTRO) ---
+        window.addEventListener('message', function(event) {
+            // Verificamos que sea una acción de importación
+            if (event.data && event.data.action === 'IMPORT_DATA') {
+                
+                // 1. Guardamos los datos
+                if (event.data.data) {
+                    localStorage.setItem(STORAGE_KEY, event.data.data);
+                }
+
+                // 2. ¿Viene con filtro de fragmento?
+                if (event.data.filter) {
+                    currentFilter = event.data.filter;
+                    console.log("🧩 Modo Fragmento Activado:", currentFilter.name);
+                } else {
+                    currentFilter = null; // Modo normal
+                }
+
+                // 3. Reiniciamos la app
+                init();
+                
+                // 4. Auto-Play del fragmento
+                if (currentFilter && currentFilter.videoId) {
+                    startStream(currentFilter.videoId);
+                    
+                    // Notificación Visual (Toast)
+                    const toast = document.createElement('div');
+                    toast.innerText = `Fragment: ${currentFilter.name}`;
+                    toast.style.cssText = "position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--neon-purple); color:white; padding:10px 20px; border-radius:20px; z-index:200; font-weight:bold; box-shadow:0 0 15px var(--neon-purple); font-family:'Inter',sans-serif;";
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                }
+            }
+        });
 
         init();
     </script>
