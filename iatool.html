@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en">   
+<head> 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt Generator & Manager</title>
+    <title>AI Prompt Generator & Manager (Fixed)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        /* FIX: Esto evita que la barra de scroll horizontal aparezca y mueva la app */
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         :root {
             --bg: #121212;
@@ -14,8 +14,16 @@
             --primary: #bb86fc;
             --text: #e0e0e0;
             --border: #333;
-            --accent-active: #2196F3; /* Color para modo Complex */
-            --danger: #cf6679; /* Color para eliminar */
+            --accent-active: #2196F3;
+            --danger: #cf6679;
+            
+            /* === COLORES DE VOCABULARIO === */
+            --saved-word: #ff69b4;  /* Rosa (Palabra suelta) */
+            --phrase-word: #f59e0b; /* Ámbar (Frase completa) */
+            
+            --daw-bg: #222;
+            --daw-screen-bg: #050505;
+            --daw-text: #00ffcc;
         }
 
         body {
@@ -23,231 +31,254 @@
             background-color: var(--bg);
             color: var(--text);
             margin: 0; padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-x: hidden;
-            width: 100%;
+            display: flex; flex-direction: column; align-items: center;
+            overflow-x: hidden; width: 100%; padding-bottom: 80px; 
+            user-select: none; /* Mejor experiencia para Long Press */
         }
 
-        /* Contenedor Principal (El Generador) */
+        /* === LAYOUT & CONTAINERS === */
         #generator-container {
-            width: 100%;
-            max-width: none;
-            background: var(--surface);
-            padding: 20px;
-            margin: 0;
-            border-bottom: 1px solid var(--border);
-            border-radius: 0;
+            width: 100%; max-width: none; background: var(--surface);
+            padding: 20px; margin: 0; border-bottom: 1px solid var(--border);
             transition: all 0.3s ease;
         }
-
         .hidden { display: none !important; }
-
         h2 { margin-top: 0; color: var(--primary); text-align: center; }
 
-        /* --- SWITCH STYLES --- */
-        .switch-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            gap: 15px;
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-        }
+        .switch-wrapper { display: flex; align-items: center; justify-content: center; margin-bottom: 20px; gap: 15px; font-weight: bold; font-size: 0.9em; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #444;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--accent-active); }
         input:checked + .slider:before { transform: translateX(26px); }
         .mode-label { opacity: 0.5; transition: 0.3s; color: #aaa; }
         .mode-label.active { opacity: 1; color: white; font-weight: bold; }
 
-        .grid-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .full-width { grid-column: span 2; }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            color: #aaa;
-        }
-
-        input, select, textarea {
-            width: 100%;
-            background: #2d2d2d;
-            border: 1px solid var(--border);
-            color: white;
-            padding: 10px;
-            border-radius: 4px;
-            outline: none;
-        }
-
-        /* Botones */
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        button {
-            flex: 1;
-            padding: 12px;
-            cursor: pointer;
-            font-weight: bold;
-            border: none;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-
-        #btn-generate { background-color: var(--primary); color: #000; }
-        #btn-generate:hover { background-color: #a370db; }
-
-        #btn-paste { background-color: #03dac6; color: #000; }
-        #btn-paste:hover { background-color: #01b4a4; }
-
-        #btn-show-gen { 
-            background-color: #333; 
-            color: #fff; 
-            margin: 0;
-            padding: 15px;
-            display: none;
-            width: 100%;
-            border-radius: 0;
-        }
-
-        /* Área de Salida del Prompt */
-        #prompt-output {
-            margin-top: 20px;
-            background: #000;
-            padding: 15px;
-            border: 1px solid var(--primary);
-            font-family: monospace;
-            white-space: pre-wrap;
-            display: none;
-        }
-
-        /* Estilos del Acordeón (Resultados) */
-        #results-container {
-            width: 100%;
-            max-width: none;
-            padding: 20px;
-        }
-
-        .accordion-item {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            margin-bottom: 10px;
-            border-radius: 4px;
+        /* === PANEL DE VOCABULARIO === */
+        #vocab-controls {
+            background: #181818;
+            border: 1px solid #333;
+            border-left: 4px solid #444; 
+            border-radius: 6px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
             overflow: hidden;
-            position: relative; /* Para posicionamiento si fuera necesario */
         }
 
-        .accordion-header {
-            padding: 15px;
-            background: #252525;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        #vocab-controls.active-panel {
+            border-left-color: var(--saved-word);
+            background: #1f1a1d; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
+
+        .vocab-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 15px; cursor: pointer; user-select: none;
+        }
+
+        .vocab-toggle-wrapper {
+            display: flex; align-items: center; gap: 12px;
+            font-weight: 600; color: #ccc; font-size: 1rem; transition: color 0.3s;
+        }
+
+        #vocab-controls.active-panel .vocab-toggle-wrapper {
+            color: white; text-shadow: 0 0 8px rgba(255, 105, 180, 0.4);
+        }
+
+        .custom-checkbox {
+            appearance: none; -webkit-appearance: none;
+            width: 40px; height: 22px; background: #333; border-radius: 20px;
+            position: relative; cursor: pointer; transition: background 0.3s; flex-shrink: 0;
+        }
+        .custom-checkbox::after {
+            content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px;
+            background: #888; border-radius: 50%; transition: transform 0.3s, background 0.3s;
+        }
+        .custom-checkbox:checked { background: rgba(255, 105, 180, 0.2); border: 1px solid var(--saved-word); }
+        .custom-checkbox:checked::after {
+            transform: translateX(18px); background: var(--saved-word); box-shadow: 0 0 8px var(--saved-word);
+        }
+
+        .vocab-badge {
+            background: #252525; color: #777; padding: 4px 8px; border-radius: 4px;
+            font-size: 0.75rem; font-family: 'Roboto Mono', monospace; letter-spacing: 0.5px;
+            border: 1px solid #333; white-space: nowrap; transition: all 0.3s;
+        }
+        #vocab-controls.active-panel .vocab-badge {
+            border-color: var(--saved-word); color: var(--saved-word); background: rgba(255, 105, 180, 0.05);
+        }
+
+        .vocab-settings {
+            padding: 15px; background: #141414; border-top: 1px solid #333;
+            display: none; animation: slideDown 0.3s ease-out;
+        }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* === GENERAL INPUTS === */
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        @media (max-width: 600px) { .grid-container { grid-template-columns: 1fr; } } 
         
-        .accordion-header:hover { background: #303030; }
+        label { display: block; margin-bottom: 5px; font-size: 0.9em; color: #aaa; }
+        input, select, textarea { width: 100%; background: #2d2d2d; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; outline: none; }
+        input:disabled { opacity: 0.5; cursor: not-allowed; background: #222; border-color: #333; color: #777; }
+        
+        #modeSelect { transition: border-color 0.3s ease; border: 1px solid var(--border); }
 
-        .header-content {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 12px; cursor: pointer; font-weight: bold; border: none; border-radius: 4px; transition: background 0.2s; }
+        #btn-generate { background-color: var(--primary); color: #000; }
+        #btn-paste { background-color: #03dac6; color: #000; }
+        #btn-show-gen { background-color: #333; color: #fff; margin: 0; padding: 15px; display: none; width: 100%; border-radius: 0; }
+        #prompt-output { margin-top: 20px; background: #000; padding: 15px; border: 1px solid var(--primary); font-family: monospace; white-space: pre-wrap; display: none; }
 
-        .header-actions {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        /* Botón de Eliminar */
-        .btn-delete {
-            background: transparent;
-            color: #666;
-            border: 1px solid #444;
-            padding: 5px 10px;
-            border-radius: 4px;
-            flex: none;
-            font-size: 1.2em;
-            line-height: 1;
-        }
-        .btn-delete:hover {
-            background: var(--danger);
-            color: white;
-            border-color: var(--danger);
-        }
-
-        .accordion-content {
-            padding: 15px;
-            display: none;
-            border-top: 1px solid var(--border);
-            font-size: 0.95em;
-            line-height: 1.5;
-        }
-
+        /* === SEARCH & RESULTS === */
+        #search-container { width: 100%; background: var(--surface); padding: 10px 20px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+        #searchBar { width: 100%; background: #121212; border: 1px solid #333; color: white; padding: 12px; border-radius: 4px; font-size: 16px; }
+        #results-container { width: 100%; padding: 0 20px 20px 20px; }
+        .accordion-item { background: var(--surface); border: 1px solid var(--border); margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
+        .accordion-header { padding: 15px; background: #252525; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .header-content { display: flex; flex-direction: column; gap: 4px; }
+        .meta-tag { background: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8em; display: inline-block; width: fit-content; }
+        .btn-delete { background: transparent; color: #666; border: 1px solid #444; padding: 5px 12px; border-radius: 4px; font-size: 1.2em; }
+        .accordion-content { padding: 15px; display: none; border-top: 1px solid var(--border); font-size: 0.95em; line-height: 1.6; }
         .accordion-content.active { display: block; }
+        
+        /* BOTONES DE ACCIÓN */
+        .action-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        .copy-prompt-btn, .save-phrase-btn { border: none; padding: 8px 12px; font-size: 0.85em; border-radius: 4px; cursor: pointer; width: 100%; font-weight: bold; }
+        .copy-prompt-btn { background: var(--primary); color: black; }
+        
+        /* Botón Guardar Frase (Inactivo por defecto) */
+        .save-phrase-btn { background: #374151; color: white; border: 1px solid #4b5563; opacity: 0.5; pointer-events: none; transition: all 0.2s; }
+        .save-phrase-btn.ready { opacity: 1; pointer-events: all; background: var(--phrase-word); border-color: white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
 
-        .meta-tag {
-            background: #333;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.8em;
+        /* === INTERACTIVE WORDS (MODIFICADO) === */
+        .interactive-word { 
+            cursor: pointer; 
+            border-bottom: 1px solid transparent; 
+            padding: 0 1px; 
+            transition: all 0.2s; 
+            border-radius: 2px;
             display: inline-block;
-            width: fit-content;
+        }
+        .interactive-word:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        
+        /* 1. PALABRA GUARDADA (ROSA) - Clic simple */
+        .interactive-word.saved { 
+            color: var(--saved-word); 
+            font-weight: bold; 
+            text-shadow: 0 0 5px rgba(255, 105, 180, 0.3); 
+            border-bottom: 2px solid var(--saved-word);
         }
 
-        .copy-prompt-btn {
-            background: var(--primary);
-            color: black;
-            border: none;
-            padding: 5px 10px;
-            font-size: 0.8em;
+        /* 2. FRASE GUARDADA (ÁMBAR) - Gana a Rosa */
+        .interactive-word.phrase-saved {
+            background-color: var(--phrase-word) !important;
+            color: white !important;
             border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 10px;
-            display: inline-block;
-            width: auto; flex: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            margin: 0 1px;
+            font-weight: normal;
+            border-bottom: none !important;
+            text-shadow: none !important;
         }
+
+        /* 3. SELECCIÓN ACTIVA (LONG PRESS) */
+        .interactive-word.phrase-selecting {
+            background-color: rgba(245, 158, 11, 0.5) !important; /* Ámbar translúcido */
+            color: white !important;
+            border: 1px dashed var(--phrase-word);
+            border-radius: 4px;
+        }
+
+        /* === DAW AUDIO PLAYER === */
+        .daw-panel {
+            background: linear-gradient(to bottom, #2a2a2a, #1a1a1a);
+            border: 1px solid #444; border-radius: 6px; padding: 12px; margin: 10px 0 20px 0;
+            display: flex; flex-direction: column; gap: 12px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 10px rgba(0,0,0,0.5);
+            font-family: 'Roboto Mono', monospace;
+        }
+        .daw-top-deck { display: flex; gap: 10px; width: 100%; height: 44px; }
+        .daw-btn-play {
+            width: 44px; height: 44px; background: #111; border: 2px solid #555; border-radius: 4px; color: #888;
+            cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+        }
+        .daw-btn-play:active { transform: translateY(2px); box-shadow: inset 0 4px 8px rgba(0,0,0,0.8); }
+        .daw-btn-play.playing { color: #0f0; border-color: #0f0; text-shadow: 0 0 8px #0f0; box-shadow: inset 0 0 15px rgba(0,255,0,0.2); background: #001100; }
+        .daw-screen {
+            flex: 1; background: var(--daw-screen-bg); border: 1px solid #333; border-radius: 2px;
+            display: flex; align-items: center; padding: 0 12px; color: #06b6d4; font-size: 0.85em;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8); position: relative; overflow: hidden; white-space: nowrap;
+        }
+        .daw-screen.active { color: #0f0; }
+        .daw-control-deck { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; }
+        .daw-knob-group { display: flex; flex-direction: column; gap: 4px; }
+        .daw-label { font-size: 0.65em; color: #777; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .daw-slider { -webkit-appearance: none; width: 100%; height: 24px; background: transparent; margin: 0; }
+        .daw-slider::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #000; border: 1px solid #333; border-radius: 3px; }
+        .daw-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 10px; background: #888; border: 1px solid #000; border-radius: 2px; margin-top: -7px; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .daw-select { background: #111; color: #ccc; border: 1px solid #444; font-family: 'Roboto Mono', monospace; font-size: 0.8em; padding: 8px; width: 100%; border-radius: 2px; height: 32px; }
+        @media (min-width: 768px) {
+            .daw-panel { flex-direction: row; height: 60px; }
+            .daw-top-deck { width: auto; flex: 1; }
+            .daw-control-deck { display: flex; gap: 20px; width: auto; }
+            .daw-slider { width: 100px; }
+            .daw-select { width: 140px; }
+        }
+
+        /* === UNIFIED PILL (Bottom Center) === */
+        #unified-pill {
+            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%) translateY(150%);
+            background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50px;
+            padding: 8px 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            display: flex; align-items: center; gap: 15px; 
+            z-index: 5000; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 95%; white-space: nowrap;
+        }
+        #unified-pill.visible { transform: translateX(-50%) translateY(0); }
+
+        .pill-section { display: flex; align-items: center; gap: 8px; }
+        .pill-icon { font-size: 1.1em; }
+        
+        /* Stats Section */
+        #pill-stats-text {
+            font-family: 'Roboto Mono', monospace; font-weight: 800; font-size: 1em; 
+            color: #e5e7eb; letter-spacing: 1px;
+        }
+        .stats-active { color: var(--saved-word) !important; }
+
+        /* Divider */
+        .pill-divider { width: 1px; height: 16px; background: rgba(255,255,255,0.2); }
+
+        /* Translate Section */
+        #pill-trans { display: none; } /* Hidden by default */
+        #pill-trans.active { display: flex; }
+        .trans-origin { color: #aaa; font-style: italic; font-size: 0.9em; }
+        .trans-arrow { color: #666; font-size: 0.8em; margin: 0 4px; }
+        .trans-result { color: #fff; font-weight: 700; font-size: 0.95em; }
 
     </style>
 </head>
 <body>
+
+    <div id="unified-pill">
+        <div class="pill-section">
+            <span class="pill-icon">📊</span>
+            <span id="pill-stats-text">- | 0</span>
+        </div>
+        
+        <div id="pill-divider" class="pill-divider" style="display:none;"></div>
+
+        <div id="pill-trans" class="pill-section">
+            <span id="trans-origin" class="trans-origin">...</span>
+            <span class="trans-arrow">→</span>
+            <span id="trans-result" class="trans-result">...</span>
+        </div>
+    </div>
 
     <button id="btn-show-gen" onclick="toggleGenerator(true)">➕ New Generation</button>
 
@@ -262,6 +293,37 @@
             </label>
             <span id="labelComplex" class="mode-label">COMPLEX</span>
         </div>
+
+        <div id="vocab-controls">
+            <div class="vocab-header" onclick="document.getElementById('useVocabCheckbox').click()">
+                <div class="vocab-toggle-wrapper">
+                    <input type="checkbox" id="useVocabCheckbox" class="custom-checkbox" onclick="event.stopPropagation()" onchange="toggleVocabMode()">
+                    <span>Inject MDC Vocab</span>
+                </div>
+                <span id="vocab-count-badge" class="vocab-badge">Checking DB...</span>
+            </div>
+
+            <div id="vocab-settings" class="vocab-settings">
+                <div class="grid-container" style="margin-bottom:0;">
+                    <div>
+                        <label>Source</label>
+                        <select id="vocabSource">
+                            <option value="all">🌐 All Words</option>
+                            <option value="highlighted">⭐ Highlighted</option>
+                            <option value="recent">Hz Recent (10)</option>
+                            <optgroup id="folder-group" label="📂 Folders"></optgroup>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Amount (Words)</label>
+                        <input type="number" id="vocabAmount" value="5" min="1" max="50">
+                    </div>
+                </div>
+                <div style="font-size: 0.8em; color: #666; margin-top:10px; font-style:italic; border-top: 1px solid #222; padding-top: 5px;">
+                    ℹ️ "Learning Mode" active: Topic is locked. Task dictates the Persona.
+                </div>
+            </div>
+        </div>
         <div class="grid-container">
             <div>
                 <label>Context</label>
@@ -274,10 +336,11 @@
                 <datalist id="topic-history"></datalist>
             </div>
 
-            <div><label>Mode</label><select id="modeSelect"></select></div>
+            <div><label>Mode (Persona)</label><select id="modeSelect"></select></div>
             <div><label>Format</label><select id="formatSelect"></select></div>
             
-            <div><label>Task Type</label><select id="taskSelect"></select></div>
+            <div><label id="taskLabel">Task Type</label><select id="taskSelect" onchange="syncModeWithTask()"></select></div>
+            
             <div><label>Voice/Tone</label><select id="voiceSelect"></select></div>
             <div><label>Length</label><select id="lengthSelect"></select></div>
             <div><label>Depth Level</label><select id="levelSelect"></select></div>
@@ -291,383 +354,603 @@
         <div id="prompt-output"></div>
     </div>
 
+    <div id="search-container">
+        <input type="text" id="searchBar" placeholder="🔍 Search saved prompts..." onkeyup="filterResults()">
+    </div>
+
     <div id="results-container"></div>
 
 <script>
-/* =========================================
-   1. CONFIG DATA
-   ========================================= */
+/* 1. CONFIG DATA */
 const COMMON_DATA = {
-MODES: [
-    { id: 'tech', label: '⚙️ Technical', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.', icon: '⚙️' },
-    { id: 'art', label: '🎨 Art', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.', icon: '🎨' },
-    { id: 'school', label: '📚 School', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.', icon: '📚' },
-    { id: 'story', label: '📖 Storytelling', role: 'Act as a Master Novelist.', style: 'Cinematic, immersive narrative tone.', goal: 'Engaging storytelling and world-building.', icon: '📖' },
-    { id: 'marketing', label: '📣 Marketing', role: 'Act as a Senior Copywriter.', style: 'Persuasive, high-conversion writing.', goal: 'Brand voice alignment & audience engagement.', icon: '📣' },
-    { id: 'business', label: '💼 Business', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.', icon: '💼' },
-    { id: 'research', label: '🔬 Research', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.', icon: '🔬' },
-    { id: 'casual', label: '😊 Casual', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.', icon: '😊' },
-    { id: 'ai', label: '🤖 Artificial Intelligence', role: 'Act as an AI Research Scientist.', style: 'Futuristic, code-infused style.', goal: 'Innovative AI solutions and ethical considerations.', icon: '🤖' },
-    { id: 'math', label: '🧮 Mathematics', role: 'Act as a Mathematician.', style: 'Formal proofs and equations style.', goal: 'Logical precision and theoretical depth.', icon: '🧮' },
-    { id: 'physics', label: '⚛️ Physics', role: 'Act as a Theoretical Physicist.', style: 'Quantum/Einstein-inspired style.', goal: 'Fundamental laws and conceptual breakthroughs.', icon: '⚛️' },
-    { id: 'biology', label: '🧬 Biology', role: 'Act as a Biologist.', style: 'Scientific observation and diagrams style.', goal: 'Life processes and evolutionary insights.', icon: '🧬' },
-    { id: 'chemistry', label: '🧪 Chemistry', role: 'Act as a Chemist.', style: 'Molecular and reaction-focused style.', goal: 'Synthesis, reactions, and material properties.', icon: '🧪' },
-    { id: 'medicine', label: '🩺 Medicine', role: 'Act as a Medical Doctor.', style: 'Clinical case study style.', goal: 'Diagnosis, treatment, and patient care.', icon: '🩺' },
-    { id: 'data', label: '📊 Data Science', role: 'Act as a Data Scientist.', style: 'Statistical charts and insights style.', goal: 'Data-driven decisions and predictive modeling.', icon: '📊' },
-    { id: 'programming', label: '💻 Programming', role: 'Act as a Senior Software Developer.', style: 'Clean code and debugging style.', goal: 'Efficient algorithms and robust implementation.', icon: '💻' },
-    { id: 'design', label: '✏️ Design', role: 'Act as a UX/UI Designer.', style: 'Visual mood boards and prototypes style.', goal: 'User-centered aesthetics and functionality.', icon: '✏️' },
-    { id: 'music', label: '🎵 Music', role: 'Act as a Composer/Music Producer.', style: 'Symphonic or electronic score style.', goal: 'Harmonic innovation and emotional resonance.', icon: '🎵' },
-    { id: 'literature', label: '📜 Literature', role: 'Act as a Literary Critic.', style: 'Prose analysis and quotes style.', goal: 'Deep textual interpretation and thematic exploration.', icon: '📜' },
-    { id: 'philosophy', label: '🤔 Philosophy', role: 'Act as a Philosopher.', style: 'Socratic dialogue style.', goal: 'Ethical reasoning and existential inquiry.', icon: '🤔' },
-    { id: 'history', label: '🏛️ History', role: 'Act as a Historian.', style: 'Chronological narrative with sources style.', goal: 'Contextual understanding and lessons from the past.', icon: '🏛️' },
-    { id: 'psychology', label: '🧠 Psychology', role: 'Act as a Clinical Psychologist.', style: 'Therapeutic case study style.', goal: 'Mental health insights and behavioral analysis.', icon: '🧠' },
-    { id: 'economics', label: '💹 Economics', role: 'Act as an Economist.', style: 'Graphs and policy analysis style.', goal: 'Market dynamics and resource allocation.', icon: '💹' },
-    { id: 'law', label: '⚖️ Law', role: 'Act as a Legal Expert.', style: 'Case law and statutes style.', goal: 'Legal reasoning and justice principles.', icon: '⚖️' },
-    { id: 'architecture', label: '🏗️ Architecture', role: 'Act as an Architect.', style: 'Blueprint and spatial design style.', goal: 'Functional beauty and sustainable structures.', icon: '🏗️' },
-    { id: 'film', label: '🎬 Film', role: 'Act as a Film Director.', style: 'Script and storyboard style.', goal: 'Visual storytelling and cinematic impact.', icon: '🎬' },
-    { id: 'photography', label: '📸 Photography', role: 'Act as a Professional Photographer.', style: 'Composition and lighting style.', goal: 'Capturing moments with artistic vision.', icon: '📸' },
-    { id: 'painting', label: '🖌️ Painting', role: 'Act as a Painter/Artist.', style: 'Brushstroke and palette style.', goal: 'Expressive color and form exploration.', icon: '🖌️' },
-    { id: 'dance', label: '💃 Dance', role: 'Act as a Choreographer.', style: 'Movement sequence style.', goal: 'Bodily expression and rhythmic innovation.', icon: '💃' },
-    { id: 'theater', label: '🎭 Theater', role: 'Act as a Theater Director.', style: 'Stage directions and drama style.', goal: 'Live performance and emotional depth.', icon: '🎭' },
-    { id: 'linguistics', label: '🗣️ Linguistics', role: 'Act as a Linguist.', style: 'Phonetic and syntactic analysis style.', goal: 'Language structure and communication.', icon: '🗣️' },
-    { id: 'sociology', label: '👥 Sociology', role: 'Act as a Sociologist.', style: 'Social patterns and surveys style.', goal: 'Society dynamics and cultural norms.', icon: '👥' },
-    { id: 'anthropology', label: '🌍 Anthropology', role: 'Act as an Anthropologist.', style: 'Ethnographic fieldwork style.', goal: 'Human cultures and evolution.', icon: '🌍' },
-    { id: 'political', label: '🗳️ Political Science', role: 'Act as a Political Analyst.', style: 'Policy debate style.', goal: 'Governance, power, and international relations.', icon: '🗳️' },
-    { id: 'environmental', label: '🌿 Environmental Science', role: 'Act as an Ecologist.', style: 'Ecosystem and sustainability style.', goal: 'Environmental protection and climate solutions.', icon: '🌿' },
-    { id: 'astronomy', label: '🔭 Astronomy', role: 'Act as an Astronomer.', style: 'Cosmic observation style.', goal: 'Universe exploration and celestial phenomena.', icon: '🔭' },
-    { id: 'geology', label: '🪨 Geology', role: 'Act as a Geologist.', style: 'Rock formations and maps style.', goal: 'Earth processes and resources.', icon: '🪨' },
-    { id: 'finance', label: '💰 Finance', role: 'Act as a Financial Analyst.', style: 'Balance sheets and forecasts style.', goal: 'Investment strategies and risk management.', icon: '💰' },
-    { id: 'entrepreneur', label: '🚀 Entrepreneurship', role: 'Act as a Startup Founder.', style: 'Pitch deck and growth style.', goal: 'Innovation and business scaling.', icon: '🚀' },
-    { id: 'hr', label: '👥 Human Resources', role: 'Act as a HR Manager.', style: 'Talent development style.', goal: 'Team building and organizational culture.', icon: '👥' },
-    { id: 'education', label: '🎓 Education', role: 'Act as an Educational Designer.', style: 'Curriculum and pedagogy style.', goal: 'Learning outcomes and student engagement.', icon: '🎓' },
-    { id: 'journalism', label: '📰 Journalism', role: 'Act as a Investigative Journalist.', style: 'News article style.', goal: 'Fact-based reporting and public awareness.', icon: '📰' },
-    { id: 'cooking', label: '👨‍🍳 Culinary Arts', role: 'Act as a Chef.', style: 'Recipe and plating style.', goal: 'Flavor innovation and gastronomic experience.', icon: '👨‍🍳' },
-    { id: 'sports', label: '⚽ Sports', role: 'Act as a Sports Coach.', style: 'Training plan style.', goal: 'Performance optimization and strategy.', icon: '⚽' },
-    { id: 'gaming', label: '🎮 Game Design', role: 'Act as a Game Designer.', style: 'Mechanics and narrative style.', goal: 'Immersive gameplay and player engagement.', icon: '🎮' },
-    { id: 'fashion', label: '👗 Fashion', role: 'Act as a Fashion Designer.', style: 'Trend and silhouette style.', goal: 'Style innovation and wearable art.', icon: '👗' },
-    { id: 'psychotherapy', label: '🛋️ Psychotherapy', role: 'Act as a Therapist.', style: 'Empathetic session style.', goal: 'Emotional healing and personal growth.', icon: '🛋️' },
-    { id: 'ethics', label: '⚖️ Ethics', role: 'Act as an Ethicist.', style: 'Moral dilemma analysis style.', goal: 'Ethical frameworks and decision-making.', icon: '⚖️' },
-    { id: 'robotics', label: '🦾 Robotics', role: 'Act as a Robotics Engineer.', style: 'Mechanical and AI integration style.', goal: 'Autonomous systems and practical applications.', icon: '🦾' },
-    { id: 'poetry', label: '🖋️ Poetry', role: 'Act as a Poet.', style: 'Verse and metaphor style.', goal: 'Lyrical expression and emotional depth.', icon: '🖋️' }
-],
-  FORMATS: [
-    { id: 'html', label: '🌐 HTML App', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto for scrolling.' },
-    { id: 'text', label: '📄 Text Guide', instruction: 'Return clean Markdown text with clear headings, lists and structure.' },
-    { id: 'code', label: '💻 Code Snippet', instruction: 'Return raw code only with explanatory comments. No extra text.' },
-    { id: 'essay', label: '✍️ Essay', instruction: 'Return a polished, formal essay with introduction, body and conclusion.' },
-    { id: 'dialogue', label: '💬 Dialogue', instruction: 'Return a scripted scene or conversation with character names and stage directions.' },
-    { id: 'template', label: '📋 Template', instruction: 'Return a reusable structured template with clear placeholders for customization.' },
-    { id: 'checklist', label: '✅ Checklist', instruction: 'Return a concise, actionable checklist or standard operating procedure.' },
-    { id: 'renaissance', label: '🖼️ Renaissance', instruction: 'Respond in the style of Renaissance art: balanced composition, classical ideals, perspective, humanism and rich symbolism.' },
-    { id: 'baroque', label: '🎭 Baroque', instruction: 'Respond with dramatic intensity, ornate detail, strong contrast, movement and emotional grandeur typical of Baroque art.' },
-    { id: 'romanticism', label: '🌙 Romanticism', instruction: 'Respond with emotional depth, exaltation of nature, individualism, sublime beauty and passionate expression.' },
-    { id: 'impressionism', label: '🌸 Impressionism', instruction: 'Respond with loose brushwork feel, emphasis on light/color, fleeting moments and everyday scenes.' },
-    { id: 'expressionism', label: '😱 Expressionism', instruction: 'Respond with emotional distortion, bold colors, raw feeling and subjective inner experience.' },
-    { id: 'cubism', label: '🔳 Cubism', instruction: 'Respond fragmenting reality into geometric planes, multiple viewpoints and abstract reconfiguration.' },
-    { id: 'surrealism', label: '🕳️ Surrealism', instruction: 'Respond with dream-like scenes, unexpected juxtapositions, unconscious imagery and bizarre logic.' },
-    { id: 'dadaism', label: '🎲 Dadaism', instruction: 'Respond with absurdity, irony, anti-art provocation, randomness and rejection of logic.' },
-    { id: 'popart', label: '💥 Pop Art', instruction: 'Respond using bold colors, commercial imagery, irony, mass culture references and repetition.' },
-    { id: 'minimalism', label: '⬜ Minimalism', instruction: 'Respond with extreme simplicity, clean lines, reduction to essentials and neutral tones.' },
-    { id: 'abstractexp', label: '🌀 Abstract Expressionism', instruction: 'Respond with gestural spontaneity, large scale, emotional intensity and non-representational forms.' },
-    { id: 'classicism', label: '🏛️ Classicism', instruction: 'Respond with harmony, clarity, restraint, proportion and inspiration from ancient Greece/Rome.' },
-    { id: 'gothic', label: '⛪ Gothic', instruction: 'Respond with verticality, pointed arches, intricate detail, mysticism and spiritual aspiration.' },
-    { id: 'realism', label: '👁️ Realism', instruction: 'Respond with objective depiction of everyday life, social truth and unidealized subjects.' },
-    { id: 'symbolism', label: '🦋 Symbolism', instruction: 'Respond using metaphors, suggestion, mystery and evocation of ideas/feelings through symbols.' },
-    { id: 'fauvism', label: '🎨 Fauvism', instruction: 'Respond with wild bold colors, strong painterly qualities and emotional rather than realistic representation.' },
-    { id: 'futurism', label: '⚡ Futurism', instruction: 'Respond celebrating speed, technology, machinery, youth and violence with dynamic fragmentation.' },
-    { id: 'constructivism', label: '⚙️ Constructivism', instruction: 'Respond with geometric abstraction, industrial materials and functional purpose serving society.' },
-    { id: 'bauhaus', label: '🏭 Bauhaus', instruction: 'Respond combining crafts and fine arts, functionality, clean modern design and "form follows function".' },
-    { id: 'artdeco', label: '🗼 Art Deco', instruction: 'Respond with luxurious glamour, geometric patterns, bold colors and streamlined modern elegance.' },
-    { id: 'postmodern', label: '🃏 Postmodern', instruction: 'Respond with irony, pastiche, eclecticism, playful references and rejection of grand narratives.' },
-    { id: 'conceptual', label: '💡 Conceptual Art', instruction: 'Respond prioritizing idea over aesthetic, using text, documentation and minimal visual elements.' },
-    { id: 'streetart', label: '🎨 Street Art', instruction: 'Respond with urban energy, stencils, murals, social commentary and rebellious spirit.' },
-    { id: 'cinematic', label: '🎬 Cinematic', instruction: 'Respond as a film sequence: describe shots, lighting, camera movement and dramatic pacing.' },
-    { id: 'poetic', label: '🖋️ Poetic', instruction: 'Respond in free verse or structured poetry form with rich imagery and rhythm.' },
-    { id: 'operatic', label: '🎼 Operatic', instruction: 'Respond with grand emotional arias, dramatic recitatives and theatrical intensity.' },
-    { id: 'jazz', label: '🎷 Jazz', instruction: 'Respond with improvisation, syncopation, swing feel and spontaneous creative variation.' },
-    { id: 'flamenco', label: '💃 Flamenco', instruction: 'Respond with passionate duende, rhythmic footwork, intense emotion and raw vocal cries.' },
-    { id: 'screenplay', label: '📽️ Screenplay', instruction: 'Return properly formatted screenplay pages (FADE IN, scene headings, action lines, dialogue).' },
-    { id: 'storyboard', label: '📋 Storyboard', instruction: 'Describe sequential panels with shot composition, camera angles and key dialogue.' },
-    { id: 'manifesto', label: '📣 Manifesto', instruction: 'Return a bold, provocative artistic manifesto declaring principles and intentions.' },
-    { id: 'sonnet', label: '📜 Sonnet', instruction: 'Return a 14-line sonnet (Shakespearean or Petrarchan) on the topic.' },
-    { id: 'haiku', label: '🌸 Haiku', instruction: 'Return traditional or modern haiku(s) capturing essence and seasonal reference.' },
-    { id: 'react', label: '⚛️ React Component', instruction: 'Return a complete, modern React functional component with hooks and inline styles if needed.' },
-    { id: 'json', label: '🗂️ JSON Output', instruction: 'Return valid JSON only, structured for the requested data.' },
-    { id: 'mermaid', label: '🧜‍♀️ Mermaid Diagram', instruction: 'Return Mermaid.js syntax for flowchart, sequence, class or other diagram.' },
-    { id: 'svg', label: '🎭 SVG Graphic', instruction: 'Return standalone SVG code that visually represents the concept.' },
-    { id: 'ascii', label: '⌨️ ASCII Art', instruction: 'Return detailed ASCII art representing the subject.' },
-    { id: 'letter', label: '✉️ Letter', instruction: 'Return a formatted personal or formal letter with salutation and signature.' },
-    { id: 'recipe', label: '🍳 Recipe', instruction: 'Return a complete recipe with ingredients list and step-by-step instructions.' },
-    { id: 'timeline', label: '⏳ Timeline', instruction: 'Return a chronological timeline of events with dates and descriptions.' },
-    { id: 'mindmap', label: '🗺️ Mind Map', instruction: 'Return a text-based hierarchical mind map structure with branches.' }
-]
+    MODES: [
+        { id: 'tech', label: 'TECHNICAL', role: 'Act as a Senior Engineer.', style: 'Cyberpunk/Terminal style.', goal: 'Technical accuracy and implementation detail.' },
+        { id: 'art', label: 'ART', role: 'Act as a Creative Director.', style: 'Minimalist Gallery / Editorial style.', goal: 'Aesthetic refinement and originality.' },
+        { id: 'school', label: 'SCHOOL', role: 'Act as a Professor.', style: 'Clean Textbook / Academic style.', goal: 'Structured education and conceptual clarity.' },
+        { id: 'story', label: 'STORYTELLING', role: 'Act as a Master Novelist.', style: 'Cinematic, immersive narrative tone.', goal: 'Engaging storytelling and world-building.' },
+        { id: 'marketing', label: 'MARKETING', role: 'Act as a Senior Copywriter.', style: 'Persuasive, high-conversion writing.', goal: 'Brand voice alignment & audience engagement.' },
+        { id: 'business', label: 'BUSINESS', role: 'Act as a Strategy Consultant.', style: 'Executive brief style.', goal: 'Clarity, precision, and actionable insights.' },
+        { id: 'research', label: 'RESEARCH', role: 'Act as a Research Scientist.', style: 'Peer-reviewed academic tone.', goal: 'Evidence-based rigor with citations when relevant.' },
+        { id: 'casual', label: 'CASUAL', role: 'Act as a friendly assistant.', style: 'Conversational, natural tone.', goal: 'Clarity, simplicity, and a human-sounding delivery.' }
+    ],
+    FORMATS: [
+        { id: 'text', label: 'TEXT GUIDE', instruction: 'Return Markdown text with clear headings and structure.' },
+        { id: 'html', label: 'HTML APP', instruction: 'Return a single HTML5 file with inline CSS/JS. No external files. Use overflow-y:auto.' },
+        { id: 'code', label: 'CODE SNIPPET', instruction: 'Return raw code only with comments.' },
+        { id: 'essay', label: 'ESSAY', instruction: 'Return a polished formal essay.' },
+        { id: 'dialogue', label: 'DIALOGUE', instruction: 'Return a scripted scene or conversation.' },
+        { id: 'template', label: 'TEMPLATE', instruction: 'Return a reusable structured template with fillable fields.' },
+        { id: 'checklist', label: 'CHECKLIST', instruction: 'Return a concise actionable checklist or SOP.' }
+    ]
 };
+
+const VOCAB_TASKS = [
+    { id: 'v_story', label: '📖 VOCAB: Creative Story', instruction: 'Write a short, engaging story incorporating the target vocabulary naturally.', linkedMode: 'story' },
+    { id: 'v_quiz', label: '❓ VOCAB: Quiz Generator', instruction: 'Create a multiple-choice quiz (with answer key) testing the definition and usage of these words.', linkedMode: 'school' },
+    { id: 'v_dialogue', label: '💬 VOCAB: Roleplay Dialogue', instruction: 'Write a script for a realistic conversation between two people using these words.', linkedMode: 'casual' },
+    { id: 'v_sentences', label: '✍️ VOCAB: Sentence Drill', instruction: 'Generate 3 distinct sentences (Context A, B, and C) for each target word.', linkedMode: 'school' },
+    { id: 'v_explain', label: '🧠 VOCAB: Deep Explanation', instruction: 'Explain the etymology, nuance, and common collocations for each word.', linkedMode: 'research' }
+];
 
 const ALGORITHMS = {
     SIMPLEX: {
-       TASK_TYPES: [
-    { id: 'explain', label: '💡 Explanation', instruction: 'Explain the topic clearly, step-by-step, with simple language and examples.' },
-    { id: 'analysis', label: '🔍 Analysis', instruction: 'Break the topic down into components, exploring pros, cons, variables, causes and implications.' },
-    { id: 'create', label: '✨ Creative Generation', instruction: 'Generate original content in the selected style, mode or artistic current.' },
-    { id: 'teach', label: '📖 Teaching', instruction: 'Introduce the topic, teach progressively, provide examples, and include a practice checkpoint or exercise.' },
-    { id: 'improve', label: '✍️ Improvement', instruction: 'Rewrite and enhance the user’s content for greater clarity, impact, flow and style.' },
-    { id: 'compare', label: '⚖️ Comparison', instruction: 'Compare two or more items using clear criteria, structure and balanced reasoning.' },
-    { id: 'build', label: '🛠️ Construction', instruction: 'Produce a complete structured artifact: plan, blueprint, script, architecture, framework or system.' },
-    { id: 'brainstorm', label: '💭 Brainstorm', instruction: 'Generate a wide variety of ideas, concepts or possibilities without judgment.' },
-    { id: 'critique', label: '🖋️ Critique', instruction: 'Provide constructive, detailed feedback highlighting strengths, weaknesses and suggestions.' },
-    { id: 'summarize', label: '📝 Summarize', instruction: 'Condense the content into its key points while preserving essential meaning.' },
-    { id: 'debate', label: '🗣️ Debate', instruction: 'Present balanced arguments for and against a position, or simulate both sides of a debate.' },
-    { id: 'design', label: '🎨 Design', instruction: 'Create a detailed design concept, including visuals, functionality and user experience.' },
-    { id: 'solve', label: '🔑 Problem Solving', instruction: 'Identify the problem, explore solutions step-by-step and recommend the best approach.' },
-    { id: 'plan', label: '🗺️ Planning', instruction: 'Develop a detailed step-by-step plan with timelines, resources and milestones.' },
-    { id: 'narrate', label: '📚 Narrate', instruction: 'Tell the story or describe events in an engaging, immersive narrative form.' },
-    { id: 'translate', label: '🌐 Translate', instruction: 'Translate the content accurately while preserving tone, nuance and cultural context.' },
-    { id: 'research', label: '🔬 Research', instruction: 'Gather, synthesize and present key findings on the topic with sources when possible.' },
-    { id: 'simulate', label: '🧩 Simulation', instruction: 'Simulate a scenario, conversation, process or outcome with realistic details.' },
-    { id: 'evaluate', label: '📊 Evaluation', instruction: 'Assess quality, effectiveness or value using clear criteria and evidence.' },
-    { id: 'persuade', label: '🗯️ Persuasion', instruction: 'Craft a compelling argument to convince the reader of a specific viewpoint.' },
-    { id: 'reflect', label: '🪞 Reflection', instruction: 'Explore personal or conceptual implications, insights and deeper meaning.' },
-    { id: 'experiment', label: '🧪 Experiment', instruction: 'Propose or describe an experiment, hypothesis, method and expected results.' },
-    { id: 'review', label: '⭐ Review', instruction: 'Provide a balanced review of a work, product or experience with rating and justification.' },
-    { id: 'forecast', label: '🔮 Forecast', instruction: 'Predict future trends or outcomes based on data, patterns and reasoning.' },
-    { id: 'roleplay', label: '🎭 Roleplay', instruction: 'Assume a specific character or expert role and respond in-character.' },
-    { id: 'synthesize', label: '🔗 Synthesize', instruction: 'Combine multiple sources or ideas into a coherent new understanding or framework.' },
-    { id: 'visualize', label: '👁️ Visualize', instruction: 'Describe or help visualize concepts, scenes or data in vivid detail.' },
-    { id: 'optimize', label: '⚡ Optimize', instruction: 'Improve efficiency, performance or results through targeted changes.' },
-    { id: 'debug', label: '🐞 Debug', instruction: 'Identify errors or issues and provide step-by-step fixes.' },
-    { id: 'inspire', label: '🌟 Inspire', instruction: 'Motivate and spark creativity with uplifting ideas, quotes or vision.' }
-],
-       VOICES: [
-    { id: 'neutral', label: '⚖️ Neutral', instruction: 'Use a balanced, objective and neutral tone without emotional bias.' },
-    { id: 'friendly', label: '😊 Friendly', instruction: 'Use a warm, approachable, conversational tone as if talking to a good friend.' },
-    { id: 'authoritative', label: '🎓 Authoritative', instruction: 'Use a confident, knowledgeable, expert tone with firm and clear statements.' },
-    { id: 'poetic', label: '🖋️ Poetic', instruction: 'Use rich metaphors, rhythm, imagery and evocative language.' },
-    { id: 'concise', label: '✂️ Concise', instruction: 'Use short, direct, highly efficient phrasing with no unnecessary words.' },
-    { id: 'humorous', label: '😂 Humorous', instruction: 'Use witty humor, light sarcasm, jokes and playful language.' },
-    { id: 'sarcastic', label: '😏 Sarcastic', instruction: 'Use dry wit, irony and subtle mockery while keeping it clever.' },
-    { id: 'enthusiastic', label: '🔥 Enthusiastic', instruction: 'Use high energy, excitement, exclamation points and passionate expression.' },
-    { id: 'empathetic', label: '🤗 Empathetic', instruction: 'Use compassionate, understanding tone that acknowledges feelings.' },
-    { id: 'dramatic', label: '🎭 Dramatic', instruction: 'Use theatrical intensity, vivid descriptions and heightened emotion.' },
-    { id: 'mysterious', label: '🕯️ Mysterious', instruction: 'Use enigmatic phrasing, hints, suspense and shadowy undertones.' },
-    { id: 'formal', label: '🎩 Formal', instruction: 'Use polished, professional language with proper structure and decorum.' },
-    { id: 'casual', label: '😎 Casual', instruction: 'Use relaxed slang, contractions and everyday conversational style.' },
-    { id: 'inspirational', label: '🌟 Inspirational', instruction: 'Use uplifting, motivational language that encourages and empowers.' },
-    { id: 'cynical', label: '😒 Cynical', instruction: 'Use skeptical, pessimistic tone with subtle bitterness or doubt.' },
-    { id: 'narrative', label: '📖 Narrative', instruction: 'Use third-person storytelling voice with descriptive scene-setting.' },
-    { id: 'philosophical', label: '🤔 Philosophical', instruction: 'Use reflective, contemplative tone exploring deeper meaning and questions.' },
-    { id: 'playful', label: '🎈 Playful', instruction: 'Use fun, light-hearted, teasing tone with wordplay and whimsy.' },
-    { id: 'serious', label: '🧐 Serious', instruction: 'Use grave, earnest tone focused on importance and gravity.' },
-    { id: 'romantic', label: '❤️ Romantic', instruction: 'Use tender, affectionate language full of passion and intimacy.' },
-    { id: 'scientific', label: '🔬 Scientific', instruction: 'Use precise, technical terminology with objective observation.' },
-    { id: 'journalistic', label: '📰 Journalistic', instruction: 'Use clear, factual reporting style with who/what/when/where/why.' },
-    { id: 'childlike', label: '👶 Childlike', instruction: 'Use simple words, wonder, curiosity and innocent perspective.' },
-    { id: 'epic', label: '⚔️ Epic', instruction: 'Use grand, heroic language worthy of legends and myths.' },
-    { id: 'minimalist', label: '⬜ Minimalist', instruction: 'Use sparse, clean language with deliberate silence between words.' },
-    { id: 'confident', label: '💪 Confident', instruction: 'Use bold, self-assured tone that conveys certainty and strength.' },
-    { id: 'whisper', label: '🤫 Whisper', instruction: 'Use soft, intimate, secretive tone as if sharing a confidence.' },
-    { id: 'urgent', label: '🚨 Urgent', instruction: 'Use pressing, immediate tone that conveys importance and time sensitivity.' },
-    { id: 'nostalgic', label: '📻 Nostalgic', instruction: 'Use warm, wistful tone evoking memories of the past.' },
-    { id: 'rebellious', label: '✊ Rebellious', instruction: 'Use defiant, anti-establishment tone challenging norms and authority.' }
-],
-      LENGTH: [
-    { id: 'instant', label: '⚡ 15 seg', instruction: 'Máx. 50 palabras. Respuesta ultrarrápida, como un mensaje instantáneo.' },
-    { id: 'tweet', label: '🐦 30 seg', instruction: 'Máx. 280 caracteres. Impacto inmediato, estilo tweet perfecto.' },
-    { id: 'flash', label: '✨ 1 min', instruction: '150-200 palabras. Lectura de 1 minuto, directa y clara.' },
-    { id: 'quick', label: '📄 2 min', instruction: '300-400 palabras. Respuesta corta pero completa (2 min de lectura).' },
-    { id: 'bite', label: '🍪 3 min', instruction: '500-600 palabras. Tamaño ideal para un artículo corto o "bite-sized".' },
-    { id: 'coffee', label: '☕ 5 min', instruction: '800-1000 palabras. Lectura típica de pausa café (estándar blog).' },
-    { id: 'focus', label: '🧠 8 min', instruction: '1200-1600 palabras. Profundidad media con ejemplos y estructura.' },
-    { id: 'deep', label: '🔍 10 min', instruction: '1800-2200 palabras. Inmersión real de 10 minutos.' },
-    { id: 'longread', label: '📜 15 min', instruction: '2500-3500 palabras. Lectura profunda y detallada.' },
-    { id: 'essay', label: '✍️ 20 min', instruction: '4000-5000 palabras. Ensayo completo o guía exhaustiva.' },
-    { id: 'feature', label: '📰 30 min', instruction: '6000-8000 palabras. Artículo de fondo o reportaje largo.' },
-    { id: 'chapter', label: '📖 45+ min', instruction: '>10.000 palabras. Equivalente a un capítulo de libro o tratado extenso.' },
-    { id: 'bullets', label: '🔹 Viñetas', instruction: 'Respuesta en puntos claros y concisos (longitud flexible según tema).' },
-    { id: 'outline', label: '🗂️ Esquema', instruction: 'Estructura jerárquica detallada con secciones y subsecciones.' },
-    { id: 'essential', label: '⬜ Lo esencial', instruction: 'Lo más breve posible sin perder nada importante.' }
-],
-        FADER_LEVELS: [
-    { id: 'level1', label: '1️⃣ Básico', instruction: '- Level 1: Basic Summary or Definition.' },
-    { id: 'level2', label: '2️⃣ Con contexto', instruction: '- Level 2: Add Context, History, or Motivation.' },
-    { id: 'level3', label: '3️⃣ Estructurado', instruction: '- Level 3: Add Structure, Examples, or Interactions.' },
-    { id: 'level4', label: '4️⃣ Avanzado', instruction: '- Level 4: Add Advanced Analysis, Troubleshooting, or Exercises.' },
-    { id: 'level5', label: '5️⃣ Completo', instruction: '- Level 5: Full Interactive App / Deep-Dive Artifact.' },
-    { id: 'level0', label: '0️⃣ Ultra-mínimo', instruction: '- Level 0: Only the absolute essential answer (one sentence or less).' },
-    { id: 'level25', label: '2.5️⃣ Contexto + Ejemplo', instruction: '- Level 2.5: Add Context + one clear practical example.' },
-    { id: 'level35', label: '3.5️⃣ Estructura + Análisis', instruction: '- Level 3.5: Structured content + deeper analysis or troubleshooting.' },
-    { id: 'level45', label: '4.5️⃣ Avanzado + Interactivo', instruction: '- Level 4.5: Advanced analysis + simple interactive element (quiz, calculator, etc.).' },
-    { id: 'adaptive', label: '🔀 Adaptativo', instruction: '- Adaptive: Automatically choose the most appropriate depth level based on the query.' },
-    { id: 'progressive', label: '📈 Progresivo', instruction: '- Progressive: Start at Level 1 and offer expandable sections to go deeper.' },
-    { id: 'visual', label: '🎨 Visual prioritario', instruction: '- Visual First: Lead with diagram, chart or visual explanation, then add text.' },
-    { id: 'story', label: '📖 Como historia', instruction: '- Story Mode: Explain the concept through an engaging narrative or analogy.' },
-    { id: 'codecentric', label: '💻 Code-centrado', instruction: '- Code-Centric: Focus on code examples, scaling from simple snippet (Level 1) to full project (Level 5).' },
-    { id: 'masterclass', label: '🎓 Masterclass', instruction: '- Masterclass: Complete premium lesson with theory, practice, exercises and final artifact.' }
-],
-      RESTRICTIONS: [
-    "Do not include filler text.",
-    "Do not split the output into multiple messages.",
-    "No disclaimers unless strictly necessary.",
-    "Avoid repetition.",
-    "Respect the selected format exactly.",
-    "Do not add unnecessary explanations outside the requested content.",
-    "Do not use emojis in the final response unless explicitly requested.",
-    "Do not apologize or acknowledge mistakes unless asked.",
-    "Do not mention guidelines, instructions, or internal rules.",
-    "Do not confirm or acknowledge that you are following instructions.",
-    "Do not use meta-commentary about your response.",
-    "Do not break character or role unless the selected mode requires it.",
-    "Do not generate images unless explicitly confirmed by the user.",
-    "Do not invent or hallucinate facts, sources, or citations.",
-    "Do not exceed the selected length or depth level.",
-    "Do not include external links unless directly relevant and requested.",
-    "Do not use markdown formatting beyond what the selected format demands.",
-    "Do not add headings, titles, or section breaks unless required by format.",
-    "Do not end responses with questions unless the task calls for interaction.",
-    "Do not provide alternatives or suggestions unless specifically instructed."
-]
+        TASK_TYPES: [
+            { id: 'explain', label: 'EXPLANATION', instruction: 'Explain the topic clearly and step-by-step.' },
+            { id: 'analysis', label: 'ANALYSIS', instruction: 'Break the topic down into components with pros, cons, variables.' },
+            { id: 'create', label: 'CREATIVE GENERATION', instruction: 'Generate original content in the selected style.' },
+            { id: 'teach', label: 'TEACHING', instruction: 'Introduce, teach, give examples, and add a practice checkpoint.' },
+            { id: 'improve', label: 'IMPROVEMENT', instruction: 'Rewrite and enhance the user’s content with better clarity and style.' },
+            { id: 'compare', label: 'COMPARISON', instruction: 'Compare items using structure, criteria, and reasoning.' },
+            { id: 'build', label: 'CONSTRUCTION', instruction: 'Produce a structured artifact: plan, blueprint, script, architecture, or framework.' }
+        ],
+        VOICES: [ { id: 'neutral', label: 'Neutral', instruction: 'Use a balanced, neutral tone.' }, { id: 'friendly', label: 'Friendly', instruction: 'Use a warm, approachable tone.' }, { id: 'authoritative', label: 'Authoritative', instruction: 'Use a confident, expert tone.' }, { id: 'poetic', label: 'Poetic', instruction: 'Use metaphors, rhythm, and evocative language.' }, { id: 'concise', label: 'Concise', instruction: 'Use highly efficient, compact phrasing.' } ],
+        LENGTH: [ { id: 'short', label: 'SHORT', instruction: 'Maximum 2 short paragraphs.' }, { id: 'medium', label: 'MEDIUM', instruction: 'Up to 6 paragraphs with examples.' }, { id: 'long', label: 'LONG', instruction: 'Extensive, detailed long-form content.' } ],
+        FADER_LEVELS: ["- Level 1: Basic Summary.", "- Level 2: Add Context.", "- Level 3: Add Structure.", "- Level 4: Add Advanced Analysis.", "- Level 5: Full Deep-Dive."],
+        RESTRICTIONS: ["Do not include filler text.", "No disclaimers.", "Respect format."]
     },
     COMPLEX: {
-       TASK_TYPES: [
-    { id: 'explain', label: 'DEMYSTIFY', instruction: 'Take the specific topic and break it down from first principles. Reveal the underlying logic clearly, making the complex intuitive.' },
-    { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Perform a deep-dive analysis. Identify root causes, systemic connections, variables, and potential edge cases within the context.' },
-    { id: 'create', label: 'IDEATE & SYNTHESIZE', instruction: 'Generate novel, non-obvious content. Combine disparate concepts from the context to create something original and transformative.' },
-    { id: 'teach', label: 'SCAFFOLDED MASTERY', instruction: 'Design a learning path. Introduce the concept, show a concrete example, explain the nuance, and provide a test/challenge for the user.' },
-    { id: 'improve', label: 'REFACTOR & ELEVATE', instruction: 'Critique the input. Optimize for clarity, efficiency, and impact. Explain specifically what was improved and why.' },
-    { id: 'compare', label: 'JUXTAPOSE & EVALUATE', instruction: 'Compare entities using rigorous criteria. Highlight trade-offs, synergies, and contextual suitability. Declare a winner based on the specific context.' },
-    { id: 'build', label: 'ARCHITECT', instruction: 'Construct a complete artifact (plan, blueprint, codebase) from start to finish. Ensure all components logically fit together into a working whole.' },
-    { id: 'brainstorm', label: 'DIVERGE & EXPLORE', instruction: 'Generate a wide spectrum of ideas, possibilities, and creative directions without judgment or filtering. Push boundaries and explore the unconventional.' },
-    { id: 'critique', label: 'DISSECT & REFINE', instruction: 'Provide sharp, constructive criticism. Highlight strengths, expose weaknesses, and offer precise, actionable recommendations for improvement.' },
-    { id: 'summarize', label: 'DISTILL & CRYSTALLIZE', instruction: 'Condense complex or lengthy input into its purest essence. Retain all critical meaning while eliminating noise and redundancy.' },
-    { id: 'solve', label: 'DIAGNOSE & RESOLVE', instruction: 'Identify the core problem, explore multiple solution paths, evaluate feasibility, and deliver the optimal, step-by-step resolution.' },
-    { id: 'plan', label: 'STRATEGIZE & SEQUENCE', instruction: 'Create a detailed, phased plan with milestones, dependencies, resources, and risk mitigation. Ensure realistic and executable steps.' },
-    { id: 'narrate', label: 'IMMERSE & UNFOLD', instruction: 'Transform the topic into a compelling narrative. Use vivid storytelling, character, tension, and pacing to make ideas memorable and emotionally resonant.' },
-    { id: 'forecast', label: 'EXTRAPOLATE & PREDICT', instruction: 'Analyze current trends, drivers, and constraints to project plausible future scenarios. Provide probabilities and leading indicators.' },
-    { id: 'simulate', label: 'MODEL & PLAY OUT', instruction: 'Construct and run a mental or explicit simulation of a process, scenario, or system. Reveal dynamics, outcomes, and emergent behavior.' },
-    { id: 'persuade', label: 'ADVOCATE & SWAY', instruction: 'Craft a compelling, evidence-backed argument to convince the audience of a specific position. Use logic, emotion, and credibility strategically.' },
-    { id: 'reflect', label: 'INTROSPECT & ILLUMINATE', instruction: 'Explore deeper implications, personal meaning, philosophical layers, or long-term consequences of the topic.' },
-    { id: 'research', label: 'INVESTIGATE & SYNTHESIZE', instruction: 'Gather, evaluate, and integrate the most relevant and credible information on the topic into a coherent, well-supported overview.' },
-    { id: 'visualize', label: 'RENDER & ILLUSTRATE', instruction: 'Translate abstract or complex ideas into clear visual metaphors, diagrams, or mental images that enhance understanding.' },
-    { id: 'roleplay', label: 'EMBODY & ENACT', instruction: 'Assume a specific persona, historical figure, or expert role and respond fully in-character while staying true to their knowledge and perspective.' }
-],
-      VOICES: [
-    { id: 'neutral', label: 'Objective / Analytical', instruction: 'Maintain a bias-free, factual, and observably detached tone.' },
-    { id: 'friendly', label: 'Warm / Collaborative', instruction: 'Use an inviting, encouraging, and psychologically safe tone.' },
-    { id: 'authoritative', label: 'Commanding / Expert', instruction: 'Use decisive, unwavering language. Project absolute confidence.' },
-    { id: 'poetic', label: 'Lyrical / Evocative', instruction: 'Use metaphor, rhythm, and sensory imagery to paint a picture with words.' },
-    { id: 'concise', label: 'Minimalist / Direct', instruction: 'Maximize information density. Remove all fluff. Be surgical.' },
-    { id: 'humorous', label: 'Witty / Playful', instruction: 'Employ sharp wit, irony, and light-hearted humor while staying on-topic.' },
-    { id: 'sarcastic', label: 'Dry / Sardonic', instruction: 'Use subtle irony, understatement, and clever mockery without overt hostility.' },
-    { id: 'enthusiastic', label: 'Vibrant / Energetic', instruction: 'Convey genuine excitement and high energy through vivid language and exclamation.' },
-    { id: 'empathetic', label: 'Compassionate / Supportive', instruction: 'Show deep understanding of emotions. Validate feelings and offer gentle guidance.' },
-    { id: 'dramatic', label: 'Theatrical / Intense', instruction: 'Heighten stakes with powerful language, tension, and vivid dramatic flair.' },
-    { id: 'mysterious', label: 'Enigmatic / Suggestive', instruction: 'Hint rather than state directly. Build intrigue through implication and shadow.' },
-    { id: 'formal', label: 'Elegant / Professional', instruction: 'Employ polished, sophisticated language with impeccable structure and decorum.' },
-    { id: 'casual', label: 'Relaxed / Conversational', instruction: 'Use everyday speech, contractions, and a laid-back, approachable style.' },
-    { id: 'inspirational', label: 'Visionary / Uplifting', instruction: 'Ignite motivation and hope through powerful, aspirational, and empowering language.' },
-    { id: 'cynical', label: 'Skeptical / World-Weary', instruction: 'Express doubt and subtle disillusionment while remaining intellectually sharp.' },
-    { id: 'narrative', label: 'Storytelling / Immersive', instruction: 'Speak as a masterful storyteller, weaving events into a compelling, flowing narrative.' },
-    { id: 'philosophical', label: 'Contemplative / Profound', instruction: 'Explore deeper truths and existential questions with reflective, measured insight.' },
-    { id: 'rebellious', label: 'Defiant / Provocative', instruction: 'Challenge norms boldly. Use confrontational, anti-establishment language.' },
-    { id: 'romantic', label: 'Passionate / Intimate', instruction: 'Express tender emotion, longing, and beauty through sensual and heartfelt words.' },
-    { id: 'scientific', label: 'Precise / Empirical', instruction: 'Use rigorous terminology, evidence-based claims, and clinical detachment.' }
-],
-      LENGTH: [
-    { id: 'short', label: 'ATOMIC', instruction: 'Provide the answer in a distilled format. Maximum impact, minimum word count (approx. 100 words).' },
-    { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Explore the topic with sufficient detail, examples, and nuance. Standard depth (approx. 400 words).' },
-    { id: 'long', label: 'EXHAUSTIVE', instruction: 'Leave no stone unturned. Cover history, theory, application, and edge cases. Extensive length.' },
-    { id: 'micro', label: 'SPARK', instruction: 'Ultra-brief insight or key takeaway. One sharp sentence or bullet list (max 50 words).' },
-    { id: 'tweet', label: 'PULSE', instruction: 'High-density punch. Fit within tweet limits with maximum clarity and edge (max 280 characters).' },
-    { id: 'bite', label: 'SNAPSHOT', instruction: 'Quick, focused read. One core idea with supporting points (approx. 200 words).' },
-    { id: 'standard', label: 'BALANCED', instruction: 'Clear and complete coverage with structure and examples. Ideal default depth (approx. 600 words).' },
-    { id: 'deep', label: 'IMMERSIVE', instruction: 'Rich exploration with multiple layers, analogies, and real-world applications (approx. 1000 words).' },
-    { id: 'essay', label: 'TREATISE', instruction: 'Formal, in-depth essay structure: introduction, development, counterpoints, conclusion (approx. 2000 words).' },
-    { id: 'epic', label: 'MAGNUM', instruction: 'Monumental treatment. Comprehensive history, full theoretical framework, exhaustive examples, and future implications.' },
-    { id: 'bullet', label: 'CRYSTAL', instruction: 'Deliver content primarily through precise, hierarchical bullet points. Length flexible for completeness.' },
-    { id: 'outline', label: 'BLUEPRINT', instruction: 'Provide a detailed hierarchical outline with sections, subsections, and key insights summarized.' },
-    { id: 'narrative', label: 'SAGA', instruction: 'Present the content as an extended, engaging narrative journey. Length adapts to storytelling needs.' },
-    { id: 'minimal', label: 'ESSENCE', instruction: 'Absolute minimum viable response. Only what is strictly necessary for understanding.' },
-    { id: 'visual', label: 'CANVAS', instruction: 'Prioritize diagrams, tables, or structured visuals. Text serves primarily to support the visual elements.' },
-    { id: 'chapter', label: 'TOME', instruction: 'Full book-chapter depth. Complete with subsections, references, exercises, and deep conceptual mapping.' },
-    { id: 'flash', label: 'BURST', instruction: 'Rapid-fire key points in numbered or bulleted form. Designed for instant absorption (approx. 150 words).' },
-    { id: 'focused', label: 'LASER', instruction: 'Targeted depth on one specific aspect. Ignore breadth, maximize precision on the core element (approx. 800 words).' },
-    { id: 'progressive', label: 'LAYERED', instruction: 'Start atomic and progressively deepen. Allow user to expand layers as desired.' },
-    { id: 'masterclass', label: 'SYMPHONY', instruction: 'Orchestrate a complete learning experience: theory, practice, reflection, and synthesis at epic scale.' }
-],
-        FADER_LEVELS: [
-    { id: 'level1', label: '1️⃣ Surface', instruction: '- Level 1: Surface (Define the core concept simply).' },
-    { id: 'level2', label: '2️⃣ Context', instruction: '- Level 2: Context (Add historical background or \'Why it matters\').' },
-    { id: 'level3', label: '3️⃣ Mechanics', instruction: '- Level 3: Mechanics (Explain \'How it works\' with examples).' },
-    { id: 'level4', label: '4️⃣ Nuance', instruction: '- Level 4: Nuance (Discuss optimization, edge cases, and trade-offs).' },
-    { id: 'level5', label: '5️⃣ Mastery', instruction: '- Level 5: Mastery (Full systemic integration and advanced synthesis).' },
-    { id: 'level0', label: '0️⃣ Essence', instruction: '- Level 0: Essence (One-sentence definition or key insight only).' },
-    { id: 'level15', label: '1.5️⃣ Surface + Insight', instruction: '- Level 1.5: Surface definition plus one powerful clarifying insight.' },
-    { id: 'level25', label: '2.5️⃣ Context + Relevance', instruction: '- Level 2.5: Context plus modern relevance or real-world impact.' },
-    { id: 'level35', label: '3.5️⃣ Mechanics + Analogy', instruction: '- Level 3.5: Mechanics with examples plus a strong clarifying analogy.' },
-    { id: 'level45', label: '4.5️⃣ Nuance + Application', instruction: '- Level 4.5: Nuance with practical optimization tips and real scenarios.' },
-    { id: 'adaptive', label: '🔀 Adaptive', instruction: '- Adaptive: Automatically select the optimal depth based on query complexity and user intent.' },
-    { id: 'progressive', label: '📈 Progressive', instruction: '- Progressive: Begin at Surface and offer expandable layers to reach deeper levels.' },
-    { id: 'visual', label: '🎨 Visual-Led', instruction: '- Visual-Led: Start with diagram or mental model, then layer text from Surface to Nuance.' },
-    { id: 'story', label: '📖 Story-Driven', instruction: '- Story-Driven: Explain through narrative or historical anecdote, progressing naturally to Mastery.' },
-    { id: 'code', label: '💻 Code-First', instruction: '- Code-First: Lead with working code example, then explain from Mechanics to Nuance.' },
-    { id: 'challenge', label: '🧩 Challenge Mode', instruction: '- Challenge Mode: End with exercises or problems that test understanding up to Mastery.' },
-    { id: 'comparative', label: '⚖️ Comparative', instruction: '- Comparative: Place concept in relation to alternatives at each level from Surface to Nuance.' },
-    { id: 'future', label: '🔮 Forward-Looking', instruction: '- Forward-Looking: Extend Mastery level with emerging trends and future implications.' },
-    { id: 'minimal', label: '⬜ Minimal', instruction: '- Minimal: Deliver only the strictly necessary information at the requested level.' },
-    { id: 'synthesis', label: '✨ Ultimate Synthesis', instruction: '- Ultimate Synthesis: Full Mastery plus original integrative framework or novel perspective.' }
-],
-       RESTRICTIONS: [
-    "Strictly follow the chosen FORMAT structure.",
-    "Do not include conversational filler (e.g., 'Here is your...'). Start directly with the output.",
-    "Ensure the tone aligns perfectly with the chosen MODE and VOICE.",
-    "Integrate the User's CONTEXT and SPECIFIC TOPIC seamlessly.",
-    "Output must be complete; do not cut off or ask to continue.",
-    "Do not add meta-commentary about the response or process.",
-    "Do not mention selected modes, formats, voices, lengths, or levels.",
-    "Do not use emojis unless explicitly permitted by the format.",
-    "Do not include disclaimers, warnings, or ethical notes unless strictly required.",
-    "Do not repeat information unnecessarily across the response.",
-    "Do not invent or hallucinate facts, sources, or references.",
-    "Do not exceed the selected LENGTH or FADER_LEVEL depth.",
-    "Do not split the response into multiple parts or messages.",
-    "Do not end with open questions unless the task explicitly requires interaction.",
-    "Do not use markdown beyond what the chosen FORMAT demands.",
-    "Do not add headings, titles, or section dividers unless specified by format.",
-    "Do not acknowledge user instructions or confirm compliance.",
-    "Do not break the chosen VOICE or role under any circumstance.",
-    "Do not provide alternatives unless the task specifically calls for them.",
-    "Do not include sign-offs, greetings, or closing remarks."
-]
+        TASK_TYPES: [
+            { id: 'explain', label: 'DEMYSTIFY', instruction: 'Break down from first principles.' },
+            { id: 'analysis', label: 'DECONSTRUCT', instruction: 'Deep-dive analysis with root causes.' },
+            { id: 'create', label: 'IDEATE & SYNTHESIZE', instruction: 'Generate novel, non-obvious content.' },
+            { id: 'teach', label: 'SCAFFOLDED MASTERY', instruction: 'Design a learning path with tests.' },
+            { id: 'improve', label: 'REFACTOR & ELEVATE', instruction: 'Optimize for clarity and impact.' },
+            { id: 'compare', label: 'JUXTAPOSE & EVALUATE', instruction: 'Rigorous comparison with trade-offs.' },
+            { id: 'build', label: 'ARCHITECT', instruction: 'Construct a complete logical artifact.' }
+        ],
+        VOICES: [ { id: 'neutral', label: 'Objective', instruction: 'Bias-free, factual.' }, { id: 'friendly', label: 'Collaborative', instruction: 'Inviting and safe.' }, { id: 'authoritative', label: 'Expert', instruction: 'Decisive and confident.' }, { id: 'poetic', label: 'Evocative', instruction: 'Metaphorical and rhythmic.' }, { id: 'concise', label: 'Surgical', instruction: 'Maximum density, no fluff.' } ],
+        LENGTH: [ { id: 'short', label: 'ATOMIC', instruction: 'Distilled impact.' }, { id: 'medium', label: 'COMPREHENSIVE', instruction: 'Sufficient detail.' }, { id: 'long', label: 'EXHAUSTIVE', instruction: 'No stone unturned.' } ],
+        FADER_LEVELS: ["- Level 1: Surface.", "- Level 2: Context.", "- Level 3: Mechanics.", "- Level 4: Nuance.", "- Level 5: Mastery."],
+        RESTRICTIONS: ["Strict format.", "No filler.", "Align tone.", "Integrate context.", "Complete output."]
     }
 };
 
-/* =========================================
-   2. GLOBAL STATE
-   ========================================= */
+/* 2. GLOBAL STATE */
 let lastGeneratedPrompt = ""; 
-let currentData = ALGORITHMS.SIMPLEX; // Por defecto
+let currentData = ALGORITHMS.SIMPLEX; 
+let nexusHistory = [];
+const NEXUS_STORAGE_KEY = 'nexus_prompt_history';
+const MDC_VOCAB_KEY = 'mdc_vocab_list';
+const PREF_AUDIO_VOICE = 'nexus_audio_voice';
+const PREF_AUDIO_SPEED = 'nexus_audio_speed';
+let availableVoices = [];
 
-/* =========================================
-   3. INITIALIZATION
-   ========================================= */
+// PILL STATE & WATCHER
+let currentStatsContext = null;
+let currentWordStats = { occurrences: "-", uniqueTotal: 0 };
+let lastStorageString = "";
+
+// VARS PARA LONG PRESS
+let pressTimer;
+let isLongPressHandled = false;
+
+/* 3. INITIALIZATION */
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Cargar datos comunes
     populateSelect('modeSelect', COMMON_DATA.MODES);
     populateSelect('formatSelect', COMMON_DATA.FORMATS);
-
-    // 2. Cargar datos dinámicos
     updateDynamicDropdowns();
-
-    // 3. Cargar historial
     loadHistory('contextInput', 'context-history');
     loadHistory('topicInput', 'topic-history');
+    loadNexusHistory();
+    loadVocabFolders();
+    startStorageWatcher(); // START WATCHER
+    
+    if(window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
+    }
 });
 
-/* =========================================
-   4. LOGICA DE SWITCH
-   ========================================= */
+/* === REAL-TIME SYNC ENGINE (UPDATED FOR PHRASES) === */
+function startStorageWatcher() {
+    lastStorageString = localStorage.getItem(MDC_VOCAB_KEY) || "";
+    
+    setInterval(() => {
+        const currentString = localStorage.getItem(MDC_VOCAB_KEY) || "";
+        if (currentString !== lastStorageString) {
+            lastStorageString = currentString;
+            loadVocabFolders(); 
+            refreshActiveView(); 
+        }
+    }, 500);
+}
+
+function refreshActiveView() {
+    const activeContent = document.querySelector('.accordion-content.active .interactive-content');
+    if (!activeContent) return;
+
+    // 1. DATA FETCH
+    const rawData = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    const savedWordsSet = new Set();
+    const savedPhrases = [];
+
+    const extract = (obj) => {
+        const text = sanitizeText(obj.eng).toLowerCase();
+        if(text.includes(" ")) savedPhrases.push(text);
+        else savedWordsSet.add(text);
+    };
+
+    rawData.forEach(item => {
+        if(item.isFolder && item.items) item.items.forEach(sub => extract(sub));
+        else if(!item.isFolder && item.eng) extract(item);
+    });
+
+    // 2. CLEANUP (Excepto si estamos seleccionando manualmente)
+    const allWords = Array.from(activeContent.querySelectorAll('.interactive-word'));
+    allWords.forEach(el => {
+        if (!el.classList.contains('phrase-selecting')) {
+            el.classList.remove('saved', 'phrase-saved');
+        }
+    });
+
+    // 3. PINTAR PALABRAS SUELTAS (ROSA)
+    allWords.forEach(el => {
+        const clean = sanitizeText(el.innerText).toLowerCase();
+        if (savedWordsSet.has(clean) && !el.classList.contains('phrase-selecting')) {
+            el.classList.add('saved');
+        }
+    });
+
+    // 4. PINTAR FRASES (AMBAR) - VENTANA DESLIZANTE
+    savedPhrases.sort((a, b) => b.length - a.length);
+    const lineTextArr = allWords.map(el => sanitizeText(el.innerText).toLowerCase());
+
+    savedPhrases.forEach(phrase => {
+        const phraseArr = phrase.split(" ");
+        for (let i = 0; i <= lineTextArr.length - phraseArr.length; i++) {
+            let match = true;
+            for (let j = 0; j < phraseArr.length; j++) {
+                if (lineTextArr[i + j] !== phraseArr[j]) { match = false; break; }
+            }
+            if (match) {
+                for (let k = 0; k < phraseArr.length; k++) {
+                    const targetEl = allWords[i + k];
+                    if (!targetEl.classList.contains('phrase-selecting')) {
+                        targetEl.classList.remove('saved'); // Frase anula a Palabra
+                        targetEl.classList.add('phrase-saved');
+                    }
+                }
+            }
+        }
+    });
+
+    // 5. UPDATE PILL
+    currentStatsContext = activeContent;
+    updateUnifiedPill(null);
+}
+
+/* === LONG PRESS LOGIC === */
+function startPress(el) {
+    isLongPressHandled = false;
+    pressTimer = setTimeout(() => {
+        handleLongPress(el);
+        isLongPressHandled = true;
+    }, 500); // 0.5s para activar selección de frase
+}
+
+function endPress(el, e) {
+    clearTimeout(pressTimer);
+    if(e.type === 'touchend' && isLongPressHandled) {
+        e.preventDefault(); 
+    }
+}
+
+function handleShortClick(el) {
+    if (isLongPressHandled) return; 
+    saveWordToMDC(el.innerText, el); // Clic normal -> Guardar palabra suelta
+}
+
+function handleLongPress(el) {
+    if (navigator.vibrate) navigator.vibrate(50);
+    el.classList.toggle('phrase-selecting');
+    checkSelectionState(el);
+}
+
+function checkSelectionState(element) {
+    const contentDiv = element.closest('.accordion-content');
+    const selected = contentDiv.querySelectorAll('.phrase-selecting');
+    const saveBtn = contentDiv.querySelector('.save-phrase-btn');
+    
+    if(selected.length > 0) {
+        saveBtn.classList.add('ready');
+        saveBtn.innerHTML = `💾 Save Phrase (${selected.length})`;
+    } else {
+        saveBtn.classList.remove('ready');
+        saveBtn.innerHTML = `💾 Save Phrase`;
+    }
+}
+
+function savePhraseSelection(btn) {
+    const contentDiv = btn.closest('.accordion-content');
+    const selected = Array.from(contentDiv.querySelectorAll('.phrase-selecting'));
+    
+    if (selected.length === 0) return;
+
+    // Ordenar por índice para que la frase tenga sentido
+    selected.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
+    
+    const phraseText = selected.map(el => sanitizeText(el.innerText)).join(" ");
+    
+    // Guardar forzosamente (esp vacio)
+    forceSavePhrase(phraseText, contentDiv);
+
+    // Limpiar UI
+    selected.forEach(el => el.classList.remove('phrase-selecting'));
+    btn.classList.remove('ready');
+    btn.innerHTML = `💾 Save Phrase`;
+    
+    refreshActiveView();
+}
+
+function forceSavePhrase(cleanPhrase, elementContext) {
+    if (!cleanPhrase) return;
+    let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    const checkEng = cleanPhrase.toLowerCase();
+
+    let exists = false;
+    items.forEach(i => {
+        if (!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === checkEng) exists = true;
+        if (i.isFolder && i.items) {
+            i.items.forEach(sub => { if (sub.eng && sanitizeText(sub.eng).toLowerCase() === checkEng) exists = true; });
+        }
+    });
+
+    if (exists) { alert("Phrase already saved."); return; }
+
+    const accordionItem = elementContext.closest('.accordion-item');
+    const folderName = accordionItem ? accordionItem.querySelector('.header-content strong').innerText.trim() : "AI Generator";
+    
+    // IMPORTANTE: esp: "" (Vacio)
+    const newItem = { id: Date.now(), isFolder: false, eng: cleanPhrase, esp: "", isHighlighted: false, dateAdded: Date.now() };
+    
+    let targetFolder = items.find(i => i.isFolder && i.name.toLowerCase() === folderName.toLowerCase());
+
+    if (targetFolder) {
+        targetFolder.items.unshift(newItem);
+        items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder);
+    } else {
+        const newFolder = { id: Date.now() + 1, isFolder: true, name: folderName, items: [newItem] };
+        items.unshift(newFolder);
+    }
+
+    localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+}
+
+/* === PILL LOGIC (UNIFIED) === */
+function updateUnifiedPill(translationData = null) {
+    const pill = document.getElementById('unified-pill');
+    const statsText = document.getElementById('pill-stats-text');
+    const transPart = document.getElementById('pill-trans');
+    const divider = document.getElementById('pill-divider');
+    const transOrigin = document.getElementById('trans-origin');
+    const transResult = document.getElementById('trans-result');
+
+    if (!currentStatsContext) { pill.classList.remove('visible'); return; }
+
+    pill.classList.add('visible');
+
+    const savedElements = currentStatsContext.querySelectorAll('.interactive-word.saved, .interactive-word.phrase-saved');
+    const uniqueSet = new Set();
+    savedElements.forEach(el => uniqueSet.add(sanitizeText(el.innerText).toLowerCase()));
+    
+    currentWordStats.uniqueTotal = uniqueSet.size;
+    currentWordStats.occurrences = savedElements.length;
+    
+    statsText.innerText = `${currentWordStats.occurrences} | ${currentWordStats.uniqueTotal}`;
+    if(currentWordStats.uniqueTotal > 0) statsText.classList.add('stats-active');
+    else statsText.classList.remove('stats-active');
+
+    if (translationData) {
+        divider.style.display = 'block';
+        transPart.classList.add('active');
+        transOrigin.innerText = translationData.origin;
+        transResult.innerText = translationData.result;
+    } else if (!transPart.dataset.hasActive) {
+        divider.style.display = 'none';
+        transPart.classList.remove('active');
+    }
+}
+
+async function translateWord(text) {
+    const transPart = document.getElementById('pill-trans');
+    transPart.dataset.hasActive = "true"; 
+    updateUnifiedPill({ origin: text.substring(0, 15) + "...", result: "..." });
+
+    try {
+        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=es&dt=t&q=${encodeURIComponent(text)}`);
+        const data = await res.json();
+        let result = "Not found";
+        if (data && data[0] && data[0][0]) result = data[0][0][0];
+        updateUnifiedPill({ origin: text.substring(0, 15) + "...", result: result });
+    } catch (e) { updateUnifiedPill({ origin: text, result: "Error" }); }
+    
+    clearTimeout(window.transTimer);
+    window.transTimer = setTimeout(() => { 
+        transPart.dataset.hasActive = ""; 
+        updateUnifiedPill(null); 
+    }, 5000);
+}
+
+// --- CORE INTERACTION LOGIC (ORIGINAL) ---
+function toggleAccordion(id) {
+    const content = document.getElementById(`content-${id}`);
+    const isVisible = content.classList.contains('active');
+    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
+    
+    // Limpiar selección manual
+    document.querySelectorAll('.phrase-selecting').forEach(el => el.classList.remove('phrase-selecting'));
+    document.querySelectorAll('.save-phrase-btn').forEach(btn => { btn.classList.remove('ready'); btn.innerHTML = "💾 Save Phrase"; });
+
+    if (!isVisible) {
+        content.classList.add('active');
+        setTimeout(refreshActiveView, 50); 
+        currentStatsContext = content.querySelector('.interactive-content');
+        currentWordStats.occurrences = "-";
+        updateUnifiedPill(null); 
+    } else {
+        currentStatsContext = null;
+        updateUnifiedPill(null); 
+    }
+}
+
+function saveWordToMDC(word, element) {
+    translateWord(word); 
+    const cleanWord = sanitizeText(word);
+    if (!cleanWord) return;
+
+    let items = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
+    const checkEng = cleanWord.toLowerCase();
+
+    // Check Duplicates
+    let wordFound = false;
+    items.forEach(i => {
+        if (!i.isFolder && i.eng && sanitizeText(i.eng).toLowerCase() === checkEng) wordFound = true;
+        if (i.isFolder && i.items) {
+            i.items.forEach(sub => { if (sub.eng && sanitizeText(sub.eng).toLowerCase() === checkEng) wordFound = true; });
+        }
+    });
+
+    const accordionItem = element.closest('.accordion-item');
+    const folderName = accordionItem ? accordionItem.querySelector('.header-content strong').innerText.trim() : "AI Generator";
+    
+    if (!wordFound) {
+        const newItem = { id: Date.now(), isFolder: false, eng: cleanWord, esp: "", isHighlighted: false, dateAdded: Date.now() };
+        let targetFolder = items.find(i => i.isFolder && i.name.toLowerCase() === folderName.toLowerCase());
+
+        if (targetFolder) {
+            targetFolder.items.unshift(newItem);
+            items = items.filter(i => i.id !== targetFolder.id); items.unshift(targetFolder);
+        } else {
+            const newFolder = { id: Date.now() + 1, isFolder: true, name: folderName, items: [newItem] };
+            items.unshift(newFolder);
+        }
+    } else {
+        items.forEach(folder => {
+            if (folder.isFolder && folder.items) { folder.items = folder.items.filter(item => sanitizeText(item.eng).toLowerCase() !== checkEng); }
+        });
+        items = items.filter(i => i.isFolder || (i.eng && sanitizeText(i.eng).toLowerCase() !== checkEng));
+    }
+
+    localStorage.setItem(MDC_VOCAB_KEY, JSON.stringify(items));
+}
+
+/* === REST OF APP LOGIC === */
+function loadVocabFolders() {
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    const group = document.getElementById('folder-group');
+    const badge = document.getElementById('vocab-count-badge');
+    if(!raw) { badge.innerText = "No DB"; badge.style.color = "#cf6679"; return; }
+    const data = JSON.parse(raw);
+    group.innerHTML = '';
+    let total = 0;
+    data.forEach(item => {
+        if(item.isFolder) {
+            let opt = document.createElement('option');
+            opt.value = `folder:${item.id}`;
+            opt.textContent = `${item.name} (${item.items.length})`;
+            group.appendChild(opt);
+            total += item.items.length;
+        } else total++;
+    });
+    badge.innerText = `${total} words`;
+    badge.style.color = "#00ffcc";
+}
+
+function toggleVocabMode() {
+    const isActive = document.getElementById('useVocabCheckbox').checked;
+    const settings = document.getElementById('vocab-settings');
+    const controlsPanel = document.getElementById('vocab-controls');
+    const topicInput = document.getElementById('topicInput');
+    const taskSelect = document.getElementById('taskSelect');
+    settings.style.display = isActive ? 'block' : 'none';
+    if (isActive) {
+        controlsPanel.classList.add('active-panel');
+        loadVocabFolders(); 
+        topicInput.value = "Target Vocabulary List"; 
+        topicInput.disabled = true;
+        taskSelect.innerHTML = '';
+        VOCAB_TASKS.forEach(t => { let opt = document.createElement('option'); opt.value = t.id; opt.textContent = t.label; taskSelect.appendChild(opt); });
+        syncModeWithTask(); 
+    } else {
+        controlsPanel.classList.remove('active-panel');
+        topicInput.value = ""; topicInput.disabled = false;
+        updateDynamicDropdowns(); 
+    }
+}
+
+function syncModeWithTask() {
+    if (!document.getElementById('useVocabCheckbox').checked) return;
+    const taskId = document.getElementById('taskSelect').value;
+    const task = VOCAB_TASKS.find(t => t.id === taskId);
+    if (task && task.linkedMode) {
+        document.getElementById('modeSelect').value = task.linkedMode;
+    }
+}
+
+function getSelectedVocab() {
+    if (!document.getElementById('useVocabCheckbox').checked) return null;
+    const source = document.getElementById('vocabSource').value;
+    const amount = parseInt(document.getElementById('vocabAmount').value);
+    const raw = localStorage.getItem(MDC_VOCAB_KEY);
+    if(!raw) return [];
+    const data = JSON.parse(raw);
+    let pool = [];
+    if (source === 'all') { data.forEach(i => i.isFolder ? pool.push(...i.items) : pool.push(i)); } 
+    else if (source === 'highlighted') { data.forEach(i => { if(i.isFolder) pool.push(...i.items.filter(x=>x.isHighlighted)); else if(i.isHighlighted) pool.push(i); }); } 
+    else if (source.startsWith('folder:')) { const fid = parseInt(source.split(':')[1]); const f = data.find(i => i.id === fid); if(f) pool = f.items; }
+    else if (source === 'recent') { let all = []; data.forEach(i => i.isFolder ? all.push(...i.items) : all.push(i)); all.sort((a,b) => b.id - a.id); pool = all.slice(0, 10); }
+    if(pool.length === 0) return [];
+    return pool.sort(() => 0.5 - Math.random()).slice(0, amount).map(i => i.eng);
+}
+
+function loadVoices() {
+    availableVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')); 
+    document.querySelectorAll('.daw-select').forEach(sel => updateVoiceSelect(sel));
+}
+
+function updateVoiceSelect(select) {
+    const savedVoiceURI = localStorage.getItem(PREF_AUDIO_VOICE);
+    select.innerHTML = '';
+    availableVoices.forEach(v => { const opt = document.createElement('option'); opt.value = v.voiceURI; opt.textContent = v.name.substring(0, 18); select.appendChild(opt); });
+    if(savedVoiceURI) select.value = savedVoiceURI;
+}
+
+function updateAudioLive(id) {
+    const speed = document.getElementById(`speed-${id}`).value;
+    const voiceURI = document.getElementById(`voice-${id}`).value;
+    localStorage.setItem(PREF_AUDIO_SPEED, speed);
+    localStorage.setItem(PREF_AUDIO_VOICE, voiceURI);
+    const screen = document.getElementById(`screen-${id}`);
+    const voiceName = availableVoices.find(v => v.voiceURI === voiceURI)?.name.substring(0,6) || "DEF";
+    if(screen) screen.innerText = `SPD:${speed}x | ${voiceName}`;
+}
+
+function speakContent(id) {
+    window.speechSynthesis.cancel();
+    const contentDiv = document.querySelector(`#content-${id} .interactive-content`);
+    const text = contentDiv.innerText;
+    const speed = document.getElementById(`speed-${id}`).value;
+    const voiceURI = document.getElementById(`voice-${id}`).value;
+    const utter = new SpeechSynthesisUtterance(text);
+    const selectedVoice = availableVoices.find(v => v.voiceURI === voiceURI);
+    if(selectedVoice) utter.voice = selectedVoice;
+    utter.rate = parseFloat(speed);
+    const playBtn = document.getElementById(`play-${id}`);
+    const screen = document.getElementById(`screen-${id}`);
+    utter.onstart = () => { playBtn.classList.add('playing'); playBtn.innerHTML = '●'; if(screen) screen.classList.add('active'); };
+    utter.onend = () => { playBtn.classList.remove('playing'); playBtn.innerHTML = '▶'; if(screen) screen.classList.remove('active'); };
+    window.speechSynthesis.speak(utter);
+}
+
+function toggleAudio(id) {
+    const btn = document.getElementById(`play-${id}`);
+    if(!btn.classList.contains('playing')) speakContent(id); else window.speechSynthesis.cancel();
+}
+
+function sanitizeText(text) { if (!text) return ""; text = text.replace(/['`‘´]/g, "’"); text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, ""); return text.trim(); }
+
+function loadNexusHistory() {
+    const stored = localStorage.getItem(NEXUS_STORAGE_KEY);
+    if (stored) { nexusHistory = JSON.parse(stored); [...nexusHistory].reverse().forEach(data => renderAccordionDOM(data)); }
+}
+function saveNexusState() { localStorage.setItem(NEXUS_STORAGE_KEY, JSON.stringify(nexusHistory)); }
+function addToNexusHistory(data) { nexusHistory.unshift(data); saveNexusState(); }
+function removeFromNexusHistory(id) { nexusHistory = nexusHistory.filter(item => item.id !== id); saveNexusState(); }
+
+function formatInteractiveContent(text, existingVocabSet) {
+    if (!text) return "";
+    const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let i = 0; // Índice para ordenamiento de frases
+    return safeText.split(/(\s+)/).map(token => {
+        if (token.match(/^\s+$/)) return token; 
+        const span = `<span class="interactive-word" data-idx="${i}" 
+            onmousedown="startPress(this)" 
+            ontouchstart="startPress(this)" 
+            onmouseup="endPress(this, event)" 
+            ontouchend="endPress(this, event)"
+            onclick="handleShortClick(this)">${token}</span>`;
+        i++;
+        return span;
+    }).join('');
+}
+
+function renderAccordionDOM(data) {
+    const container = document.getElementById('results-container');
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.id = `item-${data.id}`;
+    const interactiveHTML = formatInteractiveContent(data.content);
+    const savedSpeed = localStorage.getItem(PREF_AUDIO_SPEED) || "1";
+
+    item.innerHTML = `
+        <div class="accordion-header" onclick="toggleAccordion(${data.id})">
+            <div class="header-content">
+                <span class="meta-tag">${data.modeName}</span>
+                <strong>${data.topic}</strong>
+            </div>
+            <div class="header-actions">
+                <button class="btn-delete" onclick="deleteItem(event, ${data.id})">🗑️</button>
+                <span>▼</span>
+            </div>
+        </div>
+        <div class="accordion-content" id="content-${data.id}">
+            <div class="daw-panel">
+                <div class="daw-top-deck">
+                    <button id="play-${data.id}" class="daw-btn-play" onclick="toggleAudio(${data.id})">▶</button>
+                    <div class="daw-screen" id="screen-${data.id}">MASTER OUT</div>
+                </div>
+                <div class="daw-control-deck">
+                    <div class="daw-knob-group">
+                        <span class="daw-label">SPEED</span>
+                        <input type="range" id="speed-${data.id}" class="daw-slider" min="0.5" max="2.0" step="0.1" value="${savedSpeed}" oninput="updateAudioLive(${data.id})">
+                    </div>
+                    <div class="daw-knob-group">
+                        <span class="daw-label">VOICE BANK</span>
+                        <select id="voice-${data.id}" class="daw-select" onchange="updateAudioLive(${data.id})"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="action-row">
+                <button class="save-phrase-btn" onclick="savePhraseSelection(this)">💾 Save Phrase</button>
+            </div>
+            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">📜 Copy Prompt</button>
+            <div style="display:none;" class="prompt-source">${data.prompt}</div>
+            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
+            <div class="interactive-content" style="white-space: pre-wrap;">${interactiveHTML}</div>
+        </div>
+    `;
+
+    if(document.getElementById(`item-${data.id}`)) return;
+    if (container.firstChild) container.insertBefore(item, container.firstChild);
+    else container.appendChild(item);
+
+    setTimeout(() => { updateVoiceSelect(document.getElementById(`voice-${data.id}`)); }, 100);
+}
+
 function toggleAlgorithmMode() {
     const isComplex = document.getElementById('modeSwitch').checked;
-    
+    const vocabCheck = document.getElementById('useVocabCheckbox');
+    if(vocabCheck.checked) { vocabCheck.checked = false; toggleVocabMode(); }
     if (isComplex) {
         currentData = ALGORITHMS.COMPLEX;
         document.getElementById('labelSimple').classList.remove('active');
@@ -681,194 +964,130 @@ function toggleAlgorithmMode() {
 }
 
 function updateDynamicDropdowns() {
-    populateSelect('taskSelect', currentData.TASK_TYPES);
+    if (!document.getElementById('useVocabCheckbox').checked) { populateSelect('taskSelect', currentData.TASK_TYPES); }
     populateSelect('voiceSelect', currentData.VOICES);
     populateSelect('lengthSelect', currentData.LENGTH);
-    
     const levelSel = document.getElementById('levelSelect');
     levelSel.innerHTML = '';
-    currentData.FADER_LEVELS.forEach((level) => {
-        let opt = document.createElement('option');
-        opt.value = level;
-        opt.textContent = level.split(':')[0];
-        levelSel.appendChild(opt);
-    });
+    currentData.FADER_LEVELS.forEach((level) => { let opt = document.createElement('option'); opt.value = level; opt.textContent = level.split(':')[0]; levelSel.appendChild(opt); });
 }
 
 function populateSelect(id, dataArray) {
     const select = document.getElementById(id);
     select.innerHTML = '';
-    dataArray.forEach(item => {
-        let opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = item.label;
-        select.appendChild(opt);
-    });
+    dataArray.forEach(item => { let opt = document.createElement('option'); opt.value = item.id; opt.textContent = item.label; select.appendChild(opt); });
 }
 
-/* =========================================
-   5. MEMORY MANAGEMENT
-   ========================================= */
 function loadHistory(inputId, listId) {
     const history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
     const dataList = document.getElementById(listId);
-    if(dataList) {
-        dataList.innerHTML = '';
-        history.forEach(item => {
-            let option = document.createElement('option');
-            option.value = item;
-            dataList.appendChild(option);
-        });
-    }
+    if(dataList) { dataList.innerHTML = ''; history.forEach(item => { let option = document.createElement('option'); option.value = item; dataList.appendChild(option); }); }
 }
 
 function saveToHistory(inputId) {
     const input = document.getElementById(inputId);
     const value = input.value.trim();
     if (!value) return;
-
     let history = JSON.parse(localStorage.getItem(inputId + '_mem')) || [];
     history = history.filter(item => item !== value);
     history.unshift(value);
-    
     if (history.length > 5) history.pop();
-    
     localStorage.setItem(inputId + '_mem', JSON.stringify(history));
     loadHistory(inputId, input.getAttribute('list'));
 }
 
-/* =========================================
-   6. GENERATE PROMPT
-   ========================================= */
 function generatePrompt() {
-    const context = document.getElementById('contextInput').value;
-    const topic = document.getElementById('topicInput').value;
-    
+    const isVocabMode = document.getElementById('useVocabCheckbox').checked;
+    let context = document.getElementById('contextInput').value;
+    let topic = document.getElementById('topicInput').value;
+    let vocabBlock = "";
+    let selectedTask = null;
+
+    if (isVocabMode) {
+        const words = getSelectedVocab();
+        if (words && words.length > 0) {
+            vocabBlock = `\n<target_vocabulary_list>\n${words.join(', ')}\n</target_vocabulary_list>\n\n**MANDATORY INSTRUCTION:** 1. You MUST incorporate the words inside the <target_vocabulary_list> tags into your response.\n2. Formatting Rule: Mark every used word in **bold** (e.g., **word**).\n`;
+            topic = "English Vocabulary Practice"; 
+            const taskId = document.getElementById('taskSelect').value;
+            selectedTask = VOCAB_TASKS.find(t => t.id === taskId);
+            if(!selectedTask) selectedTask = VOCAB_TASKS[0];
+        } else { alert("No vocabulary found! Add words in the MDC App."); return; }
+    } else { selectedTask = currentData.TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value); }
+
     const mode = COMMON_DATA.MODES.find(m => m.id === document.getElementById('modeSelect').value);
     const format = COMMON_DATA.FORMATS.find(f => f.id === document.getElementById('formatSelect').value);
-    
-    const task = currentData.TASK_TYPES.find(t => t.id === document.getElementById('taskSelect').value);
     const voice = currentData.VOICES.find(v => v.id === document.getElementById('voiceSelect').value);
     const len = currentData.LENGTH.find(l => l.id === document.getElementById('lengthSelect').value);
     const level = document.getElementById('levelSelect').value;
 
     const prompt = `
-### ROLE & STYLE
-${mode.role} ${mode.style}
-Goal: ${mode.goal}
+# SYSTEM IDENTITY & CORE OBJECTIVE
+You are an advanced AI acting strictly as: **${mode.role}**
+Your style must be: ${mode.style}
+**Primary Goal:** ${mode.goal}
 
-### TASK
-Context: ${context}
-Topic: ${topic}
-Type: ${task.label} - ${task.instruction}
+# PROJECT CONTEXT
+I need you to perform a specific task based on the following parameters:
+- **Context:** ${context || "General"}
+- **Subject/Topic:** ${topic}
+- **Task Type:** ${selectedTask.label} -> ${selectedTask.instruction}
 
-### FORMAT & OUTPUT
-Format: ${format.label}
-Instruction: ${format.instruction}
-Tone: ${voice.instruction}
-Length: ${len.instruction}
-Depth: ${level}
+${vocabBlock ? `\n# MANDATORY DATA (Vocabulary)${vocabBlock}\n` : ''}
 
-### RESTRICTIONS
-${currentData.RESTRICTIONS.join('\n')}
-    `.trim();
+# RESPONSE GUIDELINES
+Follow these configuration rules strictly:
+1. **Format:** ${format.label} (${format.instruction})
+2. **Tone:** ${voice.instruction}
+3. **Length:** ${len.instruction}
+4. **Depth Level:** ${level}
+
+# CRITICAL INSTRUCTIONS & RESTRICTIONS
+To ensure high quality, follow this logic:
+- Think step-by-step before generating.
+- Analyze the "${topic}" within the context of "${context}".
+- ${currentData.RESTRICTIONS.join('\n- ')}
+
+---
+**BEGIN RESPONSE:**`.trim();
 
     const outputDiv = document.getElementById('prompt-output');
     outputDiv.style.display = 'block';
     outputDiv.textContent = prompt;
-    
     navigator.clipboard.writeText(prompt);
-    
     lastGeneratedPrompt = prompt;
-
-    saveToHistory('contextInput');
-    saveToHistory('topicInput');
+    if(!isVocabMode) { saveToHistory('contextInput'); saveToHistory('topicInput'); }
 }
 
-/* =========================================
-   7. PASTE RESPONSE & RESULTS UI
-   ========================================= */
 async function handlePasteResponse() {
     try {
         const text = await navigator.clipboard.readText();
         if(!text) return alert("Clipboard is empty.");
-        createAccordionItem(text);
+        const data = {
+            id: Date.now(),
+            modeName: document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text,
+            topic: document.getElementById('topicInput').value || "Untitled Result",
+            prompt: lastGeneratedPrompt,
+            content: text
+        };
+        addToNexusHistory(data);
+        renderAccordionDOM(data);
         toggleGenerator(false);
-    } catch (err) {
-        alert("Permission denied. Manually paste?");
-    }
+    } catch (err) { alert("Permission denied or error reading clipboard."); }
 }
 
 function toggleGenerator(show) {
     const gen = document.getElementById('generator-container');
     const btnShow = document.getElementById('btn-show-gen');
-    
-    if (show) {
-        gen.classList.remove('hidden');
-        btnShow.style.display = 'none';
-    } else {
-        gen.classList.add('hidden');
-        btnShow.style.display = 'block';
-    }
+    if (show) { gen.classList.remove('hidden'); btnShow.style.display = 'none'; } 
+    else { gen.classList.add('hidden'); btnShow.style.display = 'block'; }
 }
 
-/* --- FUNCIÓN MODIFICADA PARA INCLUIR BORRAR --- */
-function createAccordionItem(contentText) {
-    const container = document.getElementById('results-container');
-    const id = Date.now();
-    
-    const mode = document.getElementById('modeSelect').options[document.getElementById('modeSelect').selectedIndex].text;
-    const topic = document.getElementById('topicInput').value || "Untitled Result";
-    const promptForThisItem = lastGeneratedPrompt;
-
-    const item = document.createElement('div');
-    item.className = 'accordion-item';
-    
-    item.innerHTML = `
-        <div class="accordion-header" onclick="toggleAccordion(${id})">
-            <div class="header-content">
-                <span class="meta-tag">${mode}</span>
-                <strong>${topic}</strong>
-            </div>
-            <div class="header-actions">
-                <button class="btn-delete" onclick="deleteItem(event, this)">🗑️</button>
-                <span>▼</span>
-            </div>
-        </div>
-        <div class="accordion-content" id="content-${id}">
-            <button class="copy-prompt-btn" onclick="copyTextToClipboard(this)">
-                📜 Copy Original Prompt
-            </button>
-            <div style="display:none;" class="prompt-source">${promptForThisItem}</div>
-            
-            <hr style="border:0; border-top:1px solid #444; margin:10px 0;">
-            
-            <div style="white-space: pre-wrap;">${escapeHtml(contentText)}</div>
-        </div>
-    `;
-
-    container.insertBefore(item, container.firstChild);
-}
-
-/* --- NUEVA FUNCIÓN PARA BORRAR --- */
-function deleteItem(event, btnElement) {
-    // Detiene la propagación para que no se abra/cierre el acordeón al hacer click en borrar
+function deleteItem(event, id) {
     event.stopPropagation();
-    
-    if(confirm("Are you sure you want to delete this result?")) {
-        const item = btnElement.closest('.accordion-item');
-        item.remove();
-    }
-}
-
-function toggleAccordion(id) {
-    const content = document.getElementById(`content-${id}`);
-    const isVisible = content.classList.contains('active');
-    
-    document.querySelectorAll('.accordion-content').forEach(c => c.classList.remove('active'));
-
-    if (!isVisible) {
-        content.classList.add('active');
+    if(confirm("Delete result?")) {
+        const el = document.getElementById(`item-${id}`);
+        if(el) el.remove();
+        removeFromNexusHistory(id);
     }
 }
 
@@ -881,11 +1100,16 @@ function copyTextToClipboard(btnElement) {
     });
 }
 
-function escapeHtml(text) {
-    if (!text) return text;
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function filterResults() {
+    const query = document.getElementById('searchBar').value.toLowerCase();
+    const items = document.querySelectorAll('.accordion-item');
+    items.forEach(item => {
+        const topic = item.querySelector('.header-content strong').innerText.toLowerCase();
+        const content = item.querySelector('.interactive-content').innerText.toLowerCase();
+        if (topic.includes(query) || content.includes(query)) item.style.display = "block";
+        else item.style.display = "none";
+    });
 }
 </script>
-
 </body>
 </html>
