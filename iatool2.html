@@ -1234,25 +1234,72 @@ function updateAudioLive(id) {
 }
 
 function speakContent(id) {
+    // 1. Detener cualquier audio previo y asegurar limpieza
     window.speechSynthesis.cancel();
+
     const contentDiv = document.querySelector(`#content-${id} .interactive-content`);
     const text = contentDiv.innerText;
     const speed = document.getElementById(`speed-${id}`).value;
     const voiceURI = document.getElementById(`voice-${id}`).value;
+    
+    // Elementos UI
+    const playBtn = document.getElementById(`play-${id}`);
+    const screen = document.getElementById(`screen-${id}`);
+
+    // === CORRECCIÓN ===
+    // Marcar como 'playing' INMEDIATAMENTE (Síncrono) para evitar el bug del doble click
+    playBtn.classList.add('playing');
+    playBtn.innerHTML = '●'; // Opcional: usar un cuadrado '■' para stop
+    if(screen) screen.classList.add('active');
+    // ==================
+
     const utter = new SpeechSynthesisUtterance(text);
     const selectedVoice = availableVoices.find(v => v.voiceURI === voiceURI);
     if(selectedVoice) utter.voice = selectedVoice;
     utter.rate = parseFloat(speed);
-    const playBtn = document.getElementById(`play-${id}`);
-    const screen = document.getElementById(`screen-${id}`);
-    utter.onstart = () => { playBtn.classList.add('playing'); playBtn.innerHTML = '●'; if(screen) screen.classList.add('active'); };
-    utter.onend = () => { playBtn.classList.remove('playing'); playBtn.innerHTML = '▶'; if(screen) screen.classList.remove('active'); };
+
+    // onstart ya no es crítico para el estado, pero sirve para confirmar
+    utter.onstart = () => {
+        // Aseguramos estado por si acaso
+        if(!playBtn.classList.contains('playing')) {
+            playBtn.classList.add('playing');
+            playBtn.innerHTML = '●';
+        }
+    };
+
+    // Al terminar, limpiamos el estado
+    utter.onend = () => {
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '▶';
+        if(screen) screen.classList.remove('active');
+    };
+
+    // Manejo de errores (importante para que el botón no se quede pegado)
+    utter.onerror = () => {
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '▶';
+        if(screen) screen.classList.remove('active');
+    };
+
     window.speechSynthesis.speak(utter);
 }
 
 function toggleAudio(id) {
     const btn = document.getElementById(`play-${id}`);
-    if(!btn.classList.contains('playing')) speakContent(id); else window.speechSynthesis.cancel();
+    
+    if (btn.classList.contains('playing')) {
+        // SI ESTÁ SONANDO: Parar
+        window.speechSynthesis.cancel();
+        
+        // Forzar reset visual inmediato (por si el evento onend tarda o falla)
+        btn.classList.remove('playing');
+        btn.innerHTML = '▶';
+        const screen = document.getElementById(`screen-${id}`);
+        if(screen) screen.classList.remove('active');
+    } else {
+        // SI ESTÁ PARADO: Reproducir
+        speakContent(id);
+    }
 }
 
 function sanitizeText(text) { if (!text) return ""; text = text.replace(/['`‘´]/g, "’"); text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, ""); return text.trim(); }
