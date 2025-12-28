@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V12 (Audio Chips)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MDC - Smart Editor V14 (Scrollable Header)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -19,9 +19,10 @@
             --danger: #ef4444;
             --recording: #ef4444;
             --success: #10b981;
+            --sidebar-width: 280px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         
         body {
             background-color: var(--bg-body);
@@ -32,52 +33,81 @@
             overflow: hidden;
         }
 
-        /* TOOLBAR */
+        /* TOOLBAR (UPDATED FOR SCROLL) */
         .toolbar {
             height: 60px;
             background: var(--bg-panel);
             border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            gap: 15px;
+            padding: 0 15px;
+            gap: 10px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            z-index: 10;
+            z-index: 20;
+            flex-shrink: 0;
+            /* Scroll Logic */
+            overflow-x: auto; 
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
+            scrollbar-width: none; /* Hide scrollbar Firefox */
         }
-        .brand { font-weight: 700; color: var(--primary); font-size: 1.2rem; margin-right: 20px; }
+        /* Hide scrollbar Chrome/Safari/Edge */
+        .toolbar::-webkit-scrollbar { display: none; }
+
+        .brand { font-weight: 700; color: var(--primary); font-size: 1.1rem; margin-right: 10px; display: none; }
+        @media(min-width: 768px) { .brand { display: block; } }
+
         .tool-btn {
             background: #374151; border: none; color: white; padding: 8px 12px;
             border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: 0.2s;
-            display: flex; align-items: center; gap: 6px;
+            display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
         }
         .tool-btn:hover { background: var(--primary); }
         .tool-btn.active { background: var(--highlight); color: black; font-weight: bold; }
-        .tool-btn svg { width: 16px; height: 16px; }
+        .tool-btn svg { width: 18px; height: 18px; }
         
-        .format-group { display: flex; gap: 5px; border-right: 1px solid var(--border); padding-right: 15px; }
-        
-        .study-group { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+        .format-group { display: flex; gap: 5px; border-right: 1px solid var(--border); padding-right: 10px; flex-shrink: 0; }
+        .study-group { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 
+        /* Save Status */
         #save-status {
-            font-size: 0.8rem; color: var(--text-muted); font-style: italic;
-            opacity: 0; transition: opacity 0.5s; margin-right: 10px;
+            font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+            opacity: 0; transition: opacity 0.5s; display: none; white-space: nowrap;
         }
+        @media(min-width: 768px) { #save-status { display: inline; } }
         #save-status.visible { opacity: 1; color: var(--success); }
 
-        /* MAIN LAYOUT */
-        .workspace { display: flex; flex: 1; overflow: hidden; }
+        /* WORKSPACE LAYOUT */
+        .workspace { 
+            display: flex; 
+            flex: 1; 
+            overflow: hidden; 
+            position: relative; 
+        }
 
         /* SIDEBAR */
         .sidebar {
-            width: 280px;
+            width: var(--sidebar-width);
             background: var(--bg-panel);
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            transition: transform 0.3s ease;
+            position: absolute; 
+            height: 100%;
+            z-index: 15;
+            transform: translateX(-100%); 
         }
+
+        @media(min-width: 768px) {
+            .sidebar { position: relative; transform: translateX(0); }
+            .sidebar.collapsed { margin-left: calc(var(--sidebar-width) * -1); }
+        }
+
+        .sidebar.mobile-open { transform: translateX(0); box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+
         .sidebar-header { 
-            padding: 15px 15px 5px 15px; 
-            font-weight: 700; color: var(--primary-light); font-size: 0.75rem; 
+            padding: 15px; font-weight: 700; color: var(--primary-light); font-size: 0.75rem; 
             text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; border-top: 1px solid var(--border);
         }
         .sidebar-header:first-child { border-top: none; margin-top: 0; }
@@ -85,55 +115,53 @@
         
         .db-folder { margin-bottom: 5px; border: 1px solid #374151; border-radius: 6px; overflow: hidden; background: #111827; }
         .db-folder-title {
-            padding: 10px; background: #1f2937; cursor: pointer; font-size: 0.9rem; 
+            padding: 12px; background: #1f2937; cursor: pointer; font-size: 0.95rem; 
             display: flex; justify-content: space-between; align-items: center; font-weight: 500;
         }
-        .db-folder-title:hover { background: #374151; }
+        .db-folder-title:active { background: #374151; }
         .db-folder-items { display: none; padding: 10px; background: #111827; border-top: 1px solid #374151; }
         .db-folder.open .db-folder-items { display: block; }
         
-        /* --- NEW CHIP STYLES --- */
+        /* WORD CHIPS */
         .draggable-word {
-            background: #374151; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px;
-            font-size: 0.85rem; cursor: grab; border: 1px solid transparent; transition: all 0.2s;
-            color: #e5e7eb; 
-            display: flex; justify-content: space-between; align-items: center; /* Flex for button */
+            background: #374151; padding: 10px; margin-bottom: 6px; border-radius: 6px;
+            font-size: 0.9rem; cursor: pointer; border: 1px solid transparent; 
+            color: #e5e7eb; display: flex; justify-content: space-between; align-items: center;
+            user-select: none;
         }
-        .draggable-word:hover { border-color: var(--primary-light); background: #4b5563; }
-        .draggable-word:active { cursor: grabbing; }
+        .draggable-word:active { background: #4b5563; border-color: var(--primary); transform: scale(0.98); }
         
-        .chip-text { pointer-events: none; } /* Ensure drag grabs the div, not the text node */
+        .chip-text { pointer-events: none; flex: 1; } 
         
         .chip-audio-btn {
-            background: transparent; border: none; color: var(--text-muted);
-            cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;
-            border-radius: 4px; width: 24px; height: 24px;
+            background: rgba(255,255,255,0.05); border: none; color: var(--text-muted);
+            cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; width: 32px; height: 32px; margin-left: 8px;
         }
-        .chip-audio-btn:hover { color: var(--primary-light); background: rgba(255,255,255,0.1); }
-        .chip-audio-btn:active { transform: scale(0.9); }
+        .chip-audio-btn:active { background: var(--primary); color: white; }
 
         /* EDITOR AREA */
         .editor-container {
-            flex: 1; padding: 40px; overflow-y: auto;
+            flex: 1; padding: 20px; overflow-y: auto;
             background-image: radial-gradient(#374151 1px, transparent 1px);
-            background-size: 20px 20px; padding-bottom: 200px;
+            background-size: 20px 20px; padding-bottom: 150px; width: 100%;
         }
         .document-title {
-            width: 100%; background: transparent; border: none; font-size: 2rem; font-weight: 700;
-            color: var(--text-main); margin-bottom: 30px; outline: none;
+            width: 100%; background: transparent; border: none; font-size: 1.5rem; font-weight: 700;
+            color: var(--text-main); margin-bottom: 20px; outline: none;
         }
 
         /* BLOCKS */
         .editor-block {
-            background: var(--bg-panel); border-radius: 12px; margin-bottom: 30px;
+            background: var(--bg-panel); border-radius: 12px; margin-bottom: 20px;
             border: 1px solid var(--border); overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); position: relative;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
         }
         .block-header {
-            background: #111827; padding: 8px 15px; border-bottom: 1px solid var(--border);
+            background: #111827; padding: 10px 15px; border-bottom: 1px solid var(--border);
             display: flex; justify-content: space-between; align-items: center;
         }
-        .block-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        .block-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         
         .lesson-drawer { display: none; padding: 15px; background: #1f2937; border-bottom: 1px solid var(--border); }
         .lesson-drawer textarea {
@@ -141,61 +169,58 @@
             border: 1px dashed #6b7280; border-radius: 6px; padding: 10px;
             font-family: monospace; font-size: 0.9rem; resize: vertical;
         }
-        .lesson-drawer textarea:focus { outline: none; border-color: var(--primary-light); }
 
         .pairs-container { display: flex; flex-direction: column; }
         .sentence-pair {
-            display: flex; gap: 10px; padding: 12px 15px;
+            display: flex; gap: 8px; padding: 10px;
             border-bottom: 1px solid #374151; align-items: flex-start;
         }
         .sentence-pair:nth-child(even) { background-color: var(--bg-pair-alt); }
         .sentence-pair:last-child { border-bottom: none; }
 
-        .pair-inputs { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+        .pair-inputs { flex: 1; display: flex; flex-direction: column; gap: 8px; }
         .row-wrapper { position: relative; width: 100%; }
+        
         .input-row {
-            padding: 8px 10px; padding-right: 30px; border-radius: 4px; outline: none; 
-            min-height: 36px; line-height: 1.5; transition: filter 0.3s;
+            padding: 10px; padding-right: 30px; border-radius: 6px; outline: none; 
+            min-height: 42px; line-height: 1.4; transition: border 0.2s;
+            font-size: 1rem;
         }
         .row-en {
-            font-size: 1.05rem; color: #fff; font-weight: 500;
+            color: #fff; font-weight: 500;
             border-left: 3px solid var(--primary); background: rgba(79,70,229, 0.1);
         }
         .row-es {
-            font-size: 0.95rem; color: var(--text-muted); font-style: italic;
+            color: var(--text-muted); font-style: italic;
             border-left: 3px solid #10b981; background: rgba(16,185,129, 0.05);
         }
         
-        .input-row:focus { box-shadow: 0 0 0 1px var(--primary-light); }
+        .input-row.active-focus { box-shadow: 0 0 0 2px var(--primary); background: rgba(79,70,229, 0.2); }
 
         /* BLUR EFFECTS */
-        .blur-en .row-en { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); cursor: help; }
-        .blur-es .row-es { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); cursor: help; }
-        .blur-en .row-en:hover, .blur-en .row-en:focus { color: #fff; text-shadow: none; }
-        .blur-es .row-es:hover, .blur-es .row-es:focus { color: var(--text-muted); text-shadow: none; }
-
-        .pair-controls { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+        .blur-en .row-en { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        .blur-es .row-es { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        
+        .pair-controls { display: flex; flex-direction: column; gap: 5px; padding-top: 2px; }
         .lang-flag {
-            position: absolute; right: 8px; bottom: 10px; width: 18px; height: 12px; pointer-events: none;
-            filter: grayscale(100%); opacity: 0.2; background-size: cover;
+            position: absolute; right: 8px; bottom: 12px; width: 18px; height: 12px; pointer-events: none;
+            filter: grayscale(100%); opacity: 0.3; background-size: cover;
         }
         .flag-en { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Cpath d='M0,0 v30 h60 v-30 z' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23C8102E' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"); }
         .flag-es { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 750 500'%3E%3Crect width='750' height='500' fill='%23c60b1e'/%3E%3Crect width='750' height='250' y='125' fill='%23ffc400'/%3E%3C/svg%3E"); }
 
         .mini-btn {
-            width: 26px; height: 26px; border-radius: 4px; border: none;
+            width: 32px; height: 32px; border-radius: 6px; border: none;
             background: #374151; color: var(--text-muted); cursor: pointer;
             display: flex; align-items: center; justify-content: center; transition: 0.2s;
         }
+        .mini-btn:active { transform: scale(0.9); }
         .mini-btn:hover { background: var(--primary); color: white; }
         .mini-btn.delete:hover { background: var(--danger); }
         .mini-btn.book-active { background: var(--highlight); color: black; }
-        
         .mini-btn.recording { background: var(--recording); color: white; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-
+        
         .block-delete { margin-left: auto; background: transparent; color: #6b7280; }
-        .block-delete:hover { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 
         #translation-tooltip {
             position: fixed; background: var(--primary); color: white;
@@ -208,12 +233,17 @@
         i { color: #f472b6; }
         u { text-decoration-color: var(--highlight); text-decoration-thickness: 2px; }
 
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor V12</div>
+        <button class="tool-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        
+        <div class="brand">MDC V14</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -222,32 +252,32 @@
         </div>
 
         <button class="tool-btn" onclick="createBlock()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-            New Block
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span style="display:none; @media(min-width:768px){display:inline;}">New</span>
         </button>
         <button class="tool-btn" onclick="saveDocumentManual()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
-            Save
+            <span style="display:none; @media(min-width:768px){display:inline;}">Save</span>
         </button>
         
         <div class="study-group">
             <span id="save-status">Autosaved</span>
-            <button class="tool-btn" id="btn-blur-en" onclick="toggleBlur('en')">
-                👁️ Hide English
+            <button class="tool-btn" id="btn-blur-en" onclick="toggleBlur('en')" title="Hide English">
+                👁️ EN
             </button>
-            <button class="tool-btn" id="btn-blur-es" onclick="toggleBlur('es')">
-                👁️ Hide Spanish
+            <button class="tool-btn" id="btn-blur-es" onclick="toggleBlur('es')" title="Hide Spanish">
+                👁️ ES
             </button>
         </div>
     </div>
 
     <div class="workspace">
-        <div class="sidebar">
+        <div class="sidebar" id="main-sidebar">
             <div class="sidebar-content" id="sidebar-list"></div>
         </div>
 
-        <div class="editor-container" id="editor-area">
-            <input type="text" class="document-title" id="doc-title" placeholder="My English Lesson...">
+        <div class="editor-container" id="editor-area" onclick="closeSidebarMobile()">
+            <input type="text" class="document-title" id="doc-title" placeholder="Lesson Title...">
             <div id="blocks-wrapper"></div>
         </div>
     </div>
@@ -261,11 +291,11 @@
     let hoverTimer;
     let currentTooltip = document.getElementById('translation-tooltip');
     
-    // Recognition & Context State
     let recognition;
     let isRecording = false;
     let currentRecordingBtn = null;
     let activeLangContext = 'en'; 
+    let lastFocusedInput = null; // Track where to insert text on click
 
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -276,22 +306,13 @@
             if(currentRecordingBtn) {
                 const text = event.results[0][0].transcript;
                 const pair = currentRecordingBtn.closest('.sentence-pair');
-                let targetRow;
-                if (activeLangContext === 'es') {
-                    targetRow = pair.querySelector('.row-es');
-                } else {
-                    targetRow = pair.querySelector('.row-en');
-                }
+                let targetRow = (activeLangContext === 'es') ? pair.querySelector('.row-es') : pair.querySelector('.row-en');
                 
-                if(targetRow.innerText.trim() === '') {
-                    targetRow.innerText = text;
-                } else {
-                    targetRow.innerText += " " + text;
-                }
+                if(targetRow.innerText.trim() === '') targetRow.innerText = text;
+                else targetRow.innerText += " " + text;
                 autoSave();
             }
         };
-        
         recognition.onend = function() {
             isRecording = false;
             if(currentRecordingBtn) currentRecordingBtn.classList.remove('recording');
@@ -299,172 +320,186 @@
         };
     }
 
-  const STATIC_GRAMMAR = [
-  {
-    name: "Pronouns (Pronombres)",
-    words: [
-      "I", "You", "He", "She", "It", "We", "They", "Me", "Him", "Her", "Us", "Them",
-      "My", "Your", "His", "Its", "Our", "Their", "Mine", "Yours", "Hers", "Ours", "Theirs",
-      "This", "That", "These", "Those", "Who", "Whom", "Whose", "Which", "What",
-      "Myself", "Yourself", "Himself", "Herself", "Itself", "Ourselves", "Themselves",
-      "Everyone", "Everything", "Everybody", "Anyone", "Anything", "Anybody",
-      "Someone", "Something", "Somebody", "No one", "Nothing", "Nobody",
-      "One", "All", "Some", "Any", "None", "Both", "Each", "Either", "Neither"
-    ]
-  },
-  {
-    name: "Verbs (Verbos)",
-    words: [
-      "Be", "Have", "Do", "Say", "Go", "Get", "Make", "Know", "Think", "Take",
-      "See", "Come", "Want", "Look", "Use", "Find", "Give", "Tell", "Work", "Call",
-      "Try", "Ask", "Need", "Feel", "Become", "Leave", "Put", "Mean", "Keep", "Let",
-      "Begin", "Seem", "Help", "Talk", "Turn", "Start", "Show", "Hear", "Play", "Run",
-      "Move", "Like", "Live", "Believe", "Hold", "Bring", "Happen", "Write", "Provide",
-      "Sit", "Stand", "Lose", "Pay", "Meet", "Include", "Continue", "Set", "Learn",
-      "Change", "Lead", "Understand", "Watch", "Follow", "Stop", "Create", "Speak",
-      "Read", "Allow", "Add", "Spend", "Grow", "Open", "Walk", "Win", "Offer",
-      "Remember", "Love", "Consider", "Appear", "Buy", "Wait", "Serve", "Die",
-      "Send", "Expect", "Build", "Stay", "Fall", "Cut", "Reach", "Kill", "Remain"
-    ]
-  },
-  {
-    name: "Adjectives (Adjetivos)",
-    words: [
-      "Good", "New", "First", "Last", "Long", "Great", "Little", "Own", "Other", "Old",
-      "Right", "Big", "High", "Different", "Small", "Large", "Next", "Early", "Young",
-      "Important", "Few", "Public", "Bad", "Same", "Able", "Best", "Better", "Late",
-      "Hard", "Major", "Strong", "Possible", "Whole", "Free", "True", "Full", "Special",
-      "Easy", "Clear", "Recent", "Certain", "Personal", "Open", "Red", "Blue", "Black",
-      "White", "Political", "Real", "Social", "Sure", "Low", "Human", "Local",
-      "Economic", "Available", "Likely", "Short", "Single", "Wrong", "Far", "Left",
-      "National", "Second", "Main", "American", "Happy", "Dead", "True", "British",
-      "General", "Due", "International", "Middle", "Beautiful", "Only", "Military",
-      "Original", "Current", "Private", "Past", "Foreign", "Fine", "Common", "Poor",
-      "Natural", "Significant", "Similar", "Hot", "Dead", "Central", "Happy", "Serious"
-    ]
-  },
-  {
-    name: "Nouns (Sustantivos)",
-    words: [
-      "Time", "Person", "Year", "Way", "Day", "Thing", "Man", "World", "Life", "Hand",
-      "Part", "Child", "Eye", "Woman", "Place", "Work", "Week", "Case", "Point", "Government",
-      "Company", "Number", "Group", "Problem", "Fact", "Money", "Night", "Water", "Mother",
-      "Area", "Story", "Month", "Lot", "Right", "Study", "Book", "Job", "Word", "Business",
-      "Issue", "Side", "Kind", "Head", "House", "Service", "Friend", "Father", "Power",
-      "Hour", "Game", "Line", "End", "Member", "Law", "Car", "City", "Community", "Name",
-      "President", "Team", "Minute", "Idea", "Kid", "Body", "Information", "Back", "Parent",
-      "Face", "Others", "Level", "Office", "Door", "Health", "War", "History", "Party",
-      "Result", "Change", "Morning", "Reason", "Research", "Girl", "Guy", "Food", "Moment",
-      "Air", "Teacher", "Force", "Education", "Foot", "Boy", "Age", "Policy", "Process",
-      "Music", "Market", "Sense", "Nation", "Death", "Street", "State", "Art", "Student",
-      "Rate", "Ocean", "Language", "Effect", "School", "Value", "Department", "Period",
-      "Room", "Subject", "Control", "Power", "Land", "Industry", "Plan", "College",
-      "Country", "Couple", "System", "Attention", "Type", "Road", "Table", "Arm", "Model"
-    ]
-  },
-  {
-    name: "Adverbs (Adverbios)",
-    words: [
-      "Up", "So", "Out", "Just", "Now", "How", "Then", "More", "Also", "Here",
-      "Well", "Only", "Very", "Even", "Back", "There", "Down", "Still", "In", "As",
-      "To", "When", "Never", "Really", "Most", "Always", "Often", "Maybe", "Today",
-      "Later", "Together", "Likely", "Simply", "Generally", "However", "Almost",
-      "Already", "Especially", "Yet", "Probably", "Quickly", "Slowly", "Easily",
-      "Carefully", "Clearly", "Exactly", "Finally", "Suddenly", "Directly", "Immediately",
-      "Usually", "Too", "Again", "Ever", "Sometimes", "Perhaps", "Rather", "Quite",
-      "Instead", "Away", "Far", "Enough", "Hard", "Soon", "Thus", "Therefore",
-      "Nearly", "Else", "Forward", "Early", "Late", "Alone", "Completely", "Actually",
-      "Obviously", "Apparently", "Fortunately", "Certainly", "Definitely", "Truly"
-    ]
-  },
-  {
-    name: "Prepositions (Preposiciones)",
-    words: [
-      "Of", "In", "To", "For", "With", "On", "At", "From", "By", "About",
-      "As", "Into", "Like", "Through", "After", "Over", "Between", "Out", "Against",
-      "During", "Without", "Before", "Under", "Around", "Among", "Off", "Since",
-      "Until", "Within", "Along", "Following", "Across", "Behind", "Beyond", "Plus",
-      "Except", "But", "Up", "Down", "Near", "Inside", "Outside", "Upon", "Towards",
-      "Above", "Below", "Despite", "Throughout", "Per", "Via", "Toward", "Onto",
-      "Beneath", "Beside", "Past", "Regarding", "Concerning", "Including", "Between",
-      "Towards", "Underneath", "Opposite", "Outside"
-    ]
-  },
-  {
-    name: "Conjunctions (Conectores)",
-    words: [
-      "And", "Or", "But", "Because", "So", "If", "When", "While", "Although", "Though",
-      "Since", "Unless", "Until", "Whether", "Before", "After", "As", "Than", "That",
-      "Where", "Once", "Provided", "Whereas", "Even if", "So that", "In order that",
-      "As long as", "Now that", "Both...and", "Either...or", "Neither...nor",
-      "Not only...but also", "However", "Therefore", "Moreover", "Furthermore",
-      "Otherwise", "Nevertheless", "Consequently", "Thus", "Hence", "Instead",
-      "Meanwhile", "Besides", "Also", "Still", "Yet", "Nor", "For", "Yet"
-    ]
-  },
-  {
-    name: "Articles (Artículos)",
-    words: ["The", "A", "An"]
-  },
-  {
-    name: "Determiners (Determinantes)",
-    words: [
-      "Some", "Any", "No", "Many", "Much", "Few", "Little", "Several", "All",
-      "Both", "Each", "Every", "Another", "Other", "Such", "What", "Which",
-      "This", "That", "These", "Those", "My", "Your", "His", "Her", "Its",
-      "Our", "Their"
-    ]
-  },
-  {
-    name: "Auxiliary Verbs (Verbos auxiliares)",
-    words: [
-      "Can", "Could", "May", "Might", "Shall", "Should", "Will", "Would",
-      "Must", "Ought to", "Have to", "Need to", "Used to", "Be able to",
-      "Am", "Is", "Are", "Was", "Were", "Been", "Being", "Has", "Had", "Having"
-    ]
-  },
-  {
-    name: "Contractions (Contracciones comunes)",
-    words: [
-      "I'm", "You're", "He's", "She's", "It's", "We're", "They're",
-      "I've", "You've", "We've", "They've", "I'd", "You'd", "He'd",
-      "She'd", "It'd", "We'd", "They'd", "Isn't", "Aren't", "Wasn't",
-      "Weren't", "Hasn't", "Haven't", "Hadn't", "Don't", "Doesn't",
-      "Didn't", "Won't", "Wouldn't", "Can't", "Couldn't", "Shouldn't",
-      "Mightn't", "Mustn't"
-    ]
-  },
-  {
-    name: "Interjections & Common Expressions (Interjecciones y expresiones comunes)",
-    words: [
-      "Yes", "No", "Please", "Thank you", "Thanks", "Sorry", "Excuse me",
-      "Hello", "Hi", "Goodbye", "Bye", "Okay", "Sure", "Of course",
-      "Oh", "Wow", "Hey", "Well", "Actually", "Anyway", "Right", "Yeah",
-      "Nope", "Maybe", "Perhaps", "Definitely", "Absolutely"
-    ]
-  }
-];
+    const STATIC_GRAMMAR = [
+      {
+        name: "Pronouns (Pronombres)",
+        words: [
+          "I", "You", "He", "She", "It", "We", "They", "Me", "Him", "Her", "Us", "Them",
+          "My", "Your", "His", "Its", "Our", "Their", "Mine", "Yours", "Hers", "Ours", "Theirs",
+          "This", "That", "These", "Those", "Who", "Whom", "Whose", "Which", "What",
+          "Myself", "Yourself", "Himself", "Herself", "Itself", "Ourselves", "Themselves",
+          "Everyone", "Everything", "Everybody", "Anyone", "Anything", "Anybody",
+          "Someone", "Something", "Somebody", "No one", "Nothing", "Nobody",
+          "One", "All", "Some", "Any", "None", "Both", "Each", "Either", "Neither"
+        ]
+      },
+      {
+        name: "Verbs (Verbos)",
+        words: [
+          "Be", "Have", "Do", "Say", "Go", "Get", "Make", "Know", "Think", "Take",
+          "See", "Come", "Want", "Look", "Use", "Find", "Give", "Tell", "Work", "Call",
+          "Try", "Ask", "Need", "Feel", "Become", "Leave", "Put", "Mean", "Keep", "Let",
+          "Begin", "Seem", "Help", "Talk", "Turn", "Start", "Show", "Hear", "Play", "Run",
+          "Move", "Like", "Live", "Believe", "Hold", "Bring", "Happen", "Write", "Provide",
+          "Sit", "Stand", "Lose", "Pay", "Meet", "Include", "Continue", "Set", "Learn",
+          "Change", "Lead", "Understand", "Watch", "Follow", "Stop", "Create", "Speak",
+          "Read", "Allow", "Add", "Spend", "Grow", "Open", "Walk", "Win", "Offer",
+          "Remember", "Love", "Consider", "Appear", "Buy", "Wait", "Serve", "Die",
+          "Send", "Expect", "Build", "Stay", "Fall", "Cut", "Reach", "Kill", "Remain"
+        ]
+      },
+      {
+        name: "Adjectives (Adjetivos)",
+        words: [
+          "Good", "New", "First", "Last", "Long", "Great", "Little", "Own", "Other", "Old",
+          "Right", "Big", "High", "Different", "Small", "Large", "Next", "Early", "Young",
+          "Important", "Few", "Public", "Bad", "Same", "Able", "Best", "Better", "Late",
+          "Hard", "Major", "Strong", "Possible", "Whole", "Free", "True", "Full", "Special",
+          "Easy", "Clear", "Recent", "Certain", "Personal", "Open", "Red", "Blue", "Black",
+          "White", "Political", "Real", "Social", "Sure", "Low", "Human", "Local",
+          "Economic", "Available", "Likely", "Short", "Single", "Wrong", "Far", "Left",
+          "National", "Second", "Main", "American", "Happy", "Dead", "True", "British",
+          "General", "Due", "International", "Middle", "Beautiful", "Only", "Military",
+          "Original", "Current", "Private", "Past", "Foreign", "Fine", "Common", "Poor",
+          "Natural", "Significant", "Similar", "Hot", "Dead", "Central", "Happy", "Serious"
+        ]
+      },
+      {
+        name: "Nouns (Sustantivos)",
+        words: [
+          "Time", "Person", "Year", "Way", "Day", "Thing", "Man", "World", "Life", "Hand",
+          "Part", "Child", "Eye", "Woman", "Place", "Work", "Week", "Case", "Point", "Government",
+          "Company", "Number", "Group", "Problem", "Fact", "Money", "Night", "Water", "Mother",
+          "Area", "Story", "Month", "Lot", "Right", "Study", "Book", "Job", "Word", "Business",
+          "Issue", "Side", "Kind", "Head", "House", "Service", "Friend", "Father", "Power",
+          "Hour", "Game", "Line", "End", "Member", "Law", "Car", "City", "Community", "Name",
+          "President", "Team", "Minute", "Idea", "Kid", "Body", "Information", "Back", "Parent",
+          "Face", "Others", "Level", "Office", "Door", "Health", "War", "History", "Party",
+          "Result", "Change", "Morning", "Reason", "Research", "Girl", "Guy", "Food", "Moment",
+          "Air", "Teacher", "Force", "Education", "Foot", "Boy", "Age", "Policy", "Process",
+          "Music", "Market", "Sense", "Nation", "Death", "Street", "State", "Art", "Student",
+          "Rate", "Ocean", "Language", "Effect", "School", "Value", "Department", "Period",
+          "Room", "Subject", "Control", "Power", "Land", "Industry", "Plan", "College",
+          "Country", "Couple", "System", "Attention", "Type", "Road", "Table", "Arm", "Model"
+        ]
+      },
+      {
+        name: "Adverbs (Adverbios)",
+        words: [
+          "Up", "So", "Out", "Just", "Now", "How", "Then", "More", "Also", "Here",
+          "Well", "Only", "Very", "Even", "Back", "There", "Down", "Still", "In", "As",
+          "To", "When", "Never", "Really", "Most", "Always", "Often", "Maybe", "Today",
+          "Later", "Together", "Likely", "Simply", "Generally", "However", "Almost",
+          "Already", "Especially", "Yet", "Probably", "Quickly", "Slowly", "Easily",
+          "Carefully", "Clearly", "Exactly", "Finally", "Suddenly", "Directly", "Immediately",
+          "Usually", "Too", "Again", "Ever", "Sometimes", "Perhaps", "Rather", "Quite",
+          "Instead", "Away", "Far", "Enough", "Hard", "Soon", "Thus", "Therefore",
+          "Nearly", "Else", "Forward", "Early", "Late", "Alone", "Completely", "Actually",
+          "Obviously", "Apparently", "Fortunately", "Certainly", "Definitely", "Truly"
+        ]
+      },
+      {
+        name: "Prepositions (Preposiciones)",
+        words: [
+          "Of", "In", "To", "For", "With", "On", "At", "From", "By", "About",
+          "As", "Into", "Like", "Through", "After", "Over", "Between", "Out", "Against",
+          "During", "Without", "Before", "Under", "Around", "Among", "Off", "Since",
+          "Until", "Within", "Along", "Following", "Across", "Behind", "Beyond", "Plus",
+          "Except", "But", "Up", "Down", "Near", "Inside", "Outside", "Upon", "Towards",
+          "Above", "Below", "Despite", "Throughout", "Per", "Via", "Toward", "Onto",
+          "Beneath", "Beside", "Past", "Regarding", "Concerning", "Including", "Between",
+          "Towards", "Underneath", "Opposite", "Outside"
+        ]
+      },
+      {
+        name: "Conjunctions (Conectores)",
+        words: [
+          "And", "Or", "But", "Because", "So", "If", "When", "While", "Although", "Though",
+          "Since", "Unless", "Until", "Whether", "Before", "After", "As", "Than", "That",
+          "Where", "Once", "Provided", "Whereas", "Even if", "So that", "In order that",
+          "As long as", "Now that", "Both...and", "Either...or", "Neither...nor",
+          "Not only...but also", "However", "Therefore", "Moreover", "Furthermore",
+          "Otherwise", "Nevertheless", "Consequently", "Thus", "Hence", "Instead",
+          "Meanwhile", "Besides", "Also", "Still", "Yet", "Nor", "For", "Yet"
+        ]
+      },
+      {
+        name: "Articles (Artículos)",
+        words: ["The", "A", "An"]
+      },
+      {
+        name: "Determiners (Determinantes)",
+        words: [
+          "Some", "Any", "No", "Many", "Much", "Few", "Little", "Several", "All",
+          "Both", "Each", "Every", "Another", "Other", "Such", "What", "Which",
+          "This", "That", "These", "Those", "My", "Your", "His", "Her", "Its",
+          "Our", "Their"
+        ]
+      },
+      {
+        name: "Auxiliary Verbs (Verbos auxiliares)",
+        words: [
+          "Can", "Could", "May", "Might", "Shall", "Should", "Will", "Would",
+          "Must", "Ought to", "Have to", "Need to", "Used to", "Be able to",
+          "Am", "Is", "Are", "Was", "Were", "Been", "Being", "Has", "Had", "Having"
+        ]
+      },
+      {
+        name: "Contractions (Contracciones comunes)",
+        words: [
+          "I'm", "You're", "He's", "She's", "It's", "We're", "They're",
+          "I've", "You've", "We've", "They've", "I'd", "You'd", "He'd",
+          "She'd", "It'd", "We'd", "They'd", "Isn't", "Aren't", "Wasn't",
+          "Weren't", "Hasn't", "Haven't", "Hadn't", "Don't", "Doesn't",
+          "Didn't", "Won't", "Wouldn't", "Can't", "Couldn't", "Shouldn't",
+          "Mightn't", "Mustn't"
+        ]
+      },
+      {
+        name: "Interjections & Common Expressions",
+        words: [
+          "Yes", "No", "Please", "Thank you", "Thanks", "Sorry", "Excuse me",
+          "Hello", "Hi", "Goodbye", "Bye", "Okay", "Sure", "Of course",
+          "Oh", "Wow", "Hey", "Well", "Actually", "Anyway", "Right", "Yeah",
+          "Nope", "Maybe", "Perhaps", "Definitely", "Absolutely"
+        ]
+      }
+    ];
 
-   document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', () => {
         loadSidebar();
         loadDocument();
         if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR (Updated for Audio Chips) ---
+    // --- SIDEBAR TOGGLE LOGIC ---
+    function toggleSidebar() {
+        const sidebar = document.getElementById('main-sidebar');
+        if (window.innerWidth < 768) {
+            sidebar.classList.toggle('mobile-open');
+        } else {
+            sidebar.classList.toggle('collapsed');
+        }
+    }
+
+    function closeSidebarMobile() {
+        if (window.innerWidth < 768) {
+            document.getElementById('main-sidebar').classList.remove('mobile-open');
+        }
+    }
+
+    // --- SIDEBAR LOADER ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
         list.innerHTML = ''; 
 
-        // 1. My Database
         if (raw) {
             const data = JSON.parse(raw);
             const folders = data.filter(i => i.isFolder);
             if (folders.length > 0) {
                 const header = document.createElement('div');
-                header.className = 'sidebar-header';
-                header.innerText = 'My Database';
+                header.className = 'sidebar-header'; header.innerText = 'My Database';
                 list.appendChild(header);
 
                 folders.forEach(folder => {
@@ -477,21 +512,15 @@
                         <div class="db-folder-items"></div>
                     `;
                     const container = folderEl.querySelector('.db-folder-items');
-                    folder.items.forEach(item => {
-                        if(item && item.eng) {
-                            container.appendChild(createDraggableChip(item.eng));
-                        }
-                    });
+                    folder.items.forEach(item => { if(item && item.eng) container.appendChild(createDraggableChip(item.eng)); });
                     list.appendChild(folderEl);
                 });
             }
         }
 
-        // 2. Grammar Helper
         if(STATIC_GRAMMAR.length > 0) {
             const gramHeader = document.createElement('div');
-            gramHeader.className = 'sidebar-header';
-            gramHeader.innerText = 'Grammar Helper';
+            gramHeader.className = 'sidebar-header'; gramHeader.innerText = 'Grammar Helper';
             list.appendChild(gramHeader);
 
             STATIC_GRAMMAR.forEach(cat => {
@@ -510,32 +539,58 @@
         }
     }
 
-    // --- UPDATED DRAGGABLE CHIP (WITH AUDIO) ---
+    // --- CHIP CREATION (TAP TO ADD + AUDIO) ---
     function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.draggable = true;
         
-        // Structure: Text + Audio Button
         chip.innerHTML = `
             <span class="chip-text">${text}</span>
             <button class="chip-audio-btn" title="Pronounce">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
             </button>
         `;
         
-        // 1. Drag Logic (Reads text from the span)
+        // 1. Drag Start
         chip.ondragstart = (e) => {
             const content = chip.querySelector('.chip-text').innerText; 
             e.dataTransfer.setData('text/plain', content);
             e.dataTransfer.effectAllowed = 'copy';
         };
 
-        // 2. Audio Logic (Stops propagation)
+        // 2. TAP TO ADD (Mobile/Click Logic)
+        chip.onclick = (e) => {
+            // Prevent if audio button was clicked
+            if (e.target.closest('.chip-audio-btn')) return;
+
+            if (lastFocusedInput) {
+                const textToAdd = text;
+                lastFocusedInput.focus(); // Restore focus
+                
+                // Capitalization Logic for Click
+                let currentContent = lastFocusedInput.innerText;
+                let finalText = textToAdd.toLowerCase();
+                
+                // If empty or whitespace only
+                if (currentContent.trim() === '') {
+                    finalText = textToAdd.charAt(0).toUpperCase() + textToAdd.slice(1).toLowerCase();
+                }
+
+                document.execCommand('insertText', false, " " + finalText + " ");
+                autoSave();
+                
+                // Mobile UX: Close sidebar after tap to see result
+                if (window.innerWidth < 768) toggleSidebar();
+            } else {
+                alert("Tap an editor row first to select where to add the word.");
+            }
+        };
+
+        // 3. Audio Button Logic
         const audioBtn = chip.querySelector('.chip-audio-btn');
         audioBtn.onclick = (e) => {
-            e.stopPropagation(); // Prevents dragging/other clicks
-            e.preventDefault();
+            e.stopPropagation(); 
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'en-US';
             window.speechSynthesis.speak(u);
@@ -544,7 +599,7 @@
         return chip;
     }
 
-    // --- EDITOR ---
+    // --- EDITOR CORE ---
     function createBlock(lessonText = '', pairsData = []) {
         const wrapper = document.getElementById('blocks-wrapper');
         const block = document.createElement('div');
@@ -555,16 +610,16 @@
 
         block.innerHTML = `
             <div class="block-header">
-                <div class="block-label">Block / Unit</div>
+                <div class="block-label">Block</div>
                 <div style="display:flex; gap:5px;">
-                    <button class="mini-btn ${bookActiveClass}" onclick="toggleLesson(this)" title="Toggle Lesson Notes">
+                    <button class="mini-btn ${bookActiveClass}" onclick="toggleLesson(this)">
                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
                     </button>
-                    <button class="mini-btn block-delete" onclick="removeBlock(this)" title="Delete entire block">✕</button>
+                    <button class="mini-btn block-delete" onclick="removeBlock(this)">✕</button>
                 </div>
             </div>
             <div class="lesson-drawer" ${showLesson}>
-                <textarea placeholder="Paste study material here..." oninput="autoSave()">${lessonText}</textarea>
+                <textarea placeholder="Paste notes..." oninput="autoSave()">${lessonText}</textarea>
             </div>
             <div class="pairs-container"></div>
         `;
@@ -582,7 +637,6 @@
                 <div class="row-wrapper">
                     <div class="input-row row-en" contenteditable="true" 
                          data-placeholder="English..." 
-                         onfocus="activeLangContext='en'"
                          oninput="autoSave()" 
                          onmousemove="handleHover(event)" 
                          onmouseleave="hideTooltip()" 
@@ -592,24 +646,15 @@
                 <div class="row-wrapper">
                     <div class="input-row row-es" contenteditable="true" 
                          data-placeholder="Español..." 
-                         onfocus="activeLangContext='es'"
                          oninput="autoSave()">${esText}</div>
                     <div class="lang-flag flag-es"></div>
                 </div>
             </div>
             <div class="pair-controls">
-                <button class="mini-btn" onclick="toggleRecord(this)" title="Dictate">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                </button>
-                <button class="mini-btn" onclick="speakPair(this)" title="Listen">
-                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-                </button>
-                <button class="mini-btn" onclick="translatePair(this)" title="Translate">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
-                </button>
-                <button class="mini-btn delete" onclick="deletePair(this)" title="Delete Pair">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
+                <button class="mini-btn" onclick="toggleRecord(this)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg></button>
+                <button class="mini-btn" onclick="speakPair(this)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg></button>
+                <button class="mini-btn" onclick="translatePair(this)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg></button>
+                <button class="mini-btn delete" onclick="deletePair(this)"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>
         `;
         container.appendChild(pair);
@@ -617,23 +662,27 @@
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
 
-        // --- INTELLIGENT DROP + CAPITALIZATION ---
-        enRow.addEventListener('dragover', (e) => { 
-            e.preventDefault(); 
-            enRow.style.background = 'rgba(79,70,229,0.3)'; 
-        });
-        enRow.addEventListener('dragleave', () => { 
-            enRow.style.background = 'rgba(79,70,229,0.1)'; 
-        });
+        // TRACK LAST FOCUSED INPUT FOR CLICK INSERTION
+        const handleFocus = (e, lang) => {
+            activeLangContext = lang;
+            if(lastFocusedInput) lastFocusedInput.classList.remove('active-focus');
+            lastFocusedInput = e.target;
+            lastFocusedInput.classList.add('active-focus');
+        };
+
+        enRow.onfocus = (e) => handleFocus(e, 'en');
+        esRow.onfocus = (e) => handleFocus(e, 'es');
+
+        // DROP LOGIC
+        enRow.addEventListener('dragover', (e) => { e.preventDefault(); enRow.style.background = 'rgba(79,70,229,0.3)'; });
+        enRow.addEventListener('dragleave', () => { enRow.style.background = 'rgba(79,70,229,0.1)'; });
         
         enRow.addEventListener('drop', (e) => {
             e.preventDefault();
             enRow.style.background = 'rgba(79,70,229,0.1)';
-            
             let droppedText = e.dataTransfer.getData('text/plain').trim();
             if(!droppedText) return;
 
-            // Positioning Logic
             enRow.focus();
             let range;
             if (document.caretRangeFromPoint) {
@@ -645,15 +694,11 @@
                 }
             }
 
-            // CAPITALIZATION LOGIC
+            // Cap logic
             const content = enRow.innerText;
-            const isAtStart = (content.trim().length === 0) || (range && range.startOffset === 0 && (range.startContainer === enRow || range.startContainer === enRow.firstChild));
-
-            if (isAtStart) {
-                droppedText = droppedText.charAt(0).toUpperCase() + droppedText.slice(1).toLowerCase();
-            } else {
-                droppedText = droppedText.toLowerCase();
-            }
+            const isAtStart = (content.trim().length === 0) || (range && range.startOffset === 0);
+            if (isAtStart) droppedText = droppedText.charAt(0).toUpperCase() + droppedText.slice(1).toLowerCase();
+            else droppedText = droppedText.toLowerCase();
 
             document.execCommand('insertText', false, " " + droppedText + " ");
             autoSave();
@@ -665,118 +710,63 @@
         if(focusEn) setTimeout(() => enRow.focus(), 10);
     }
 
-    // --- FUNCTIONS ---
+    // --- HELPERS ---
     function toggleBlur(lang) {
         const body = document.body;
         const btn = document.getElementById(`btn-blur-${lang}`);
         if (lang === 'en') { body.classList.toggle('blur-en'); btn.classList.toggle('active'); }
         else { body.classList.toggle('blur-es'); btn.classList.toggle('active'); }
     }
-
     function toggleRecord(btn) {
-        if (!recognition) { alert("Speech recognition not supported in this browser (Use Chrome/Edge)."); return; }
+        if (!recognition) return alert("Browser does not support dictation.");
         if (isRecording) { recognition.stop(); return; }
         currentRecordingBtn = btn;
         btn.classList.add('recording');
-        if (activeLangContext === 'es') recognition.lang = 'es-ES'; else recognition.lang = 'en-US';
+        recognition.lang = (activeLangContext === 'es') ? 'es-ES' : 'en-US';
         recognition.start();
         isRecording = true;
     }
-
     function toggleLesson(btn) {
         const block = btn.closest('.editor-block');
         const drawer = block.querySelector('.lesson-drawer');
-        const isHidden = drawer.style.display === 'none' || drawer.style.display === '';
-        drawer.style.display = isHidden ? 'block' : 'none';
+        drawer.style.display = (drawer.style.display === 'block') ? 'none' : 'block';
         btn.classList.toggle('book-active');
-        if(isHidden) drawer.querySelector('textarea').focus();
+        if(drawer.style.display === 'block') drawer.querySelector('textarea').focus();
         autoSave();
     }
-    
     function removeBlock(btn) { if(confirm("Delete block?")) { btn.closest('.editor-block').remove(); autoSave(); } }
     function deletePair(btn) { 
         const pair = btn.closest('.sentence-pair');
-        if(pair.parentElement.children.length === 1) {
-            pair.querySelector('.row-en').innerText = ''; pair.querySelector('.row-es').innerText = '';
-        } else { pair.remove(); }
+        if(pair.parentElement.children.length === 1) { pair.querySelector('.row-en').innerText=''; pair.querySelector('.row-es').innerText=''; }
+        else pair.remove();
         autoSave();
     }
-
     function speakPair(btn) {
         const text = btn.closest('.sentence-pair').querySelector('.row-en').innerText;
         const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; window.speechSynthesis.speak(u);
     }
-
     async function translatePair(btn) {
         const pair = btn.closest('.sentence-pair');
         const enRow = pair.querySelector('.row-en'); const esRow = pair.querySelector('.row-es');
         const en = enRow.innerText.trim(); const es = esRow.innerText.trim();
-        if (en) {
-            esRow.style.opacity = 0.5;
-            const res = await fetchTranslation(en, 'en', 'es');
-            esRow.style.opacity = 1; if(res) { esRow.innerText = res; autoSave(); }
-        } else if (es) {
-            enRow.style.opacity = 0.5;
-            const res = await fetchTranslation(es, 'es', 'en');
-            enRow.style.opacity = 1; if(res) { enRow.innerText = res; autoSave(); }
-        }
+        if (en) { esRow.style.opacity=0.5; const r=await ft(en,'en','es'); esRow.style.opacity=1; if(r) esRow.innerText=r; }
+        else if (es) { enRow.style.opacity=0.5; const r=await ft(es,'es','en'); enRow.style.opacity=1; if(r) enRow.innerText=r; }
+        autoSave();
     }
-
-    async function fetchTranslation(text, sl, tl) {
-        try {
-            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`);
-            const data = await res.json(); return data[0][0][0];
-        } catch(e) { return null; }
+    async function ft(t,s,l){ try{const r=await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${s}&tl=${l}&dt=t&q=${encodeURIComponent(t)}`);const d=await r.json();return d[0][0][0];}catch(e){return null;}}
+    function handleHover(e){ 
+        if(e.target.nodeName!=='DIV')return; clearTimeout(hoverTimer);
+        const r=document.caretRangeFromPoint(e.clientX,e.clientY); if(!r||!r.startContainer.textContent)return;
+        const t=r.startContainer.textContent; let s=r.startOffset,n=r.startOffset;
+        while(s>0&&/\w/.test(t.charAt(s-1)))s--; while(n<t.length&&/\w/.test(t.charAt(n)))n++;
+        const w=t.slice(s,n).trim(); if(w.length>2){ hoverTimer=setTimeout(async()=>{ const tr=await ft(w,'en','es'); if(tr){ currentTooltip.innerText=`${w}→${tr}`; currentTooltip.style.left=(e.clientX+10)+'px'; currentTooltip.style.top=(e.clientY+20)+'px'; currentTooltip.style.opacity=1; } },500); }
     }
-
-    function handleHover(e) {
-        if (e.target.nodeName !== 'DIV' && e.target.nodeName !== 'SPAN') return;
-        clearTimeout(hoverTimer);
-        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-        if (!range || !range.startContainer.textContent) return;
-        const text = range.startContainer.textContent;
-        let start = range.startOffset, end = range.startOffset;
-        while(start > 0 && /\w/.test(text.charAt(start-1))) start--;
-        while(end < text.length && /\w/.test(text.charAt(end))) end++;
-        const word = text.slice(start, end).trim();
-        if (word.length > 2) {
-            hoverTimer = setTimeout(async () => {
-                const tr = await fetchTranslation(word, 'en', 'es');
-                if(tr) {
-                    currentTooltip.innerText = `${word} → ${tr}`;
-                    currentTooltip.style.left = (e.clientX+10)+'px';
-                    currentTooltip.style.top = (e.clientY+20)+'px';
-                    currentTooltip.style.opacity = 1;
-                }
-            }, 500);
-        }
-    }
-    function hideTooltip() { clearTimeout(hoverTimer); currentTooltip.style.opacity = 0; }
-    function handlePaste(e) { e.preventDefault(); document.execCommand('insertText', false, (e.originalEvent||e).clipboardData.getData('text/plain')); }
-    function formatText(cmd) { document.execCommand(cmd, false, null); }
-    function readFullText() {
-        let txt = ""; document.querySelectorAll('.row-en').forEach(el => txt += el.innerText + ". ");
-        const u = new SpeechSynthesisUtterance(txt); u.lang = 'en-US'; window.speechSynthesis.speak(u);
-    }
+    function hideTooltip(){ clearTimeout(hoverTimer); currentTooltip.style.opacity=0; }
+    function handlePaste(e){ e.preventDefault(); document.execCommand('insertText',false,(e.originalEvent||e).clipboardData.getData('text/plain')); }
+    function formatText(c){ document.execCommand(c,false,null); }
+    function autoSave(){ saveDocument(); const s=document.getElementById('save-status'); s.classList.add('visible'); setTimeout(()=>s.classList.remove('visible'),2000); }
+    function saveDocumentManual(){ saveDocument(); const s=document.getElementById('save-status'); s.innerText="Saved!"; s.classList.add('visible'); setTimeout(()=>{ s.classList.remove('visible'); s.innerText="Autosaved"; },2000); }
     
-    function autoSave() { 
-        saveDocument(); 
-        const status = document.getElementById('save-status');
-        status.classList.add('visible');
-        setTimeout(() => status.classList.remove('visible'), 2000);
-    }
-    
-    function saveDocumentManual() {
-        saveDocument();
-        const status = document.getElementById('save-status');
-        status.textContent = "Saved Manually!";
-        status.classList.add('visible');
-        setTimeout(() => {
-            status.classList.remove('visible');
-            status.textContent = "Autosaved";
-        }, 2000);
-    }
-
     function saveDocument() {
         const title = document.getElementById('doc-title').value;
         const blocksData = [];
@@ -791,8 +781,7 @@
         localStorage.setItem(DOC_KEY, JSON.stringify({ title, blocks: blocksData, date: Date.now() }));
     }
     function loadDocument() {
-        const raw = localStorage.getItem(DOC_KEY);
-        if(!raw) return;
+        const raw = localStorage.getItem(DOC_KEY); if(!raw) return;
         const data = JSON.parse(raw);
         document.getElementById('doc-title').value = data.title || '';
         document.getElementById('blocks-wrapper').innerHTML = '';
