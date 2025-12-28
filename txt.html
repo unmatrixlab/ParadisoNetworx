@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V2</title>
+    <title>MDC - Smart Editor V6 (Grammar Tools)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -11,12 +11,12 @@
             --primary-light: #818cf8;
             --bg-body: #111827; 
             --bg-panel: #1f2937;
+            --bg-pair-alt: #283142; 
             --text-main: #f3f4f6;
             --text-muted: #9ca3af;
             --border: #374151;
             --highlight: #fde047;
-            --highlight-text: #000;
-            --tooltip-bg: #4b5563;
+            --danger: #ef4444;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -56,7 +56,7 @@
         /* MAIN LAYOUT */
         .workspace { display: flex; flex: 1; overflow: hidden; }
 
-        /* SIDEBAR (DB INTEGRATION) */
+        /* SIDEBAR */
         .sidebar {
             width: 280px;
             background: var(--bg-panel);
@@ -64,23 +64,38 @@
             display: flex;
             flex-direction: column;
         }
-        .sidebar-header { padding: 15px; border-bottom: 1px solid var(--border); font-weight: 600; color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; }
+        .sidebar-header { 
+            padding: 15px 15px 5px 15px; 
+            font-weight: 700; 
+            color: var(--primary-light); 
+            font-size: 0.75rem; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            margin-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+        .sidebar-header:first-child { border-top: none; margin-top: 0; }
+        
         .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; }
         
-        .db-folder { margin-bottom: 5px; }
+        /* Accordion Styles */
+        .db-folder { margin-bottom: 5px; border: 1px solid #374151; border-radius: 6px; overflow: hidden; background: #111827; }
         .db-folder-title {
-            padding: 8px; background: #374151; border-radius: 6px; cursor: pointer;
+            padding: 10px; background: #1f2937; cursor: pointer;
             font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;
+            font-weight: 500; transition: background 0.2s;
         }
-        .db-folder-items { display: none; padding-left: 10px; margin-top: 5px; }
+        .db-folder-title:hover { background: #374151; }
+        .db-folder-items { display: none; padding: 10px; background: #111827; border-top: 1px solid #374151; }
         .db-folder.open .db-folder-items { display: block; }
         
+        /* Chips */
         .draggable-word {
-            background: #4b5563; padding: 6px 10px; margin-bottom: 4px; border-radius: 4px;
+            background: #374151; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px;
             font-size: 0.85rem; cursor: grab; border: 1px solid transparent; transition: all 0.2s;
-            color: #e5e7eb;
+            color: #e5e7eb; display: block;
         }
-        .draggable-word:hover { border-color: var(--primary-light); background: #556070; }
+        .draggable-word:hover { border-color: var(--primary-light); background: #4b5563; }
         .draggable-word:active { cursor: grabbing; }
 
         /* EDITOR AREA */
@@ -90,6 +105,7 @@
             overflow-y: auto;
             background-image: radial-gradient(#374151 1px, transparent 1px);
             background-size: 20px 20px;
+            padding-bottom: 200px;
         }
         
         .document-title {
@@ -97,93 +113,87 @@
             color: var(--text-main); margin-bottom: 30px; outline: none;
         }
 
-        /* BLOCKS (ROWS) */
+        /* BLOCK CONTAINER */
         .editor-block {
             background: var(--bg-panel);
             border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
             border: 1px solid var(--border);
-            display: flex;
-            gap: 15px;
-            transition: box-shadow 0.2s;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
             position: relative;
         }
-        .editor-block:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2); }
-
-        .block-inputs { flex: 1; display: flex; flex-direction: column; gap: 8px; }
         
-        /* Row Wrappers for Flags */
-        .row-wrapper {
-            position: relative;
-            width: 100%;
+        .block-header {
+            background: #111827; padding: 8px 15px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
         }
+        .block-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .lesson-drawer {
+            display: none; padding: 15px; background: #1f2937; border-bottom: 1px solid var(--border);
+        }
+        .lesson-drawer textarea {
+            width: 100%; min-height: 80px; background: #111827; color: #d1d5db;
+            border: 1px dashed #6b7280; border-radius: 6px; padding: 10px;
+            font-family: monospace; font-size: 0.9rem; resize: vertical;
+        }
+        .lesson-drawer textarea:focus { outline: none; border-color: var(--primary-light); }
 
-        /* Content Editable styling */
+        .pairs-container { display: flex; flex-direction: column; }
+
+        .sentence-pair {
+            display: flex; gap: 10px; padding: 12px 15px;
+            border-bottom: 1px solid #374151; align-items: flex-start;
+        }
+        .sentence-pair:nth-child(even) { background-color: var(--bg-pair-alt); }
+        .sentence-pair:last-child { border-bottom: none; }
+
+        .pair-inputs { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+        .row-wrapper { position: relative; width: 100%; }
         .input-row {
-            padding: 8px; padding-right: 35px; /* Space for flag */
-            border-radius: 4px; outline: none; min-height: 32px;
-            line-height: 1.5;
+            padding: 8px 10px; padding-right: 30px;
+            border-radius: 4px; outline: none; 
+            min-height: 36px; line-height: 1.5;
         }
         .row-en {
-            font-size: 1.1rem; color: #fff; font-weight: 500;
+            font-size: 1.05rem; color: #fff; font-weight: 500;
             border-left: 3px solid var(--primary); background: rgba(79,70,229, 0.1);
         }
         .row-es {
-            font-size: 1rem; color: var(--text-muted); font-style: italic;
+            font-size: 0.95rem; color: var(--text-muted); font-style: italic;
             border-left: 3px solid #10b981; background: rgba(16,185,129, 0.05);
         }
-        
-        /* GHOST FLAGS */
-        .lang-flag {
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 20px;
-            height: 15px;
-            pointer-events: none; /* Let clicks pass through */
-            filter: grayscale(100%);
-            opacity: 0.2;
-            background-size: cover;
-            background-repeat: no-repeat;
-        }
-        /* Using base64 SVGs to keep single file */
-        .flag-en {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3CclipPath id='s'%3E%3Cpath d='M0,0 v30 h60 v-30 z'/%3E%3C/clipPath%3E%3CclipPath id='t'%3E%3Cpath d='M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z'/%3E%3C/clipPath%3E%3Cg clip-path='url(%23s)'%3E%3Cpath d='M0,0 v30 h60 v-30 z' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' clip-path='url(%23t)' stroke='%23C8102E' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/g%3E%3C/svg%3E");
-        }
-        .flag-es {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 750 500'%3E%3Crect width='750' height='500' fill='%23c60b1e'/%3E%3Crect width='750' height='250' y='125' fill='%23ffc400'/%3E%3C/svg%3E");
-        }
 
-        .block-controls {
-            display: flex; flex-direction: column; gap: 5px; justify-content: center;
+        .pair-controls { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+
+        .lang-flag {
+            position: absolute; right: 8px; bottom: 10px;
+            width: 18px; height: 12px; pointer-events: none;
+            filter: grayscale(100%); opacity: 0.2; background-size: cover;
         }
+        .flag-en { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Cpath d='M0,0 v30 h60 v-30 z' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23C8102E' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"); }
+        .flag-es { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 750 500'%3E%3Crect width='750' height='500' fill='%23c60b1e'/%3E%3Crect width='750' height='250' y='125' fill='%23ffc400'/%3E%3C/svg%3E"); }
+
         .mini-btn {
-            width: 30px; height: 30px; border-radius: 50%; border: none;
+            width: 26px; height: 26px; border-radius: 4px; border: none;
             background: #374151; color: var(--text-muted); cursor: pointer;
             display: flex; align-items: center; justify-content: center; transition: 0.2s;
         }
         .mini-btn:hover { background: var(--primary); color: white; }
-        .mini-btn.delete:hover { background: #ef4444; }
+        .mini-btn.delete:hover { background: var(--danger); }
+        .mini-btn.book-active { background: var(--highlight); color: black; }
+        .block-delete { margin-left: auto; background: transparent; color: #6b7280; }
+        .block-delete:hover { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 
-        /* HOVER TOOLTIP */
         #translation-tooltip {
-            position: fixed;
-            background: var(--primary);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 1000;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            max-width: 250px;
+            position: fixed; background: var(--primary); color: white;
+            padding: 8px 12px; border-radius: 6px; font-size: 0.9rem;
+            pointer-events: none; opacity: 0; transition: opacity 0.2s;
+            z-index: 1000; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
-
-        /* FORMATTING CLASSES */
+        
         b { color: var(--primary-light); }
         i { color: #f472b6; }
         u { text-decoration-color: var(--highlight); text-decoration-thickness: 2px; }
@@ -193,17 +203,17 @@
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor</div>
+        <div class="brand">MDC Editor V6</div>
         
         <div class="format-group">
-            <button class="tool-btn" onclick="formatText('bold')" title="Bold"><b>B</b></button>
-            <button class="tool-btn" onclick="formatText('italic')" title="Italic"><i>I</i></button>
-            <button class="tool-btn" onclick="formatText('underline')" title="Underline"><u>U</u></button>
+            <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
+            <button class="tool-btn" onclick="formatText('italic')"><i>I</i></button>
+            <button class="tool-btn" onclick="formatText('underline')"><u>U</u></button>
         </div>
 
-        <button class="tool-btn" onclick="addNewBlock()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            New Block
+        <button class="tool-btn" onclick="createBlock()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            New Block (Unit)
         </button>
         <button class="tool-btn" onclick="saveDocument()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
@@ -217,84 +227,103 @@
 
     <div class="workspace">
         <div class="sidebar">
-            <div class="sidebar-header">Vocabulary Bank (From Database)</div>
-            <div class="sidebar-content" id="sidebar-list">
-                </div>
+            <div class="sidebar-content" id="sidebar-list"></div>
         </div>
 
         <div class="editor-container" id="editor-area">
-            <input type="text" class="document-title" id="doc-title" placeholder="Untitled Lesson...">
-            <div id="blocks-wrapper">
-                </div>
+            <input type="text" class="document-title" id="doc-title" placeholder="My English Lesson...">
+            <div id="blocks-wrapper"></div>
         </div>
     </div>
 
     <div id="translation-tooltip">Translation</div>
 
 <script>
-    // --- CONFIG & STATE ---
+    // --- STATE & CONFIG ---
     const DB_KEY = 'mdc_vocab_list';
-    const DOC_KEY = 'mdc_smart_editor_doc';
+    const DOC_KEY = 'mdc_smart_editor_v6_doc';
     let hoverTimer;
     let currentTooltip = document.getElementById('translation-tooltip');
 
-    // --- INITIALIZATION ---
+    // --- STATIC GRAMMAR DATA ---
+    const STATIC_GRAMMAR = [
+        { 
+            name: "Pronouns (Pronombres)", 
+            words: ["I", "You", "He", "She", "We"] 
+        },
+        { 
+            name: "Verbs (Verbos)", 
+            words: ["To Be", "To Have", "To Do", "To Go", "To Say"] 
+        },
+        { 
+            name: "Adjectives (Adjetivos)", 
+            words: ["Good", "New", "First", "Last", "Great"] 
+        },
+        { 
+            name: "Nouns (Sustantivos)", 
+            words: ["Time", "Person", "Year", "Way", "Day"] 
+        },
+        { 
+            name: "Prepositions", 
+            words: ["In", "On", "At", "For", "With"] 
+        }
+    ];
+
     document.addEventListener('DOMContentLoaded', () => {
         loadSidebar();
         loadDocument();
-        
-        // If empty, add one block
         if(document.getElementById('blocks-wrapper').children.length === 0) {
-            addNewBlock();
+            createBlock(); 
         }
     });
 
-    // --- SIDEBAR LOGIC (READ ONLY FROM DB) ---
+    // --- SIDEBAR LOGIC (MODIFIED) ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
         list.innerHTML = '';
 
-        if (!raw) {
-            list.innerHTML = '<div style="padding:10px; color: grey">No database found.</div>';
-            return;
+        // 1. DB Folders (ONLY FOLDERS, NO LOOSE ITEMS)
+        if (raw) {
+            const data = JSON.parse(raw);
+            const folders = data.filter(i => i.isFolder);
+            
+            if (folders.length > 0) {
+                list.innerHTML += '<div class="sidebar-header">My Database</div>';
+                folders.forEach(folder => {
+                    const folderEl = document.createElement('div');
+                    folderEl.className = 'db-folder';
+                    folderEl.innerHTML = `
+                        <div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')">
+                            <span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span>
+                        </div>
+                        <div class="db-folder-items"></div>
+                    `;
+                    const container = folderEl.querySelector('.db-folder-items');
+                    folder.items.forEach(item => container.appendChild(createDraggableChip(item.eng)));
+                    list.appendChild(folderEl);
+                });
+            } else {
+                 list.innerHTML += '<div style="padding:10px; color: grey">Database empty or no folders.</div>';
+            }
         }
 
-        const data = JSON.parse(raw);
+        // 2. Static Grammar Categories (REPLACING UNCATEGORIZED)
+        list.innerHTML += '<div class="sidebar-header">Grammar Helper</div>';
         
-        // 1. Render Folders
-        data.filter(i => i.isFolder).forEach(folder => {
-            const folderEl = document.createElement('div');
-            folderEl.className = 'db-folder';
-            
-            const titleEl = document.createElement('div');
-            titleEl.className = 'db-folder-title';
-            titleEl.innerHTML = `<span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span>`;
-            titleEl.onclick = () => folderEl.classList.toggle('open');
-            
-            const itemsContainer = document.createElement('div');
-            itemsContainer.className = 'db-folder-items';
-            
-            folder.items.forEach(item => {
-                itemsContainer.appendChild(createDraggableChip(item.eng));
-            });
-
-            folderEl.appendChild(titleEl);
-            folderEl.appendChild(itemsContainer);
-            list.appendChild(folderEl);
+        STATIC_GRAMMAR.forEach(cat => {
+            const catEl = document.createElement('div');
+            catEl.className = 'db-folder'; // Reusing style
+            catEl.innerHTML = `
+                <div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')">
+                    <span>📚 ${cat.name}</span>
+                </div>
+                <div class="db-folder-items"></div>
+            `;
+            const container = catEl.querySelector('.db-folder-items');
+            cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
+            list.appendChild(catEl);
         });
-
-        // 2. Render Loose Items
-        const looseItems = data.filter(i => !i.isFolder);
-        if (looseItems.length > 0) {
-            const looseContainer = document.createElement('div');
-            looseContainer.style.marginTop = '15px';
-            looseContainer.innerHTML = '<div class="sidebar-header">Uncategorized</div>';
-            looseItems.forEach(item => {
-                looseContainer.appendChild(createDraggableChip(item.eng));
-            });
-            list.appendChild(looseContainer);
-        }
     }
 
     function createDraggableChip(text) {
@@ -302,262 +331,240 @@
         chip.className = 'draggable-word';
         chip.textContent = text;
         chip.draggable = true;
-        chip.ondragstart = (e) => {
-            e.dataTransfer.setData('text/plain', text);
-            e.dataTransfer.effectAllowed = 'copy';
-        };
+        chip.ondragstart = (e) => { e.dataTransfer.setData('text/plain', text); e.dataTransfer.effectAllowed = 'copy'; };
         return chip;
     }
 
-    // --- EDITOR LOGIC ---
-    function addNewBlock(engText = '', espText = '') {
+    // --- EDITOR LOGIC (SAME AS V5) ---
+    function createBlock(lessonText = '', pairsData = []) {
         const wrapper = document.getElementById('blocks-wrapper');
-        const blockId = Date.now();
-        
         const block = document.createElement('div');
         block.className = 'editor-block';
+        
+        const showLesson = lessonText.trim().length > 0 ? 'style="display:block;"' : '';
+        const bookActiveClass = lessonText.trim().length > 0 ? 'book-active' : '';
+
         block.innerHTML = `
-            <div class="block-inputs">
+            <div class="block-header">
+                <div class="block-label">Block / Unit</div>
+                <div style="display:flex; gap:5px;">
+                    <button class="mini-btn ${bookActiveClass}" onclick="toggleLesson(this)" title="Toggle Lesson Notes">
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                    </button>
+                    <button class="mini-btn block-delete" onclick="removeBlock(this)" title="Delete entire block">✕</button>
+                </div>
+            </div>
+            <div class="lesson-drawer" ${showLesson}>
+                <textarea placeholder="Paste study material here..." oninput="autoSave()">${lessonText}</textarea>
+            </div>
+            <div class="pairs-container"></div>
+        `;
+
+        wrapper.appendChild(block);
+        const pairsContainer = block.querySelector('.pairs-container');
+
+        if(pairsData.length > 0) {
+            pairsData.forEach(p => addPair(pairsContainer, p.en, p.es));
+        } else {
+            addPair(pairsContainer); 
+        }
+    }
+
+    function addPair(container, enText = '', esText = '', focusEn = false) {
+        const pair = document.createElement('div');
+        pair.className = 'sentence-pair';
+        pair.innerHTML = `
+            <div class="pair-inputs">
                 <div class="row-wrapper">
                     <div class="input-row row-en" contenteditable="true" 
-                         data-placeholder="English text here..."
+                         data-placeholder="English..."
                          oninput="autoSave()" 
                          onmousemove="handleHover(event)" 
                          onmouseleave="hideTooltip()"
-                         onpaste="handlePaste(event)">${engText}</div>
-                    <div class="lang-flag flag-en" title="English"></div>
+                         onpaste="handlePaste(event)">${enText}</div>
+                    <div class="lang-flag flag-en"></div>
                 </div>
-                
                 <div class="row-wrapper">
                     <div class="input-row row-es" contenteditable="true" 
-                         data-placeholder="Translation..."
-                         oninput="autoSave()">${espText}</div>
-                    <div class="lang-flag flag-es" title="Spanish"></div>
+                         data-placeholder="Español..."
+                         oninput="autoSave()">${esText}</div>
+                    <div class="lang-flag flag-es"></div>
                 </div>
             </div>
-            
-            <div class="block-controls">
-                <button class="mini-btn" onclick="speakBlock(this)" title="Listen">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+            <div class="pair-controls">
+                <button class="mini-btn" onclick="speakPair(this)" title="Listen">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
                 </button>
-                <button class="mini-btn" onclick="translateBlock(this)" title="Auto Translate (Bidirectional)">
-                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
+                <button class="mini-btn" onclick="translatePair(this)" title="Translate">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>
                 </button>
-                <button class="mini-btn delete" onclick="deleteBlock(this)" title="Delete">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <button class="mini-btn delete" onclick="deletePair(this)" title="Delete Pair">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
         `;
-        
-        wrapper.appendChild(block);
-        
-        // Handle Drag & Drop specifically for the new English row
-        const enRow = block.querySelector('.row-en');
-        enRow.addEventListener('dragover', (e) => {
-            e.preventDefault(); // Necessary to allow dropping
-            enRow.style.background = 'rgba(79,70,229, 0.3)';
-        });
-        enRow.addEventListener('dragleave', () => {
-             enRow.style.background = 'rgba(79,70,229, 0.1)';
-        });
+
+        container.appendChild(pair);
+
+        const enRow = pair.querySelector('.row-en');
+        const esRow = pair.querySelector('.row-es');
+
+        // Drag & Drop
+        enRow.addEventListener('dragover', (e) => { e.preventDefault(); enRow.style.background = 'rgba(79,70,229,0.3)'; });
+        enRow.addEventListener('dragleave', () => { enRow.style.background = 'rgba(79,70,229,0.1)'; });
         enRow.addEventListener('drop', (e) => {
             e.preventDefault();
-            enRow.style.background = 'rgba(79,70,229, 0.1)';
-            const text = e.dataTransfer.getData('text/plain');
-            
-            // Point 1: Add spaces before and after the inserted word
-            const textWithSpaces = " " + text + " ";
-            
-            // Insert text at cursor position if possible, or append
-            if (document.caretRangeFromPoint) {
-                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                if (range && enRow.contains(range.startContainer)) {
-                    const textNode = document.createTextNode(textWithSpaces);
-                    range.insertNode(textNode);
-                    range.setStartAfter(textNode);
-                    range.setEndAfter(textNode);
-                    const sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                } else {
-                    enRow.innerHTML += textWithSpaces;
-                }
-            } else {
-                enRow.innerHTML += textWithSpaces;
-            }
+            enRow.style.background = 'rgba(79,70,229,0.1)';
+            const text = " " + e.dataTransfer.getData('text/plain') + " ";
+            document.execCommand('insertText', false, text);
             autoSave();
         });
-        
-        // Focus logic
+
+        // Key Logic
         enRow.addEventListener('keydown', (e) => {
-            if(e.key === 'Enter') {
-                e.preventDefault();
-                block.querySelector('.row-es').focus();
-            }
+            if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); }
         });
-        
-        const esRow = block.querySelector('.row-es');
+
         esRow.addEventListener('keydown', (e) => {
             if(e.key === 'Enter') {
                 e.preventDefault();
-                addNewBlock();
-                setTimeout(() => {
-                    const allBlocks = wrapper.querySelectorAll('.editor-block');
-                    const lastBlock = allBlocks[allBlocks.length - 1];
-                    lastBlock.querySelector('.row-en').focus();
-                }, 10);
+                addPair(container, '', '', true); 
             }
         });
 
-        return block;
+        if(focusEn) setTimeout(() => enRow.focus(), 10);
     }
 
-    function deleteBlock(btn) {
-        if(confirm('Delete this block?')) {
+    function toggleLesson(btn) {
+        const block = btn.closest('.editor-block');
+        const drawer = block.querySelector('.lesson-drawer');
+        const isHidden = drawer.style.display === 'none' || drawer.style.display === '';
+        drawer.style.display = isHidden ? 'block' : 'none';
+        btn.classList.toggle('book-active');
+        if(isHidden) drawer.querySelector('textarea').focus();
+        autoSave();
+    }
+
+    function removeBlock(btn) {
+        if(confirm("Delete entire block unit?")) {
             btn.closest('.editor-block').remove();
             autoSave();
         }
     }
 
-    // --- HOVER TRANSLATION (INTERACTIVE) ---
-    function handleHover(e) {
-        if (e.target.nodeName === 'DIV' || e.target.nodeName === 'SPAN') {
-            clearTimeout(hoverTimer);
-            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-            if (!range || !range.startContainer.textContent) return;
-            
-            const text = range.startContainer.textContent;
-            const offset = range.startOffset;
-            
-            let start = offset;
-            let end = offset;
-            while(start > 0 && /\w/.test(text.charAt(start-1))) start--;
-            while(end < text.length && /\w/.test(text.charAt(end))) end++;
-            
-            const word = text.slice(start, end).trim();
-            
-            if (word.length > 2) {
-                hoverTimer = setTimeout(() => {
-                    showTooltip(word, e.clientX, e.clientY);
-                }, 500); 
-            }
+    function deletePair(btn) {
+        const pair = btn.closest('.sentence-pair');
+        const container = pair.parentElement;
+        if(container.children.length === 1) {
+            pair.querySelector('.row-en').innerText = '';
+            pair.querySelector('.row-es').innerText = '';
+        } else {
+            pair.remove();
+        }
+        autoSave();
+    }
+
+    function speakPair(btn) {
+        const text = btn.closest('.sentence-pair').querySelector('.row-en').innerText;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
+    }
+
+    async function translatePair(btn) {
+        const pair = btn.closest('.sentence-pair');
+        const enRow = pair.querySelector('.row-en');
+        const esRow = pair.querySelector('.row-es');
+        
+        const en = enRow.innerText.trim();
+        const es = esRow.innerText.trim();
+
+        if (en) {
+            esRow.style.opacity = 0.5;
+            const res = await fetchTranslation(en, 'en', 'es');
+            esRow.style.opacity = 1;
+            if(res) { esRow.innerText = res; autoSave(); }
+        } else if (es) {
+            enRow.style.opacity = 0.5;
+            const res = await fetchTranslation(es, 'es', 'en');
+            enRow.style.opacity = 1;
+            if(res) { enRow.innerText = res; autoSave(); }
         }
     }
 
-    function hideTooltip() {
-        clearTimeout(hoverTimer);
-        currentTooltip.style.opacity = 0;
-    }
-
-    async function showTooltip(word, x, y) {
-        const translation = await fetchTranslation(word, 'en', 'es');
-        if(translation) {
-            currentTooltip.textContent = `${word} → ${translation}`;
-            currentTooltip.style.left = (x + 10) + 'px';
-            currentTooltip.style.top = (y + 20) + 'px';
-            currentTooltip.style.opacity = 1;
-        }
-    }
-
-    // --- API & UTILS ---
     async function fetchTranslation(text, sl, tl) {
         try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-            const res = await fetch(url);
+            const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`);
             const data = await res.json();
             return data[0][0][0];
-        } catch (e) { console.error(e); return null; }
+        } catch(e) { return null; }
     }
-    
-    // Point 3: Bidirectional Translation Logic
-    async function translateBlock(btn) {
-        const block = btn.closest('.editor-block');
-        const enRow = block.querySelector('.row-en');
-        const esRow = block.querySelector('.row-es');
+
+    function handleHover(e) {
+        if (e.target.nodeName !== 'DIV' && e.target.nodeName !== 'SPAN') return;
+        clearTimeout(hoverTimer);
+        const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (!range || !range.startContainer.textContent) return;
         
-        const enText = enRow.innerText.trim();
-        const esText = esRow.innerText.trim();
+        const text = range.startContainer.textContent;
+        let start = range.startOffset, end = range.startOffset;
+        while(start > 0 && /\w/.test(text.charAt(start-1))) start--;
+        while(end < text.length && /\w/.test(text.charAt(end))) end++;
         
-        // Priority: If EN has text, translate to ES. If EN is empty but ES has text, translate to EN.
-        if (enText) {
-            esRow.style.opacity = 0.5;
-            const trans = await fetchTranslation(enText, 'en', 'es');
-            esRow.style.opacity = 1;
-            if(trans) {
-                esRow.innerText = trans;
-                autoSave();
-            }
-        } else if (esText) {
-            enRow.style.opacity = 0.5;
-            const trans = await fetchTranslation(esText, 'es', 'en');
-            enRow.style.opacity = 1;
-            if(trans) {
-                enRow.innerText = trans;
-                autoSave();
-            }
+        const word = text.slice(start, end).trim();
+        if (word.length > 2) {
+            hoverTimer = setTimeout(async () => {
+                const tr = await fetchTranslation(word, 'en', 'es');
+                if(tr) {
+                    currentTooltip.innerText = `${word} → ${tr}`;
+                    currentTooltip.style.left = (e.clientX+10)+'px';
+                    currentTooltip.style.top = (e.clientY+20)+'px';
+                    currentTooltip.style.opacity = 1;
+                }
+            }, 500);
         }
     }
-
-    function speakBlock(btn) {
-        const text = btn.closest('.editor-block').querySelector('.row-en').innerText;
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'en-US';
-        utterance.rate = 1.0;
-        window.speechSynthesis.speak(utterance);
+    function hideTooltip() { clearTimeout(hoverTimer); currentTooltip.style.opacity = 0; }
+    function handlePaste(e) { 
+        e.preventDefault(); 
+        document.execCommand('insertText', false, (e.originalEvent||e).clipboardData.getData('text/plain')); 
     }
-    
+    function formatText(cmd) { document.execCommand(cmd, false, null); }
     function readFullText() {
-        const blocks = document.querySelectorAll('.editor-block');
-        let fullText = "";
-        blocks.forEach(b => {
-            fullText += b.querySelector('.row-en').innerText + ". ";
-        });
-        const utterance = new SpeechSynthesisUtterance(fullText);
-        utterance.lang = 'en-US';
-        window.speechSynthesis.speak(utterance);
+        let txt = "";
+        document.querySelectorAll('.row-en').forEach(el => txt += el.innerText + ". ");
+        const u = new SpeechSynthesisUtterance(txt);
+        u.lang = 'en-US';
+        window.speechSynthesis.speak(u);
     }
 
-    function formatText(command) {
-        document.execCommand(command, false, null);
-        document.querySelector('.editor-container').focus();
-    }
+    function autoSave() { saveDocument(); }
     
-    function handlePaste(e) {
-        e.preventDefault();
-        const text = (e.originalEvent || e).clipboardData.getData('text/plain');
-        document.execCommand('insertText', false, text);
-    }
-
-    // --- STORAGE ---
-    function autoSave() {
-        saveDocument();
-    }
-
     function saveDocument() {
         const title = document.getElementById('doc-title').value;
-        const blocks = [];
-        document.querySelectorAll('.editor-block').forEach(b => {
-            blocks.push({
-                en: b.querySelector('.row-en').innerHTML, 
-                es: b.querySelector('.row-es').innerHTML
+        const blocksData = [];
+        document.querySelectorAll('.editor-block').forEach(block => {
+            const lesson = block.querySelector('.lesson-drawer textarea').value;
+            const pairs = [];
+            block.querySelectorAll('.sentence-pair').forEach(pair => {
+                pairs.push({
+                    en: pair.querySelector('.row-en').innerHTML,
+                    es: pair.querySelector('.row-es').innerHTML
+                });
             });
+            blocksData.push({ lesson, pairs });
         });
-        
-        const docData = { title, blocks, date: Date.now() };
-        localStorage.setItem(DOC_KEY, JSON.stringify(docData));
+        localStorage.setItem(DOC_KEY, JSON.stringify({ title, blocks: blocksData, date: Date.now() }));
     }
 
     function loadDocument() {
         const raw = localStorage.getItem(DOC_KEY);
-        if(raw) {
-            const data = JSON.parse(raw);
-            document.getElementById('doc-title').value = data.title || '';
-            const wrapper = document.getElementById('blocks-wrapper');
-            wrapper.innerHTML = '';
-            
-            if(data.blocks && data.blocks.length > 0) {
-                data.blocks.forEach(b => addNewBlock(b.en, b.es));
-            }
+        if(!raw) return;
+        const data = JSON.parse(raw);
+        document.getElementById('doc-title').value = data.title || '';
+        document.getElementById('blocks-wrapper').innerHTML = '';
+        if(data.blocks && data.blocks.length > 0) {
+            data.blocks.forEach(b => createBlock(b.lesson, b.pairs));
         }
     }
 </script>
