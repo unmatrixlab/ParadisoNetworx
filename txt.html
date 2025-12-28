@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V9 (Final)</title>
+    <title>MDC - Smart Editor V12 (Audio Chips)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -92,12 +92,25 @@
         .db-folder-items { display: none; padding: 10px; background: #111827; border-top: 1px solid #374151; }
         .db-folder.open .db-folder-items { display: block; }
         
+        /* --- NEW CHIP STYLES --- */
         .draggable-word {
             background: #374151; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px;
             font-size: 0.85rem; cursor: grab; border: 1px solid transparent; transition: all 0.2s;
-            color: #e5e7eb; display: block;
+            color: #e5e7eb; 
+            display: flex; justify-content: space-between; align-items: center; /* Flex for button */
         }
         .draggable-word:hover { border-color: var(--primary-light); background: #4b5563; }
+        .draggable-word:active { cursor: grabbing; }
+        
+        .chip-text { pointer-events: none; } /* Ensure drag grabs the div, not the text node */
+        
+        .chip-audio-btn {
+            background: transparent; border: none; color: var(--text-muted);
+            cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;
+            border-radius: 4px; width: 24px; height: 24px;
+        }
+        .chip-audio-btn:hover { color: var(--primary-light); background: rgba(255,255,255,0.1); }
+        .chip-audio-btn:active { transform: scale(0.9); }
 
         /* EDITOR AREA */
         .editor-container {
@@ -200,7 +213,7 @@
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor V9</div>
+        <div class="brand">MDC Editor V12</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -244,7 +257,7 @@
 <script>
     // --- STATE ---
     const DB_KEY = 'mdc_vocab_list';
-    const DOC_KEY = 'mdc_smart_editor_v8_doc'; // Keeping existing data key
+    const DOC_KEY = 'mdc_smart_editor_v8_doc';
     let hoverTimer;
     let currentTooltip = document.getElementById('translation-tooltip');
     
@@ -432,13 +445,13 @@
   }
 ];
 
-    document.addEventListener('DOMContentLoaded', () => {
+   document.addEventListener('DOMContentLoaded', () => {
         loadSidebar();
         loadDocument();
         if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR (Proper Event Handling) ---
+    // --- SIDEBAR (Updated for Audio Chips) ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
@@ -475,36 +488,59 @@
         }
 
         // 2. Grammar Helper
-        const gramHeader = document.createElement('div');
-        gramHeader.className = 'sidebar-header';
-        gramHeader.innerText = 'Grammar Helper';
-        list.appendChild(gramHeader);
+        if(STATIC_GRAMMAR.length > 0) {
+            const gramHeader = document.createElement('div');
+            gramHeader.className = 'sidebar-header';
+            gramHeader.innerText = 'Grammar Helper';
+            list.appendChild(gramHeader);
 
-        STATIC_GRAMMAR.forEach(cat => {
-            const catEl = document.createElement('div');
-            catEl.className = 'db-folder';
-            catEl.innerHTML = `
-                <div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')">
-                    <span>📚 ${cat.name}</span>
-                </div>
-                <div class="db-folder-items"></div>
-            `;
-            const container = catEl.querySelector('.db-folder-items');
-            cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
-            list.appendChild(catEl);
-        });
+            STATIC_GRAMMAR.forEach(cat => {
+                const catEl = document.createElement('div');
+                catEl.className = 'db-folder';
+                catEl.innerHTML = `
+                    <div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')">
+                        <span>📚 ${cat.name}</span>
+                    </div>
+                    <div class="db-folder-items"></div>
+                `;
+                const container = catEl.querySelector('.db-folder-items');
+                cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
+                list.appendChild(catEl);
+            });
+        }
     }
 
+    // --- UPDATED DRAGGABLE CHIP (WITH AUDIO) ---
     function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
-        chip.textContent = text;
         chip.draggable = true;
+        
+        // Structure: Text + Audio Button
+        chip.innerHTML = `
+            <span class="chip-text">${text}</span>
+            <button class="chip-audio-btn" title="Pronounce">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+            </button>
+        `;
+        
+        // 1. Drag Logic (Reads text from the span)
         chip.ondragstart = (e) => {
-            const content = e.target.innerText; 
+            const content = chip.querySelector('.chip-text').innerText; 
             e.dataTransfer.setData('text/plain', content);
             e.dataTransfer.effectAllowed = 'copy';
         };
+
+        // 2. Audio Logic (Stops propagation)
+        const audioBtn = chip.querySelector('.chip-audio-btn');
+        audioBtn.onclick = (e) => {
+            e.stopPropagation(); // Prevents dragging/other clicks
+            e.preventDefault();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'en-US';
+            window.speechSynthesis.speak(u);
+        };
+
         return chip;
     }
 
@@ -611,7 +647,6 @@
 
             // CAPITALIZATION LOGIC
             const content = enRow.innerText;
-            // Is it start if content is empty OR range is at 0?
             const isAtStart = (content.trim().length === 0) || (range && range.startOffset === 0 && (range.startContainer === enRow || range.startContainer === enRow.firstChild));
 
             if (isAtStart) {
