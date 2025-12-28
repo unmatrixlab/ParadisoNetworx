@@ -411,10 +411,9 @@
     let YOUTUBE_ID = '';
     let VIDEO_TITLE = 'Saved from Studio';
     let SUBTITLES_DATA = [];
-    // YA NO USAMOS ESTA VARIABLE para la pronunciación, pero la dejamos por compatibilidad
     let lastSelectedWordText = ""; 
-    // NUEVA VARIABLE: Para guardar qué palabra se está mostrando en la píldora
-    let currentTranslatedWord = ""; 
+    // NUEVA VARIABLE: Guarda qué palabra está actualmente en la barra (sea por click o hover)
+    let currentPillText = ""; 
 
     const HISTORY_KEY = 'mdc_studio_history';
     const VOCAB_KEY = 'mdc_vocab_list';
@@ -435,7 +434,25 @@
     let videoFragments = []; 
     let activeFragmentId = null; 
     let fragmentStartTime = null; 
-    let fragmentSliceMinutes = 0; // 0 = Manual, >0 = Auto Slice
+    let fragmentSliceMinutes = 0; 
+
+    // === LÓGICA DE HOVER (CORREGIDO: Ahora está en el ámbito global) ===
+    let hoverTimerRef;
+
+    function handleHoverStart(el) {
+        clearTimeout(hoverTimerRef);
+        // Iniciamos el contador de 0.5 segundos (500ms)
+        hoverTimerRef = setTimeout(() => {
+            const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
+            // Esto actualiza la barra y la variable de audio
+            translateWordForBar(rawText);
+        }, 500);
+    }
+
+    function handleHoverEnd() {
+        clearTimeout(hoverTimerRef);
+    }
+    // ==================================================================
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -713,9 +730,7 @@
     
     function sanitizeText(text) {
         if (!text) return "";
-        // FIX: Convertir espacios 'duros' (\u00A0) a espacios normales antes de limpiar
         text = text.replace(/\u00A0/g, " "); 
-        
         text = text.replace(/['`‘´]/g, "’");
         text = text.replace(/[^a-zA-Z0-9\u00C0-\u017F\s’]/g, "");
         return text.trim();
@@ -768,19 +783,13 @@
             player.seekTo(t); 
             player.pauseVideo(); 
             
-            // === FIX: RESTAURAR POSICIÓN DE SCROLL ===
-            // 1. Calculamos y marcamos visualmente cuál es la línea activa en este segundo
             highlightCurrentLine(t);
             
-            // 2. Forzamos el scroll a esa línea (manual, por si el autoscroll estaba apagado)
             const activeLine = document.querySelector('.line.active');
             const container = document.querySelector('.dialogue-container');
             
             if (activeLine && container) {
-                // Calculamos la posición para que quede centrada
                 const target = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.offsetHeight / 2) + currentVerticalOffset;
-                
-                // Usamos behavior: "auto" para que el salto sea instantáneo (sin animación) al cargar
                 container.scrollTo({ top: target, behavior: "auto" }); 
             }
         }
@@ -812,12 +821,9 @@
                     document.body.classList.add('focus-mode');
                 }
                 
-                // Continuous Line Update for Overlap
                 document.querySelectorAll('.line').forEach(line => {
                     const lStart = parseFloat(line.dataset.start);
                     const lEnd = parseFloat(line.dataset.end);
-                    // Intersection: Line starts before fragment ends AND Line ends after fragment starts
-                    // Added small padding (0.5s) to be generous with overlap
                     if (lStart < frag.end && lEnd > frag.start) {
                         line.classList.add('active-loop-range');
                     } else {
@@ -947,39 +953,25 @@
             videoFragments = [];
         }
 
-        // Recuperar el fragmento activo si existía
         const savedActiveId = localStorage.getItem('mdc_active_frag_' + YOUTUBE_ID);
         if (savedActiveId) {
-            // Verificar que el fragmento aún existe
             const exists = videoFragments.find(f => f.id === savedActiveId);
             if (exists) {
                 activeFragmentId = savedActiveId;
-                
-                // === FIX: APLICAR EFECTO VISUAL INMEDIATAMENTE ===
-                // Forzamos el modo foco en el body sin esperar al "Play"
                 document.body.classList.add('focus-mode');
-
-                // Esperamos un milisegundo para asegurar que las líneas (.line) ya existen en el DOM
                 setTimeout(() => {
                     document.querySelectorAll('.line').forEach(line => {
                         const lStart = parseFloat(line.dataset.start);
                         const lEnd = parseFloat(line.dataset.end);
-                        
-                        // Lógica de intersección (Misma que en checkTime)
                         if (lStart < exists.end && lEnd > exists.start) {
                             line.classList.add('active-loop-range');
                         } else {
                             line.classList.remove('active-loop-range');
                         }
                     });
-                    
-                    // Opcional: Hacer scroll hacia el fragmento
                     const firstActive = document.querySelector('.active-loop-range');
                     if(firstActive) scrollToActiveElement(firstActive);
-                    
                 }, 50);
-                // ================================================
-
             } else {
                 localStorage.removeItem('mdc_active_frag_' + YOUTUBE_ID);
             }
@@ -1052,7 +1044,6 @@
         renderFragmentList();
     }
 
-    // === SPLIT TIME HELPER (HH:MM:SS) ===
     function makeTimeInputHTML(id, type, totalSeconds) {
         const h = Math.floor(totalSeconds / 3600);
         const m = Math.floor((totalSeconds % 3600) / 60);
@@ -1088,8 +1079,6 @@
             const timeStudied = formatTime(frag.timeSpent || 0);
 
             const tr = document.createElement('tr');
-            
-            // CLASS LOGIC: Manual vs Auto vs Active
             let rowClass = 'frag-row';
             if (activeFragmentId === frag.id) rowClass += ' active-loop';
             if (frag.type === 'manual') rowClass += ' manual';
@@ -1139,7 +1128,7 @@
         if (!player) return;
         const current = player.getCurrentTime();
         updateFragmentTime(id, type, current);
-        renderFragmentList(); // Force redraw inputs
+        renderFragmentList(); 
     }
 
     function calculateFragmentStats(start, end) {
@@ -1151,7 +1140,6 @@
             list.forEach(item => {
                 if (item.isFolder && item.items) scan(item.items);
                 else {
-                    // ROBUST CHECK: Matches current video ID OR (Legacy check) matches title
                     let matchesVideo = false;
                     if (item.source) {
                         if (item.source.videoId === YOUTUBE_ID) matchesVideo = true;
@@ -1174,9 +1162,8 @@
         if (!player) return;
         const current = player.getCurrentTime();
         
-        // MANUAL MODE: Start current, End +5 mins (or duration end)
         const start = current;
-        let end = current + 300; // 5 minutes default
+        let end = current + 300; 
         if (player.getDuration && end > player.getDuration()) {
             end = player.getDuration();
         }
@@ -1188,7 +1175,7 @@
             end: end,
             status: 'new',
             timeSpent: 0,
-            type: 'manual' // Mark as manual for blue color
+            type: 'manual' 
         };
         
         videoFragments.push(newFrag);
@@ -1201,7 +1188,6 @@
         if (!frag) return;
         
         activeFragmentId = id;
-        // NUEVO: Guardar en memoria
         localStorage.setItem('mdc_active_frag_' + YOUTUBE_ID, id);
 
         document.getElementById('fragment-modal').style.display = 'none';
@@ -1213,13 +1199,11 @@
             frag.status = 'study';
             localStorage.setItem(STORAGE_KEY_FRAGMENTS, JSON.stringify(videoFragments));
         }
-        // Forzar repintado de la tabla para ver el botón rojo
         renderFragmentList(); 
     }
 
    function stopFragmentLoop() {
         activeFragmentId = null;
-        // NUEVO: Borrar de memoria
         localStorage.removeItem('mdc_active_frag_' + YOUTUBE_ID);
         renderFragmentList();
     }
@@ -1326,31 +1310,25 @@
         btn.style.opacity = autoScroll ? '1' : '0.5';
         btn.innerText = autoScroll ? '🔒' : '🔓';
     }
-    //function toggleAllTranslations() { allVisible = !allVisible; localStorage.setItem(PREF_TRANS, allVisible); document.getElementById('btn-toggle-trans').style.color = allVisible ? '#4f46e5' : 'white'; document.querySelectorAll('.spanish').forEach(span => { span.classList.toggle('visible', allVisible); }); }
     
     function toggleAllTranslations() { 
         const container = document.querySelector('.dialogue-container');
         const activeLine = document.querySelector('.line.active');
 
-        // 1. Guardar nuevo estado
         allVisible = !allVisible; 
         localStorage.setItem(PREF_TRANS, allVisible); 
         document.getElementById('btn-toggle-trans').style.color = allVisible ? '#4f46e5' : 'white'; 
         
-        // 2. TRUCO: Desactivar 'scroll suave' temporalmente para que el reajuste sea instantáneo
         if(container) container.style.scrollBehavior = 'auto';
 
-        // 3. Aplicar el cambio masivo de altura
         document.querySelectorAll('.spanish').forEach(span => { 
             span.classList.toggle('visible', allVisible); 
         }); 
 
-        // 4. FIX: Si hay una línea activa, saltar a ella inmediatamente para no perderse
         if (activeLine) {
             scrollToActiveElement(activeLine);
         }
 
-        // 5. Restaurar la suavidad del scroll
         if(container) {
             setTimeout(() => { container.style.scrollBehavior = 'smooth'; }, 50);
         }
@@ -1426,7 +1404,6 @@
     const savedWordsSet = new Set();
     const savedPhrases = [];
 
-    // 1. Recopilar palabras y frases guardadas
     const collect = (list) => {
         list.forEach(item => {
             if (item.isFolder && item.items) return collect(item.items);
@@ -1441,10 +1418,8 @@
     };
     collect(vocab);
 
-    // Ordenar frases de más larga a más corta (CRUCIAL: las largas reclaman primero)
     savedPhrases.sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length || b.length - a.length);
 
-    // 2. Limpiar SOLO lo necesario (sin tocar selecciones manuales del usuario)
     document.querySelectorAll('.english-word').forEach(el => {
         if (el.dataset.userSelected !== "true") {
             el.classList.remove('saved-word', 'phrase-word');
@@ -1452,7 +1427,6 @@
         }
     });
 
-    // 3. Pintar FRASES primero
     document.querySelectorAll('.line').forEach(line => {
         const wordsEls = Array.from(line.querySelectorAll('.english-word'));
         const wordsText = wordsEls.map(el => sanitizeText(el.innerText).toLowerCase());
@@ -1461,7 +1435,6 @@
             const phraseWords = phrase.split(/\s+/).filter(Boolean);
             if (phraseWords.length === 0) return;
 
-            // Buscar coincidencias
             for (let i = 0; i <= wordsText.length - phraseWords.length; i++) {
                 let match = true;
                 for (let j = 0; j < phraseWords.length; j++) {
@@ -1472,21 +1445,11 @@
                 }
                 
                 if (match) {
-                    // Pintar la frase
                     for (let j = 0; j < phraseWords.length; j++) {
                         const el = wordsEls[i + j];
-                        
-                        // === FIX CRÍTICO 1: PROTECCIÓN ===
-                        // Agregamos: && !el.dataset.phraseParent
-                        // Si la palabra ya tiene dueño (una frase más larga procesada antes), NO la tocamos.
                         if (el && el.dataset.userSelected !== "true" && !el.dataset.phraseParent) {
-                            
                             el.classList.add('phrase-word');
                             el.dataset.phraseParent = phrase;
-                            
-                            // === FIX CRÍTICO 2: CONVIVENCIA ===
-                            // Eliminada la línea: el.classList.remove('saved-word');
-                            // Esto permite que la palabra sea Individual y Frase a la vez.
                         }
                     }
                 }
@@ -1494,14 +1457,8 @@
         });
     });
 
-    // 4. Pintar palabras sueltas (rosa)
     document.querySelectorAll('.english-word').forEach(el => {
         if (el.dataset.userSelected === "true") return;
-        
-        // === FIX CRÍTICO 3: NO SALTAR ===
-        // Eliminada la línea: if (el.classList.contains('phrase-word')) return;
-        // Ahora pintamos "saved-word" aunque ya sea parte de una frase.
-        
         const clean = sanitizeText(el.innerText).toLowerCase();
         if (savedWordsSet.has(clean)) {
             el.classList.add('saved-word');
@@ -1568,49 +1525,14 @@
     function handleShortClick(el, event) {
         if (isLongPressHandled) return; 
 
-        // Si el usuario toca una palabra que es parte de su selección manual actual,
-        // asumimos que quiere cancelar la selección.
         if (el.dataset.userSelected === "true") {
             clearManualSelection();
             return;
         }
 
-        // === LÓGICA DE HOVER (NUEVO) ===
-        let hoverTimerRef;
-
-        function handleHoverStart(el) {
-            // Limpiamos cualquier timer anterior para evitar conflictos
-            clearTimeout(hoverTimerRef);
-
-            // Iniciamos el contador de 0.5 segundos (500ms)
-            hoverTimerRef = setTimeout(() => {
-                // Usamos la misma lógica de limpieza que en el click
-                const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
-                
-                // Guardamos la palabra que se está traduciendo
-                currentTranslatedWord = rawText; 
-
-                // Llamamos a la función que ya existe para mostrar la traducción en la barra
-                translateWordForBar(rawText);
-            }, 500);
-        }
-
-        function handleHoverEnd() {
-            // Si el mouse sale antes de los 0.5s, cancelamos la traducción
-            clearTimeout(hoverTimerRef);
-        }
-
         const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
-        
-        // Guardamos la palabra que se está traduciendo al hacer clic
-        currentTranslatedWord = rawText; 
-
         translateWordForBar(rawText);
         
-        // Si hay una selección de frase pendiente (manual) activa, 
-        // un click corto NO debería seleccionar la palabra individualmente (rosa),
-        // sino que debería limpiar la selección manual o ignorarse.
-        // Aquí decidimos limpiar para mantener orden.
         if (document.querySelector('.english-word[data-user-selected="true"]')) {
              clearManualSelection();
         }
@@ -1618,8 +1540,6 @@
         toggleWordSelection(el, event); 
     }
 
-   // Helper para limpiar SOLO lo que el usuario está seleccionando manualmente (amarillo temporal)
-    // Helper para limpiar SOLO lo que el usuario está seleccionando manualmente
     function clearManualSelection() {
         document.querySelectorAll('.english-word[data-user-selected="true"]').forEach(el => {
             el.classList.remove('phrase-word');
@@ -1631,8 +1551,6 @@
     function handleLongPressLogic(el) {
         if (navigator.vibrate) navigator.vibrate(50); 
 
-        // 1. MODO BORRADO (Prioridad Máxima)
-        // Si tocas una frase YA guardada (tiene dueño), la borramos.
         if (el.dataset.phraseParent) {
             clearManualSelection(); 
             deletePhraseFromMemory(el.dataset.phraseParent);
@@ -1641,21 +1559,14 @@
 
         const currentIdx = parseInt(el.dataset.idx);
 
-        // 2. MODO SELECCIÓN (Crear nueva frase)
-        
-        // A. Inicio de Selección (Primer punto)
         if (pendingPhraseStartIdx === null) {
-            clearManualSelection(); // Limpiar residuos anteriores
+            clearManualSelection(); 
 
             el.classList.add('phrase-word');
             el.dataset.userSelected = "true";
             pendingPhraseStartIdx = currentIdx;
         } 
-        // B. Cierre de Selección (Segundo punto - Rellenar hueco)
         else {
-            // --- VALIDACIONES DE SEGURIDAD ---
-
-            // REGLA 3: Fronteras de Subtítulo (Cross-Line Check)
             const startEl = document.querySelector(`.english-word[data-idx="${pendingPhraseStartIdx}"]`);
             const startLine = startEl ? startEl.closest('.line') : null;
             const endLine = el.closest('.line');
@@ -1666,28 +1577,23 @@
                 return;
             }
 
-            // Calculamos Start y End (Esto te faltaba en tu código anterior)
             const start = Math.min(pendingPhraseStartIdx, currentIdx);
             const end = Math.max(pendingPhraseStartIdx, currentIdx);
             const distance = end - start;
 
-            // REGLA 1: Distancia Máxima (Seguridad)
             if (distance > 12) {
                 if (navigator.vibrate) navigator.vibrate([50, 50]);
                 clearManualSelection();
                 return;
             }
 
-            // REGLA 2: Detección de Colisiones (Atomic Locking)
             const allWords = Array.from(document.querySelectorAll('.english-word'));
             const wordsInRange = [];
             let pathBlocked = false;
 
-            // Recorremos buscando choques
             for (let i = start; i <= end; i++) {
                 const wordEl = allWords.find(w => parseInt(w.dataset.idx) === i);
                 if (wordEl) {
-                    // Si encontramos una palabra que YA es parte de una frase guardada...
                     if (wordEl.dataset.phraseParent) {
                         pathBlocked = true;
                         break; 
@@ -1697,11 +1603,9 @@
             }
 
             if (pathBlocked) {
-                // Si chocamos, cancelamos todo
                 if (navigator.vibrate) navigator.vibrate([50, 50, 50]); 
                 clearManualSelection(); 
             } else {
-                // CAMINO LIBRE: Pintamos
                 wordsInRange.forEach(w => {
                     w.classList.add('phrase-word');
                     w.dataset.userSelected = "true";
@@ -1776,9 +1680,7 @@
                 videoId: YOUTUBE_ID, 
                 title: VIDEO_TITLE, 
                 timestamp: parseFloat(line.dataset.start),
-                // --- NUEVO: GUARDAR EL FINAL REAL ---
                 timestampEnd: parseFloat(line.dataset.end), 
-                // ------------------------------------
                 context: line.querySelector('.english').innerText,
                 contextEsp: line.querySelector('.spanish').innerText 
             };
@@ -1838,16 +1740,19 @@
     }
 
     function speakActiveOrSelected() { 
-        // Usar la palabra de la píldora si existe
-        if (currentTranslatedWord) {
-            speakText(currentTranslatedWord);
+        // Lógica actualizada: Pronunciar lo que está en la píldora
+        if (currentPillText) {
+            speakText(currentPillText);
             return;
         }
-        // Si no, usar la última seleccionada (comportamiento anterior)
+        
+        // Fallback: Si no hay nada en la píldora, intentar con la última selección
         if (lastSelectedWordText) {
             speakText(lastSelectedWordText);
             return;
         }
+        
+        // Último recurso: Leer la línea activa
         const activeLine = document.querySelector('.line.active .english');
         if (activeLine) {
             speakText(activeLine.innerText);
@@ -1855,6 +1760,9 @@
     }
 
     async function translateWordForBar(text) {
+        // Actualizamos la variable global con la palabra actual
+        currentPillText = text; 
+
         const display = document.getElementById('trans-result-box');
         if(!text) { display.style.display = 'none'; return; }
         
@@ -1875,54 +1783,42 @@
     }
 
    function clearAllWords() { 
-        // 1. Verificación de seguridad
         if (currentWordStats.uniqueTotal === 0) {
             return alert("No hay palabras guardadas en este video.");
         }
 
-        // 2. Confirmación
         if(!confirm('⚠️ ¿Estás seguro? \n\nEsto eliminará TODAS las palabras y frases guardadas asociadas a ESTE VIDEO (ID: ' + YOUTUBE_ID + ').')) return; 
         
         let items = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
         let countDeleted = 0;
 
-        // 3. Función auxiliar para detectar si un ítem pertenece a este video
         const belongsToCurrentVideo = (item) => {
-            // Verifica si tiene "source" y si el ID coincide
             if (item.source && item.source.videoId === YOUTUBE_ID) return true;
-            // Soporte legacy (por si guardaste algo solo con título antes)
             if (item.source && !item.source.videoId && item.source.title === VIDEO_TITLE) return true;
             return false;
         };
 
-        // 4. Filtrado profundo (Raíz y Carpetas)
         items = items.filter(item => {
-            // Si es una carpeta, entramos a limpiar su contenido
             if (item.isFolder && item.items) {
                 const initialLength = item.items.length;
                 item.items = item.items.filter(sub => !belongsToCurrentVideo(sub));
                 countDeleted += (initialLength - item.items.length);
-                return true; // Mantenemos la carpeta (aunque quede vacía)
+                return true; 
             }
-            
-            // Si es palabra suelta en la raíz
             if (belongsToCurrentVideo(item)) {
                 countDeleted++;
-                return false; // La borramos
+                return false; 
             }
             return true;
         });
 
-        // 5. Guardar cambios y actualizar interfaz
         localStorage.setItem(VOCAB_KEY, JSON.stringify(items));
         
-        // Reiniciar contadores y visuales
         currentWordStats = { occurrences: "-", uniqueTotal: 0 }; 
-        updateAllWordStates(); // Esto quitará el color rosa/neón de todo el texto
+        updateAllWordStates(); 
         translateWordForBar(""); 
-        renderCounterUI(); // Esto pondrá el contador en 0/0 y desactivará el botón
+        renderCounterUI(); 
         
-        // Feedback
         alert(`✅ Se eliminaron ${countDeleted} elementos de este video.`);
     }
     
