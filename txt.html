@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MDC - Smart Editor V14.2 (Smart Spacing)</title>
+    <title>MDC - Smart Editor V15 (Speed Control)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -227,7 +227,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         
-        <div class="brand">MDC V14.2</div>
+        <div class="brand">MDC V15</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -246,6 +246,9 @@
         
         <div class="study-group">
             <span id="save-status">Autosaved</span>
+            <button class="tool-btn" id="btn-speed" onclick="cycleSpeed()" title="Playback Speed">
+                1.0x
+            </button>
             <button class="tool-btn" id="btn-blur-en" onclick="toggleBlur('en')" title="Hide English">
                 👁️ EN
             </button>
@@ -279,6 +282,7 @@
     let currentRecordingBtn = null;
     let activeLangContext = 'en'; 
     let lastFocusedInput = null;
+    let speechRate = 1.0; // New Global Speed Variable
 
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -303,7 +307,6 @@
         };
     }
 
-    // PASTE YOUR STATIC_GRAMMAR ARRAY HERE
     const STATIC_GRAMMAR = [
       {
         name: "Pronouns (Pronombres)",
@@ -440,7 +443,7 @@
         ]
       },
       {
-        name: "Interjections & Common Expressions",
+        name: "Interjections & Expressions",
         words: [
           "Yes", "No", "Please", "Thank you", "Thanks", "Sorry", "Excuse me",
           "Hello", "Hi", "Goodbye", "Bye", "Okay", "Sure", "Of course",
@@ -456,7 +459,6 @@
         if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR TOGGLE LOGIC ---
     function toggleSidebar() {
         const sidebar = document.getElementById('main-sidebar');
         if (window.innerWidth < 768) {
@@ -472,7 +474,14 @@
         }
     }
 
-    // --- SIDEBAR LOADER ---
+    function cycleSpeed() {
+        const btn = document.getElementById('btn-speed');
+        if (speechRate === 1.0) speechRate = 0.75;
+        else if (speechRate === 0.75) speechRate = 0.5;
+        else speechRate = 1.0;
+        btn.innerText = speechRate + "x";
+    }
+
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
@@ -523,7 +532,6 @@
         }
     }
 
-    // --- CHIP CREATION (SMART SPACING FIX) ---
     function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
@@ -549,7 +557,6 @@
                 const textToAdd = text;
                 lastFocusedInput.focus();
                 
-                // Force cursor to end of text
                 const range = document.createRange();
                 range.selectNodeContents(lastFocusedInput);
                 range.collapse(false);
@@ -557,23 +564,16 @@
                 sel.removeAllRanges();
                 sel.addRange(range);
 
-                // --- SMART SPACING LOGIC ---
-                let currentText = lastFocusedInput.innerText;
+                let currentContent = lastFocusedInput.innerText;
                 let finalText = textToAdd.toLowerCase();
                 let prefix = " ";
-
-                // 1. If start of line, capitalize and no space prefix
-                if (currentText.trim() === '') {
+                
+                if (currentContent.trim() === '') {
                     prefix = "";
                     finalText = textToAdd.charAt(0).toUpperCase() + textToAdd.slice(1).toLowerCase();
                 } else {
-                    // 2. Check if already has space at end
-                    // We check the very last character of currentText
-                    // \s matches whitespace, \u00A0 is non-breaking space
-                    const lastChar = currentText.slice(-1);
-                    if (/[\s\u00A0]/.test(lastChar)) {
-                        prefix = "";
-                    }
+                    const lastChar = currentContent.slice(-1);
+                    if (/[\s\u00A0]/.test(lastChar)) prefix = "";
                 }
 
                 document.execCommand('insertText', false, prefix + finalText + " ");
@@ -590,13 +590,13 @@
             e.stopPropagation(); 
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'en-US';
+            u.rate = speechRate;
             window.speechSynthesis.speak(u);
         };
 
         return chip;
     }
 
-    // --- EDITOR CORE ---
     function createBlock(lessonText = '', pairsData = []) {
         const wrapper = document.getElementById('blocks-wrapper');
         const block = document.createElement('div');
@@ -659,7 +659,6 @@
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
 
-        // TRACK LAST FOCUSED INPUT FOR CLICK INSERTION
         const handleFocus = (e, lang) => {
             activeLangContext = lang;
             if(lastFocusedInput) lastFocusedInput.classList.remove('active-focus');
@@ -670,7 +669,6 @@
         enRow.onfocus = (e) => handleFocus(e, 'en');
         esRow.onfocus = (e) => handleFocus(e, 'es');
 
-        // DROP LOGIC
         enRow.addEventListener('dragover', (e) => { e.preventDefault(); enRow.style.background = 'rgba(79,70,229,0.3)'; });
         enRow.addEventListener('dragleave', () => { enRow.style.background = 'rgba(79,70,229,0.1)'; });
         
@@ -684,16 +682,25 @@
             let range;
             if (document.caretRangeFromPoint) {
                 range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                if (range && enRow.contains(range.startContainer)) {
-                    const sel = window.getSelection();
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                }
             }
 
-            // Cap logic
+            if (range && enRow.contains(range.startContainer)) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } else {
+                const r = document.createRange();
+                r.selectNodeContents(enRow);
+                r.collapse(false);
+                const s = window.getSelection();
+                s.removeAllRanges();
+                s.addRange(r);
+            }
+
             const content = enRow.innerText;
-            const isAtStart = (content.trim().length === 0) || (range && range.startOffset === 0);
+            const sel = window.getSelection();
+            const isAtStart = (content.trim().length === 0) || (sel.rangeCount > 0 && sel.getRangeAt(0).startOffset === 0);
+
             if (isAtStart) droppedText = droppedText.charAt(0).toUpperCase() + droppedText.slice(1).toLowerCase();
             else droppedText = droppedText.toLowerCase();
 
@@ -707,7 +714,6 @@
         if(focusEn) setTimeout(() => enRow.focus(), 10);
     }
 
-    // --- HELPERS ---
     function toggleBlur(lang) {
         const body = document.body;
         const btn = document.getElementById(`btn-blur-${lang}`);
@@ -740,7 +746,9 @@
     }
     function speakPair(btn) {
         const text = btn.closest('.sentence-pair').querySelector('.row-en').innerText;
-        const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; window.speechSynthesis.speak(u);
+        const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; 
+        u.rate = speechRate;
+        window.speechSynthesis.speak(u);
     }
     async function translatePair(btn) {
         const pair = btn.closest('.sentence-pair');
