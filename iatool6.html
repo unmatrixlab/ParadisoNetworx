@@ -1477,39 +1477,33 @@ function filterResults() {
     });
 }
 
-    function speakText(text) {
-    if (!('speechSynthesis' in window)) {
-        console.warn("Tu navegador no soporta síntesis de voz.");
-        return;
-    }
+function speakText(text) {
+    if (!text) return; // Protección contra texto vacío
     
-    // Cancela cualquier reproducción anterior
+    // Cancelar audio anterior para evitar superposiciones
     window.speechSynthesis.cancel();
-    
+
     const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.0; // Velocidad normal
     
-    // Configuración recomendada
-    utter.lang = 'en-US';  // o 'es-ES' si quieres que lea la traducción
-    utter.rate = 1.0;
-    utter.pitch = 1;
-    utter.volume = 1;
-    
-    // Espera a que las voces estén cargadas
-    if (speechSynthesis.getVoices().length === 0) {
-        speechSynthesis.onvoiceschanged = () => {
-            const voices = speechSynthesis.getVoices();
-            const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-            if (enVoice) utter.voice = enVoice;
-            speechSynthesis.speak(utter);
-        };
-    } else {
-        const voices = speechSynthesis.getVoices();
-        const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+    // Función auxiliar para seleccionar voz en inglés
+    const setEnglishVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        // Buscar preferiblemente una voz de Google US o Microsoft David/Zira, sino la primera en inglés
+        const enVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Google')) 
+                     || voices.find(v => v.lang.startsWith('en')) 
+                     || voices[0];
+        
         if (enVoice) utter.voice = enVoice;
-        speechSynthesis.speak(utter);
+        window.speechSynthesis.speak(utter);
+    };
+
+    // Lógica para esperar a que carguen las voces (CRÍTICO PARA CHROME/ANDROID)
+    if (window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.onvoiceschanged = setEnglishVoice;
+    } else {
+        setEnglishVoice();
     }
-    
-    utter.onerror = (e) => console.error("Error de speech:", e);
 }
 </script>
 </body>
