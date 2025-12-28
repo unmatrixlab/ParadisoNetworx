@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V6 (Grammar Tools)</title>
+    <title>MDC - Smart Editor V8 (Bilingual Dictation)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -17,6 +17,8 @@
             --border: #374151;
             --highlight: #fde047;
             --danger: #ef4444;
+            --recording: #ef4444;
+            --success: #10b981;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
@@ -49,9 +51,19 @@
             display: flex; align-items: center; gap: 6px;
         }
         .tool-btn:hover { background: var(--primary); }
+        .tool-btn.active { background: var(--highlight); color: black; font-weight: bold; }
         .tool-btn svg { width: 16px; height: 16px; }
         
         .format-group { display: flex; gap: 5px; border-right: 1px solid var(--border); padding-right: 15px; }
+        
+        .study-group { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+        /* SAVE INDICATOR */
+        #save-status {
+            font-size: 0.8rem; color: var(--text-muted); font-style: italic;
+            opacity: 0; transition: opacity 0.5s; margin-right: 10px;
+        }
+        #save-status.visible { opacity: 1; color: var(--success); }
 
         /* MAIN LAYOUT */
         .workspace { display: flex; flex: 1; overflow: hidden; }
@@ -66,73 +78,52 @@
         }
         .sidebar-header { 
             padding: 15px 15px 5px 15px; 
-            font-weight: 700; 
-            color: var(--primary-light); 
-            font-size: 0.75rem; 
-            text-transform: uppercase; 
-            letter-spacing: 1px;
-            margin-top: 10px;
-            border-top: 1px solid var(--border);
+            font-weight: 700; color: var(--primary-light); font-size: 0.75rem; 
+            text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; border-top: 1px solid var(--border);
         }
         .sidebar-header:first-child { border-top: none; margin-top: 0; }
-        
         .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; }
         
-        /* Accordion Styles */
         .db-folder { margin-bottom: 5px; border: 1px solid #374151; border-radius: 6px; overflow: hidden; background: #111827; }
         .db-folder-title {
-            padding: 10px; background: #1f2937; cursor: pointer;
-            font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;
-            font-weight: 500; transition: background 0.2s;
+            padding: 10px; background: #1f2937; cursor: pointer; font-size: 0.9rem; 
+            display: flex; justify-content: space-between; align-items: center; font-weight: 500;
         }
         .db-folder-title:hover { background: #374151; }
         .db-folder-items { display: none; padding: 10px; background: #111827; border-top: 1px solid #374151; }
         .db-folder.open .db-folder-items { display: block; }
         
-        /* Chips */
         .draggable-word {
             background: #374151; padding: 6px 10px; margin-bottom: 5px; border-radius: 4px;
             font-size: 0.85rem; cursor: grab; border: 1px solid transparent; transition: all 0.2s;
             color: #e5e7eb; display: block;
         }
         .draggable-word:hover { border-color: var(--primary-light); background: #4b5563; }
-        .draggable-word:active { cursor: grabbing; }
 
         /* EDITOR AREA */
         .editor-container {
-            flex: 1;
-            padding: 40px;
-            overflow-y: auto;
+            flex: 1; padding: 40px; overflow-y: auto;
             background-image: radial-gradient(#374151 1px, transparent 1px);
-            background-size: 20px 20px;
-            padding-bottom: 200px;
+            background-size: 20px 20px; padding-bottom: 200px;
         }
-        
         .document-title {
             width: 100%; background: transparent; border: none; font-size: 2rem; font-weight: 700;
             color: var(--text-main); margin-bottom: 30px; outline: none;
         }
 
-        /* BLOCK CONTAINER */
+        /* BLOCKS */
         .editor-block {
-            background: var(--bg-panel);
-            border-radius: 12px;
-            margin-bottom: 30px;
-            border: 1px solid var(--border);
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
-            position: relative;
+            background: var(--bg-panel); border-radius: 12px; margin-bottom: 30px;
+            border: 1px solid var(--border); overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); position: relative;
         }
-        
         .block-header {
             background: #111827; padding: 8px 15px; border-bottom: 1px solid var(--border);
             display: flex; justify-content: space-between; align-items: center;
         }
-        .block-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .block-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         
-        .lesson-drawer {
-            display: none; padding: 15px; background: #1f2937; border-bottom: 1px solid var(--border);
-        }
+        .lesson-drawer { display: none; padding: 15px; background: #1f2937; border-bottom: 1px solid var(--border); }
         .lesson-drawer textarea {
             width: 100%; min-height: 80px; background: #111827; color: #d1d5db;
             border: 1px dashed #6b7280; border-radius: 6px; padding: 10px;
@@ -141,7 +132,6 @@
         .lesson-drawer textarea:focus { outline: none; border-color: var(--primary-light); }
 
         .pairs-container { display: flex; flex-direction: column; }
-
         .sentence-pair {
             display: flex; gap: 10px; padding: 12px 15px;
             border-bottom: 1px solid #374151; align-items: flex-start;
@@ -150,12 +140,10 @@
         .sentence-pair:last-child { border-bottom: none; }
 
         .pair-inputs { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-
         .row-wrapper { position: relative; width: 100%; }
         .input-row {
-            padding: 8px 10px; padding-right: 30px;
-            border-radius: 4px; outline: none; 
-            min-height: 36px; line-height: 1.5;
+            padding: 8px 10px; padding-right: 30px; border-radius: 4px; outline: none; 
+            min-height: 36px; line-height: 1.5; transition: filter 0.3s;
         }
         .row-en {
             font-size: 1.05rem; color: #fff; font-weight: 500;
@@ -165,12 +153,19 @@
             font-size: 0.95rem; color: var(--text-muted); font-style: italic;
             border-left: 3px solid #10b981; background: rgba(16,185,129, 0.05);
         }
+        
+        /* Focus indicator to show where mic will record */
+        .input-row:focus { box-shadow: 0 0 0 1px var(--primary-light); }
+
+        /* BLUR EFFECTS */
+        .blur-en .row-en { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); cursor: help; }
+        .blur-es .row-es { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); cursor: help; }
+        .blur-en .row-en:hover, .blur-en .row-en:focus { color: #fff; text-shadow: none; }
+        .blur-es .row-es:hover, .blur-es .row-es:focus { color: var(--text-muted); text-shadow: none; }
 
         .pair-controls { display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
-
         .lang-flag {
-            position: absolute; right: 8px; bottom: 10px;
-            width: 18px; height: 12px; pointer-events: none;
+            position: absolute; right: 8px; bottom: 10px; width: 18px; height: 12px; pointer-events: none;
             filter: grayscale(100%); opacity: 0.2; background-size: cover;
         }
         .flag-en { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Cpath d='M0,0 v30 h60 v-30 z' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23C8102E' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"); }
@@ -184,6 +179,10 @@
         .mini-btn:hover { background: var(--primary); color: white; }
         .mini-btn.delete:hover { background: var(--danger); }
         .mini-btn.book-active { background: var(--highlight); color: black; }
+        
+        .mini-btn.recording { background: var(--recording); color: white; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
         .block-delete { margin-left: auto; background: transparent; color: #6b7280; }
         .block-delete:hover { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 
@@ -203,7 +202,7 @@
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor V6</div>
+        <div class="brand">MDC Editor V8</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -213,16 +212,22 @@
 
         <button class="tool-btn" onclick="createBlock()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-            New Block (Unit)
+            New Block
         </button>
-        <button class="tool-btn" onclick="saveDocument()">
+        <button class="tool-btn" onclick="saveDocumentManual()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
             Save
         </button>
-         <button class="tool-btn" onclick="readFullText()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-            Read All
-        </button>
+        
+        <div class="study-group">
+            <span id="save-status">Autosaved</span>
+            <button class="tool-btn" id="btn-blur-en" onclick="toggleBlur('en')">
+                👁️ Hide English
+            </button>
+            <button class="tool-btn" id="btn-blur-es" onclick="toggleBlur('es')">
+                👁️ Hide Spanish
+            </button>
+        </div>
     </div>
 
     <div class="workspace">
@@ -239,55 +244,75 @@
     <div id="translation-tooltip">Translation</div>
 
 <script>
-    // --- STATE & CONFIG ---
+    // --- STATE ---
     const DB_KEY = 'mdc_vocab_list';
-    const DOC_KEY = 'mdc_smart_editor_v6_doc';
+    const DOC_KEY = 'mdc_smart_editor_v8_doc';
     let hoverTimer;
     let currentTooltip = document.getElementById('translation-tooltip');
+    
+    // Recognition & Context State
+    let recognition;
+    let isRecording = false;
+    let currentRecordingBtn = null;
+    let activeLangContext = 'en'; // Defaults to English. Changes on Focus.
 
-    // --- STATIC GRAMMAR DATA ---
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        
+        recognition.onresult = function(event) {
+            if(currentRecordingBtn) {
+                const text = event.results[0][0].transcript;
+                const pair = currentRecordingBtn.closest('.sentence-pair');
+                
+                // INTELLIGENT TARGETING BASED ON LAST FOCUS
+                let targetRow;
+                if (activeLangContext === 'es') {
+                    targetRow = pair.querySelector('.row-es');
+                } else {
+                    targetRow = pair.querySelector('.row-en');
+                }
+                
+                if(targetRow.innerText.trim() === '') {
+                    targetRow.innerText = text;
+                } else {
+                    targetRow.innerText += " " + text;
+                }
+                autoSave();
+            }
+        };
+        
+        recognition.onend = function() {
+            isRecording = false;
+            if(currentRecordingBtn) currentRecordingBtn.classList.remove('recording');
+            currentRecordingBtn = null;
+        };
+    }
+
     const STATIC_GRAMMAR = [
-        { 
-            name: "Pronouns (Pronombres)", 
-            words: ["I", "You", "He", "She", "We"] 
-        },
-        { 
-            name: "Verbs (Verbos)", 
-            words: ["To Be", "To Have", "To Do", "To Go", "To Say"] 
-        },
-        { 
-            name: "Adjectives (Adjetivos)", 
-            words: ["Good", "New", "First", "Last", "Great"] 
-        },
-        { 
-            name: "Nouns (Sustantivos)", 
-            words: ["Time", "Person", "Year", "Way", "Day"] 
-        },
-        { 
-            name: "Prepositions", 
-            words: ["In", "On", "At", "For", "With"] 
-        }
+        { name: "Pronouns (Pronombres)", words: ["I", "You", "He", "She", "We", "They", "It"] },
+        { name: "Verbs (Verbos)", words: ["To Be", "To Have", "To Do", "To Go", "To Say", "To Get", "To Make"] },
+        { name: "Adjectives (Adjetivos)", words: ["Good", "New", "First", "Last", "Long", "Great", "Little"] },
+        { name: "Nouns (Sustantivos)", words: ["Time", "Person", "Year", "Way", "Day", "Thing", "Man"] },
+        { name: "Prepositions", words: ["In", "On", "At", "For", "With", "By", "From"] }
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
         loadSidebar();
         loadDocument();
-        if(document.getElementById('blocks-wrapper').children.length === 0) {
-            createBlock(); 
-        }
+        if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR LOGIC (MODIFIED) ---
+    // --- SIDEBAR ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
         list.innerHTML = '';
 
-        // 1. DB Folders (ONLY FOLDERS, NO LOOSE ITEMS)
         if (raw) {
             const data = JSON.parse(raw);
             const folders = data.filter(i => i.isFolder);
-            
             if (folders.length > 0) {
                 list.innerHTML += '<div class="sidebar-header">My Database</div>';
                 folders.forEach(folder => {
@@ -303,17 +328,13 @@
                     folder.items.forEach(item => container.appendChild(createDraggableChip(item.eng)));
                     list.appendChild(folderEl);
                 });
-            } else {
-                 list.innerHTML += '<div style="padding:10px; color: grey">Database empty or no folders.</div>';
             }
         }
 
-        // 2. Static Grammar Categories (REPLACING UNCATEGORIZED)
         list.innerHTML += '<div class="sidebar-header">Grammar Helper</div>';
-        
         STATIC_GRAMMAR.forEach(cat => {
             const catEl = document.createElement('div');
-            catEl.className = 'db-folder'; // Reusing style
+            catEl.className = 'db-folder';
             catEl.innerHTML = `
                 <div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')">
                     <span>📚 ${cat.name}</span>
@@ -335,7 +356,7 @@
         return chip;
     }
 
-    // --- EDITOR LOGIC (SAME AS V5) ---
+    // --- EDITOR ---
     function createBlock(lessonText = '', pairsData = []) {
         const wrapper = document.getElementById('blocks-wrapper');
         const block = document.createElement('div');
@@ -359,15 +380,10 @@
             </div>
             <div class="pairs-container"></div>
         `;
-
         wrapper.appendChild(block);
         const pairsContainer = block.querySelector('.pairs-container');
-
-        if(pairsData.length > 0) {
-            pairsData.forEach(p => addPair(pairsContainer, p.en, p.es));
-        } else {
-            addPair(pairsContainer); 
-        }
+        if(pairsData.length > 0) pairsData.forEach(p => addPair(pairsContainer, p.en, p.es));
+        else addPair(pairsContainer);
     }
 
     function addPair(container, enText = '', esText = '', focusEn = false) {
@@ -377,21 +393,26 @@
             <div class="pair-inputs">
                 <div class="row-wrapper">
                     <div class="input-row row-en" contenteditable="true" 
-                         data-placeholder="English..."
+                         data-placeholder="English..." 
+                         onfocus="activeLangContext='en'"
                          oninput="autoSave()" 
                          onmousemove="handleHover(event)" 
-                         onmouseleave="hideTooltip()"
+                         onmouseleave="hideTooltip()" 
                          onpaste="handlePaste(event)">${enText}</div>
                     <div class="lang-flag flag-en"></div>
                 </div>
                 <div class="row-wrapper">
                     <div class="input-row row-es" contenteditable="true" 
-                         data-placeholder="Español..."
+                         data-placeholder="Español..." 
+                         onfocus="activeLangContext='es'"
                          oninput="autoSave()">${esText}</div>
                     <div class="lang-flag flag-es"></div>
                 </div>
             </div>
             <div class="pair-controls">
+                <button class="mini-btn" onclick="toggleRecord(this)" title="Dictate (Records to last clicked row)">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                </button>
                 <button class="mini-btn" onclick="speakPair(this)" title="Listen">
                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
                 </button>
@@ -403,13 +424,11 @@
                 </button>
             </div>
         `;
-
         container.appendChild(pair);
 
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
 
-        // Drag & Drop
         enRow.addEventListener('dragover', (e) => { e.preventDefault(); enRow.style.background = 'rgba(79,70,229,0.3)'; });
         enRow.addEventListener('dragleave', () => { enRow.style.background = 'rgba(79,70,229,0.1)'; });
         enRow.addEventListener('drop', (e) => {
@@ -419,20 +438,46 @@
             document.execCommand('insertText', false, text);
             autoSave();
         });
-
-        // Key Logic
-        enRow.addEventListener('keydown', (e) => {
-            if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); }
-        });
-
-        esRow.addEventListener('keydown', (e) => {
-            if(e.key === 'Enter') {
-                e.preventDefault();
-                addPair(container, '', '', true); 
-            }
-        });
+        enRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); } });
+        esRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); addPair(container, '', '', true); } });
 
         if(focusEn) setTimeout(() => enRow.focus(), 10);
+    }
+
+    // --- FUNCTIONS ---
+    function toggleBlur(lang) {
+        const body = document.body;
+        const btn = document.getElementById(`btn-blur-${lang}`);
+        
+        if (lang === 'en') {
+            body.classList.toggle('blur-en');
+            btn.classList.toggle('active');
+        } else {
+            body.classList.toggle('blur-es');
+            btn.classList.toggle('active');
+        }
+    }
+
+    function toggleRecord(btn) {
+        if (!recognition) { alert("Speech recognition not supported in this browser (Use Chrome/Edge)."); return; }
+        
+        if (isRecording) {
+            recognition.stop();
+            return;
+        }
+        
+        currentRecordingBtn = btn;
+        btn.classList.add('recording');
+        
+        // INTELLIGENT LANG SWITCHING
+        if (activeLangContext === 'es') {
+            recognition.lang = 'es-ES';
+        } else {
+            recognition.lang = 'en-US';
+        }
+        
+        recognition.start();
+        isRecording = true;
     }
 
     function toggleLesson(btn) {
@@ -444,59 +489,40 @@
         if(isHidden) drawer.querySelector('textarea').focus();
         autoSave();
     }
-
-    function removeBlock(btn) {
-        if(confirm("Delete entire block unit?")) {
-            btn.closest('.editor-block').remove();
-            autoSave();
-        }
-    }
-
-    function deletePair(btn) {
+    
+    function removeBlock(btn) { if(confirm("Delete block?")) { btn.closest('.editor-block').remove(); autoSave(); } }
+    function deletePair(btn) { 
         const pair = btn.closest('.sentence-pair');
-        const container = pair.parentElement;
-        if(container.children.length === 1) {
-            pair.querySelector('.row-en').innerText = '';
-            pair.querySelector('.row-es').innerText = '';
-        } else {
-            pair.remove();
-        }
+        if(pair.parentElement.children.length === 1) {
+            pair.querySelector('.row-en').innerText = ''; pair.querySelector('.row-es').innerText = '';
+        } else { pair.remove(); }
         autoSave();
     }
 
     function speakPair(btn) {
         const text = btn.closest('.sentence-pair').querySelector('.row-en').innerText;
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-US';
-        window.speechSynthesis.speak(u);
+        const u = new SpeechSynthesisUtterance(text); u.lang = 'en-US'; window.speechSynthesis.speak(u);
     }
 
     async function translatePair(btn) {
         const pair = btn.closest('.sentence-pair');
-        const enRow = pair.querySelector('.row-en');
-        const esRow = pair.querySelector('.row-es');
-        
-        const en = enRow.innerText.trim();
-        const es = esRow.innerText.trim();
-
+        const enRow = pair.querySelector('.row-en'); const esRow = pair.querySelector('.row-es');
+        const en = enRow.innerText.trim(); const es = esRow.innerText.trim();
         if (en) {
             esRow.style.opacity = 0.5;
             const res = await fetchTranslation(en, 'en', 'es');
-            esRow.style.opacity = 1;
-            if(res) { esRow.innerText = res; autoSave(); }
+            esRow.style.opacity = 1; if(res) { esRow.innerText = res; autoSave(); }
         } else if (es) {
             enRow.style.opacity = 0.5;
             const res = await fetchTranslation(es, 'es', 'en');
-            enRow.style.opacity = 1;
-            if(res) { enRow.innerText = res; autoSave(); }
+            enRow.style.opacity = 1; if(res) { enRow.innerText = res; autoSave(); }
         }
     }
 
     async function fetchTranslation(text, sl, tl) {
         try {
             const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`);
-            const data = await res.json();
-            return data[0][0][0];
+            const data = await res.json(); return data[0][0][0];
         } catch(e) { return null; }
     }
 
@@ -505,12 +531,10 @@
         clearTimeout(hoverTimer);
         const range = document.caretRangeFromPoint(e.clientX, e.clientY);
         if (!range || !range.startContainer.textContent) return;
-        
         const text = range.startContainer.textContent;
         let start = range.startOffset, end = range.startOffset;
         while(start > 0 && /\w/.test(text.charAt(start-1))) start--;
         while(end < text.length && /\w/.test(text.charAt(end))) end++;
-        
         const word = text.slice(start, end).trim();
         if (word.length > 2) {
             hoverTimer = setTimeout(async () => {
@@ -525,21 +549,31 @@
         }
     }
     function hideTooltip() { clearTimeout(hoverTimer); currentTooltip.style.opacity = 0; }
-    function handlePaste(e) { 
-        e.preventDefault(); 
-        document.execCommand('insertText', false, (e.originalEvent||e).clipboardData.getData('text/plain')); 
-    }
+    function handlePaste(e) { e.preventDefault(); document.execCommand('insertText', false, (e.originalEvent||e).clipboardData.getData('text/plain')); }
     function formatText(cmd) { document.execCommand(cmd, false, null); }
     function readFullText() {
-        let txt = "";
-        document.querySelectorAll('.row-en').forEach(el => txt += el.innerText + ". ");
-        const u = new SpeechSynthesisUtterance(txt);
-        u.lang = 'en-US';
-        window.speechSynthesis.speak(u);
+        let txt = ""; document.querySelectorAll('.row-en').forEach(el => txt += el.innerText + ". ");
+        const u = new SpeechSynthesisUtterance(txt); u.lang = 'en-US'; window.speechSynthesis.speak(u);
+    }
+    
+    function autoSave() { 
+        saveDocument(); 
+        const status = document.getElementById('save-status');
+        status.classList.add('visible');
+        setTimeout(() => status.classList.remove('visible'), 2000);
+    }
+    
+    function saveDocumentManual() {
+        saveDocument();
+        const status = document.getElementById('save-status');
+        status.textContent = "Saved Manually!";
+        status.classList.add('visible');
+        setTimeout(() => {
+            status.classList.remove('visible');
+            status.textContent = "Autosaved";
+        }, 2000);
     }
 
-    function autoSave() { saveDocument(); }
-    
     function saveDocument() {
         const title = document.getElementById('doc-title').value;
         const blocksData = [];
@@ -547,25 +581,19 @@
             const lesson = block.querySelector('.lesson-drawer textarea').value;
             const pairs = [];
             block.querySelectorAll('.sentence-pair').forEach(pair => {
-                pairs.push({
-                    en: pair.querySelector('.row-en').innerHTML,
-                    es: pair.querySelector('.row-es').innerHTML
-                });
+                pairs.push({ en: pair.querySelector('.row-en').innerHTML, es: pair.querySelector('.row-es').innerHTML });
             });
             blocksData.push({ lesson, pairs });
         });
         localStorage.setItem(DOC_KEY, JSON.stringify({ title, blocks: blocksData, date: Date.now() }));
     }
-
     function loadDocument() {
         const raw = localStorage.getItem(DOC_KEY);
         if(!raw) return;
         const data = JSON.parse(raw);
         document.getElementById('doc-title').value = data.title || '';
         document.getElementById('blocks-wrapper').innerHTML = '';
-        if(data.blocks && data.blocks.length > 0) {
-            data.blocks.forEach(b => createBlock(b.lesson, b.pairs));
-        }
+        if(data.blocks && data.blocks.length > 0) data.blocks.forEach(b => createBlock(b.lesson, b.pairs));
     }
 </script>
 </body>
