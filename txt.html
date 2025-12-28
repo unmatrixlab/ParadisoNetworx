@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V8 (Bilingual Dictation)</title>
+    <title>MDC - Smart Editor V8.2 (Stable Drag & Drop)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -58,7 +58,6 @@
         
         .study-group { margin-left: auto; display: flex; gap: 10px; align-items: center; }
 
-        /* SAVE INDICATOR */
         #save-status {
             font-size: 0.8rem; color: var(--text-muted); font-style: italic;
             opacity: 0; transition: opacity 0.5s; margin-right: 10px;
@@ -154,7 +153,6 @@
             border-left: 3px solid #10b981; background: rgba(16,185,129, 0.05);
         }
         
-        /* Focus indicator to show where mic will record */
         .input-row:focus { box-shadow: 0 0 0 1px var(--primary-light); }
 
         /* BLUR EFFECTS */
@@ -202,7 +200,7 @@
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor V8</div>
+        <div class="brand">MDC Editor V8.2</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -254,7 +252,7 @@
     let recognition;
     let isRecording = false;
     let currentRecordingBtn = null;
-    let activeLangContext = 'en'; // Defaults to English. Changes on Focus.
+    let activeLangContext = 'en'; 
 
     if ('webkitSpeechRecognition' in window) {
         recognition = new webkitSpeechRecognition();
@@ -265,8 +263,6 @@
             if(currentRecordingBtn) {
                 const text = event.results[0][0].transcript;
                 const pair = currentRecordingBtn.closest('.sentence-pair');
-                
-                // INTELLIGENT TARGETING BASED ON LAST FOCUS
                 let targetRow;
                 if (activeLangContext === 'es') {
                     targetRow = pair.querySelector('.row-es');
@@ -304,17 +300,22 @@
         if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR ---
+    // --- SIDEBAR (FIXED) ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
-        list.innerHTML = '';
+        list.innerHTML = ''; // Start clean
 
+        // 1. My Database
         if (raw) {
             const data = JSON.parse(raw);
             const folders = data.filter(i => i.isFolder);
             if (folders.length > 0) {
-                list.innerHTML += '<div class="sidebar-header">My Database</div>';
+                const header = document.createElement('div');
+                header.className = 'sidebar-header';
+                header.innerText = 'My Database';
+                list.appendChild(header);
+
                 folders.forEach(folder => {
                     const folderEl = document.createElement('div');
                     folderEl.className = 'db-folder';
@@ -325,13 +326,23 @@
                         <div class="db-folder-items"></div>
                     `;
                     const container = folderEl.querySelector('.db-folder-items');
-                    folder.items.forEach(item => container.appendChild(createDraggableChip(item.eng)));
+                    // Safety check: item.eng must exist
+                    folder.items.forEach(item => {
+                        if(item && item.eng) {
+                            container.appendChild(createDraggableChip(item.eng));
+                        }
+                    });
                     list.appendChild(folderEl);
                 });
             }
         }
 
-        list.innerHTML += '<div class="sidebar-header">Grammar Helper</div>';
+        // 2. Grammar Helper
+        const gramHeader = document.createElement('div');
+        gramHeader.className = 'sidebar-header';
+        gramHeader.innerText = 'Grammar Helper';
+        list.appendChild(gramHeader);
+
         STATIC_GRAMMAR.forEach(cat => {
             const catEl = document.createElement('div');
             catEl.className = 'db-folder';
@@ -347,12 +358,20 @@
         });
     }
 
+    // --- DRAGGABLE CHIP (HARDENED) ---
     function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.textContent = text;
         chip.draggable = true;
-        chip.ondragstart = (e) => { e.dataTransfer.setData('text/plain', text); e.dataTransfer.effectAllowed = 'copy'; };
+        
+        chip.ondragstart = (e) => {
+            // FIX: Read text content directly from the target element
+            // This ensures "What you see is what you drag" even if closure references fail.
+            const content = e.target.innerText; 
+            e.dataTransfer.setData('text/plain', content);
+            e.dataTransfer.effectAllowed = 'copy';
+        };
         return chip;
     }
 
@@ -429,15 +448,37 @@
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
 
-        enRow.addEventListener('dragover', (e) => { e.preventDefault(); enRow.style.background = 'rgba(79,70,229,0.3)'; });
-        enRow.addEventListener('dragleave', () => { enRow.style.background = 'rgba(79,70,229,0.1)'; });
+        // --- FIXED DROP LOGIC ---
+        enRow.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            enRow.style.background = 'rgba(79,70,229,0.3)'; 
+        });
+        enRow.addEventListener('dragleave', () => { 
+            enRow.style.background = 'rgba(79,70,229,0.1)'; 
+        });
         enRow.addEventListener('drop', (e) => {
             e.preventDefault();
             enRow.style.background = 'rgba(79,70,229,0.1)';
             const text = " " + e.dataTransfer.getData('text/plain') + " ";
+            
+            // Positioning Hack:
+            // Ensure focus is on the element
+            enRow.focus();
+            
+            // Try to use caret position if available
+            if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                if (range && enRow.contains(range.startContainer)) {
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+            
             document.execCommand('insertText', false, text);
             autoSave();
         });
+
         enRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); } });
         esRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); addPair(container, '', '', true); } });
 
@@ -460,22 +501,12 @@
 
     function toggleRecord(btn) {
         if (!recognition) { alert("Speech recognition not supported in this browser (Use Chrome/Edge)."); return; }
-        
-        if (isRecording) {
-            recognition.stop();
-            return;
-        }
+        if (isRecording) { recognition.stop(); return; }
         
         currentRecordingBtn = btn;
         btn.classList.add('recording');
-        
-        // INTELLIGENT LANG SWITCHING
-        if (activeLangContext === 'es') {
-            recognition.lang = 'es-ES';
-        } else {
-            recognition.lang = 'en-US';
-        }
-        
+        if (activeLangContext === 'es') recognition.lang = 'es-ES';
+        else recognition.lang = 'en-US';
         recognition.start();
         isRecording = true;
     }
