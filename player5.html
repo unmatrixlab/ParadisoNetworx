@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />    
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fix V12 Speaker)</title>
+    <title>MDC Studio Player (Fix V12 Speaker + Frag Loop)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -435,6 +435,7 @@
     let activeFragmentId = null; 
     let fragmentStartTime = null; 
     let fragmentSliceMinutes = 0; 
+    let effectiveFragmentEnd = null; // NUEVA VARIABLE PARA LÓGICA DE CORTE SUAVE
 
     // === LÓGICA DE HOVER (CORREGIDO: Ahora está en el ámbito global) ===
     let hoverTimerRef;
@@ -809,6 +810,33 @@
         }
     }
 
+    // === NUEVA FUNCIÓN PARA CALCULAR EL FINAL EFECTIVO ===
+    function computeEffectiveFragmentEnd(frag) {
+        let maxEnd = frag.end; // Partimos del end original
+        SUBTITLES_DATA.forEach((sub, index) => {
+            // Si la línea se solapa (empieza antes del end y termina después del start)
+            if (sub.s < frag.end && sub.e > frag.start) {
+                let rawEnd = sub.e;
+                
+                // Lógica de corte para no solapar con la siguiente línea
+                const nextIndex = index + 1;
+                if (nextIndex < SUBTITLES_DATA.length) {
+                    const nextStart = SUBTITLES_DATA[nextIndex].s;
+                    if (rawEnd > nextStart) {
+                        rawEnd = nextStart;
+                    }
+                }
+                
+                // Actualizamos el maxEnd si esta línea termina más tarde
+                if (rawEnd > maxEnd) {
+                    maxEnd = rawEnd;
+                }
+            }
+        });
+        // Añadimos el padding configurado
+        return maxEnd + endPadding;
+    }
+
     function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
@@ -831,11 +859,14 @@
                     }
                 });
 
-               if (currentTime >= frag.end - 0.5 || currentTime < frag.start - 0.5) {
-    player.seekTo(frag.start);
-    return;
-}
-
+                // === LÓGICA DE BUCLE MEJORADA CON effectiveFragmentEnd ===
+                const loopPoint = effectiveFragmentEnd || frag.end; // Fallback
+                // Buffer de -0.3 para evitar cortes bruscos o pantalla negra
+                if (currentTime >= loopPoint - 0.3 || currentTime < frag.start - 0.5) {
+                    player.seekTo(frag.start);
+                    return; 
+                }
+                
                 if (player.getPlayerState() === YT.PlayerState.PLAYING) {
                     trackFragmentTime(frag);
                 }
@@ -1183,12 +1214,15 @@
         renderFragmentList();
     }
 
-   function playFragment(id) {
+    function playFragment(id) {
         const frag = videoFragments.find(f => f.id === id);
         if (!frag) return;
         
         activeFragmentId = id;
         localStorage.setItem('mdc_active_frag_' + YOUTUBE_ID, id);
+
+        // === CALCULAR EL TIEMPO EFECTIVO DE CORTE ===
+        effectiveFragmentEnd = computeEffectiveFragmentEnd(frag);
 
         document.getElementById('fragment-modal').style.display = 'none';
         
@@ -1204,6 +1238,7 @@
 
    function stopFragmentLoop() {
         activeFragmentId = null;
+        effectiveFragmentEnd = null; // LIMPIEZA
         localStorage.removeItem('mdc_active_frag_' + YOUTUBE_ID);
         renderFragmentList();
     }
@@ -1822,7 +1857,7 @@
         alert(`✅ Se eliminaron ${countDeleted} elementos de este video.`);
     }
     
-  function attachButtonEvents() {
+ function attachButtonEvents() {
         document.querySelectorAll('.playBtn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation(); 
@@ -1978,18 +2013,9 @@ function openNexus(mode = 'ALL') {
             let vocabData = JSON.parse(rawData);
 
             // Preparación de datos (Sanitización de espacios)
-         // ... dentro de openNexus ...
             const modifiedData = vocabData.map(folder => {
                 if(folder.isFolder && folder.items) {
                     const newItems = folder.items.map(item => {
-                        // ELIMINAR O COMENTAR ESTE BLOQUE CULPABLE:
-                        /* if(item.eng && item.eng.includes(' ')) {
-                            return { 
-                                ...item, 
-                                eng: item.eng.replace(/ /g, '\u00A0') 
-                            };
-                        }
-                        */
                         // Devolver el item limpio tal cual está
                         return item; 
                     });
@@ -1997,7 +2023,6 @@ function openNexus(mode = 'ALL') {
                 }
                 return folder;
             });
-            // ...
 
             // --- LÓGICA DE FILTRO ---
             let filterToSend = null;
