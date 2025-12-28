@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDC - Smart Editor V8.2 (Stable Drag & Drop)</title>
+    <title>MDC - Smart Editor V9 (Final)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -200,7 +200,7 @@
 <body>
 
     <div class="toolbar">
-        <div class="brand">MDC Editor V8.2</div>
+        <div class="brand">MDC Editor V9</div>
         
         <div class="format-group">
             <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
@@ -244,7 +244,7 @@
 <script>
     // --- STATE ---
     const DB_KEY = 'mdc_vocab_list';
-    const DOC_KEY = 'mdc_smart_editor_v8_doc';
+    const DOC_KEY = 'mdc_smart_editor_v8_doc'; // Keeping existing data key
     let hoverTimer;
     let currentTooltip = document.getElementById('translation-tooltip');
     
@@ -300,11 +300,11 @@
         if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
     });
 
-    // --- SIDEBAR (FIXED) ---
+    // --- SIDEBAR (Proper Event Handling) ---
     function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
-        list.innerHTML = ''; // Start clean
+        list.innerHTML = ''; 
 
         // 1. My Database
         if (raw) {
@@ -326,7 +326,6 @@
                         <div class="db-folder-items"></div>
                     `;
                     const container = folderEl.querySelector('.db-folder-items');
-                    // Safety check: item.eng must exist
                     folder.items.forEach(item => {
                         if(item && item.eng) {
                             container.appendChild(createDraggableChip(item.eng));
@@ -358,16 +357,12 @@
         });
     }
 
-    // --- DRAGGABLE CHIP (HARDENED) ---
     function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.textContent = text;
         chip.draggable = true;
-        
         chip.ondragstart = (e) => {
-            // FIX: Read text content directly from the target element
-            // This ensures "What you see is what you drag" even if closure references fail.
             const content = e.target.innerText; 
             e.dataTransfer.setData('text/plain', content);
             e.dataTransfer.effectAllowed = 'copy';
@@ -429,7 +424,7 @@
                 </div>
             </div>
             <div class="pair-controls">
-                <button class="mini-btn" onclick="toggleRecord(this)" title="Dictate (Records to last clicked row)">
+                <button class="mini-btn" onclick="toggleRecord(this)" title="Dictate">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                 </button>
                 <button class="mini-btn" onclick="speakPair(this)" title="Listen">
@@ -448,7 +443,7 @@
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
 
-        // --- FIXED DROP LOGIC ---
+        // --- INTELLIGENT DROP + CAPITALIZATION ---
         enRow.addEventListener('dragover', (e) => { 
             e.preventDefault(); 
             enRow.style.background = 'rgba(79,70,229,0.3)'; 
@@ -456,26 +451,38 @@
         enRow.addEventListener('dragleave', () => { 
             enRow.style.background = 'rgba(79,70,229,0.1)'; 
         });
+        
         enRow.addEventListener('drop', (e) => {
             e.preventDefault();
             enRow.style.background = 'rgba(79,70,229,0.1)';
-            const text = " " + e.dataTransfer.getData('text/plain') + " ";
             
-            // Positioning Hack:
-            // Ensure focus is on the element
+            let droppedText = e.dataTransfer.getData('text/plain').trim();
+            if(!droppedText) return;
+
+            // Positioning Logic
             enRow.focus();
-            
-            // Try to use caret position if available
+            let range;
             if (document.caretRangeFromPoint) {
-                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                range = document.caretRangeFromPoint(e.clientX, e.clientY);
                 if (range && enRow.contains(range.startContainer)) {
                     const sel = window.getSelection();
                     sel.removeAllRanges();
                     sel.addRange(range);
                 }
             }
-            
-            document.execCommand('insertText', false, text);
+
+            // CAPITALIZATION LOGIC
+            const content = enRow.innerText;
+            // Is it start if content is empty OR range is at 0?
+            const isAtStart = (content.trim().length === 0) || (range && range.startOffset === 0 && (range.startContainer === enRow || range.startContainer === enRow.firstChild));
+
+            if (isAtStart) {
+                droppedText = droppedText.charAt(0).toUpperCase() + droppedText.slice(1).toLowerCase();
+            } else {
+                droppedText = droppedText.toLowerCase();
+            }
+
+            document.execCommand('insertText', false, " " + droppedText + " ");
             autoSave();
         });
 
@@ -489,24 +496,16 @@
     function toggleBlur(lang) {
         const body = document.body;
         const btn = document.getElementById(`btn-blur-${lang}`);
-        
-        if (lang === 'en') {
-            body.classList.toggle('blur-en');
-            btn.classList.toggle('active');
-        } else {
-            body.classList.toggle('blur-es');
-            btn.classList.toggle('active');
-        }
+        if (lang === 'en') { body.classList.toggle('blur-en'); btn.classList.toggle('active'); }
+        else { body.classList.toggle('blur-es'); btn.classList.toggle('active'); }
     }
 
     function toggleRecord(btn) {
         if (!recognition) { alert("Speech recognition not supported in this browser (Use Chrome/Edge)."); return; }
         if (isRecording) { recognition.stop(); return; }
-        
         currentRecordingBtn = btn;
         btn.classList.add('recording');
-        if (activeLangContext === 'es') recognition.lang = 'es-ES';
-        else recognition.lang = 'en-US';
+        if (activeLangContext === 'es') recognition.lang = 'es-ES'; else recognition.lang = 'en-US';
         recognition.start();
         isRecording = true;
     }
