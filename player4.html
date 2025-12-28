@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"> 
 <head>
-    <meta charset="utf-8" />   
+    <meta charset="utf-8" />    
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>MDC Studio Player (Fix V11 - Memory)</title>
+    <title>MDC Studio Player (Fix V12 Speaker)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #4f46e5; --primary-hover: #4338ca; --bg-body: #31353b; --card-bg: #ffffff; --text-main: #1f2937; --text-sec: #6b7280; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); --radius: 12px; --saved-word: #ec4899; }
@@ -133,7 +133,13 @@
         .word-interactive { transition: background-color 0.2s, color 0.2s; }
         .line, .word-interactive, .english, .spanish, .h-title, .setup-card { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
         .spanish-word { cursor: default !important; }
-        #trans-result-box { font-size: 13px; color: #a5f3fc; font-weight: 600; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 8px; display: none; flex-shrink: 0; }
+        
+        #trans-result-box { 
+            font-size: 13px; color: #a5f3fc; font-weight: 600; 
+            max-width: 150px; /* Aumentado un poco para que quepa mejor */
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+            margin-left: 8px; display: none; flex-shrink: 0; 
+        }
 
         /* === FRAGMENT MANAGER STYLES (V7) === */
         #fragment-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
@@ -405,7 +411,11 @@
     let YOUTUBE_ID = '';
     let VIDEO_TITLE = 'Saved from Studio';
     let SUBTITLES_DATA = [];
+    // YA NO USAMOS ESTA VARIABLE para la pronunciación, pero la dejamos por compatibilidad
     let lastSelectedWordText = ""; 
+    // NUEVA VARIABLE: Para guardar qué palabra se está mostrando en la píldora
+    let currentTranslatedWord = ""; 
+
     const HISTORY_KEY = 'mdc_studio_history';
     const VOCAB_KEY = 'mdc_vocab_list';
     const LIBRARY_URL = 'https://paradisonetworx.com/biblioteca.json'; 
@@ -426,9 +436,6 @@
     let activeFragmentId = null; 
     let fragmentStartTime = null; 
     let fragmentSliceMinutes = 0; // 0 = Manual, >0 = Auto Slice
-    
-    // === MEMORY VARS ===
-    let lastSavedTime = -1;
 
     document.addEventListener('DOMContentLoaded', () => { 
         renderHistoryList();
@@ -445,22 +452,6 @@
                 updateAllWordStates(); 
             }
         }, 1000); 
-    }
-
-    // === MEMORY PROTECTION: SAVE ON CLOSE ===
-    window.addEventListener('beforeunload', saveCurrentPosition);
-    document.addEventListener('visibilitychange', () => {
-        if(document.visibilityState === 'hidden') saveCurrentPosition();
-    });
-
-    function saveCurrentPosition() {
-        if(player && player.getCurrentTime) {
-            const t = player.getCurrentTime();
-            if(t > 1) {
-                localStorage.setItem(STORAGE_KEY_TIME, t);
-                console.log("Positions saved: " + t);
-            }
-        }
     }
 
     function setCategoryFilter(category) {
@@ -624,7 +615,6 @@
 
     function goHome() {
         if(player) player.pauseVideo();
-        saveCurrentPosition(); // FORCE SAVE
         document.getElementById('player-ui').style.display = 'none';
         document.getElementById('setup-screen').style.display = 'flex';
         renderHistoryList();
@@ -772,30 +762,26 @@
             updateHistoryTitle(YOUTUBE_ID, data.title); 
         }
         
-        // === RESTORE TIME LOGIC (AGGRESSIVE) ===
         const savedTime = localStorage.getItem(STORAGE_KEY_TIME);
         if (savedTime) { 
             const t = parseFloat(savedTime);
-            if(t > 0) {
-                console.log("Restoring to: " + t);
-                player.seekTo(t); 
-                player.pauseVideo(); 
+            player.seekTo(t); 
+            player.pauseVideo(); 
+            
+            // === FIX: RESTAURAR POSICIÓN DE SCROLL ===
+            // 1. Calculamos y marcamos visualmente cuál es la línea activa en este segundo
+            highlightCurrentLine(t);
+            
+            // 2. Forzamos el scroll a esa línea (manual, por si el autoscroll estaba apagado)
+            const activeLine = document.querySelector('.line.active');
+            const container = document.querySelector('.dialogue-container');
+            
+            if (activeLine && container) {
+                // Calculamos la posición para que quede centrada
+                const target = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.offsetHeight / 2) + currentVerticalOffset;
                 
-                // === FIX: RESTAURAR POSICIÓN DE SCROLL ===
-                // 1. Calculamos y marcamos visualmente cuál es la línea activa en este segundo
-                highlightCurrentLine(t);
-                
-                // 2. Forzamos el scroll a esa línea (manual, por si el autoscroll estaba apagado)
-                const activeLine = document.querySelector('.line.active');
-                const container = document.querySelector('.dialogue-container');
-                
-                if (activeLine && container) {
-                    // Calculamos la posición para que quede centrada
-                    const target = activeLine.offsetTop - (container.clientHeight / 2) + (activeLine.offsetHeight / 2) + currentVerticalOffset;
-                    
-                    // Usamos behavior: "auto" para que el salto sea instantáneo (sin animación) al cargar
-                    container.scrollTo({ top: target, behavior: "auto" }); 
-                }
+                // Usamos behavior: "auto" para que el salto sea instantáneo (sin animación) al cargar
+                container.scrollTo({ top: target, behavior: "auto" }); 
             }
         }
         player.setPlaybackRate(currentPlaybackRate);
@@ -810,23 +796,14 @@
         }
         else { 
             clearInterval(checkInterval); 
-            // Save on Pause/Buffering/Ended
-            if(player && player.getCurrentTime) {
-                const t = player.getCurrentTime();
-                if(t > 0) localStorage.setItem(STORAGE_KEY_TIME, t); 
-            }
+            if(player && player.getCurrentTime) localStorage.setItem(STORAGE_KEY_TIME, player.getCurrentTime()); 
         }
     }
 
     function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
-
-        // === SAVE LOGIC: SAVE EVERY SECOND ===
-        if(Math.abs(currentTime - lastSavedTime) > 1) {
-            localStorage.setItem(STORAGE_KEY_TIME, currentTime);
-            lastSavedTime = currentTime;
-        }
+        if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
         if (activeFragmentId) {
             const frag = videoFragments.find(f => f.id === activeFragmentId);
@@ -1417,14 +1394,16 @@
         if (engDiv) {
             const rawText = engDiv.textContent || "";
             const words = rawText.trim().split(/\s+/);
-            engDiv.innerHTML = words.map(word => {
+                engDiv.innerHTML = words.map(word => {
                 if(!word) return '';
                 const span = `<span class="word-interactive english-word" data-lang="en" data-idx="${engIndex}" 
                     onmousedown="startPress(this)" 
                     ontouchstart="startPress(this)" 
                     onmouseup="endPress(this, event)" 
                     ontouchend="endPress(this, event)"
-                    onclick="handleShortClick(this, event)">${word}</span> `;
+                    onclick="handleShortClick(this, event)"
+                    onmouseenter="handleHoverStart(this)" 
+                    onmouseleave="handleHoverEnd()">${word}</span> `;
                 engIndex++; 
                 return span;
             }).join('');
@@ -1442,7 +1421,7 @@
         updateAllWordStates(); 
     }
 
-function updateAllWordStates() {
+    function updateAllWordStates() {
     const vocab = JSON.parse(localStorage.getItem(VOCAB_KEY) || '[]');
     const savedWordsSet = new Set();
     const savedPhrases = [];
@@ -1530,7 +1509,7 @@ function updateAllWordStates() {
     });
 
     updateNavigationIndex();
-}
+    }
 
     function updateNavigationIndex() {
         const allSavedElements = document.querySelectorAll('.english-word.saved-word, .english-word.phrase-word');
@@ -1586,7 +1565,7 @@ function updateAllWordStates() {
         }
     }
 
-  function handleShortClick(el, event) {
+    function handleShortClick(el, event) {
         if (isLongPressHandled) return; 
 
         // Si el usuario toca una palabra que es parte de su selección manual actual,
@@ -1596,7 +1575,36 @@ function updateAllWordStates() {
             return;
         }
 
+        // === LÓGICA DE HOVER (NUEVO) ===
+        let hoverTimerRef;
+
+        function handleHoverStart(el) {
+            // Limpiamos cualquier timer anterior para evitar conflictos
+            clearTimeout(hoverTimerRef);
+
+            // Iniciamos el contador de 0.5 segundos (500ms)
+            hoverTimerRef = setTimeout(() => {
+                // Usamos la misma lógica de limpieza que en el click
+                const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
+                
+                // Guardamos la palabra que se está traduciendo
+                currentTranslatedWord = rawText; 
+
+                // Llamamos a la función que ya existe para mostrar la traducción en la barra
+                translateWordForBar(rawText);
+            }, 500);
+        }
+
+        function handleHoverEnd() {
+            // Si el mouse sale antes de los 0.5s, cancelamos la traducción
+            clearTimeout(hoverTimerRef);
+        }
+
         const rawText = el.innerText.replace(/[^a-zA-Z0-9]/g, "");
+        
+        // Guardamos la palabra que se está traduciendo al hacer clic
+        currentTranslatedWord = rawText; 
+
         translateWordForBar(rawText);
         
         // Si hay una selección de frase pendiente (manual) activa, 
@@ -1611,7 +1619,7 @@ function updateAllWordStates() {
     }
 
    // Helper para limpiar SOLO lo que el usuario está seleccionando manualmente (amarillo temporal)
-// Helper para limpiar SOLO lo que el usuario está seleccionando manualmente
+    // Helper para limpiar SOLO lo que el usuario está seleccionando manualmente
     function clearManualSelection() {
         document.querySelectorAll('.english-word[data-user-selected="true"]').forEach(el => {
             el.classList.remove('phrase-word');
@@ -1763,7 +1771,7 @@ function updateAllWordStates() {
             
         } else {
             const line = element.closest('.line');
-         const contextSource = { 
+           const contextSource = { 
                 type: 'youtube', 
                 videoId: YOUTUBE_ID, 
                 title: VIDEO_TITLE, 
@@ -1803,16 +1811,39 @@ function updateAllWordStates() {
     }
     
     function speakText(text, onStart, onEnd) { 
+        if (!('speechSynthesis' in window)) {
+            console.warn("Tu navegador no soporta síntesis de voz.");
+            return;
+        }
         window.speechSynthesis.cancel(); 
         const utter = new SpeechSynthesisUtterance(text); 
         utter.lang = TTS_LANG; 
         utter.rate = TTS_RATE; 
         if(onStart) utter.onstart = onStart; 
         if(onEnd) utter.onend = onEnd; 
-        window.speechSynthesis.speak(utter); 
+        
+        if (speechSynthesis.getVoices().length === 0) {
+            speechSynthesis.onvoiceschanged = () => {
+                const voices = speechSynthesis.getVoices();
+                const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+                if (enVoice) utter.voice = enVoice;
+                speechSynthesis.speak(utter);
+            };
+        } else {
+            const voices = speechSynthesis.getVoices();
+            const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+            if (enVoice) utter.voice = enVoice;
+            speechSynthesis.speak(utter);
+        }
     }
 
     function speakActiveOrSelected() { 
+        // Usar la palabra de la píldora si existe
+        if (currentTranslatedWord) {
+            speakText(currentTranslatedWord);
+            return;
+        }
+        // Si no, usar la última seleccionada (comportamiento anterior)
         if (lastSelectedWordText) {
             speakText(lastSelectedWordText);
             return;
@@ -2047,7 +2078,7 @@ function openNexus(mode = 'ALL') {
             let vocabData = JSON.parse(rawData);
 
             // Preparación de datos (Sanitización de espacios)
-            // ... dentro de openNexus ...
+         // ... dentro de openNexus ...
             const modifiedData = vocabData.map(folder => {
                 if(folder.isFolder && folder.items) {
                     const newItems = folder.items.map(item => {
@@ -2245,4 +2276,4 @@ async function copyHistoryData(e, id, btnElement) {
 </script>
     
 </body>
-</html> dime exactamente que hay que modificar para que todos los videos esten siempre donde los deje por ultima vez
+</html>
