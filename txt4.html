@@ -857,7 +857,7 @@
         btn.innerText = speechRate + "x";
     }
 
-    function loadSidebar() {
+  function loadSidebar() {
         const raw = localStorage.getItem(DB_KEY);
         const list = document.getElementById('sidebar-list');
         list.innerHTML = ''; 
@@ -873,7 +873,8 @@
                 folders.forEach(folder => {
                     const folderEl = document.createElement('div');
                     folderEl.className = 'db-folder';
-                    folderEl.innerHTML = `<div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')"><span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span></div><div class="db-folder-items"></div>`;
+                    // CAMBIO CLAVE AQUÍ ABAJO: onmousedown="event.preventDefault()"
+                    folderEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="this.parentElement.classList.toggle('open')"><span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span></div><div class="db-folder-items"></div>`;
                     const container = folderEl.querySelector('.db-folder-items');
                     folder.items.forEach(item => { if(item && item.eng) container.appendChild(createDraggableChip(item.eng)); });
                     list.appendChild(folderEl);
@@ -887,7 +888,8 @@
             STATIC_GRAMMAR.forEach(cat => {
                 const catEl = document.createElement('div');
                 catEl.className = 'db-folder';
-                catEl.innerHTML = `<div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')"><span>📚 ${cat.name}</span></div><div class="db-folder-items"></div>`;
+                // CAMBIO CLAVE AQUÍ ABAJO TAMBIÉN
+                catEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="this.parentElement.classList.toggle('open')"><span>📚 ${cat.name}</span></div><div class="db-folder-items"></div>`;
                 const container = catEl.querySelector('.db-folder-items');
                 cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
                 list.appendChild(catEl);
@@ -895,19 +897,25 @@
         }
     }
 
-    function createDraggableChip(text) {
+  function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.draggable = true;
         chip.innerHTML = `<span class="chip-text">${text}</span><button class="chip-audio-btn" title="Pronounce">🔊</button>`;
         
+        // 1. ESTO EVITA QUE SE PIERDA EL FOCO AL PULSAR
+        chip.onmousedown = (e) => {
+            // Si no es el botón de audio, prevenimos que robe el foco
+            if (!e.target.closest('.chip-audio-btn')) {
+                e.preventDefault(); 
+            }
+        };
+
         chip.ondragstart = (e) => { 
            e.dataTransfer.setData('text/plain', text); 
            e.dataTransfer.effectAllowed = 'copy'; 
-           e.preventDefault();
+           // No hacemos preventDefault aquí porque necesitamos el drag
         };
-
-
 
         chip.onclick = (e) => {
             if (e.target.closest('.chip-audio-btn')) { 
@@ -915,9 +923,9 @@
                 speakText(text, 'en'); 
                 return; 
             }
+            // Como ya no perdemos el foco, insertSmartText usará la memoria correcta
             if (lastFocusedInput) {
-                lastFocusedInput.focus();
-                insertSmartText(text); // Nueva lógica inteligente
+                insertSmartText(text);
             } else {
                 alert("Please click on a text row first.");
             }
@@ -926,62 +934,54 @@
     }
 
     // --- SMART INSERT LOGIC (FIXED CURSOR ISSUE) ---
-   function insertSmartText(word) {
-        // 1. Validación de seguridad
+function insertSmartText(word) {
         if (!lastFocusedInput) return alert("Tap an editor row first.");
 
-        // 2. PASO CRÍTICO: Forzar el foco al input antes de intentar restaurar el rango
+        // Recuperar foco
         lastFocusedInput.focus();
-
-        // 3. Restaurar la memoria del cursor (savedRange)
+        
+        // Restaurar cursor
         const sel = window.getSelection();
-        sel.removeAllRanges();
-
-        // Verificamos si existe una posición guardada y si pertenece a este input
+        
+        // Si hay una memoria válida, úsala. Si no, vete al FINAL.
         if (savedRange && lastFocusedInput.contains(savedRange.commonAncestorContainer)) {
+            sel.removeAllRanges();
             sel.addRange(savedRange);
-        } else {
-            // Si la memoria falló o está vacía, poner el cursor al FINAL (no al inicio)
-            const newRange = document.createRange();
-            newRange.selectNodeContents(lastFocusedInput);
-            newRange.collapse(false); // false = Colapsar al final del texto
-            sel.addRange(newRange);
+        } else if (sel.rangeCount === 0) {
+            // Fallback de emergencia: Ir al final
+            const range = document.createRange();
+            range.selectNodeContents(lastFocusedInput);
+            range.collapse(false); // false = Final
+            sel.removeAllRanges();
+            sel.addRange(range);
         }
 
-        // 4. Lógica Inteligente (Espacios y Mayúsculas)
-        // Ahora que el cursor está en su lugar, analizamos el contexto
+        // Lógica de texto
         const range = sel.getRangeAt(0);
-        const startOffset = range.startOffset;
         
+        // Detección segura de texto previo
         let textBefore = "";
         if (range.startContainer.nodeType === 3) {
-            // Si estamos dentro de un nodo de texto, leemos hasta el cursor
-            textBefore = range.startContainer.textContent.substring(0, startOffset);
+            textBefore = range.startContainer.textContent.substring(0, range.startOffset);
         } else {
-            // Fallback: leemos el texto general del div
-            textBefore = lastFocusedInput.innerText; 
+            textBefore = lastFocusedInput.innerText;
         }
 
-        // Regla A: Espacio automático
-        // No poner espacio si: estamos al inicio (0), texto vacío, o ya hay un espacio antes
         let prefix = " ";
-        if (startOffset === 0 || textBefore === "" || /\s$/.test(textBefore)) {
+        if (textBefore === "" || /\s$/.test(textBefore) || range.startOffset === 0) {
             prefix = "";
         }
 
-        // Regla B: Capitalización automática
-        // Mayúscula si: estamos al inicio, texto vacío, o después de signo de puntuación (.!?)
         let finalWord = word;
-        if (startOffset === 0 || textBefore === "" || /[.!?]\s*$/.test(textBefore)) {
+        if (textBefore === "" || /[.!?]\s*$/.test(textBefore) || (range.startOffset === 0 && textBefore.length === 0)) {
             finalWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
         } else {
             finalWord = word.toLowerCase();
         }
 
-        // 5. Insertar el texto
         document.execCommand('insertText', false, prefix + finalWord + " ");
         
-        // 6. Actualizar la memoria del cursor inmediatamente para la siguiente palabra
+        // Guardar nueva posición
         if (sel.rangeCount > 0) {
             savedRange = sel.getRangeAt(0).cloneRange();
         }
