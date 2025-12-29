@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MDC V16 - Final Fixed</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* =========================================
+           CORE STYLES (MDC EDITOR)
+           ========================================= */
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --bg-body: #111827; 
+            --bg-panel: #1f2937;
+            --bg-pair-alt: #283142; 
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: #374151;
+            --highlight: #fde047;
+            --danger: #ef4444;
+            --recording: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --sidebar-width: 280px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* TOOLBAR */
+        .toolbar {
+            height: 60px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            gap: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 20;
+            flex-shrink: 0;
+            overflow-x: auto; 
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .toolbar::-webkit-scrollbar { display: none; }
+
+        .brand { font-weight: 700; color: var(--primary); font-size: 1.1rem; margin-right: 10px; display: none; }
+        @media(min-width: 768px) { .brand { display: block; } }
+
+        .tool-btn {
+            background: #374151; border: none; color: white; padding: 8px 12px;
+            border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: 0.2s;
+            display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0;
+        }
+        .tool-btn:hover { background: var(--primary); }
+        .tool-btn.active { background: var(--highlight); color: black; font-weight: bold; }
+        
+        /* Botón AI destacado */
+        .tool-btn.ai-trigger { 
+            background: linear-gradient(135deg, #6366f1, #a855f7); 
+            border: 1px solid #818cf8; 
+            font-weight: 800;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+        .tool-btn.ai-trigger:hover { transform: scale(1.05); }
+
+        .tool-btn svg { width: 18px; height: 18px; }
+        
+        .format-group { display: flex; gap: 5px; border-right: 1px solid var(--border); padding-right: 10px; flex-shrink: 0; }
+        .study-group { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+        #save-status {
+            font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+            opacity: 0; transition: opacity 0.5s; display: none; white-space: nowrap;
+        }
+        @media(min-width: 768px) { #save-status { display: inline; } }
+        #save-status.visible { opacity: 1; color: var(--success); }
+
+        .workspace { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+            position: absolute; 
+            height: 100%;
+            z-index: 15;
+            transform: translateX(-100%); 
+        }
+
+        @media(min-width: 768px) {
+            .sidebar { position: relative; transform: translateX(0); }
+            .sidebar.collapsed { margin-left: calc(var(--sidebar-width) * -1); }
+        }
+
+        .sidebar.mobile-open { transform: translateX(0); box-shadow: 5px 0 15px rgba(0,0,0,0.5); }
+
+        .sidebar-header { 
+            padding: 15px; font-weight: 700; color: var(--primary-light); font-size: 0.75rem; 
+            text-transform: uppercase; letter-spacing: 1px; margin-top: 10px; border-top: 1px solid var(--border);
+        }
+        .sidebar-header:first-child { border-top: none; margin-top: 0; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; }
+        
+        .db-folder { margin-bottom: 5px; border: 1px solid #374151; border-radius: 6px; overflow: hidden; background: #111827; }
+        .db-folder-title {
+            padding: 12px; background: #1f2937; cursor: pointer; font-size: 0.95rem; 
+            display: flex; justify-content: space-between; align-items: center; font-weight: 500;
+        }
+        .db-folder-title:active { background: #374151; }
+        .db-folder-items { display: none; padding: 10px; background: #111827; border-top: 1px solid #374151; }
+        .db-folder.open .db-folder-items { display: block; }
+        
+        .draggable-word {
+            background: #374151; padding: 10px; margin-bottom: 6px; border-radius: 6px;
+            font-size: 0.9rem; cursor: pointer; border: 1px solid transparent; 
+            color: #e5e7eb; display: flex; justify-content: space-between; align-items: center;
+            user-select: none;
+        }
+        .draggable-word:active { background: #4b5563; border-color: var(--primary); transform: scale(0.98); }
+        .chip-text { pointer-events: none; flex: 1; } 
+        .chip-audio-btn {
+            background: rgba(255,255,255,0.05); border: none; color: var(--text-muted);
+            cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; width: 32px; height: 32px; margin-left: 8px;
+        }
+        .chip-audio-btn:active { background: var(--primary); color: white; }
+
+        .editor-container {
+            flex: 1; padding: 20px; overflow-y: auto;
+            background-image: radial-gradient(#374151 1px, transparent 1px);
+            background-size: 20px 20px; padding-bottom: 150px; width: 100%;
+        }
+        .document-title {
+            width: 100%; background: transparent; border: none; font-size: 1.5rem; font-weight: 700;
+            color: var(--text-main); margin-bottom: 20px; outline: none;
+        }
+
+        .editor-block {
+            background: var(--bg-panel); border-radius: 12px; margin-bottom: 20px;
+            border: 1px solid var(--border); overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+        }
+        .block-header {
+            background: #111827; padding: 10px 15px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .block-label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        
+        .lesson-drawer { display: none; padding: 15px; background: #1f2937; border-bottom: 1px solid var(--border); }
+        .lesson-drawer textarea {
+            width: 100%; min-height: 80px; background: #111827; color: #d1d5db;
+            border: 1px dashed #6b7280; border-radius: 6px; padding: 10px;
+            font-family: monospace; font-size: 0.9rem; resize: vertical;
+        }
+
+        .pairs-container { display: flex; flex-direction: column; }
+        .sentence-pair {
+            display: flex; gap: 8px; padding: 10px;
+            border-bottom: 1px solid #374151; align-items: flex-start;
+        }
+        .sentence-pair:nth-child(even) { background-color: var(--bg-pair-alt); }
+        .sentence-pair:last-child { border-bottom: none; }
+
+        .pair-inputs { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .row-wrapper { position: relative; width: 100%; }
+        
+        .input-row {
+            padding: 10px; padding-right: 30px; border-radius: 6px; outline: none; 
+            min-height: 42px; line-height: 1.4; transition: border 0.2s;
+            font-size: 1rem;
+        }
+        .row-en {
+            color: #fff; font-weight: 500;
+            border-left: 3px solid var(--primary); background: rgba(79,70,229, 0.1);
+        }
+        .row-es {
+            color: var(--text-muted); font-style: italic;
+            border-left: 3px solid #10b981; background: rgba(16,185,129, 0.05);
+        }
+        .input-row.active-focus { box-shadow: 0 0 0 2px var(--primary); background: rgba(79,70,229, 0.2); }
+
+        .blur-en .row-en { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        .blur-es .row-es { color: transparent; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        
+        .pair-controls { display: flex; flex-direction: column; gap: 5px; padding-top: 2px; }
+        .lang-flag {
+            position: absolute; right: 8px; bottom: 12px; width: 18px; height: 12px; pointer-events: none;
+            filter: grayscale(100%); opacity: 0.3; background-size: cover;
+        }
+        .flag-en { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 30'%3E%3Cpath d='M0,0 v30 h60 v-30 z' fill='%23012169'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23fff' stroke-width='6'/%3E%3Cpath d='M0,0 L60,30 M60,0 L0,30' stroke='%23C8102E' stroke-width='4'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23fff' stroke-width='10'/%3E%3Cpath d='M30,0 v30 M0,15 h60' stroke='%23C8102E' stroke-width='6'/%3E%3C/svg%3E"); }
+        .flag-es { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 750 500'%3E%3Crect width='750' height='500' fill='%23c60b1e'/%3E%3Crect width='750' height='250' y='125' fill='%23ffc400'/%3E%3C/svg%3E"); }
+
+        .mini-btn {
+            width: 32px; height: 32px; border-radius: 6px; border: none;
+            background: #374151; color: var(--text-muted); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: 0.2s;
+        }
+        .mini-btn:active { transform: scale(0.9); }
+        .mini-btn:hover { background: var(--primary); color: white; }
+        .mini-btn.delete:hover { background: var(--danger); }
+        .mini-btn.book-active { background: var(--highlight); color: black; }
+        .mini-btn.recording { background: var(--recording); color: white; animation: pulse 1.5s infinite; }
+        
+        .block-delete { margin-left: auto; background: transparent; color: #6b7280; }
+
+        #translation-tooltip {
+            position: fixed; background: var(--primary); color: white;
+            padding: 8px 12px; border-radius: 6px; font-size: 0.9rem;
+            pointer-events: none; opacity: 0; transition: opacity 0.2s;
+            z-index: 1000; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+        
+        b { color: var(--primary-light); }
+        i { color: #f472b6; }
+        u { text-decoration-color: var(--highlight); text-decoration-thickness: 2px; }
+
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+        /* =========================================
+           ESTILOS INTEGRADOS DEL CODIGO 2 (AI HUB)
+           ADAPTADOS A DARK MODE 
+           ========================================= */
+        .ai-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; display: none; flex-direction: column; backdrop-filter: blur(5px); }
+        .ai-popup-overlay.active { display: flex; }
+        .ai-popup-box { 
+            background: var(--bg-body); width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; 
+            max-width: 900px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); 
+        }
+        .ai-header { 
+            background: var(--bg-panel); border-bottom: 1px solid var(--border); color: var(--text-main); 
+            padding: 15px 20px; font-weight: 800; font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center; z-index: 10; flex-shrink: 0; 
+        }
+        .ai-close { background: #374151; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;}
+        .ai-body { padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex:1; background: var(--bg-body); width: 100%; padding-bottom: 80px; }
+
+        .ai-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media(max-width: 600px) { .ai-grid-2 { grid-template-columns: 1fr; } }
+        
+        .ai-card-group { 
+            background: var(--bg-panel); border-radius: 12px; padding: 10px; border: 1px solid var(--border); 
+            display: flex; flex-direction: column; position: relative; gap: 8px;
+        }
+        .ai-card-label { font-size: 0.75rem; font-weight: 800; color: var(--primary-light); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom:4px; }
+
+        /* CUSTOM DROPDOWNS (Polyglot Style - Dark Mode) */
+        .ai-select { display: none; } 
+        .custom-select-wrapper { position: relative; user-select: none; width: 100%; }
+        .custom-select-trigger { 
+            position: relative; display: flex; align-items: center; justify-content: space-between; 
+            padding: 12px; font-size: 0.95rem; font-weight: 600; color: var(--text-main); cursor: pointer; 
+            background: #111827; border: 1px solid var(--border); border-radius: 12px; 
+        }
+        .custom-options { 
+            position: absolute; top: 110%; left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 16px; z-index: 2000; opacity: 0; visibility: hidden; pointer-events: none; 
+            max-height: 300px; overflow-y: auto; padding: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .custom-select-wrapper.open .custom-options { opacity: 1; visibility: visible; pointer-events: auto; }
+        .custom-option { padding: 10px 12px; font-size: 0.9rem; color: #d1d5db; cursor: pointer; border-radius: 8px; }
+        .custom-option:hover { background: var(--primary); color: white; }
+        .custom-option.selected { background: #374151; color: var(--highlight); font-weight: 700; }
+        .custom-group-header { padding: 8px 12px; font-size: 0.7rem; text-transform: uppercase; color: #6b7280; font-weight: 800; pointer-events: none; margin-top: 4px; border-top: 1px solid #374151; }
+
+        .ai-custom-input { 
+            width: 100%; padding: 12px; border: none; border-top: 1px solid var(--border); 
+            background: #111827; font-size: 0.9rem; color: white; outline: none; border-radius: 0 0 16px 16px; 
+        }
+        textarea.ai-custom-input { resize: vertical; min-height: 80px; border-radius: 12px; border: 1px solid var(--border); margin-top: 0; }
+        
+        .segmented-control { display: flex; background: #111827; padding: 4px; border-radius: 12px; gap: 2px; border: 1px solid var(--border); margin-top:5px; }
+        .level-btn { flex: 1; padding: 8px; border: none; border-radius: 8px; background: transparent; color: #9ca3af; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .level-btn.selected { background: var(--bg-panel); color: white; border: 1px solid var(--border); }
+        
+        .flag-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top:5px;}
+        .flag-btn { 
+            border: 1px solid var(--border); border-radius: 50%; background: #111827; 
+            font-size: 1.5rem; width: 48px; height: 48px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            opacity: 0.6; filter: grayscale(100%); transition: all 0.2s; 
+        }
+        .flag-btn.selected { border-color: var(--primary); background: var(--bg-panel); opacity: 1; filter: grayscale(0%); }
+        .flag-btn.hidden { display: none !important; }
+        .flag-sm { width: 40px; height: 40px; font-size: 1.2rem; }
+
+        .ai-footer-actions { margin: 15px 0; display: flex; gap: 15px; width: 100%; }
+        .btn-ai-action { 
+            flex: 1; padding: 16px; border: none; border-radius: 14px; font-weight: 800; font-size: 0.95rem; 
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; text-transform: uppercase; 
+        }
+        .btn-ai-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+        #btn-paste-json { background: #374151; color: white; border: 1px solid var(--border); }
+
+        .saved-exercises-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; background: #111827; }
+        .saved-item { padding: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+        .saved-item:last-child { border-bottom: none; }
+        .saved-info { flex: 1; }
+        .mem-actions { display: flex; gap: 6px; }
+
+        /* AI GENERATED CONTENT BLOCKS (CODE 2 RENDERER) */
+        .exercise-box { background: var(--bg-pair-alt); border: 1px solid var(--border); border-radius: 12px; padding: 25px; user-select: none; }
+        .exercise-header { 
+            font-size: 1rem; font-weight: 700; color: var(--primary-light); margin-bottom: 16px; 
+            border-bottom: 1px solid var(--border); padding-bottom: 10px; display: flex; justify-content: space-between; align-items: flex-start; 
+        }
+        .theory-box { display: none; background: #111827; padding: 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.95rem; line-height: 1.6; border: 1px solid var(--border); color:#d1d5db; }
+        .exercise-row { margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; line-height: 1.8; position: relative; } 
+        
+        .ex-select { 
+            padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; background: #111827; 
+            color: white; cursor: pointer; outline: none; font-size: 0.95rem; 
+        }
+        .ex-select.correct { border-color: var(--success) !important; background-color: rgba(16, 185, 129, 0.2) !important; color: var(--success) !important; }
+        .ex-select.wrong { border-color: var(--danger) !important; background-color: rgba(239, 68, 68, 0.2) !important; color: var(--danger) !important; animation: shake 0.3s; }
+        
+        .hint-box, .trans-box { display: none; width: 100%; margin-top: 8px; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; }
+        .hint-box { background: rgba(245, 158, 11, 0.1); border-left: 4px solid var(--warning); color: #fbbf24; }
+        .trans-box { background: rgba(79, 70, 229, 0.1); border-left: 4px solid var(--primary); color: #a5b4fc; }
+        
+        .ex-btn-icon { background: #374151; border: none; border-radius: 8px; cursor: pointer; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; color: #9ca3af; }
+        .ex-btn-icon:hover { background: var(--primary); color: white; }
+        
+        .btn-theory { background: #374151; color: var(--primary-light); border: none; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; cursor: pointer; font-weight: 600; }
+        
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .exercise-row s { color: var(--danger); text-decoration: line-through; opacity: 0.7; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button class="tool-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        
+        <div class="brand">MDC Hybrid</div>
+        
+        <div class="format-group">
+            <button class="tool-btn" onclick="formatText('bold')"><b>B</b></button>
+            <button class="tool-btn" onclick="formatText('italic')"><i>I</i></button>
+            <button class="tool-btn" onclick="formatText('underline')"><u>U</u></button>
+        </div>
+
+        <button class="tool-btn" onclick="createBlock()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            <span style="display:none; @media(min-width:768px){display:inline;}">New</span>
+        </button>
+        
+        <button class="tool-btn ai-trigger" onclick="openAIMenu()">
+            <span>⚡ AI Hub</span>
+        </button>
+
+        <button class="tool-btn" onclick="saveDocumentManual()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+            <span style="display:none; @media(min-width:768px){display:inline;}">Save</span>
+        </button>
+        
+        <div class="study-group">
+            <span id="save-status">Autosaved</span>
+            <button class="tool-btn" id="btn-speed" onclick="cycleSpeed()" title="Playback Speed">
+                1.0x
+            </button>
+            <button class="tool-btn" id="btn-blur-en" onclick="toggleBlur('en')" title="Hide English">
+                👁️ EN
+            </button>
+            <button class="tool-btn" id="btn-blur-es" onclick="toggleBlur('es')" title="Hide Spanish">
+                👁️ ES
+            </button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="sidebar" id="main-sidebar">
+            <div class="sidebar-content" id="sidebar-list"></div>
+        </div>
+
+        <div class="editor-container" id="editor-area" onclick="closeSidebarMobile()">
+            <input type="text" class="document-title" id="doc-title" placeholder="Lesson Title...">
+            <div id="blocks-wrapper"></div>
+        </div>
+    </div>
+
+    <div id="translation-tooltip">Translation</div>
+
+    <div class="ai-popup-overlay" id="ai-hub-modal">
+        <div class="ai-popup-box">
+            <div class="ai-header">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span>⚡ Polyglot AI Hub (Full)</span>
+                </div>
+                <button class="ai-close" onclick="closeAIMenu()">×</button>
+            </div>
+            
+            <div class="ai-body">
+                
+                <div class="ai-grid-2">
+                    <div class="ai-card-group">
+                        <div class="ai-card-label">🌍 Context</div>
+                        <select id="ai-context-select" class="ai-select">
+                            <option value="" selected disabled>Select Context...</option>
+                            <optgroup label="📚 Vocabulary Builder DB">
+                                <option value="vb_last_5">Last 5 Saved Words</option>
+                                <option value="vb_last_10">Last 10 Saved Words</option>
+                                <option value="vb_last_15">Last 15 Saved Words</option>
+                                <option value="vb_random">Random Selection (15)</option>
+                            </optgroup>
+                            <optgroup label="🏠 Daily Life & Lifestyle">
+                                <option value="Daily Routine & Habits">Daily Routine & Habits</option>
+                                <option value="Family & Relationships">Family & Relationships</option>
+                                <option value="House & Chores">House, Furniture & Chores</option>
+                                <option value="Food, Cooking & Restaurants">Food, Cooking & Restaurants</option>
+                                <option value="Health, Fitness & Body">Health, Fitness & Doctors</option>
+                                <option value="Hobbies, Music & Movies">Hobbies, Music & Movies</option>
+                            </optgroup>
+                            <optgroup label="✈️ Travel & Adventure">
+                                <option value="At the Airport & Flying">At the Airport & Flying</option>
+                                <option value="Hotel Check-in & Problems">Hotel Situations</option>
+                                <option value="Asking for Directions & City">City & Directions</option>
+                                <option value="Car Rental & Driving">Car Rental & Driving</option>
+                            </optgroup>
+                            <optgroup label="💼 Work & Business">
+                                <option value="Job Interviews & CVs">Job Interviews & HR</option>
+                                <option value="Business Meetings & Strategy">Meetings & Negotiations</option>
+                                <option value="Emails & Formal Communication">Formal Emails</option>
+                                <option value="Tech, IT & Programming">Tech, IT & Programming</option>
+                                <option value="Marketing & Sales">Marketing & Sales</option>
+                                <option value="Customer Service Scenarios">Customer Service Issues</option>
+                            </optgroup>
+                        </select>
+                        <input type="text" id="ai-context-custom" class="ai-custom-input" placeholder="Or type custom context...">
+                    </div>
+
+                    <div class="ai-card-group">
+                        <div class="ai-card-label">🧠 Grammar</div>
+                        <select id="ai-grammar-select" class="ai-select">
+                            <option value="" selected disabled>Select Grammar...</option>
+                            <optgroup label="🕒 Present Tenses">
+                                <option value="Present Simple">Present Simple (Habits & Facts)</option>
+                                <option value="Present Continuous">Present Continuous (Now & Future)</option>
+                                <option value="Present Perfect">Present Perfect (Experiences)</option>
+                                <option value="Present Perfect Continuous">Present Perfect Continuous</option>
+                                <option value="Present Simple vs Continuous">Mix: Simple vs Continuous</option>
+                            </optgroup>
+                            <optgroup label="🔙 Past Tenses">
+                                <option value="Past Simple">Past Simple (Finished Actions)</option>
+                                <option value="Past Continuous">Past Continuous (Interrupted Actions)</option>
+                                <option value="Past Perfect">Past Perfect (The Past before the Past)</option>
+                                <option value="Past Perfect Continuous">Past Perfect Continuous</option>
+                                <option value="Narrative Tenses Mix">Mix: Narrative Tenses (Storytelling)</option>
+                            </optgroup>
+                            <optgroup label="🚀 Future Tenses">
+                                <option value="Future Simple (Will)">Future Simple (Will - Spontaneous)</option>
+                                <option value="Be Going To">Be Going To (Plans)</option>
+                                <option value="Future Continuous">Future Continuous (In progress later)</option>
+                                <option value="Future Perfect">Future Perfect (Completed by then)</option>
+                                <option value="Future Forms Mix">Mix: Will / Going to / Present Cont.</option>
+                            </optgroup>
+                            <optgroup label="⚙️ Advanced Structures">
+                                <option value="Conditionals 0 & 1">Conditionals 0 & 1 (Real)</option>
+                                <option value="Conditionals 2 & 3">Conditionals 2 & 3 (Unreal)</option>
+                                <option value="Mixed Conditionals">Mixed Conditionals</option>
+                                <option value="Passive Voice">Passive Voice</option>
+                                <option value="Reported Speech">Reported Speech (Indirect)</option>
+                                <option value="Relative Clauses">Relative Clauses (Who, Which, That)</option>
+                                <option value="Causative (Have/Get something done)">Causative Form</option>
+                            </optgroup>
+                            <optgroup label="🧩 Particles & Modals">
+                                <option value="Modal Verbs (Can, Could, Should, Must)">Modal Verbs</option>
+                                <option value="Modals of Deduction (Must have, Can't have)">Modals of Past Deduction</option>
+                                <option value="Phrasal Verbs">Phrasal Verbs (General)</option>
+                                <option value="Prepositions of Place & Time">Prepositions (In, On, At, By)</option>
+                                <option value="Articles (A, An, The, Zero)">Articles (A / An / The)</option>
+                                <option value="Gerunds vs Infinitives">Gerunds vs Infinitives</option>
+                            </optgroup>
+                        </select>
+                        <input type="text" id="ai-grammar-custom" class="ai-custom-input" placeholder="Or type custom grammar...">
+                    </div>
+                </div>
+
+                <div class="ai-grid-2">
+                    <div class="ai-card-group">
+                        <div class="ai-card-label">📝 Format</div>
+                        <select id="ai-type-select" class="ai-select">
+                            <option value="" selected disabled>Select Format...</option>
+                            <optgroup label="✍️ Standard Practice">
+                                <option value="Fill in the Blanks (Cloze)">Fill in the Blanks (Classic)</option>
+                                <option value="Multiple Choice Quiz">Multiple Choice Quiz</option>
+                                <option value="Find and Fix the Mistake">Find and Fix the Mistake</option>
+                                <option value="True or False (Reading)">True or False (Reading Comp.)</option>
+                            </optgroup>
+                            <optgroup label="🧠 Vocabulary & Logic">
+                                <option value="Vocabulary Matching">Vocabulary Matching (Def - Word)</option>
+                                <option value="Synonym & Antonym Finder">Synonym Finder</option>
+                                <option value="Sentence Reordering">Sentence Reordering (Scrambled)</option>
+                                <option value="Choose the Odd One Out">Odd One Out (Logic)</option>
+                            </optgroup>
+                            <optgroup label="🔄 Translation">
+                                <option value="Reverse Translation (ES->EN)">Reverse Translation (See ES, Pick EN)</option>
+                            </optgroup>
+                        </select>
+                        <input type="text" id="ai-type-custom" class="ai-custom-input" placeholder="Or type custom format...">
+                    </div>
+
+                    <div class="ai-card-group" style="justify-content: space-between;">
+                        <div>
+                            <div class="ai-card-label">⚙️ Settings</div> 
+                            <div style="display: flex; gap: 5px;"> 
+                                <select id="ai-gap-count" class="ai-select" style="flex: 1;" title="Gaps">
+                                    <option value="1" selected>1 Gap</option>
+                                    <option value="2">2 Gaps</option>
+                                    <option value="3">3 Gaps</option>
+                                    <option value="random">Mix</option>
+                                </select>
+                                <select id="ai-option-count" class="ai-select" style="flex: 1;" title="Options">
+                                    <option value="2">2 Opts</option>
+                                    <option value="3">3 Opts</option>
+                                    <option value="4" selected>4 Opts</option>
+                                    <option value="5">5 Opts</option>
+                                </select>
+                                <select id="ai-sentence-count" class="ai-select" style="flex: 1;" title="Qty">
+                                    <option value="3">3 Qs</option>
+                                    <option value="6" selected>6 Qs</option>
+                                    <option value="9">9 Qs</option>
+                                    <option value="12">12 Qs</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="segmented-control">
+                            <button class="level-btn" onclick="selectLevel(this, 'A1-A2 (Beginner)')">A1-A2</button>
+                            <button class="level-btn selected" onclick="selectLevel(this, 'B1-B2 (Intermediate)')">B1-B2</button>
+                            <button class="level-btn" onclick="selectLevel(this, 'C1-C2 (Advanced)')">C1-C2</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ai-grid-2">
+                    <div>
+                        <div class="ai-card-label">🎯 Target</div>
+                        <div class="flag-group" id="target-lang-group">
+                            <div class="flag-btn selected" onclick="selectTarget(this, 'en')" title="English">🇺🇸</div>
+                            <div class="flag-btn" onclick="selectTarget(this, 'es')" title="Spanish">🇪🇸</div>
+                            <div class="flag-btn" onclick="selectTarget(this, 'pt')" title="Portuguese">🇧🇷</div>
+                            <div class="flag-btn" onclick="selectTarget(this, 'it')" title="Italian">🇮🇹</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="ai-card-label">🌐 Translate</div>
+                        <div class="flag-group" id="trans-lang-group">
+                            <div class="flag-btn flag-sm" data-lang="en" onclick="toggleTrans(this, 'en')">🇺🇸</div>
+                            <div class="flag-btn flag-sm selected" data-lang="es" onclick="toggleTrans(this, 'es')">🇪🇸</div>
+                            <div class="flag-btn flag-sm" data-lang="pt" onclick="toggleTrans(this, 'pt')">🇧🇷</div>
+                            <div class="flag-btn flag-sm" data-lang="it" onclick="toggleTrans(this, 'it')">🇮🇹</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="ai-card-label">⚡ Extra Instructions</div>
+                    <textarea id="ai-extra-data" class="ai-custom-input" placeholder="E.g. Use British slang, make it funny..."></textarea>
+                </div>
+
+                <div class="ai-footer-actions">
+                    <button class="btn-ai-action btn-ai-primary" onclick="copyProfessorPrompt()">
+                        <span>✨</span> Create Mission
+                    </button>
+                    <button class="btn-ai-action" id="btn-paste-json" onclick="pasteAIJson()">
+                        <span>📋</span> Paste & Insert
+                    </button>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <div class="ai-card-label" style="font-size: 0.9rem;">🎓 Memory Bank</div>
+                    <div class="saved-exercises-list" id="ai-memory-list">
+                        <div style="text-align:center; color:#94a3b8; padding:20px; font-size:0.8rem;">No exercises saved yet.</div>
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                         <button class="mini-btn" style="flex:1" onclick="exportMemoryBank()">⬇️ Export</button>
+                         <button class="mini-btn delete" style="flex:1" onclick="clearAIMemory()">🗑️ Clear</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+<script>
+    /* =========================================
+       GLOBAL CONFIG & VARIABLES
+       ========================================= */
+    const DB_KEY = 'mdc_vocab_list';
+    const DOC_KEY = 'mdc_smart_editor_v8_doc';
+    const AI_MEM_KEY = 'mdc_ai_exercises'; 
+    
+    let hoverTimer;
+    let currentTooltip = document.getElementById('translation-tooltip');
+    let recognition;
+    let isRecording = false;
+    let currentRecordingBtn = null;
+    let activeLangContext = 'en'; 
+    let lastFocusedInput = null;
+    let savedRange = null; // Variable crítica para la memoria del cursor
+    let speechRate = 1.0; 
+    
+    let currentTargetLang = 'en'; 
+    let currentLevel = 'B1-B2 (Intermediate)';
+    const transLangs = new Set(['es']); 
+    const LANG_NAMES = { 'en': 'English', 'es': 'Spanish', 'pt': 'Portuguese', 'it': 'Italian' };
+    
+  
+      const STATIC_GRAMMAR = [
+      {
+        name: "Pronouns (Pronombres)",
+        words: [
+          "I", "You", "He", "She", "It", "We", "They", "Me", "Him", "Her", "Us", "Them",
+          "My", "Your", "His", "Its", "Our", "Their", "Mine", "Yours", "Hers", "Ours", "Theirs",
+          "This", "That", "These", "Those", "Who", "Whom", "Whose", "Which", "What",
+          "Myself", "Yourself", "Himself", "Herself", "Itself", "Ourselves", "Themselves",
+          "Everyone", "Everything", "Everybody", "Anyone", "Anything", "Anybody",
+          "Someone", "Something", "Somebody", "No one", "Nothing", "Nobody",
+          "One", "All", "Some", "Any", "None", "Both", "Each", "Either", "Neither"
+        ]
+      },
+      {
+        name: "Verbs (Verbos)",
+        words: [
+          "Be", "Have", "Do", "Say", "Go", "Get", "Make", "Know", "Think", "Take",
+          "See", "Come", "Want", "Look", "Use", "Find", "Give", "Tell", "Work", "Call",
+          "Try", "Ask", "Need", "Feel", "Become", "Leave", "Put", "Mean", "Keep", "Let",
+          "Begin", "Seem", "Help", "Talk", "Turn", "Start", "Show", "Hear", "Play", "Run",
+          "Move", "Like", "Live", "Believe", "Hold", "Bring", "Happen", "Write", "Provide",
+          "Sit", "Stand", "Lose", "Pay", "Meet", "Include", "Continue", "Set", "Learn",
+          "Change", "Lead", "Understand", "Watch", "Follow", "Stop", "Create", "Speak",
+          "Read", "Allow", "Add", "Spend", "Grow", "Open", "Walk", "Win", "Offer",
+          "Remember", "Love", "Consider", "Appear", "Buy", "Wait", "Serve", "Die",
+          "Send", "Expect", "Build", "Stay", "Fall", "Cut", "Reach", "Kill", "Remain"
+        ]
+      },
+      {
+        name: "Adjectives (Adjetivos)",
+        words: [
+          "Good", "New", "First", "Last", "Long", "Great", "Little", "Own", "Other", "Old",
+          "Right", "Big", "High", "Different", "Small", "Large", "Next", "Early", "Young",
+          "Important", "Few", "Public", "Bad", "Same", "Able", "Best", "Better", "Late",
+          "Hard", "Major", "Strong", "Possible", "Whole", "Free", "True", "Full", "Special",
+          "Easy", "Clear", "Recent", "Certain", "Personal", "Open", "Red", "Blue", "Black",
+          "White", "Political", "Real", "Social", "Sure", "Low", "Human", "Local",
+          "Economic", "Available", "Likely", "Short", "Single", "Wrong", "Far", "Left",
+          "National", "Second", "Main", "American", "Happy", "Dead", "True", "British",
+          "General", "Due", "International", "Middle", "Beautiful", "Only", "Military",
+          "Original", "Current", "Private", "Past", "Foreign", "Fine", "Common", "Poor",
+          "Natural", "Significant", "Similar", "Hot", "Dead", "Central", "Happy", "Serious"
+        ]
+      },
+      {
+        name: "Nouns (Sustantivos)",
+        words: [
+          "Time", "Person", "Year", "Way", "Day", "Thing", "Man", "World", "Life", "Hand",
+          "Part", "Child", "Eye", "Woman", "Place", "Work", "Week", "Case", "Point", "Government",
+          "Company", "Number", "Group", "Problem", "Fact", "Money", "Night", "Water", "Mother",
+          "Area", "Story", "Month", "Lot", "Right", "Study", "Book", "Job", "Word", "Business",
+          "Issue", "Side", "Kind", "Head", "House", "Service", "Friend", "Father", "Power",
+          "Hour", "Game", "Line", "End", "Member", "Law", "Car", "City", "Community", "Name",
+          "President", "Team", "Minute", "Idea", "Kid", "Body", "Information", "Back", "Parent",
+          "Face", "Others", "Level", "Office", "Door", "Health", "War", "History", "Party",
+          "Result", "Change", "Morning", "Reason", "Research", "Girl", "Guy", "Food", "Moment",
+          "Air", "Teacher", "Force", "Education", "Foot", "Boy", "Age", "Policy", "Process",
+          "Music", "Market", "Sense", "Nation", "Death", "Street", "State", "Art", "Student",
+          "Rate", "Ocean", "Language", "Effect", "School", "Value", "Department", "Period",
+          "Room", "Subject", "Control", "Power", "Land", "Industry", "Plan", "College",
+          "Country", "Couple", "System", "Attention", "Type", "Road", "Table", "Arm", "Model"
+        ]
+      },
+      {
+        name: "Adverbs (Adverbios)",
+        words: [
+          "Up", "So", "Out", "Just", "Now", "How", "Then", "More", "Also", "Here",
+          "Well", "Only", "Very", "Even", "Back", "There", "Down", "Still", "In", "As",
+          "To", "When", "Never", "Really", "Most", "Always", "Often", "Maybe", "Today",
+          "Later", "Together", "Likely", "Simply", "Generally", "However", "Almost",
+          "Already", "Especially", "Yet", "Probably", "Quickly", "Slowly", "Easily",
+          "Carefully", "Clearly", "Exactly", "Finally", "Suddenly", "Directly", "Immediately",
+          "Usually", "Too", "Again", "Ever", "Sometimes", "Perhaps", "Rather", "Quite",
+          "Instead", "Away", "Far", "Enough", "Hard", "Soon", "Thus", "Therefore",
+          "Nearly", "Else", "Forward", "Early", "Late", "Alone", "Completely", "Actually",
+          "Obviously", "Apparently", "Fortunately", "Certainly", "Definitely", "Truly"
+        ]
+      },
+      {
+        name: "Prepositions (Preposiciones)",
+        words: [
+          "Of", "In", "To", "For", "With", "On", "At", "From", "By", "About",
+          "As", "Into", "Like", "Through", "After", "Over", "Between", "Out", "Against",
+          "During", "Without", "Before", "Under", "Around", "Among", "Off", "Since",
+          "Until", "Within", "Along", "Following", "Across", "Behind", "Beyond", "Plus",
+          "Except", "But", "Up", "Down", "Near", "Inside", "Outside", "Upon", "Towards",
+          "Above", "Below", "Despite", "Throughout", "Per", "Via", "Toward", "Onto",
+          "Beneath", "Beside", "Past", "Regarding", "Concerning", "Including", "Between",
+          "Towards", "Underneath", "Opposite", "Outside"
+        ]
+      },
+      {
+        name: "Conjunctions (Conectores)",
+        words: [
+          "And", "Or", "But", "Because", "So", "If", "When", "While", "Although", "Though",
+          "Since", "Unless", "Until", "Whether", "Before", "After", "As", "Than", "That",
+          "Where", "Once", "Provided", "Whereas", "Even if", "So that", "In order that",
+          "As long as", "Now that", "Both...and", "Either...or", "Neither...nor",
+          "Not only...but also", "However", "Therefore", "Moreover", "Furthermore",
+          "Otherwise", "Nevertheless", "Consequently", "Thus", "Hence", "Instead",
+          "Meanwhile", "Besides", "Also", "Still", "Yet", "Nor", "For", "Yet"
+        ]
+      },
+      {
+        name: "Articles (Artículos)",
+        words: ["The", "A", "An"]
+      },
+      {
+        name: "Determiners (Determinantes)",
+        words: [
+          "Some", "Any", "No", "Many", "Much", "Few", "Little", "Several", "All",
+          "Both", "Each", "Every", "Another", "Other", "Such", "What", "Which",
+          "This", "That", "These", "Those", "My", "Your", "His", "Her", "Its",
+          "Our", "Their"
+        ]
+      },
+      {
+        name: "Auxiliary Verbs (Verbos auxiliares)",
+        words: [
+          "Can", "Could", "May", "Might", "Shall", "Should", "Will", "Would",
+          "Must", "Ought to", "Have to", "Need to", "Used to", "Be able to",
+          "Am", "Is", "Are", "Was", "Were", "Been", "Being", "Has", "Had", "Having"
+        ]
+      },
+      {
+        name: "Contractions (Contracciones comunes)",
+        words: [
+          "I'm", "You're", "He's", "She's", "It's", "We're", "They're",
+          "I've", "You've", "We've", "They've", "I'd", "You'd", "He'd",
+          "She'd", "It'd", "We'd", "They'd", "Isn't", "Aren't", "Wasn't",
+          "Weren't", "Hasn't", "Haven't", "Hadn't", "Don't", "Doesn't",
+          "Didn't", "Won't", "Wouldn't", "Can't", "Couldn't", "Shouldn't",
+          "Mightn't", "Mustn't"
+        ]
+      },
+      {
+        name: "Interjections & Expressions",
+        words: [
+          "Yes", "No", "Please", "Thank you", "Thanks", "Sorry", "Excuse me",
+          "Hello", "Hi", "Goodbye", "Bye", "Okay", "Sure", "Of course",
+          "Oh", "Wow", "Hey", "Well", "Actually", "Anyway", "Right", "Yeah",
+          "Nope", "Maybe", "Perhaps", "Definitely", "Absolutely"
+        ]
+      }
+    ];
+
+    /* =========================================
+       INITIALIZATION
+       ========================================= */
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSidebar();
+        loadDocument(); 
+        renderAiList();
+        initCustomDropdowns();
+        if(document.getElementById('blocks-wrapper').children.length === 0) createBlock();
+    });
+
+    /* =========================================
+       CODIGO 1 LOGIC (EDITOR, SPEECH, DB)
+       ========================================= */
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.onresult = function(event) {
+            if(currentRecordingBtn) {
+                const text = event.results[0][0].transcript;
+                const pair = currentRecordingBtn.closest('.sentence-pair');
+                let targetRow = (activeLangContext === 'es') ? pair.querySelector('.row-es') : pair.querySelector('.row-en');
+                if(targetRow.innerText.trim() === '') targetRow.innerText = text;
+                else targetRow.innerText += " " + text;
+                autoSave();
+            }
+        };
+        recognition.onend = function() {
+            isRecording = false;
+            if(currentRecordingBtn) currentRecordingBtn.classList.remove('recording');
+            currentRecordingBtn = null;
+        };
+    }
+
+    function toggleSidebar() {
+        const sidebar = document.getElementById('main-sidebar');
+        if (window.innerWidth < 768) { sidebar.classList.toggle('mobile-open'); } else { sidebar.classList.toggle('collapsed'); }
+    }
+    function closeSidebarMobile() { if (window.innerWidth < 768) document.getElementById('main-sidebar').classList.remove('mobile-open'); }
+
+    function cycleSpeed() {
+        const btn = document.getElementById('btn-speed');
+        if (speechRate === 1.0) speechRate = 0.75; else if (speechRate === 0.75) speechRate = 0.5; else speechRate = 1.0;
+        btn.innerText = speechRate + "x";
+    }
+
+    function loadSidebar() {
+        const raw = localStorage.getItem(DB_KEY);
+        const list = document.getElementById('sidebar-list');
+        list.innerHTML = ''; 
+
+        if (raw) {
+            const data = JSON.parse(raw);
+            const folders = data.filter(i => i.isFolder);
+            if (folders.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'sidebar-header'; header.innerText = 'My Database';
+                list.appendChild(header);
+
+                folders.forEach(folder => {
+                    const folderEl = document.createElement('div');
+                    folderEl.className = 'db-folder';
+                    folderEl.innerHTML = `<div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')"><span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span></div><div class="db-folder-items"></div>`;
+                    const container = folderEl.querySelector('.db-folder-items');
+                    folder.items.forEach(item => { if(item && item.eng) container.appendChild(createDraggableChip(item.eng)); });
+                    list.appendChild(folderEl);
+                });
+            }
+        }
+        if(STATIC_GRAMMAR.length > 0) {
+            const gramHeader = document.createElement('div');
+            gramHeader.className = 'sidebar-header'; gramHeader.innerText = 'Grammar Helper';
+            list.appendChild(gramHeader);
+            STATIC_GRAMMAR.forEach(cat => {
+                const catEl = document.createElement('div');
+                catEl.className = 'db-folder';
+                catEl.innerHTML = `<div class="db-folder-title" onclick="this.parentElement.classList.toggle('open')"><span>📚 ${cat.name}</span></div><div class="db-folder-items"></div>`;
+                const container = catEl.querySelector('.db-folder-items');
+                cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
+                list.appendChild(catEl);
+            });
+        }
+    }
+
+    function createDraggableChip(text) {
+        const chip = document.createElement('div');
+        chip.className = 'draggable-word';
+        chip.draggable = true;
+        chip.innerHTML = `<span class="chip-text">${text}</span><button class="chip-audio-btn" title="Pronounce">🔊</button>`;
+        
+        chip.ondragstart = (e) => { 
+           e.dataTransfer.setData('text/plain', text); 
+           e.dataTransfer.effectAllowed = 'copy'; 
+           e.preventDefault();
+        };
+
+
+
+        chip.onclick = (e) => {
+            if (e.target.closest('.chip-audio-btn')) { 
+                e.stopPropagation(); 
+                speakText(text, 'en'); 
+                return; 
+            }
+            if (lastFocusedInput) {
+                lastFocusedInput.focus();
+                insertSmartText(text); // Nueva lógica inteligente
+            } else {
+                alert("Please click on a text row first.");
+            }
+        };
+        return chip;
+    }
+
+    // --- SMART INSERT LOGIC (FIXED CURSOR ISSUE) ---
+   function insertSmartText(word) {
+        // 1. Validación de seguridad
+        if (!lastFocusedInput) return alert("Tap an editor row first.");
+
+        // 2. PASO CRÍTICO: Forzar el foco al input antes de intentar restaurar el rango
+        lastFocusedInput.focus();
+
+        // 3. Restaurar la memoria del cursor (savedRange)
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+
+        // Verificamos si existe una posición guardada y si pertenece a este input
+        if (savedRange && lastFocusedInput.contains(savedRange.commonAncestorContainer)) {
+            sel.addRange(savedRange);
+        } else {
+            // Si la memoria falló o está vacía, poner el cursor al FINAL (no al inicio)
+            const newRange = document.createRange();
+            newRange.selectNodeContents(lastFocusedInput);
+            newRange.collapse(false); // false = Colapsar al final del texto
+            sel.addRange(newRange);
+        }
+
+        // 4. Lógica Inteligente (Espacios y Mayúsculas)
+        // Ahora que el cursor está en su lugar, analizamos el contexto
+        const range = sel.getRangeAt(0);
+        const startOffset = range.startOffset;
+        
+        let textBefore = "";
+        if (range.startContainer.nodeType === 3) {
+            // Si estamos dentro de un nodo de texto, leemos hasta el cursor
+            textBefore = range.startContainer.textContent.substring(0, startOffset);
+        } else {
+            // Fallback: leemos el texto general del div
+            textBefore = lastFocusedInput.innerText; 
+        }
+
+        // Regla A: Espacio automático
+        // No poner espacio si: estamos al inicio (0), texto vacío, o ya hay un espacio antes
+        let prefix = " ";
+        if (startOffset === 0 || textBefore === "" || /\s$/.test(textBefore)) {
+            prefix = "";
+        }
+
+        // Regla B: Capitalización automática
+        // Mayúscula si: estamos al inicio, texto vacío, o después de signo de puntuación (.!?)
+        let finalWord = word;
+        if (startOffset === 0 || textBefore === "" || /[.!?]\s*$/.test(textBefore)) {
+            finalWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        } else {
+            finalWord = word.toLowerCase();
+        }
+
+        // 5. Insertar el texto
+        document.execCommand('insertText', false, prefix + finalWord + " ");
+        
+        // 6. Actualizar la memoria del cursor inmediatamente para la siguiente palabra
+        if (sel.rangeCount > 0) {
+            savedRange = sel.getRangeAt(0).cloneRange();
+        }
+        
+        autoSave();
+    }
+
+    function createBlock(lessonText = '', pairsData = []) {
+        const wrapper = document.getElementById('blocks-wrapper');
+        const block = document.createElement('div');
+        block.className = 'editor-block standard-block';
+        const showLesson = lessonText.trim().length > 0 ? 'style="display:block;"' : '';
+        const bookActiveClass = lessonText.trim().length > 0 ? 'book-active' : '';
+
+        block.innerHTML = `
+            <div class="block-header">
+                <div class="block-label">Block</div>
+                <div style="display:flex; gap:5px;">
+                    <button class="mini-btn ${bookActiveClass}" onclick="toggleLesson(this)">📖</button>
+                    <button class="mini-btn block-delete" onclick="removeBlock(this)">✕</button>
+                </div>
+            </div>
+            <div class="lesson-drawer" ${showLesson}><textarea placeholder="Paste notes..." oninput="autoSave()">${lessonText}</textarea></div>
+            <div class="pairs-container"></div>
+        `;
+        wrapper.appendChild(block);
+        const pairsContainer = block.querySelector('.pairs-container');
+        if(pairsData.length > 0) pairsData.forEach(p => addPair(pairsContainer, p.en, p.es));
+        else addPair(pairsContainer);
+        block.scrollIntoView({behavior: "smooth"});
+    }
+
+    function createAIBlock(htmlContent) {
+        const wrapper = document.getElementById('blocks-wrapper');
+        const block = document.createElement('div');
+        block.className = 'editor-block ai-block';
+        block.innerHTML = `
+            <div class="block-header">
+                <div class="block-label" style="color:var(--primary-light)">⚡ AI Exercise</div>
+                <div style="display:flex; gap:5px;">
+                    <button class="mini-btn block-delete" onclick="removeBlock(this)">✕</button>
+                </div>
+            </div>
+            <div class="ai-content-wrapper">${htmlContent}</div>
+        `;
+        wrapper.appendChild(block);
+        block.scrollIntoView({behavior: "smooth"});
+    }
+
+    function addPair(container, enText = '', esText = '', focusEn = false) {
+        const pair = document.createElement('div');
+        pair.className = 'sentence-pair';
+        pair.innerHTML = `
+            <div class="pair-inputs">
+                <div class="row-wrapper">
+                    <div class="input-row row-en" contenteditable="true" data-placeholder="English..." oninput="autoSave()" onpaste="handlePaste(event)">${enText}</div>
+                    <div class="lang-flag flag-en"></div>
+                </div>
+                <div class="row-wrapper">
+                    <div class="input-row row-es" contenteditable="true" data-placeholder="Español..." oninput="autoSave()">${esText}</div>
+                    <div class="lang-flag flag-es"></div>
+                </div>
+            </div>
+            <div class="pair-controls">
+                <button class="mini-btn" onclick="toggleRecord(this)">🎤</button>
+                <button class="mini-btn" onclick="speakPair(this)">🔊</button>
+                <button class="mini-btn" onclick="translatePair(this)">🌐</button>
+                <button class="mini-btn delete" onclick="deletePair(this)">✕</button>
+            </div>
+        `;
+        container.appendChild(pair);
+        const enRow = pair.querySelector('.row-en');
+        const esRow = pair.querySelector('.row-es');
+
+        // Función para guardar el cursor exacto
+        const saveCursor = () => {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) savedRange = sel.getRangeAt(0).cloneRange();
+        };
+
+        const handleFocus = (e, lang) => { 
+            activeLangContext = lang; 
+            if(lastFocusedInput) lastFocusedInput.classList.remove('active-focus'); 
+            lastFocusedInput = e.target; 
+            lastFocusedInput.classList.add('active-focus');
+            saveCursor(); 
+        };
+
+        [enRow, esRow].forEach(row => {
+            row.addEventListener('focus', (e) => handleFocus(e, row === enRow ? 'en' : 'es'));
+            row.addEventListener('keyup', saveCursor);
+            row.addEventListener('mouseup', saveCursor); 
+            row.addEventListener('input', saveCursor);
+            
+            // Eventos Drag and Drop
+            row.addEventListener('dragover', (e) => { e.preventDefault(); row.style.background = 'rgba(79,70,229,0.2)'; });
+            row.addEventListener('dragleave', () => { row.style.background = 'rgba(79,70,229,0.1)'; });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.style.background = 'rgba(79,70,229,0.1)';
+                const text = e.dataTransfer.getData('text/plain');
+                if (document.caretRangeFromPoint) {
+                    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                    if (range && row.contains(range.startContainer)) {
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        saveCursor(); 
+                    }
+                }
+                insertSmartText(text);
+            });
+        });
+
+        enRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); } });
+        esRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); addPair(container, '', '', true); } });
+        enRow.addEventListener('mousemove', handleHover);
+        enRow.addEventListener('mouseleave', hideTooltip);
+
+        if(focusEn) setTimeout(() => enRow.focus(), 10);
+    }
+
+    function toggleBlur(lang) { document.body.classList.toggle(`blur-${lang}`); document.getElementById(`btn-blur-${lang}`).classList.toggle('active'); }
+    function toggleRecord(btn) { 
+        if (!recognition) return alert("Browser does not support dictation.");
+        if (isRecording) { recognition.stop(); return; }
+        currentRecordingBtn = btn; btn.classList.add('recording');
+        recognition.lang = (activeLangContext === 'es') ? 'es-ES' : 'en-US';
+        recognition.start(); isRecording = true;
+    }
+    function toggleLesson(btn) { const d = btn.closest('.editor-block').querySelector('.lesson-drawer'); d.style.display = (d.style.display === 'block') ? 'none' : 'block'; btn.classList.toggle('book-active'); autoSave(); }
+    function removeBlock(btn) { if(confirm("Delete block?")) { btn.closest('.editor-block').remove(); autoSave(); } }
+    function deletePair(btn) { const p = btn.closest('.sentence-pair'); if(p.parentElement.children.length === 1) { p.querySelector('.row-en').innerText=''; p.querySelector('.row-es').innerText=''; } else p.remove(); autoSave(); }
+    function speakPair(btn) { const t = btn.closest('.sentence-pair').querySelector('.row-en').innerText; speakText(t, 'en'); }
+    async function translatePair(btn) {
+        const p = btn.closest('.sentence-pair'); const en = p.querySelector('.row-en'); const es = p.querySelector('.row-es');
+        if (en.innerText.trim()) { es.style.opacity=0.5; const r=await ft(en.innerText,'en','es'); es.style.opacity=1; if(r) es.innerText=r; }
+        else if (es.innerText.trim()) { en.style.opacity=0.5; const r=await ft(es.innerText,'es','en'); en.style.opacity=1; if(r) en.innerText=r; }
+        autoSave();
+    }
+    async function ft(t,s,l){ try{const r=await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=${s}&tl=${l}&dt=t&q=${encodeURIComponent(t)}`);const d=await r.json();return d[0][0][0];}catch(e){return null;}}
+    function handleHover(e){ 
+        if(e.target.nodeName!=='DIV')return; clearTimeout(hoverTimer);
+        const r=document.caretRangeFromPoint(e.clientX,e.clientY); if(!r||!r.startContainer.textContent)return;
+        const t=r.startContainer.textContent; let s=r.startOffset,n=r.startOffset;
+        while(s>0&&/\w/.test(t.charAt(s-1)))s--; while(n<t.length&&/\w/.test(t.charAt(n)))n++;
+        const w=t.slice(s,n).trim(); if(w.length>2){ hoverTimer=setTimeout(async()=>{ const tr=await ft(w,'en','es'); if(tr){ currentTooltip.innerText=`${w}→${tr}`; currentTooltip.style.left=(e.clientX+10)+'px'; currentTooltip.style.top=(e.clientY+20)+'px'; currentTooltip.style.opacity=1; } },500); }
+    }
+    function hideTooltip(){ clearTimeout(hoverTimer); currentTooltip.style.opacity=0; }
+    function handlePaste(e){ e.preventDefault(); document.execCommand('insertText',false,(e.originalEvent||e).clipboardData.getData('text/plain')); }
+    function formatText(c){ document.execCommand(c,false,null); }
+    function autoSave(){ saveDocument(); const s=document.getElementById('save-status'); s.classList.add('visible'); setTimeout(()=>s.classList.remove('visible'),2000); }
+    function saveDocumentManual(){ saveDocument(); const s=document.getElementById('save-status'); s.innerText="Saved!"; s.classList.add('visible'); setTimeout(()=>{ s.classList.remove('visible'); s.innerText="Autosaved"; },2000); }
+    
+    function saveDocument() {
+        const title = document.getElementById('doc-title').value;
+        const blocksData = [];
+        document.querySelectorAll('.editor-block').forEach(block => {
+            if(block.classList.contains('standard-block')) {
+                const lesson = block.querySelector('.lesson-drawer textarea').value;
+                const pairs = [];
+                block.querySelectorAll('.sentence-pair').forEach(pair => {
+                    pairs.push({ en: pair.querySelector('.row-en').innerHTML, es: pair.querySelector('.row-es').innerHTML });
+                });
+                blocksData.push({ type: 'standard', lesson, pairs });
+            } else if (block.classList.contains('ai-block')) {
+                const content = block.querySelector('.ai-content-wrapper').innerHTML;
+                blocksData.push({ type: 'ai', html: content });
+            }
+        });
+        localStorage.setItem(DOC_KEY, JSON.stringify({ title, blocks: blocksData, date: Date.now() }));
+    }
+
+    function loadDocument() {
+        const raw = localStorage.getItem(DOC_KEY); if(!raw) return;
+        const data = JSON.parse(raw);
+        document.getElementById('doc-title').value = data.title || '';
+        document.getElementById('blocks-wrapper').innerHTML = '';
+        if(data.blocks && data.blocks.length > 0) {
+            data.blocks.forEach(b => {
+                if (b.type === 'ai') { createAIBlock(b.html); } 
+                else { createBlock(b.lesson, b.pairs); }
+            });
+        }
+    }
+
+
+    /* =========================================
+       CODIGO 2 LOGIC (AI HUB)
+       ========================================= */
+    function openAIMenu() { document.getElementById('ai-hub-modal').classList.add('active'); renderAiList(); }
+    function closeAIMenu() { document.getElementById('ai-hub-modal').classList.remove('active'); }
+    function selectTarget(el, lang) { document.querySelectorAll('#target-lang-group .flag-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); currentTargetLang = lang; updateTransFlagsVisibility(); }
+    function selectLevel(el, levelDesc) { document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected')); el.classList.add('selected'); currentLevel = levelDesc; }
+    function updateTransFlagsVisibility() { document.querySelectorAll('#trans-lang-group .flag-btn').forEach(btn => { const btnLang = btn.getAttribute('data-lang'); if (btnLang === currentTargetLang) { btn.classList.add('hidden'); btn.classList.remove('selected'); transLangs.delete(btnLang); } else { btn.classList.remove('hidden'); } }); }
+    function toggleTrans(el, lang) { if (transLangs.has(lang)) { transLangs.delete(lang); el.classList.remove('selected'); } else { if (transLangs.size >= 3) return alert("Max 3 translation languages."); transLangs.add(lang); el.classList.add('selected'); } }
+    function escapeHtml(text) { if (!text) return ""; return text.replace(/'/g, "\\'").replace(/"/g, "&quot;"); }
+
+    function getDbWords(mode, count) {
+        const raw = localStorage.getItem(DB_KEY); if(!raw) return [];
+        const data = JSON.parse(raw);
+        let allWords = [];
+        const extract = (list) => { list.forEach(item => { if(item.isFolder) extract(item.items); else if(item.eng) allWords.push(item.eng); }); };
+        extract(data);
+        if(mode === 'last') return allWords.slice(0, count);
+        if(mode === 'random') return allWords.sort(() => 0.5 - Math.random()).slice(0, count);
+        return [];
+    }
+
+    function copyProfessorPrompt() {
+        const ctxSel = document.getElementById('ai-context-select').value;
+        const graSel = document.getElementById('ai-grammar-select').value;
+        const typSel = document.getElementById('ai-type-select').value;
+        const gapCount = document.getElementById('ai-gap-count').value;
+        let finalOptionCount = document.getElementById('ai-option-count').value;
+        const ctxCust = document.getElementById('ai-context-custom').value.trim();
+        const graCust = document.getElementById('ai-grammar-custom').value.trim();
+        const typCust = document.getElementById('ai-type-custom').value.trim();
+        const extraData = document.getElementById('ai-extra-data').value.trim();
+        const quantity = document.getElementById('ai-sentence-count').value || 6;
+
+        const fullTypeCheck = (typSel || "").toLowerCase();
+        if (fullTypeCheck.includes("true") || fullTypeCheck.includes("reading")) finalOptionCount = 2;
+
+        let contextInstruction = ctxCust ? `Custom Topic: "${ctxCust}"` : (ctxSel ? `Topic: "${ctxSel}"` : "General Daily Life");
+        
+        let dbWords = [];
+        if (ctxSel && ctxSel.startsWith('vb_')) {
+            let mode = ctxSel.replace('vb_', '');
+            dbWords = getDbWords(mode === 'random' ? 'random' : 'last', mode === 'random' ? 15 : parseInt(mode.split('_')[1] || 10));
+        }
+        let vocabBlock = dbWords.length > 0 ? `VOCABULARY INJECTION: [${dbWords.join(', ')}]. Use 1-2 words per sentence naturally.` : "";
+
+        const fullType = (typSel + " " + typCust).toLowerCase();
+        let gapRule = '3. GAPS: Format is "{correct|distractor1...}". Correct answer FIRST.';
+        let distractorRule = "4. DISTRACTORS: Plausible but incorrect.";
+        let clozeExample = '"She {went|goes} to school."'; 
+        let sentenceRule = "5. FULL_SENTENCE: Correct sentence for TTS.";
+        let visualRules = "VISUALS: Clean text.";
+
+        if (fullType.includes("fix")) { visualRules = "Use <s>crossed</s> BEFORE gap."; distractorRule="Options are corrections."; clozeExample = '"He <s>goed</s> {went|gone} to school."'; }
+        if (fullType.includes("reordering")) { gapRule = '3. GAPS: Hide a CRITICAL SEGMENT.'; distractorRule = '4. DISTRACTORS: Same words scrambled.'; }
+        if (fullType.includes("translation") || fullType.includes("reverse")) { gapRule = '3. GAPS: "<b>Source</b><br>{TargetCorrect|TargetWrong}".'; clozeExample = '"<b>Hola</b><br>{Hello|Hi}"'; }
+        if (fullType.includes("odd")) { gapRule = '3. GAPS: "{Intruder|Member1|Member2}".'; clozeExample = '"Which is odd? {Car|Apple|Banana}"'; }
+        if (fullType.includes("matching")) { visualRules = "Sentence is definition."; clozeExample = '"A domestic feline is a {cat|dog|bird}."'; }
+        if (fullType.includes("true")) { gapRule = '3. GAPS: "{True|False}".'; clozeExample = '"Sun is cold. {False|True}"'; }
+
+        const activeTransLangs = Array.from(transLangs);
+        const transType = activeTransLangs.length > 0 ? activeTransLangs.map(l => `${l}: string`).join('; ') : '// None';
+        
+        const promptText = `
+        ROLE: Expert ${LANG_NAMES[currentTargetLang]} Linguist & JSON Generator.
+        TASK: Generate valid JSON.
+        SETTINGS: Level: ${currentLevel}. Qty: ${quantity}. Grammar: ${graCust||graSel||"General"}. ${contextInstruction}. Format: ${typCust||typSel}. Gaps: ${gapCount}. Options: ${finalOptionCount}.
+        ${vocabBlock}
+        ${visualRules}
+        EXTRA: ${extraData}
+
+        STRICT TYPESCRIPT INTERFACE:
+        interface Exercise {
+          title: string;
+          lang_code: "${currentTargetLang}";
+          theory: string; // HTML allowed <b>, <ul>
+          exercises: Array<{
+            full_sentence: string; 
+            cloze_text: string; // Syntax: ${clozeExample}
+            hint: string;
+            translations: { ${transType} };
+          }>;
+        }
+
+        RULES:
+        1. OUTPUT RAW JSON ONLY. No markdown.
+        2. LANG: Target is ${LANG_NAMES[currentTargetLang]}.
+        ${gapRule}
+        ${distractorRule}
+        ${sentenceRule}
+        6. JSON SAFETY: Use single quotes (') inside strings.
+        `;
+
+        navigator.clipboard.writeText(promptText).then(() => {
+            const btn = document.querySelector('.btn-ai-primary'); 
+            const orig = btn.innerText; btn.innerText = "✅ Copied!"; setTimeout(() => btn.innerText = orig, 2000);
+        });
+    }
+
+    async function pasteAIJson() {
+        let jsonString = "";
+        try { 
+            jsonString = await navigator.clipboard.readText(); 
+        } catch (err) { 
+            jsonString = prompt("Paste your JSON code here:"); 
+        }
+        
+        if (!jsonString) return;
+        
+        const btn = document.getElementById('btn-paste-json'); 
+        const orig = btn.innerHTML;
+        btn.innerHTML = "<span>⚙️</span> Processing...";
+
+        setTimeout(() => {
+             processJsonAndSave(jsonString);
+             btn.innerHTML = orig;
+        }, 100);
+    }
+
+    function processJsonAndSave(rawString) {
+        try {
+            console.log("Recibido crudo:", rawString); // Para ver en consola qué llega
+
+            // 1. Limpieza de Markdown (quitar ```json y ```)
+            let clean = rawString.trim()
+                .replace(/```json/gi, '') // Quita ```json (mayus/minus)
+                .replace(/```/g, '');     // Quita ``` finales
+
+            // 2. Búsqueda quirúrgica del JSON (encuentra el primer { y el último })
+            const start = clean.indexOf('{');
+            const end = clean.lastIndexOf('}');
+
+            if (start === -1 || end === -1) {
+                throw new Error("No se detectó una estructura JSON válida ({ ... }).");
+            }
+
+            // Cortamos el texto para quedarnos solo con lo que está entre llaves
+            clean = clean.substring(start, end + 1);
+
+            // 3. === SANITIZACIÓN AGRESIVA (AQUÍ ESTÁ EL ARREGLO) ===
+            clean = clean
+                // Reemplaza comillas inteligentes dobles (“ ”) por rectas (")
+                .replace(/[\u201C\u201D]/g, '"') 
+                // Reemplaza comillas inteligentes simples (‘ ’) por rectas (')
+                .replace(/[\u0000-\u001F]+/g, " "); // Elimina caracteres invisibles de control
+
+            // Intento de corrección de comillas simples en claves (Riesgoso pero efectivo para errores comunes)
+            // Si el error dice "position 2", es probable que sea {'clave': ...}
+            // Esto intenta cambiar 'clave': por "clave":
+            clean = clean.replace(/'\s*:/g, '":').replace(/{\s*'/g, '{"').replace(/,\s*'/g, ',"');
+
+            console.log("Texto limpio a procesar:", clean);
+
+            // 4. Parseo
+            let aiData = JSON.parse(clean);
+
+            // 5. Normalización (Array vs Objeto)
+            let finalData = Array.isArray(aiData) 
+                ? { title: "AI Exercise", lang_code: currentTargetLang, theory: "Generated", exercises: aiData } 
+                : aiData;
+
+            // Validación mínima
+            if (!finalData.exercises || !Array.isArray(finalData.exercises)) {
+                throw new Error("El JSON es válido pero le falta la lista de 'exercises'.");
+            }
+
+            // 6. Guardar en Memoria
+            const memory = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+            const newItem = { 
+                id: Date.now(), 
+                title: finalData.title || "Untitled", 
+                lang: finalData.lang_code || currentTargetLang, 
+                theory: finalData.theory || "", 
+                date: new Date().toLocaleTimeString(), 
+                data: finalData.exercises 
+            };
+            
+            memory.unshift(newItem);
+            localStorage.setItem(AI_MEM_KEY, JSON.stringify(memory));
+            
+            // Refrescar lista e insertar
+            renderAiList();
+            insertExerciseFromMem(newItem.id);
+            
+            // Feedback visual en el botón
+            const btn = document.getElementById('btn-paste-json');
+            if(btn) btn.innerText = "✅ Listo!";
+            setTimeout(() => { if(btn) btn.innerHTML = "<span>📋</span> Paste & Insert"; }, 2000);
+
+        } catch (e) { 
+            console.error(e);
+            alert("Error al procesar JSON:\n" + e.message + "\n\nRevisa la consola (F12) para ver el texto exacto."); 
+        }
+    }
+
+    function insertExerciseFromMem(id) {
+        const mem = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+        const item = mem.find(x => x.id === id); if (!item) return;
+        
+        const theoryId = `theory-${item.id}-${Date.now()}`;
+
+        let html = `<div class="exercise-box">
+            <div class="exercise-header">
+                <span>✍️ ${item.title}</span>
+                <button class="btn-theory" onclick="this.parentElement.parentElement.parentElement.querySelector('.theory-box').style.display = 'block'">📘 Theory</button>
+            </div>
+            <div class="theory-box" id="${theoryId}">${item.theory || "No theory."}</div>`;
+            
+        item.data.forEach((ex, index) => {
+            let parsedHtml = ex.cloze_text.replace(/\{([^}]+)\}/g, (match, content) => {
+                const parts = content.split('|');
+                const correct = parts[0].trim();
+                const shuffled = [...parts].sort(() => Math.random() - 0.5);
+                let opts = `<option value="" disabled selected>...</option>`;
+                shuffled.forEach(opt => opts += `<option value="${escapeHtml(opt.trim())}">${opt.trim()}</option>`);
+                return `<select class="ex-select" onchange="window.validateEx(this, '${escapeHtml(correct)}')">${opts}</select>`;
+            });
+            
+            let transHtml = "";
+            if (ex.translations) {
+                for (const [key, val] of Object.entries(ex.translations)) {
+                    transHtml += `<div class="trans-line"><button class="ex-btn-icon" style="width:24px;height:24px;font-size:0.7rem" onclick="speakText('${escapeHtml(val)}', '${key}')">🔊</button> <span style="font-size:0.8rem;color:#aaa">${key.toUpperCase()}: ${val}</span></div>`;
+                }
+            }
+
+            html += `<div class="exercise-row">
+                <div style="width:100%; margin-bottom:5px;"><b>${index + 1}.</b> ${parsedHtml}</div>
+                <div style="display:flex; gap:5px; width:100%">
+                    <button class="ex-btn-icon" onclick="speakText('${escapeHtml(ex.full_sentence)}', '${item.lang}')">🔊</button>
+                    <button class="ex-btn-icon" onclick="this.parentElement.parentElement.querySelector('.trans-box').style.display='block'">🌐</button>
+                    <button class="ex-btn-icon" onclick="this.parentElement.parentElement.querySelector('.hint-box').style.display='block'">💡</button>
+                </div>
+                <div class="hint-box">💡 ${ex.hint}</div>
+                <div class="trans-box">${transHtml}</div>
+            </div>`;
+        });
+        html += `</div>`;
+        
+        createAIBlock(html);
+        closeAIMenu();
+        saveDocument();
+    }
+
+    function renderAiList() {
+        const list = document.getElementById('ai-memory-list');
+        const mem = JSON.parse(localStorage.getItem(AI_MEM_KEY) || '[]');
+        list.innerHTML = '';
+        if (mem.length === 0) { list.innerHTML = '<div style="text-align:center;color:#666;padding:20px;">Empty</div>'; return; }
+        mem.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'saved-item';
+            div.innerHTML = `
+                <div style="flex:1">
+                    <div style="font-weight:700;color:white;">${item.title}</div>
+                    <div style="font-size:0.7rem;color:#999">${item.data.length} Qs • ${item.date}</div>
+                </div>
+                <div class="mem-actions">
+                    <button class="mini-btn" onclick="insertExerciseFromMem(${item.id})">📥</button>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    }
+    function exportMemoryBank() { const d = localStorage.getItem(AI_MEM_KEY); const b = new Blob([d], {type: 'json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'mdc_ai_mem.json'; a.click(); }
+    function clearAIMemory() { if(confirm("Clear All?")) { localStorage.removeItem(AI_MEM_KEY); renderAiList(); } }
+
+    window.validateEx = function(s, correct) {
+        s.classList.remove('correct', 'wrong');
+        if (s.value === correct) s.classList.add('correct'); else s.classList.add('wrong');
+        const opts = s.querySelectorAll('option'); opts.forEach(o => o.removeAttribute('selected'));
+        s.options[s.selectedIndex].setAttribute('selected', 'selected');
+        saveDocument();
+    };
+
+    window.speakText = function(text, lang) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        let l = 'en-US';
+        if(lang === 'es') l = 'es-ES'; if(lang === 'pt') l = 'pt-BR'; if(lang === 'it') l = 'it-IT';
+        u.lang = l;
+        u.rate = speechRate;
+        window.speechSynthesis.speak(u);
+    };
+
+    function initCustomDropdowns() {
+        document.querySelectorAll('.ai-select').forEach(select => {
+            const wrapper = document.createElement('div'); wrapper.className = 'custom-select-wrapper';
+            select.parentNode.insertBefore(wrapper, select); wrapper.appendChild(select);
+            const trigger = document.createElement('div'); trigger.className = 'custom-select-trigger';
+            trigger.innerHTML = `<span>${select.options[select.selectedIndex].text}</span> <span>▼</span>`;
+            wrapper.appendChild(trigger);
+            const opts = document.createElement('div'); opts.className = 'custom-options'; wrapper.appendChild(opts);
+            Array.from(select.children).forEach(child => {
+                if(child.tagName === 'OPTGROUP') {
+                    const h = document.createElement('div'); h.className='custom-group-header'; h.innerText=child.label; opts.appendChild(h);
+                    Array.from(child.children).forEach(o => createOpt(o, opts, trigger, select, wrapper));
+                } else createOpt(child, opts, trigger, select, wrapper);
+            });
+            trigger.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.custom-select-wrapper').forEach(w=>w!==wrapper && w.classList.remove('open')); wrapper.classList.toggle('open'); };
+        });
+        document.onclick = () => document.querySelectorAll('.custom-select-wrapper').forEach(w => w.classList.remove('open'));
+    }
+    function createOpt(opt, container, trigger, select, wrapper) {
+        if(opt.disabled) return;
+        const d = document.createElement('div'); d.className = 'custom-option'; d.innerText = opt.text;
+        if(opt.selected) d.classList.add('selected');
+        d.onclick = (e) => {
+            e.stopPropagation(); select.value=opt.value; trigger.innerHTML=`<span>${opt.text}</span> <span>▼</span>`;
+            container.querySelectorAll('.custom-option').forEach(x=>x.classList.remove('selected')); d.classList.add('selected');
+            wrapper.classList.remove('open');
+        };
+        container.appendChild(d);
+    }
+</script>
+</body>
+</html>
+
