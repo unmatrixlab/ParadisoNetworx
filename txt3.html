@@ -851,21 +851,76 @@
         }
     }
 
-    function createDraggableChip(text) {
+  function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.draggable = true;
-        chip.innerHTML = `<span class="chip-text">${text}</span><button class="chip-audio-btn" title="Pronounce">🔊</button>`;
-        chip.ondragstart = (e) => { e.dataTransfer.setData('text/plain', text); e.dataTransfer.effectAllowed = 'copy'; };
+        
+        // Botón de audio en el chip
+        chip.innerHTML = `
+            <span class="chip-text">${text}</span>
+            <button class="chip-audio-btn" title="Pronounce">🔊</button>
+        `;
+        
+        // Datos para arrastrar
+        chip.ondragstart = (e) => { 
+            e.dataTransfer.setData('text/plain', text); 
+            e.dataTransfer.effectAllowed = 'copy'; 
+        };
+
+        // Click simple (insertar donde esté el cursor parpadeando)
         chip.onclick = (e) => {
-            if (e.target.closest('.chip-audio-btn')) { e.stopPropagation(); speakText(text, 'en'); return; }
+            if (e.target.closest('.chip-audio-btn')) { 
+                e.stopPropagation(); 
+                speakText(text, 'en'); 
+                return; 
+            }
+
             if (lastFocusedInput) {
                 lastFocusedInput.focus();
-                document.execCommand('insertText', false, " " + text + " ");
-                autoSave();
-            } else alert("Tap an editor row first.");
+                insertSmartText(text); // Usamos la nueva lógica inteligente
+            } else {
+                alert("Tap an editor row first to tell me where to put the word.");
+            }
         };
         return chip;
+    }
+
+    // --- NUEVA FUNCIÓN DE INTELIGENCIA DE TEXTO ---
+    // Esta función calcula espacios y mayúsculas automáticamente
+    function insertSmartText(word) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        
+        const range = sel.getRangeAt(0);
+        const startOffset = range.startOffset;
+        
+        // Intentar leer el texto antes del cursor para decidir
+        // Nota: Esto es una aproximación basada en el nodo de texto actual
+        let textBefore = "";
+        if (range.startContainer.nodeType === 3) { // Si es un nodo de texto
+            textBefore = range.startContainer.textContent.substring(0, startOffset);
+        }
+        
+        // 1. Decidir si necesitamos un espacio antes
+        // Si estamos al principio (offset 0) o el caracter anterior ya es un espacio, NO agregamos espacio.
+        let prefix = " ";
+        if (startOffset === 0 || /\s$/.test(textBefore) || textBefore === "") {
+            prefix = "";
+        }
+
+        // 2. Decidir mayúsculas/minúsculas
+        // Si estamos al principio, Capitalize. Si no, minúscula.
+        let finalWord = word;
+        if (startOffset === 0 || /[.!?]\s*$/.test(textBefore)) {
+            finalWord = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        } else {
+            finalWord = word.toLowerCase();
+        }
+
+        // 3. Insertar
+        document.execCommand('insertText', false, prefix + finalWord + " ");
+        autoSave();
     }
 
     function createBlock(lessonText = '', pairsData = []) {
