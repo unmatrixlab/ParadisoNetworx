@@ -910,17 +910,24 @@
         block.scrollIntoView({behavior: "smooth"});
     }
 
-    function addPair(container, enText = '', esText = '', focusEn = false) {
+ function addPair(container, enText = '', esText = '', focusEn = false) {
         const pair = document.createElement('div');
         pair.className = 'sentence-pair';
         pair.innerHTML = `
             <div class="pair-inputs">
                 <div class="row-wrapper">
-                    <div class="input-row row-en" contenteditable="true" data-placeholder="English..." oninput="autoSave()" onmousemove="handleHover(event)" onmouseleave="hideTooltip()" onpaste="handlePaste(event)">${enText}</div>
+                    <div class="input-row row-en" contenteditable="true" 
+                         data-placeholder="English..." 
+                         oninput="autoSave()" 
+                         onmousemove="handleHover(event)" 
+                         onmouseleave="hideTooltip()" 
+                         onpaste="handlePaste(event)">${enText}</div>
                     <div class="lang-flag flag-en"></div>
                 </div>
                 <div class="row-wrapper">
-                    <div class="input-row row-es" contenteditable="true" data-placeholder="Español..." oninput="autoSave()">${esText}</div>
+                    <div class="input-row row-es" contenteditable="true" 
+                         data-placeholder="Español..." 
+                         oninput="autoSave()">${esText}</div>
                     <div class="lang-flag flag-es"></div>
                 </div>
             </div>
@@ -932,12 +939,53 @@
             </div>
         `;
         container.appendChild(pair);
+
         const enRow = pair.querySelector('.row-en');
         const esRow = pair.querySelector('.row-es');
-        const handleFocus = (e, lang) => { activeLangContext = lang; if(lastFocusedInput) lastFocusedInput.classList.remove('active-focus'); lastFocusedInput = e.target; lastFocusedInput.classList.add('active-focus'); };
-        enRow.onfocus = (e) => handleFocus(e, 'en'); esRow.onfocus = (e) => handleFocus(e, 'es');
+
+        // --- LÓGICA DE FOCO ---
+        const handleFocus = (e, lang) => { 
+            activeLangContext = lang; 
+            if(lastFocusedInput) lastFocusedInput.classList.remove('active-focus'); 
+            lastFocusedInput = e.target; 
+            lastFocusedInput.classList.add('active-focus'); 
+        };
+        enRow.onfocus = (e) => handleFocus(e, 'en'); 
+        esRow.onfocus = (e) => handleFocus(e, 'es');
+
+        // --- LÓGICA DE ENTER (NUEVA LINEA) ---
         enRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); esRow.focus(); } });
         esRow.addEventListener('keydown', (e) => { if(e.key === 'Enter') { e.preventDefault(); addPair(container, '', '', true); } });
+
+        // --- LÓGICA "SMART DROP" (INTELIGENCIA RECUPERADA) ---
+        // Permite soltar la palabra EXACTAMENTE donde está el mouse
+        enRow.addEventListener('dragover', (e) => { 
+            e.preventDefault(); 
+            enRow.style.background = 'rgba(79,70,229,0.2)'; 
+        });
+        enRow.addEventListener('dragleave', () => { 
+            enRow.style.background = 'rgba(79,70,229,0.1)'; 
+        });
+        
+        enRow.addEventListener('drop', (e) => {
+            e.preventDefault();
+            enRow.style.background = 'rgba(79,70,229,0.1)';
+            const text = e.dataTransfer.getData('text/plain');
+            
+            // Magia: Mover cursor a donde se soltó
+            if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                if (range && enRow.contains(range.startContainer)) {
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+            
+            // Insertar con inteligencia
+            insertSmartText(text);
+        });
+
         if(focusEn) setTimeout(() => enRow.focus(), 10);
     }
 
