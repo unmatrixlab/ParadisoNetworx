@@ -365,14 +365,49 @@
         text-shadow: 0 1px 0 rgba(0,0,0,0.2); 
     }
 
+       /* === PILL SAVE ACTION === */
+    .pill-save-action {
+        display: none; /* Oculto por defecto */
+        background: var(--phrase-word); /* Color Ámbar */
+        color: #000; /* Texto negro para contraste */
+        border: none;
+        font-weight: 800;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 1em;
+        padding: 5px 15px;
+        border-radius: 20px;
+        cursor: pointer;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+        animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    
+    @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    /* Cuando estamos en "Modo Selección", ocultamos stats y trad */
+    #unified-pill.selection-mode #pill-stats-group,
+    #unified-pill.selection-mode #pill-divider,
+    #unified-pill.selection-mode #pill-trans {
+        display: none !important;
+    }
+
+    #unified-pill.selection-mode .pill-save-action {
+        display: block;
+    }
+    
+    /* Ajuste para que la píldora cambie de color de borde al seleccionar */
+    #unified-pill.selection-mode {
+        border-color: var(--phrase-word);
+        background: rgba(20, 20, 20, 0.98);
+    }
+
 </style>
 </head>
 <body>
 
-    <div id="magic-circle"></div>
-
-    <div id="unified-pill">
-        <div class="pill-section">
+   <div id="unified-pill">
+        <div id="pill-stats-group" class="pill-section">
             <span class="pill-icon">📊</span>
             <span id="pill-stats-text">- | 0</span>
         </div>
@@ -385,6 +420,10 @@
             <span id="trans-result" class="trans-result">...</span>
             <button id="pill-speak" class="pill-speak-btn">🔊</button>
         </div>
+
+        <button id="pill-save-btn" class="pill-save-action" onclick="savePhraseFromPill()">
+            💾 SAVE PHRASE
+        </button>
     </div>
 
     <button id="btn-show-gen" onclick="toggleGenerator(true)">➕ New Generation</button>
@@ -1061,18 +1100,15 @@ function handleLongPress(el) {
     if (navigator.vibrate) navigator.vibrate(50);
     const currentIdx = parseInt(el.dataset.idx);
 
-    // === SOLUCIÓN: LÓGICA DE BORRADO DE FRASES AMARILLAS ===
+    // === ZONA DE BORRADO DE FRASES AMARILLAS ===
     if (el.classList.contains('phrase-saved')) {
-        // 1. Obtener contexto para buscar la frase exacta
         const contentDiv = el.closest('.interactive-content');
         const allWords = Array.from(contentDiv.querySelectorAll('.interactive-word'));
         const textArr = allWords.map(w => sanitizeText(w.innerText).toLowerCase());
 
-        // 2. Cargar frases de la BD para comparar
         const rawData = JSON.parse(localStorage.getItem(MDC_VOCAB_KEY) || '[]');
         let savedPhrases = [];
         
-        // Extraer todas las frases (aplanar carpetas)
         const extractPhrases = (list) => {
             list.forEach(item => {
                 if (item.isFolder) extractPhrases(item.items);
@@ -1080,57 +1116,49 @@ function handleLongPress(el) {
             });
         };
         extractPhrases(rawData);
-
-        // Ordenar por longitud (las más largas tienen prioridad visual)
         savedPhrases.sort((a, b) => b.length - a.length);
 
         let phraseToDelete = null;
 
-        // 3. Buscar qué frase cae sobre el índice clickeado (currentIdx)
         for (let phrase of savedPhrases) {
             const phraseArr = phrase.split(" ");
-            // Buscamos esta frase en todo el texto
             for (let i = 0; i <= textArr.length - phraseArr.length; i++) {
-                // Comprobar coincidencia de texto
                 let match = true;
                 for (let j = 0; j < phraseArr.length; j++) {
                     if (textArr[i + j] !== phraseArr[j]) { match = false; break; }
                 }
 
                 if (match) {
-                    // Si hay coincidencia, verificamos si nuestro clic cayó dentro de este rango
                     if (currentIdx >= i && currentIdx < i + phraseArr.length) {
                         phraseToDelete = phrase;
                         break; 
                     }
                 }
             }
-            if (phraseToDelete) break; // Encontramos la frase
+            if (phraseToDelete) break;
         }
 
-        // 4. Ejecutar borrado
+        // --- CAMBIO AQUÍ: BORRADO DIRECTO SIN CONFIRMACIÓN ---
         if (phraseToDelete) {
-             if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-             if (confirm(`🗑️ Delete phrase?\n\n"${phraseToDelete.toUpperCase()}"`)) {
-                 deletePhraseFromDB(phraseToDelete);
-                 clearManualSelection(); // Limpiar UI
-                 refreshActiveView();    // Repintar inmediatamente
-             }
+             // Vibración doble para confirmar tactilmente el borrado
+             if (navigator.vibrate) navigator.vibrate([50, 100]); 
+             
+             deletePhraseFromDB(phraseToDelete);
+             clearManualSelection();
+             refreshActiveView();
         }
         
         return; 
     }
     // ========================================================
 
-    // LÓGICA DE SELECCIÓN DE RANGO (MDC SYSTEM) - (Sin cambios)
+    // LÓGICA DE SELECCIÓN DE RANGO (MDC SYSTEM)
     if (pendingPhraseStartIdx === null) {
-        // 1. Primer toque largo: Inicio
         clearManualSelection();
         el.classList.add('phrase-selecting');
         el.dataset.userSelected = "true";
         pendingPhraseStartIdx = currentIdx;
     } else {
-        // 2. Segundo toque largo: Fin -> Rellenar rango
         const contentDiv = el.closest('.interactive-content');
         const start = Math.min(pendingPhraseStartIdx, currentIdx);
         const end = Math.max(pendingPhraseStartIdx, currentIdx);
@@ -1181,41 +1209,50 @@ function clearManualSelection() {
         delete el.dataset.userSelected;
     });
     pendingPhraseStartIdx = null;
-    document.querySelectorAll('.save-phrase-btn').forEach(btn => { 
-        btn.classList.remove('ready'); 
-        btn.innerHTML = "💾 Save Phrase"; 
-    });
+    
+    // RESTAURAR PÍLDORA A ESTADO NORMAL
+    const pill = document.getElementById('unified-pill');
+    if(pill) pill.classList.remove('selection-mode');
 }
 
 function checkSelectionState(element) {
-    const contentDiv = element.closest('.accordion-content');
+    // Usamos currentStatsContext o buscamos el activo
+    const contentDiv = element.closest('.interactive-content') || currentStatsContext;
+    if (!contentDiv) return;
+
     const selected = contentDiv.querySelectorAll('.phrase-selecting');
-    const saveBtn = contentDiv.querySelector('.save-phrase-btn');
+    const pill = document.getElementById('unified-pill');
+    const saveBtn = document.getElementById('pill-save-btn');
     
     if(selected.length > 0) {
-        saveBtn.classList.add('ready');
-        saveBtn.innerHTML = `💾 Save Phrase (${selected.length})`;
+        // ACTIVAR MODO SELECCIÓN EN LA PÍLDORA
+        pill.classList.add('visible'); // Asegurar que se ve
+        pill.classList.add('selection-mode');
+        saveBtn.innerHTML = `💾 SAVE PHRASE (${selected.length})`;
     } else {
-        saveBtn.classList.remove('ready');
-        saveBtn.innerHTML = `💾 Save Phrase`;
+        // DESACTIVAR MODO SELECCIÓN
+        pill.classList.remove('selection-mode');
     }
 }
 
-function savePhraseSelection(btn) {
-    const contentDiv = btn.closest('.accordion-content');
-    const selected = Array.from(contentDiv.querySelectorAll('.phrase-selecting'));
+function savePhraseFromPill() {
+    // Usamos la variable global currentStatsContext que ya tienes definida
+    if (!currentStatsContext) return;
+
+    const selected = Array.from(currentStatsContext.querySelectorAll('.phrase-selecting'));
     if (selected.length === 0) return;
     
+    // Ordenar elementos por índice DOM para reconstruir la frase en orden
     selected.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
+    
     const phraseText = selected.map(el => sanitizeText(el.innerText)).join(" ");
     
-    forceSavePhrase(phraseText, contentDiv);
+    // Guardar usando tu lógica existente
+    forceSavePhrase(phraseText, currentStatsContext);
     
-    // Limpiar selección UI
+    // Limpiar UI
     clearManualSelection();
-    
-    // Refrescar para ver la nueva frase guardada (amarilla)
-    refreshActiveView();
+    refreshActiveView(); // Refrescar para ver el color amarillo
 }
 
 function forceSavePhrase(cleanPhrase, elementContext) {
