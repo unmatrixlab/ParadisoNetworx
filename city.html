@@ -3,686 +3,467 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEON LOCI | Memory Palace OS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <title>NEON LOCI: FREE ROAM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
     
     <style>
-        /* =========================================
-           CORE AESTHETICS (CYBERPUNK THEME)
-           ========================================= */
         :root {
-            --neon-cyan: #00f3ff;
-            --neon-pink: #ff00ff;
-            --neon-purple: #bc13fe;
-            --neon-yellow: #fcee0a;
-            --dark-bg: #050510;
-            --panel-bg: rgba(10, 15, 30, 0.85);
-            --grid-color: rgba(0, 243, 255, 0.15);
-            
-            --floor-size: 2000px;
-            --iso-angle: rotateX(60deg) rotateZ(-45deg);
+            --cyan: #00f3ff;
+            --pink: #ff00ff;
+            --purple: #bc13fe;
+            --dark: #050510;
+            --grid-size: 4000px;
+            --building-base: 80px;
         }
 
-        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
-        
         body {
-            margin: 0; padding: 0;
-            background-color: var(--dark-bg);
-            background-image: 
-                radial-gradient(circle at 50% 50%, #1a1a2e 0%, #000 100%);
-            color: #fff;
-            font-family: 'Rajdhani', sans-serif;
-            overflow: hidden; /* Prevent native scroll, we handle camera */
-            height: 100vh;
-            perspective: 1000px;
+            margin: 0; overflow: hidden; background: #020205;
+            font-family: 'Rajdhani', sans-serif; color: white;
         }
 
-        /* =========================================
-           3D WORLD STAGE
-           ========================================= */
-        #world-stage {
-            position: absolute;
-            width: 100%; height: 100%;
+        /* === 3D VIEWPORT === */
+        #viewport {
+            position: absolute; width: 100vw; height: 100vh;
+            perspective: 800px; overflow: hidden;
+        }
+
+        #world {
+            position: absolute; left: 50%; top: 50%;
             transform-style: preserve-3d;
-            transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+            /* La cámara se controla vía JS, pero definimos la base */
+            transform: rotateX(60deg) rotateZ(45deg) translateZ(-100px); 
+            transition: transform 0.1s linear; /* Suavizado para el movimiento */
         }
 
-        /* The Infinite Grid Floor */
-        .iso-grid {
+        /* === SUELO INFINITO === */
+        .floor {
             position: absolute;
+            width: var(--grid-size); height: var(--grid-size);
             top: 50%; left: 50%;
-            width: var(--floor-size); height: var(--floor-size);
-            transform: translate(-50%, -50%) var(--iso-angle);
-            background-image: 
-                linear-gradient(var(--grid-color) 1px, transparent 1px),
-                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
-            background-size: 50px 50px;
-            border: 2px solid var(--neon-cyan);
-            box-shadow: 0 0 50px var(--neon-cyan);
-            transform-style: preserve-3d;
-            transition: opacity 0.5s;
+            transform: translate(-50%, -50%);
+            background: 
+                linear-gradient(rgba(0, 243, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
+            background-size: 100px 100px;
+            background-color: rgba(5, 5, 16, 0.8);
+            box-shadow: 0 0 100px rgba(0,0,0,0.9) inset;
+            border: 2px solid var(--cyan);
         }
 
-        /* =========================================
-           BUILDINGS (FOLDERS)
-           ========================================= */
-        .city-layer {
+        /* === JUGADOR (LA BOLA DE NEON) === */
+        #player {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            display: flex; flex-wrap: wrap; 
-            justify-content: center; align-content: center;
-            gap: 60px; pointer-events: none; /* Let clicks pass to children */
-            transform: translateZ(0px); /* Base layer */
+            width: 30px; height: 30px;
+            background: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%) translateZ(15px); /* Elevada radio/2 */
+            box-shadow: 
+                0 0 10px #fff,
+                0 0 20px var(--cyan),
+                0 0 40px var(--cyan);
+            z-index: 100;
+            transition: opacity 0.3s;
         }
-
-        .building-plot {
-            position: relative;
-            width: 80px; height: 80px;
-            pointer-events: auto;
-            transform-style: preserve-3d;
-            cursor: pointer;
-            transition: transform 0.3s;
-        }
-
-        .building-plot:hover {
-            transform: scale(1.1);
-        }
-
-        .building-base {
-            position: absolute;
+        /* Sombra del jugador */
+        #player::after {
+            content: ''; position: absolute;
             width: 100%; height: 100%;
-            background: rgba(0, 243, 255, 0.1);
-            border: 1px solid var(--neon-cyan);
-            box-shadow: 0 0 15px var(--neon-cyan);
-            transform: translateZ(0);
+            background: rgba(0, 243, 255, 0.4);
+            border-radius: 50%;
+            transform: scale(1.2) translateZ(-30px); /* Sombra en el suelo */
+            filter: blur(5px);
         }
 
-        /* Pure CSS 3D Cube Construction */
-        .tower {
+        /* === EDIFICIOS (VOLUMETRICOS) === */
+        .building {
             position: absolute;
-            left: 10px; top: 10px;
-            width: 60px; height: 60px;
             transform-style: preserve-3d;
-            /* Height is dynamic via JS inline styles */
+            /* Posicionamiento dinámico en JS */
         }
 
+        /* Caras del edificio */
         .face {
             position: absolute;
-            background: rgba(10, 20, 40, 0.9);
-            border: 1px solid var(--neon-purple);
-            opacity: 0.8;
+            background: rgba(10, 15, 30, 0.95);
+            border: 1px solid rgba(188, 19, 254, 0.5);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
             display: flex; align-items: center; justify-content: center;
-            font-size: 8px; color: var(--neon-pink);
-            box-shadow: inset 0 0 10px var(--neon-purple);
+            overflow: hidden;
         }
 
-        /* Cube mapping */
-        .face.front  { width: 60px; transform: rotateX(90deg) translateZ(30px); } /* Height set via JS */
-        .face.back   { width: 60px; transform: rotateX(-90deg) translateZ(30px); }
-        .face.right  { height: 60px; transform: rotateY(90deg) translateZ(30px); }
-        .face.left   { height: 60px; transform: rotateY(-90deg) translateZ(30px); }
-        .face.top    { width: 60px; height: 60px; transform: translateZ(var(--h)); background: var(--neon-cyan); border-color: #fff; }
-
-        /* Building Label Floating */
-        .b-label {
-            position: absolute;
-            top: -40px; left: 50%;
-            transform: translateX(-50%) rotateZ(45deg) rotateX(-60deg); /* Counter-rotate to face user */
-            background: #000;
-            border: 1px solid var(--neon-yellow);
-            color: var(--neon-yellow);
-            padding: 4px 8px;
-            font-size: 10px;
-            font-family: 'Orbitron', sans-serif;
-            white-space: nowrap;
-            box-shadow: 0 0 10px var(--neon-yellow);
-            pointer-events: none;
-        }
-
-        /* =========================================
-           DATA ROOM (INTERNAL VIEW)
-           ========================================= */
-        #room-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
-            z-index: 100;
-            display: none; /* Toggled */
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-
-        #room-overlay.active { display: flex; opacity: 1; }
-
-        .room-container {
-            width: 90%; max-width: 800px;
-            height: 70vh;
-            border: 2px solid var(--neon-pink);
+        /* Texturas de ventanas */
+        .face::before {
+            content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
             background: 
-                linear-gradient(0deg, transparent 24%, rgba(255, 0, 255, .1) 25%, rgba(255, 0, 255, .1) 26%, transparent 27%, transparent 74%, rgba(255, 0, 255, .1) 75%, rgba(255, 0, 255, .1) 76%, transparent 77%, transparent),
-                linear-gradient(90deg, transparent 24%, rgba(255, 0, 255, .1) 25%, rgba(255, 0, 255, .1) 26%, transparent 27%, transparent 74%, rgba(255, 0, 255, .1) 75%, rgba(255, 0, 255, .1) 76%, transparent 77%, transparent);
-            background-size: 50px 50px;
-            box-shadow: 0 0 30px var(--neon-pink), inset 0 0 50px rgba(188, 19, 254, 0.2);
-            position: relative;
-            overflow-y: auto;
-            perspective: 600px;
-            padding: 40px;
-            display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+                linear-gradient(transparent 90%, var(--cyan) 90%),
+                linear-gradient(90deg, transparent 90%, var(--purple) 90%);
+            background-size: 10px 20px;
+            opacity: 0.3;
         }
 
-        .data-cube {
-            width: 100px; height: 100px;
-            position: relative;
-            transform-style: preserve-3d;
-            animation: float 4s ease-in-out infinite;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .data-cube:hover { transform: scale(1.1) rotateY(20deg); z-index: 10; }
-        .data-cube.active-word { animation: spin 2s linear infinite; }
+        /* Dimensiones base */
+        .face.front, .face.back { width: var(--building-base); height: var(--h); }
+        .face.left, .face.right { width: var(--building-base); height: var(--h); }
+        .face.top { width: var(--building-base); height: var(--building-base); background: #000; border: 2px solid var(--cyan); }
 
-        .cube-face {
-            position: absolute; width: 100px; height: 100px;
-            border: 1px solid var(--neon-cyan);
-            background: rgba(0, 243, 255, 0.1);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 12px; text-align: center;
-            font-weight: bold; color: #fff;
-            text-shadow: 0 0 5px var(--neon-cyan);
-            backface-visibility: hidden;
-        }
-        
-        .cube-face.front { transform: translateZ(50px); }
-        .cube-face.back { transform: rotateY(180deg) translateZ(50px); background: rgba(255, 0, 255, 0.2); border-color: var(--neon-pink); color: var(--neon-pink); }
-        .cube-face.right { transform: rotateY(90deg) translateZ(50px); }
-        .cube-face.left { transform: rotateY(-90deg) translateZ(50px); }
-        .cube-face.top { transform: rotateX(90deg) translateZ(50px); }
-        .cube-face.bottom { transform: rotateX(-90deg) translateZ(50px); }
+        /* Transformaciones 3D para formar la caja */
+        .face.front  { transform: rotateY(  0deg) translateZ(40px); } /* 40px es la mitad de 80px */
+        .face.back   { transform: rotateY(180deg) translateZ(40px); }
+        .face.right  { transform: rotateY( 90deg) translateZ(40px); }
+        .face.left   { transform: rotateY(-90deg) translateZ(40px); }
+        .face.top    { transform: rotateX( 90deg) translateZ(40px); box-shadow: 0 0 30px var(--cyan); }
 
-        .cube-content { padding: 5px; word-break: break-word; }
-
-        /* =========================================
-           HUD INTERFACE (BOTTOM)
-           ========================================= */
-        #hud {
-            position: fixed; bottom: 0; left: 0; width: 100%;
-            height: 160px;
-            background: var(--panel-bg);
-            border-top: 2px solid var(--neon-cyan);
-            z-index: 200;
-            display: grid;
-            grid-template-columns: 200px 1fr 200px;
-            font-family: 'Orbitron', sans-serif;
-            backdrop-filter: blur(5px);
+        /* Nombre en la pared */
+        .wall-text {
+            transform: rotate(-90deg); /* Texto vertical */
+            color: var(--cyan);
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--cyan);
+            white-space: nowrap;
+            background: rgba(0,0,0,0.8);
+            padding: 5px 10px;
+            border: 1px solid var(--cyan);
         }
 
-        .hud-section { padding: 15px; border-right: 1px solid rgba(0, 243, 255, 0.3); display: flex; flex-direction: column; justify-content: center; }
-        .hud-center { align-items: center; gap: 10px; position: relative; }
-
-        .terminal-input {
-            width: 100%; max-width: 500px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid var(--neon-yellow);
-            color: var(--neon-yellow);
-            padding: 10px; font-family: 'Courier New', monospace;
-            font-size: 14px; margin-bottom: 5px;
-        }
-        .terminal-input::placeholder { color: rgba(252, 238, 10, 0.4); }
-
-        .btn-neon {
-            background: transparent;
-            border: 1px solid var(--neon-cyan);
-            color: var(--neon-cyan);
-            padding: 8px 20px;
-            font-family: 'Orbitron', sans-serif;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: 0.2s;
-            box-shadow: 0 0 5px var(--neon-cyan);
-        }
-        .btn-neon:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan); }
-        
-        .btn-neon.secondary { border-color: var(--neon-pink); color: var(--neon-pink); box-shadow: 0 0 5px var(--neon-pink); }
-        .btn-neon.secondary:hover { background: var(--neon-pink); color: #fff; }
-
-        .status-line { font-size: 10px; color: #888; margin-top: 5px; }
-        
-        /* Scanline Effect */
-        .scanlines {
+        /* === INTERFAZ INTERIOR (HABITACIÓN) === */
+        #interior-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
-            background-size: 100% 4px;
-            pointer-events: none; z-index: 999; opacity: 0.3;
+            background: rgba(0,0,0,0.95);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.5s;
+        }
+        #interior-view.active { display: flex; opacity: 1; }
+
+        .data-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 20px; width: 90%; max-width: 1000px;
+            max-height: 70vh; overflow-y: auto;
+            padding: 20px;
         }
 
-        /* =========================================
-           ANIMATIONS
-           ========================================= */
-        @keyframes float { 0% { transform: translateY(0); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0); } }
-        @keyframes spin { 0% { transform: rotateY(0); } 100% { transform: rotateY(360deg); } }
+        .data-cell {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--purple);
+            padding: 15px; text-align: center;
+            border-radius: 4px; cursor: pointer;
+            transition: 0.3s; position: relative;
+            overflow: hidden;
+        }
+        .data-cell:hover { background: var(--purple); color: #000; box-shadow: 0 0 15px var(--purple); }
+        .data-cell.playing { background: var(--cyan); color: #000; border-color: #fff; transform: scale(1.05); }
+
+        .eng-txt { font-weight: bold; font-size: 1.1em; display: block; }
+        .esp-txt { font-size: 0.8em; opacity: 0.7; margin-top: 5px; display: block; font-style: italic; }
+
+        /* HUD INFERIOR */
+        #hud {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 150;
+            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 20px;
+            border: 1px solid var(--cyan);
+        }
+        .hud-btn {
+            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+            padding: 8px 15px; cursor: pointer; font-family: inherit; text-transform: uppercase;
+            font-size: 12px; transition: 0.2s;
+        }
+        .hud-btn:hover { background: var(--cyan); color: #000; }
         
-        /* Mobile adjustments */
-        @media (max-width: 768px) {
-            #hud { grid-template-columns: 1fr; height: auto; padding-bottom: 20px; }
-            .hud-section { border: none; border-bottom: 1px solid rgba(0,243,255,0.2); padding: 10px; }
-            .building-plot { width: 60px; height: 60px; }
+        .tutorial-hint {
+            position: fixed; top: 20px; left: 20px;
+            color: rgba(255,255,255,0.5); font-size: 12px;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <div class="scanlines"></div>
+    <div class="tutorial-hint">ARROWS / WASD TO MOVE • HIT BUILDING TO ENTER</div>
 
-    <div id="world-stage">
-        <div class="iso-grid" id="city-grid">
-            <div class="city-layer" id="city-layer"></div>
+    <div id="viewport">
+        <div id="world">
+            <div class="floor"></div>
+            <div id="player"></div>
+            <div id="city-layer"></div>
         </div>
     </div>
 
-    <div id="room-overlay">
-        <div style="width:90%; max-width:800px; display:flex; justify-content:space-between; margin-bottom:10px;">
-            <h2 id="room-title" style="color:var(--neon-cyan); text-transform:uppercase; margin:0; text-shadow:0 0 10px var(--neon-cyan);">DISTRICT A</h2>
-            <div>
-                <button class="btn-neon" onclick="startTour()">AUTO-LINK ▷</button>
-                <button class="btn-neon secondary" onclick="exitBuilding()">EXIT SYSTEM ✕</button>
-            </div>
+    <div id="interior-view">
+        <h1 id="folder-title" style="color: var(--cyan); text-shadow: 0 0 20px var(--cyan);">FOLDER NAME</h1>
+        <div class="data-grid" id="folder-content"></div>
+        <div style="margin-top: 20px; display: flex; gap: 20px;">
+            <button class="hud-btn" onclick="playAllInFolder()">AUTO-PLAY SEQUENCE</button>
+            <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT TO CITY</button>
         </div>
-        <div class="room-container" id="room-content">
-            </div>
     </div>
 
     <div id="hud">
-        <div class="hud-section" style="align-items:flex-start;">
-            <div style="font-size:12px; color:var(--neon-cyan);">SYSTEM STATUS</div>
-            <div style="font-size:24px; font-weight:900;" id="total-count">0000</div>
-            <div class="status-line">DATA NODES ACTIVE</div>
-        </div>
-        
-        <div class="hud-section hud-center">
-            <input type="text" id="engInput" class="terminal-input" placeholder=">> INPUT_ENGLISH_DATA">
-            <input type="text" id="espInput" class="terminal-input" placeholder=">> INPUT_SPANISH_TRANSLATION">
-            <div style="display:flex; gap:10px; width:100%; max-width:500px;">
-                <button class="btn-neon" style="flex:1;" onclick="addData()">UPLOAD</button>
-                <button class="btn-neon secondary" style="flex:1;" onclick="createDistrict()">NEW DISTRICT</button>
-            </div>
-        </div>
-
-        <div class="hud-section" style="align-items:flex-end;">
-            <div style="font-size:12px; color:var(--neon-yellow);">LOCI OS v2.4</div>
-            <button class="btn-neon" style="margin-top:5px; font-size:10px;" onclick="backupData()">BACKUP</button>
-            <input type="file" id="importFile" style="display:none" onchange="importData(this)">
-            <button class="btn-neon" style="margin-top:5px; font-size:10px;" onclick="document.getElementById('importFile').click()">RESTORE</button>
-        </div>
+        <input type="text" id="quick-eng" placeholder="New Word (Eng)" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:100px; padding:5px;">
+        <input type="text" id="quick-esp" placeholder="Spanish" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:100px; padding:5px;">
+        <button class="hud-btn" onclick="quickAdd()">UPLOAD</button>
+        <div style="width:1px; background:#555; margin:0 5px;"></div>
+        <button class="hud-btn" onclick="createFolder()">NEW BUILDING</button>
     </div>
 
     <script>
-        // --- CORE DATA LOGIC (Adapted from your previous code) ---
-        const STORAGE_KEY = 'mdc_vocab_list';
-        let currentData = [];
-        let activeFolderId = null;
-        let isTouring = false;
+        // =========================================
+        // 1. GESTIÓN DE DATOS (Tu lógica existente)
+        // =========================================
+        const STORAGE_KEY = 'mdc_vocab_list_v2';
+        let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 
-        function init() {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            currentData = raw ? JSON.parse(raw) : [];
-            renderCity();
-            updateStats();
+        function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+
+        function quickAdd() {
+            const eng = document.getElementById('quick-eng').value.trim();
+            const esp = document.getElementById('quick-esp').value.trim();
+            if(!eng) return;
+            // Agregar al "Central Hub" (o items sueltos)
+            db.push({ id: Date.now(), isFolder: false, eng, esp });
+            saveDb();
+            document.getElementById('quick-eng').value = '';
+            document.getElementById('quick-esp').value = '';
+            initCity(); // Regenerar ciudad
         }
 
-        function saveData() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
-            updateStats();
+        function createFolder() {
+            const name = prompt("Nombre del Edificio:");
+            if(!name) return;
+            db.push({ id: Date.now(), isFolder: true, name: name.toUpperCase(), items: [] });
+            saveDb();
+            initCity();
         }
 
-        function updateStats() {
-            // Count total items including inside folders
-            let count = 0;
-            currentData.forEach(i => {
-                if (i.isFolder) count += i.items.length;
-                else count++;
-            });
-            document.getElementById('total-count').innerText = count.toString().padStart(4, '0');
+        // =========================================
+        // 2. MOTOR DEL JUEGO (NAV & FÍSICA)
+        // =========================================
+        const player = { x: 0, y: 0, speed: 8, radius: 15 };
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+        let buildings = []; // Cache de coordenadas para colisiones
+        let isInside = false; // Estado del juego
+
+        // Escuchar teclado
+        window.addEventListener('keydown', (e) => keys[e.key] = true);
+        window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        // Bucle Principal
+        function gameLoop() {
+            if (!isInside) {
+                movePlayer();
+                updateCamera();
+                checkCollisions();
+            }
+            requestAnimationFrame(gameLoop);
         }
 
-        // --- 3D RENDERING SYSTEM ---
+        function movePlayer() {
+            if (keys.w || keys.ArrowUp) player.y -= player.speed;
+            if (keys.s || keys.ArrowDown) player.y += player.speed;
+            if (keys.a || keys.ArrowLeft) player.x -= player.speed;
+            if (keys.d || keys.ArrowRight) player.x += player.speed;
 
-        function renderCity() {
-            const grid = document.getElementById('city-layer');
-            grid.innerHTML = '';
+            // Actualizar DOM del jugador
+            const p = document.getElementById('player');
+            p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
+        }
 
-            // 1. Loose Items (The Data Stream) - Put them in a "Central Hub"
-            const looseItems = currentData.filter(i => !i.isFolder);
-            if (looseItems.length > 0) {
-                grid.appendChild(createBuilding({
-                    id: 'root',
-                    name: 'CENTRAL_HUB',
-                    count: looseItems.length,
-                    items: looseItems,
-                    isRoot: true
-                }));
+        function updateCamera() {
+            const world = document.getElementById('world');
+            // La cámara se mueve al contrario del jugador para mantenerlo centrado
+            // Añadimos un pequeño offset y rotación isométrica
+            world.style.transform = `
+                rotateX(60deg) 
+                rotateZ(45deg) 
+                translate3d(${-player.x}px, ${-player.y}px, -100px)
+            `;
+        }
+
+        function checkCollisions() {
+            // Chequeo simple de distancia (Círculo vs Cuadrado simplificado a Círculo vs Círculo para rendimiento)
+            const collisionThreshold = 60; // Radio edificio + Radio jugador aprox
+
+            for (let b of buildings) {
+                const dx = player.x - b.x;
+                const dy = player.y - b.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+
+                if (dist < collisionThreshold) {
+                    enterBuilding(b.data);
+                    break; // Solo entramos a uno a la vez
+                }
+            }
+        }
+
+        // =========================================
+        // 3. GENERACIÓN DE LA CIUDAD 3D
+        // =========================================
+        function initCity() {
+            const layer = document.getElementById('city-layer');
+            layer.innerHTML = '';
+            buildings = []; // Limpiar cache
+
+            // Separar carpetas e items sueltos
+            const folders = db.filter(i => i.isFolder);
+            const loose = db.filter(i => !i.isFolder);
+
+            // Si hay items sueltos, crear un edificio "HUB"
+            if (loose.length > 0) {
+                placeBuilding(0, 0, { name: "CENTRAL HUB", items: loose, id: 'root' }, true);
             }
 
-            // 2. Folders (Districts)
-            const folders = currentData.filter(i => i.isFolder);
-            folders.forEach(f => {
-                grid.appendChild(createBuilding({
-                    id: f.id,
-                    name: f.name,
-                    count: f.items.length,
-                    items: f.items,
-                    isRoot: false
-                }));
-            });
-        }
+            // Colocar carpetas en una espiral o cuadrícula alrededor del centro
+            let step = 200; // Distancia entre edificios
+            let x = 0, y = 0, dx = 0, dy = -1;
+            let t = step;
+            let maxI = t;
 
-        function createBuilding(data) {
-            const plot = document.createElement('div');
-            plot.className = 'building-plot';
-            plot.onclick = () => enterBuilding(data);
-
-            // Dynamic height based on word count (min 20px, max 300px)
-            const height = Math.min(Math.max(data.count * 10, 40), 300);
-            
-            // Base Glow
-            const base = document.createElement('div');
-            base.className = 'building-base';
-            
-            // The 3D Tower
-            const tower = document.createElement('div');
-            tower.className = 'tower';
-            tower.style.setProperty('--h', `${height}px`);
-
-            // Creating faces dynamically
-            const faces = ['front', 'back', 'right', 'left', 'top'];
-            faces.forEach(type => {
-                const face = document.createElement('div');
-                face.className = `face ${type}`;
+            // Algoritmo de espiral simple para generar calles
+            for (let i = 0; i < folders.length; i++) {
+                if (-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2) {
+                    // Saltar el centro (0,0) porque ahí está el HUB
+                } else {
+                    placeBuilding(x, y, folders[i]);
+                }
                 
-                // Adjust dimensions for side faces based on height
-                if(type === 'front' || type === 'back') {
-                    face.style.height = `${height}px`;
-                    // Front face translate adjustment
-                    face.style.transform = type === 'front' 
-                        ? `rotateX(0deg) translateZ(30px)` 
-                        : `rotateX(180deg) translateZ(30px)`;
+                // Mover coordenadas en espiral
+                if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) {
+                    t = dx; dx = -dy; dy = t;
                 }
-                if(type === 'right' || type === 'left') {
-                    face.style.width = `${height}px`; // Because rotated 90deg
-                    // Correction for rotation logic in CSS (simplified here for brevity)
-                    // Actually, simpler to just set height in CSS class via var
-                    face.style.height = '60px'; 
-                    face.style.width = `${height}px`;
-                    
-                    if(type === 'right') face.style.transform = `rotateY(90deg) translateZ(30px)`;
-                    if(type === 'left') face.style.transform = `rotateY(-90deg) translateZ(30px)`;
-                }
-                if (type === 'top') {
-                    face.style.transform = `translateZ(${height}px)`;
-                }
-
-                // Add "windows" texture
-                if(type !== 'top') {
-                    face.style.background = `
-                        linear-gradient(rgba(0,243,255,0.1) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(0,243,255,0.1) 1px, transparent 1px)
-                    `;
-                    face.style.backgroundSize = "10px 10px";
-                }
-
-                tower.appendChild(face);
-            });
-
-            // Label
-            const label = document.createElement('div');
-            label.className = 'b-label';
-            label.innerHTML = `${data.name}<br>[${data.count}]`;
-            label.style.transform = `translate(-50%, -${height + 20}px) rotateX(0deg)`; // Simplified 2D overlay
-
-            plot.appendChild(base);
-            plot.appendChild(tower);
-            plot.appendChild(label);
-
-            return plot;
+                x += dx * step;
+                y += dy * step;
+            }
         }
 
-        // --- NAVIGATION & ROOM LOGIC ---
-
-        function enterBuilding(data) {
-            activeFolderId = data.id;
+        function placeBuilding(x, y, data, isHub = false) {
+            // Calcular altura basada en contenido (Min 40px, Max 300px)
+            const count = data.items ? data.items.length : 0;
+            const height = Math.max(60, Math.min(count * 15, 400));
             
-            // 1. Camera Zoom Animation
-            const world = document.getElementById('world-stage');
-            world.style.transform = "scale(3) translateZ(200px) rotateX(60deg) rotateZ(-45deg)";
-            world.style.opacity = "0";
+            // Color especial para el HUB
+            const borderColor = isHub ? 'var(--pink)' : 'var(--purple)';
 
-            // 2. Open Room Overlay after delay
-            setTimeout(() => {
-                document.getElementById('room-title').innerText = data.name;
-                const container = document.getElementById('room-content');
-                container.innerHTML = '';
+            // Crear HTML del edificio
+            const b = document.createElement('div');
+            b.className = 'building';
+            b.style.transform = `translate3d(${x}px, ${y}px, 0)`; // Posición en el suelo
+            
+            // Pasamos la altura como variable CSS para que las caras se ajusten
+            b.style.setProperty('--h', `${height}px`);
 
-                data.items.forEach((item, index) => {
-                    const cube = createDataCube(item, index);
-                    container.appendChild(cube);
-                });
+            // Construir caras
+            b.innerHTML = `
+                <div class="face front" style="border-color:${borderColor}"><div class="wall-text">${data.name}</div></div>
+                <div class="face back" style="border-color:${borderColor}"></div>
+                <div class="face right" style="border-color:${borderColor}"><div class="wall-text">${count} DATAS</div></div>
+                <div class="face left" style="border-color:${borderColor}"></div>
+                <div class="face top" style="border-color:${isHub?'var(--pink)':'var(--cyan)'}"></div>
+            `;
 
-                document.getElementById('room-overlay').classList.add('active');
-            }, 800);
+            document.getElementById('city-layer').appendChild(b);
+
+            // Guardar para colisiones
+            buildings.push({ x, y, data });
         }
 
-        function createDataCube(item, index) {
-            const cube = document.createElement('div');
-            cube.className = 'data-cube';
-            cube.dataset.id = index;
-            cube.onclick = () => playCube(cube, item);
+        // =========================================
+        // 4. LÓGICA DE INTERIOR (VISTA DE DATOS)
+        // =========================================
+        function enterBuilding(data) {
+            if(isInside) return;
+            isInside = true;
 
-            // Construct 3D Cube for word
-            const sides = [
-                { c: 'front', t: item.eng.toUpperCase() },
-                { c: 'back', t: item.esp.toUpperCase() },
-                { c: 'right', t: '' }, { c: 'left', t: '' },
-                { c: 'top', t: '' }, { c: 'bottom', t: '' }
-            ];
+            // Efecto de entrada: Esconder jugador
+            document.getElementById('player').style.opacity = 0;
 
-            sides.forEach(s => {
-                const face = document.createElement('div');
-                face.className = `cube-face ${s.c}`;
-                face.innerHTML = `<div class="cube-content">${s.t}</div>`;
-                cube.appendChild(face);
+            // Llenar vista
+            document.getElementById('folder-title').innerText = data.name;
+            const grid = document.getElementById('folder-content');
+            grid.innerHTML = '';
+
+            data.items.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = 'data-cell';
+                cell.innerHTML = `<span class="eng-txt">${item.eng}</span><span class="esp-txt">${item.esp}</span>`;
+                cell.onclick = () => speak(item);
+                grid.appendChild(cell);
             });
 
-            // Stagger animation
-            cube.style.animationDelay = `${index * 0.1}s`;
-
-            return cube;
+            // Mostrar Overlay
+            setTimeout(() => {
+                document.getElementById('interior-view').classList.add('active');
+            }, 300);
         }
 
         function exitBuilding() {
-            stopTour();
-            document.getElementById('room-overlay').classList.remove('active');
-            activeFolderId = null;
+            window.speechSynthesis.cancel();
+            document.getElementById('interior-view').classList.remove('active');
+            
+            // Empujar al jugador un poco atrás para no volver a chocar instantáneamente
+            // Necesitamos saber de dónde venía, pero un simple offset random funciona
+            player.y += 80; 
 
-            // Reset Camera
             setTimeout(() => {
-                const world = document.getElementById('world-stage');
-                world.style.transform = "";
-                world.style.opacity = "1";
-                renderCity(); // Re-render to update counts if changed
+                isInside = false;
+                document.getElementById('player').style.opacity = 1;
             }, 500);
         }
 
-        // --- INTERACTIONS ---
-
-        function playCube(cubeElement, item) {
-            // Visual feedback
-            const allCubes = document.querySelectorAll('.data-cube');
-            allCubes.forEach(c => c.classList.remove('active-word'));
-            cubeElement.classList.add('active-word');
-
-            // Rotate to show Spanish (back)
-            cubeElement.style.transform = "rotateY(180deg) scale(1.5)";
-
-            // Audio
-            speak(item.eng, 'en-US', () => {
-                setTimeout(() => {
-                    speak(item.esp, 'es-ES', () => {
-                        // Reset visual after done
-                        setTimeout(() => {
-                            cubeElement.style.transform = "";
-                            cubeElement.classList.remove('active-word');
-                        }, 500);
-                    });
-                }, 500);
-            });
-        }
-
-        function speak(text, lang, callback) {
+        // --- SISTEMA DE AUDIO (TTS) ---
+        function speak(item, callback) {
             window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = lang;
-            u.rate = 1.0;
-            u.onend = callback || function(){};
-            window.speechSynthesis.speak(u);
+            const uEn = new SpeechSynthesisUtterance(item.eng);
+            uEn.lang = 'en-US';
+            uEn.rate = 1.1;
+            
+            uEn.onend = () => {
+                setTimeout(() => {
+                    const uEs = new SpeechSynthesisUtterance(item.esp);
+                    uEs.lang = 'es-ES';
+                    uEs.rate = 1.1;
+                    if(callback) uEs.onend = callback;
+                    window.speechSynthesis.speak(uEs);
+                }, 400);
+            };
+            
+            window.speechSynthesis.speak(uEn);
         }
 
-        // --- TOUR MODE (AUTO PLAY) ---
-        let tourTimer;
-        
-        function startTour() {
-            if(isTouring) return;
-            isTouring = true;
-            const cubes = Array.from(document.querySelectorAll('.data-cube'));
-            if(cubes.length === 0) return;
-
+        function playAllInFolder() {
+            const cells = document.querySelectorAll('.data-cell');
+            const items = [];
+            // Reconstruir items desde el DOM para mantener orden visual o usar DB
+            // Usamos una captura simple de los datos actuales en pantalla
+            // Simplificación: iterar visualmente
+            
             let idx = 0;
             const next = () => {
-                if(!isTouring || idx >= cubes.length) {
-                    stopTour();
-                    return;
-                }
-                const cube = cubes[idx];
-                // Trigger click logic programmatically but access item data directly
-                // We need the data. Let's grab it from currentData hierarchy
-                // Simplification: We stored it in DOM or memory. 
-                // Let's refetch from memory based on activeFolderId
+                if (idx >= cells.length || !isInside) return;
                 
-                let itemsList = [];
-                if(activeFolderId === 'root') {
-                    itemsList = currentData.filter(i => !i.isFolder);
-                } else {
-                    const folder = currentData.find(f => f.id === activeFolderId);
-                    itemsList = folder ? folder.items : [];
-                }
+                cells.forEach(c => c.classList.remove('playing'));
+                cells[idx].classList.add('playing');
+                cells[idx].scrollIntoView({behavior: "smooth", block: "center"});
 
-                if(itemsList[idx]) {
-                    cube.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Manually trigger visual + audio
-                    cube.classList.add('active-word');
-                    cube.style.transform = "rotateY(180deg) scale(1.5)";
-                    
-                    speak(itemsList[idx].eng, 'en-US', () => {
-                        setTimeout(() => {
-                            speak(itemsList[idx].esp, 'es-ES', () => {
-                                cube.style.transform = "";
-                                cube.classList.remove('active-word');
-                                idx++;
-                                setTimeout(next, 800); // Pause between words
-                            });
-                        }, 500);
-                    });
-                }
+                const eng = cells[idx].querySelector('.eng-txt').innerText;
+                const esp = cells[idx].querySelector('.esp-txt').innerText;
+
+                speak({eng, esp}, () => {
+                    idx++;
+                    setTimeout(next, 500);
+                });
             };
             next();
         }
 
-        function stopTour() {
-            isTouring = false;
-            window.speechSynthesis.cancel();
-        }
-
-        // --- DATA MANAGEMENT (ADD / CREATE) ---
-
-        function addData() {
-            const eng = document.getElementById('engInput').value.trim();
-            const esp = document.getElementById('espInput').value.trim();
-            if(!eng) return alert("DATA CORRUPTION: MISSING ENGLISH INPUT");
-
-            const newItem = { id: Date.now(), isFolder: false, eng, esp };
-
-            // If inside a folder, add to folder. If in city, add to root.
-            if (activeFolderId && activeFolderId !== 'root') {
-                const folder = currentData.find(f => f.id === activeFolderId);
-                if (folder) {
-                    folder.items.push(newItem);
-                    // Refresh room
-                    enterBuilding(folder); // Re-trigger to reload cubes
-                }
-            } else {
-                currentData.push(newItem);
-                if(activeFolderId === 'root') {
-                     // Refresh root room logic if we were implementing live update
-                     // For now, save and alert
-                }
-            }
-            
-            saveData();
-            document.getElementById('engInput').value = '';
-            document.getElementById('espInput').value = '';
-            
-            // Visual feedback
-            if(!activeFolderId) renderCity();
-        }
-
-        function createDistrict() {
-            const name = prompt("DISTRICT NAME:");
-            if(!name) return;
-            const newFolder = {
-                id: Date.now(),
-                isFolder: true,
-                name: name.toUpperCase(),
-                items: []
-            };
-            currentData.push(newFolder);
-            saveData();
-            renderCity();
-        }
-
-        // --- BACKUP / RESTORE ---
-        function backupData() {
-            const blob = new Blob([JSON.stringify(currentData)], {type: "application/json"});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "NEON_LOCI_BACKUP.json";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-
-        function importData(input) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    currentData = JSON.parse(e.target.result);
-                    saveData();
-                    renderCity();
-                    alert("SYSTEM RESTORE SUCCESSFUL");
-                } catch(err) {
-                    alert("CRITICAL ERROR: INVALID FILE");
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        // Init
-        init();
+        // =========================================
+        // INICIO
+        // =========================================
+        initCity();
+        gameLoop();
 
     </script>
 </body>
