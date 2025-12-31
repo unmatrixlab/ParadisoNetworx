@@ -206,12 +206,21 @@
         <button class="hud-btn" onclick="createFolder()">BUILD TOWER</button>
     </div>
 
-    <script>
+  <script>
         // =========================================
-        // 1. DATA LOGIC
+        // 1. DATA LOGIC (CORREGIDO)
         // =========================================
-        const STORAGE_KEY = 'mdc_vocab_list_v3';
-        let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        // VOLVEMOS A LA LLAVE ORIGINAL PARA RECUPERAR TUS DATOS
+        const STORAGE_KEY = 'mdc_vocab_list'; 
+        
+        let db = [];
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            db = raw ? JSON.parse(raw) : [];
+        } catch(e) {
+            console.error("Error cargando datos", e);
+            db = [];
+        }
 
         function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
 
@@ -237,7 +246,7 @@
         // =========================================
         // 2. PHYSICS ENGINE (CITY)
         // =========================================
-        const player = { x: 0, y: 0, speed: 10, radius: 15 };
+        const player = { x: 0, y: 0, speed: 12, radius: 15 }; // Un poco más rápido
         const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
         let buildings = []; 
         let isInside = false;
@@ -256,11 +265,14 @@
                 p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
 
                 const world = document.getElementById('world');
+                // La cámara sigue al jugador suavemente
                 world.style.transform = `rotateX(60deg) rotateZ(45deg) translate3d(${-player.x}px, ${-player.y}px, -100px)`;
 
-                // Collisions
+                // Colisiones mejoradas
                 for (let b of buildings) {
+                    // Distancia simple (círculo a círculo para rendimiento)
                     const dist = Math.sqrt((player.x - b.x)**2 + (player.y - b.y)**2);
+                    // 60 es el umbral de choque (radio edificio + radio jugador)
                     if (dist < 60) { enterBuilding(b.data); break; }
                 }
             }
@@ -268,7 +280,7 @@
         }
 
         // =========================================
-        // 3. CITY GENERATION
+        // 3. CITY GENERATION (CORREGIDO)
         // =========================================
         function initCity() {
             const layer = document.getElementById('city-layer');
@@ -278,13 +290,26 @@
             const folders = db.filter(i => i.isFolder);
             const loose = db.filter(i => !i.isFolder);
 
-            if (loose.length > 0) placeBuilding(0, 0, { name: "DATA HUB", items: loose, id: 'root' }, true);
+            // Si hay palabras sueltas, van al centro (0,0)
+            if (loose.length > 0) {
+                placeBuilding(0, 0, { name: "DATA HUB", items: loose, id: 'root' }, true);
+            }
 
+            // Algoritmo de Espiral Corregido para que no se coma edificios
             let step = 250; 
             let x = 0, y = 0, dx = 0, dy = -1, t = step;
 
             for (let i = 0; i < folders.length; i++) {
-                if (!(-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2)) placeBuilding(x, y, folders[i]);
+                // Buscamos una coordenada válida que no sea (0,0) si ya está ocupada
+                // Avanzamos la espiral hasta salir del centro
+                while (-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2) {
+                    if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
+                    x += dx * step; y += dy * step;
+                }
+                
+                placeBuilding(x, y, folders[i]);
+                
+                // Avanzar espiral para el siguiente
                 if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
                 x += dx * step; y += dy * step;
             }
@@ -292,7 +317,8 @@
 
         function placeBuilding(x, y, data, isHub = false) {
             const count = data.items ? data.items.length : 0;
-            const height = Math.max(80, Math.min(count * 20, 500));
+            // Altura dinámica: Mínimo 80px, Máximo 600px
+            const height = Math.max(80, Math.min(count * 20, 600));
             const borderColor = isHub ? 'var(--pink)' : 'var(--purple)';
 
             const b = document.createElement('div');
@@ -322,6 +348,7 @@
             // Zoom Effect
             const world = document.getElementById('world');
             world.style.transition = "transform 0.5s ease-in";
+            // Zoom agresivo hacia el edificio
             world.style.transform = `rotateX(0deg) rotateZ(0deg) translate3d(${-player.x}px, ${-player.y}px, 300px)`;
 
             setTimeout(() => {
@@ -329,9 +356,13 @@
                 const grid = document.getElementById('folder-content');
                 grid.innerHTML = '';
 
-                data.items.forEach((item, index) => {
-                    grid.appendChild(create3DCube(item, index));
-                });
+                if(data.items && data.items.length > 0) {
+                    data.items.forEach((item, index) => {
+                        grid.appendChild(create3DCube(item, index));
+                    });
+                } else {
+                    grid.innerHTML = '<div style="text-align:center; color:#555;">NO DATA BLOCKS FOUND</div>';
+                }
 
                 document.getElementById('interior-view').classList.add('active');
             }, 400);
@@ -342,10 +373,14 @@
             cube.className = 'data-cube';
             cube.style.animationDelay = `${index * 0.1}s`;
             
+            // Aseguramos que existan textos
+            const engTxt = item.eng || "???";
+            const espTxt = item.esp || "???";
+
             // HTML Structure of a real 3D Cube
             cube.innerHTML = `
-                <div class="c-face front">${item.eng}</div>
-                <div class="c-face back">${item.esp}</div>
+                <div class="c-face front">${engTxt}</div>
+                <div class="c-face back">${espTxt}</div>
                 <div class="c-side top"></div>
                 <div class="c-side bottom"></div>
                 <div class="c-side left"></div>
@@ -376,10 +411,12 @@
         function exitBuilding() {
             window.speechSynthesis.cancel();
             document.getElementById('interior-view').classList.remove('active');
-            player.y += 120; // Push player out so no instant collision
+            
+            // Empujamos al jugador para que no colisione inmediatamente al salir
+            player.y += 120; 
             
             const world = document.getElementById('world');
-            world.style.transition = "transform 0.1s linear"; 
+            world.style.transition = "transform 0.1s linear"; // Volvemos a movimiento rápido
             
             setTimeout(() => {
                 isInside = false;
@@ -389,7 +426,7 @@
 
         function speak(text, lang, callback) {
             window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
+            const u = new SpeechSynthesisUtterance(text || "");
             u.lang = lang; u.rate = 1.1;
             if(callback) u.onend = callback;
             window.speechSynthesis.speak(u);
@@ -397,6 +434,8 @@
 
         function playAllInFolder() {
             const cubes = document.querySelectorAll('.data-cube');
+            if(cubes.length === 0) return;
+            
             let idx = 0;
             const next = () => {
                 if (idx >= cubes.length || !isInside) return;
@@ -420,6 +459,7 @@
             next();
         }
 
+        // Arrancamos
         initCity();
         gameLoop();
 
