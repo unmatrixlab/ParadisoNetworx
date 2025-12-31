@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEON LOCI: ULTIMATE</title>
+    <title>NEON LOCI: VIEWER</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Orbitron:wght@900&display=swap" rel="stylesheet">
     
     <style>
@@ -12,8 +12,8 @@
             --pink: #ff00ff;
             --purple: #bc13fe;
             --dark: #050510;
-            --grid-size: 4000px;
-            --building-base: 80px;
+            --grid-size: 6000px;
+            --building-base: 100px; /* Edificios más anchos para mejor colisión */
         }
 
         body {
@@ -22,18 +22,18 @@
         }
 
         /* =========================================
-           SCENE 1: THE CITY (PHYSICS ENGINE)
+           SCENE 1: THE CITY
            ========================================= */
         #viewport {
             position: absolute; width: 100vw; height: 100vh;
-            perspective: 800px; overflow: hidden;
+            perspective: 1000px; overflow: hidden;
         }
 
         #world {
             position: absolute; left: 50%; top: 50%;
             transform-style: preserve-3d;
             transform: rotateX(60deg) rotateZ(45deg) translateZ(-100px); 
-            transition: transform 0.1s linear;
+            transition: transform 0.1s linear; /* Movimiento fluido */
         }
 
         .floor {
@@ -44,9 +44,9 @@
             background: 
                 linear-gradient(rgba(0, 243, 255, 0.1) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
-            background-size: 100px 100px;
-            background-color: rgba(5, 5, 16, 0.9);
-            box-shadow: 0 0 200px rgba(0,0,0,1) inset;
+            background-size: 150px 150px;
+            background-color: rgba(5, 5, 16, 0.95);
+            box-shadow: 0 0 400px rgba(0,0,0,1) inset;
             border: 2px solid var(--cyan);
         }
 
@@ -56,56 +56,86 @@
             width: 30px; height: 30px;
             background: white; border-radius: 50%;
             transform: translate(-50%, -50%) translateZ(15px);
-            box-shadow: 0 0 10px #fff, 0 0 20px var(--cyan), 0 0 40px var(--cyan);
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--cyan), 0 0 50px var(--cyan);
             z-index: 100; transition: opacity 0.3s;
         }
-        #player::after {
-            content: ''; position: absolute; width: 100%; height: 100%;
-            background: rgba(0, 243, 255, 0.4); border-radius: 50%;
-            transform: scale(1.2) translateZ(-30px); filter: blur(5px);
+        /* Scanner Ring (Visual Aid) */
+        #player::before {
+            content:''; position: absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+            width: 80px; height: 80px; border: 1px dashed rgba(0, 243, 255, 0.3);
+            border-radius: 50%; animation: spinScan 4s linear infinite; pointer-events: none;
         }
+        @keyframes spinScan { 0% {transform:translate(-50%,-50%) rotate(0deg);} 100% {transform:translate(-50%,-50%) rotate(360deg);} }
 
-        /* 3D BUILDINGS */
-        .building { position: absolute; transform-style: preserve-3d; }
+        /* 3D BUILDINGS - SOLID CONSTRUCTION */
+        .building { 
+            position: absolute; 
+            transform-style: preserve-3d; 
+            width: var(--building-base); 
+            height: var(--building-base);
+            /* El centro del edificio para colisiones */
+        }
         
         .face {
             position: absolute;
-            background: rgba(10, 15, 30, 0.95);
-            border: 1px solid rgba(188, 19, 254, 0.5);
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            background: rgba(10, 15, 30, 0.95); /* Opacidad alta para solidez */
+            border: 1px solid rgba(188, 19, 254, 0.6);
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.9); /* Sombra interna para profundidad */
             display: flex; align-items: center; justify-content: center;
             overflow: hidden;
         }
+        
+        /* Ventanas falsas */
         .face::before {
             content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
             background: linear-gradient(transparent 90%, var(--cyan) 90%), linear-gradient(90deg, transparent 90%, var(--purple) 90%);
-            background-size: 10px 20px; opacity: 0.3;
+            background-size: 15px 30px; opacity: 0.4;
+        }
+
+        /* Dimensiones exactas para evitar huecos */
+        .face.front, .face.back, .face.left, .face.right { 
+            width: var(--building-base); 
+            height: var(--h); 
+            bottom: 0; /* Anclados al suelo */
+        }
+        .face.top { 
+            width: var(--building-base); 
+            height: var(--building-base); 
+            background: #000; 
+            border: 2px solid var(--cyan);
+            box-shadow: 0 0 40px var(--cyan); 
         }
         
-        /* Building Dimensions */
-        .face.front, .face.back, .face.left, .face.right { width: var(--building-base); height: var(--h); }
-        .face.top { width: var(--building-base); height: var(--building-base); background: #000; border: 2px solid var(--cyan); }
-        
-        /* 3D Transforms for Buildings */
-        .face.front  { transform: rotateY(0deg) translateZ(40px); }
-        .face.back   { transform: rotateY(180deg) translateZ(40px); }
-        .face.right  { transform: rotateY(90deg) translateZ(40px); }
-        .face.left   { transform: rotateY(-90deg) translateZ(40px); }
-        .face.top    { transform: rotateX(90deg) translateZ(40px); box-shadow: 0 0 30px var(--cyan); }
+        /* Transformaciones precisas (Base 100px -> Offset 50px) */
+        .face.front  { transform: rotateY(0deg) translateZ(50px); }
+        .face.back   { transform: rotateY(180deg) translateZ(50px); }
+        .face.right  { transform: rotateY(90deg) translateZ(50px); }
+        .face.left   { transform: rotateY(-90deg) translateZ(50px); }
+        .face.top    { transform: rotateX(90deg) translateZ(50px) translateY(calc(var(--h) * -1)); } /* Techo sube según altura */
 
+        /* Texto Neon Vertical */
         .wall-text {
-            transform: rotate(-90deg); color: var(--cyan); font-size: 14px; font-weight: bold; letter-spacing: 2px;
-            text-shadow: 0 0 5px var(--cyan); white-space: nowrap; background: rgba(0,0,0,0.8); padding: 5px 10px; border: 1px solid var(--cyan);
+            transform: rotate(-90deg); color: var(--cyan); font-size: 16px; font-weight: 900; letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--cyan); white-space: nowrap; background: rgba(0,0,0,0.9); padding: 5px 15px; border: 2px solid var(--cyan);
+            z-index: 20;
+        }
+
+        /* Base Glow Ring (Para ver donde chocar) */
+        .base-ring {
+            position: absolute; width: 140px; height: 140px;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border: 2px dashed rgba(255, 0, 255, 0.3); border-radius: 50%;
+            pointer-events: none;
         }
 
         /* =========================================
-           SCENE 2: THE DATA ROOM (RESTORED ANIMATIONS)
+           SCENE 2: INTERIOR (CUBES)
            ========================================= */
         #interior-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
             z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center;
-            opacity: 0; transition: opacity 0.5s; perspective: 1200px; /* Better perspective */
+            opacity: 0; transition: opacity 0.5s; perspective: 1200px;
         }
         #interior-view.active { display: flex; opacity: 1; }
 
@@ -113,104 +143,71 @@
             width: 95%; max-width: 1200px; height: 75vh;
             display: flex; flex-wrap: wrap; gap: 60px; justify-content: center;
             overflow-y: auto; padding: 60px;
-            perspective: 1000px;
+            perspective: 1000px; /* Mantiene 3D al hacer scroll */
         }
 
-        /* THE ANIMATED CUBE */
+        /* CUBES */
         .data-cube {
             width: 120px; height: 120px;
-            position: relative; 
-            transform-style: preserve-3d;
-            cursor: pointer; 
-            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Snappy physics */
-            animation: breathe-float 6s ease-in-out infinite; /* Restored Floating */
+            position: relative; transform-style: preserve-3d;
+            cursor: pointer; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: breathe-float 6s ease-in-out infinite;
         }
+        .data-cube:hover { animation-play-state: paused; transform: scale(1.1) rotateY(20deg); z-index: 100; }
+        .data-cube.flipped { transform: rotateY(180deg) scale(1.1); animation: none; z-index: 50; }
 
-        .data-cube:hover { 
-            /* Stop floating on hover so it's easier to click */
-            animation-play-state: paused;
-            transform: scale(1.1) rotateY(20deg); 
-            z-index: 100;
-        }
-
-        .data-cube.flipped { 
-            transform: rotateY(180deg) scale(1.1); 
-            animation: none; /* Stop floating when active */
-            z-index: 50; 
-        }
-
-        /* ANIMATION KEYFRAMES */
         @keyframes breathe-float {
-            0% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
-            25% { transform: translateY(-10px) rotateX(5deg) rotateY(5deg); }
-            50% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
-            75% { transform: translateY(10px) rotateX(-5deg) rotateY(-5deg); }
-            100% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+            0%, 100% { transform: translateY(0) rotateX(0deg); }
+            50% { transform: translateY(-10px) rotateX(5deg); }
         }
 
-        /* CUBE FACES (High Visibility) */
         .c-face {
             position: absolute; width: 120px; height: 120px;
-            border: 2px solid var(--cyan); 
-            background: rgba(0, 20, 40, 0.8); /* Darker background for contrast */
+            border: 2px solid var(--cyan); background: rgba(0, 20, 40, 0.9);
             display: flex; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: 800; text-align: center;
-            backface-visibility: hidden;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+            font-size: 13px; font-weight: 800; text-align: center;
+            backface-visibility: hidden; box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
             user-select: none;
         }
-        
-        .c-face.front { 
-            transform: translateZ(60px); 
-            color: #fff; text-shadow: 0 0 10px var(--cyan);
-        }
-        
+        .c-face.front { transform: translateZ(60px); color: #fff; text-shadow: 0 0 10px var(--cyan); }
         .c-face.back { 
             transform: rotateY(180deg) translateZ(60px); 
-            border-color: var(--pink); 
-            background: rgba(40, 0, 40, 0.9);
-            color: var(--pink); 
-            text-shadow: 0 0 10px var(--pink);
-            box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+            border-color: var(--pink); background: rgba(40, 0, 40, 0.95);
+            color: var(--pink); text-shadow: 0 0 10px var(--pink);
         }
         
-        /* Sides to make it solid */
-        .c-side { 
-            position: absolute; width: 120px; height: 120px; 
-            border: 1px solid rgba(255,255,255,0.1); 
-            background: rgba(0,243,255,0.05); 
-        }
+        .c-side { position: absolute; width: 120px; height: 120px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,243,255,0.05); }
         .c-side.top { transform: rotateX(90deg) translateZ(60px); }
         .c-side.bottom { transform: rotateX(-90deg) translateZ(60px); }
         .c-side.left { transform: rotateY(-90deg) translateZ(60px); }
         .c-side.right { transform: rotateY(90deg) translateZ(60px); }
 
-        /* HUD & UI */
-        #hud {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 10px; z-index: 150;
-            background: rgba(0,0,0,0.8); padding: 10px; border-radius: 20px;
-            border: 1px solid var(--cyan); backdrop-filter: blur(5px);
+        /* HUD STATUS ONLY */
+        #hud-status {
+            position: fixed; bottom: 20px; left: 20px;
+            color: var(--cyan); font-family: 'Orbitron'; font-size: 14px;
+            background: rgba(0,0,0,0.8); padding: 10px 20px; border: 1px solid var(--cyan);
+            border-radius: 4px; pointer-events: none;
         }
-        .hud-btn {
-            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
-            padding: 8px 15px; cursor: pointer; font-family: inherit; text-transform: uppercase;
-            font-size: 12px; transition: 0.2s;
-        }
-        .hud-btn:hover { background: var(--cyan); color: #000; }
-        .tutorial-hint { position: fixed; top: 20px; left: 20px; color: rgba(255,255,255,0.5); font-size: 12px; pointer-events: none; }
         
         .room-header { 
             display: flex; justify-content: space-between; width: 90%; max-width: 1000px; 
             align-items: center; border-bottom: 1px solid var(--cyan); padding-bottom: 10px; margin-bottom: 10px; 
         }
-        h1 { margin: 0; font-family: 'Orbitron'; color: var(--cyan); letter-spacing: 2px; }
+        h1 { margin: 0; font-family: 'Orbitron'; color: var(--cyan); letter-spacing: 2px; font-size: 24px; }
+        
+        .hud-btn {
+            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+            padding: 8px 20px; cursor: pointer; font-family: inherit; text-transform: uppercase;
+            font-size: 14px; transition: 0.2s; font-weight: bold;
+        }
+        .hud-btn:hover { background: var(--cyan); color: #000; }
 
     </style>
 </head>
 <body>
 
-    <div class="tutorial-hint">ARROWS / WASD TO MOVE • COLLIDE TO ENTER</div>
+    <div id="hud-status">SYSTEM READY <br> <span id="db-info" style="font-size:10px; opacity:0.7">LOADING...</span></div>
 
     <div id="viewport">
         <div id="world">
@@ -222,61 +219,45 @@
 
     <div id="interior-view">
         <div class="room-header">
-            <h1 id="folder-title">FOLDER NAME</h1>
+            <h1 id="folder-title">LOADING...</h1>
             <div style="display:flex; gap:10px;">
-                <button class="hud-btn" onclick="playAllInFolder()">AUTO-SEQUENCE ▶</button>
-                <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT TO CITY</button>
+                <button class="hud-btn" onclick="playAllInFolder()">AUTO-PLAY ▶</button>
+                <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT</button>
             </div>
         </div>
-        
-        <div class="cube-container" id="folder-content">
-            </div>
-    </div>
-
-    <div id="hud">
-        <input type="text" id="quick-eng" placeholder="Word (Eng)" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:90px; padding:5px;">
-        <input type="text" id="quick-esp" placeholder="Spanish" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:90px; padding:5px;">
-        <button class="hud-btn" onclick="quickAdd()">ADD</button>
-        <div style="width:1px; background:#555; margin:0 5px;"></div>
-        <button class="hud-btn" onclick="createFolder()">BUILD TOWER</button>
+        <div class="cube-container" id="folder-content"></div>
     </div>
 
     <script>
         // =========================================
-        // 1. DATA LOGIC (Key original)
+        // 1. DATA LOGIC (READ ONLY)
         // =========================================
         const STORAGE_KEY = 'mdc_vocab_list';
         let db = [];
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            db = raw ? JSON.parse(raw) : [];
-        } catch(e) { console.error(e); db = []; }
 
-        function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
-
-        function quickAdd() {
-            const eng = document.getElementById('quick-eng').value.trim();
-            const esp = document.getElementById('quick-esp').value.trim();
-            if(!eng) return;
-            db.push({ id: Date.now(), isFolder: false, eng, esp });
-            saveDb();
-            document.getElementById('quick-eng').value = '';
-            document.getElementById('quick-esp').value = '';
-            initCity();
-        }
-
-        function createFolder() {
-            const name = prompt("TOWER NAME:");
-            if(!name) return;
-            db.push({ id: Date.now(), isFolder: true, name: name.toUpperCase(), items: [] });
-            saveDb();
-            initCity();
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                db = raw ? JSON.parse(raw) : [];
+                
+                // Actualizar status
+                const folders = db.filter(i => i.isFolder).length;
+                const items = db.filter(i => !i.isFolder).length;
+                document.getElementById('db-info').innerHTML = `${folders} TOWERS DETECTED <br> ${items} LOOSE DATA UNITS`;
+                
+                if (db.length === 0) alert("NO DATA FOUND IN STORAGE. Please add words in the other app first.");
+                
+                initCity();
+            } catch(e) {
+                console.error(e);
+                document.getElementById('db-info').innerText = "DATA CORRUPTION ERROR";
+            }
         }
 
         // =========================================
         // 2. PHYSICS ENGINE (CITY)
         // =========================================
-        const player = { x: 0, y: 0, speed: 12, radius: 15 };
+        const player = { x: 0, y: 0, speed: 14, radius: 15 }; // Speed aumentado
         const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
         let buildings = []; 
         let isInside = false;
@@ -291,15 +272,26 @@
                 if (keys.a || keys.ArrowLeft) player.x -= player.speed;
                 if (keys.d || keys.ArrowRight) player.x += player.speed;
 
+                // Update DOM
                 const p = document.getElementById('player');
                 p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
 
                 const world = document.getElementById('world');
+                // Cámara sigue al jugador
                 world.style.transform = `rotateX(60deg) rotateZ(45deg) translate3d(${-player.x}px, ${-player.y}px, -100px)`;
 
+                // COLISIONES (Mejoradas)
+                // Usamos un radio de colisión más generoso (70px) para asegurar que se entre
                 for (let b of buildings) {
-                    const dist = Math.sqrt((player.x - b.x)**2 + (player.y - b.y)**2);
-                    if (dist < 60) { enterBuilding(b.data); break; }
+                    const dx = player.x - b.x;
+                    const dy = player.y - b.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // 70px = ~50px radio edificio + 15px jugador + 5px margen
+                    if (dist < 75) { 
+                        enterBuilding(b.data); 
+                        break; 
+                    }
                 }
             }
             requestAnimationFrame(gameLoop);
@@ -316,17 +308,25 @@
             const folders = db.filter(i => i.isFolder);
             const loose = db.filter(i => !i.isFolder);
 
-            if (loose.length > 0) placeBuilding(0, 0, { name: "DATA HUB", items: loose, id: 'root' }, true);
+            // DATA HUB (Loose items) en el centro
+            if (loose.length > 0) {
+                placeBuilding(0, 0, { name: "CENTRAL HUB", items: loose, id: 'root' }, true);
+            }
 
-            let step = 250; 
+            // Espiral para distribuir edificios
+            let step = 300; // Más espacio entre edificios para maniobrar
             let x = 0, y = 0, dx = 0, dy = -1, t = step;
 
             for (let i = 0; i < folders.length; i++) {
+                // Mover coordenadas hasta encontrar un hueco libre (no (0,0))
                 while (-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2) {
                     if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
                     x += dx * step; y += dy * step;
                 }
+                
                 placeBuilding(x, y, folders[i]);
+                
+                // Avanzar para el siguiente
                 if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
                 x += dx * step; y += dy * step;
             }
@@ -334,48 +334,54 @@
 
         function placeBuilding(x, y, data, isHub = false) {
             const count = data.items ? data.items.length : 0;
-            const height = Math.max(80, Math.min(count * 20, 600));
+            // Altura dinámica: Mínimo 100px, Máximo 800px
+            const height = Math.max(100, Math.min(count * 20, 800));
             const borderColor = isHub ? 'var(--pink)' : 'var(--purple)';
 
             const b = document.createElement('div');
             b.className = 'building';
-            b.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+            // Translate centraliza el edificio en sus coordenadas X,Y
+            b.style.transform = `translate3d(${x}px, ${y}px, 0)`; 
             b.style.setProperty('--h', `${height}px`);
 
             b.innerHTML = `
+                <div class="base-ring"></div>
                 <div class="face front" style="border-color:${borderColor}"><div class="wall-text">${data.name}</div></div>
                 <div class="face back" style="border-color:${borderColor}"></div>
-                <div class="face right" style="border-color:${borderColor}"><div class="wall-text">${count}</div></div>
+                <div class="face right" style="border-color:${borderColor}"></div>
                 <div class="face left" style="border-color:${borderColor}"></div>
                 <div class="face top" style="border-color:${isHub?'var(--pink)':'var(--cyan)'}"></div>
             `;
             document.getElementById('city-layer').appendChild(b);
+            
+            // Guardamos coordenada para colisión
             buildings.push({ x, y, data });
         }
 
         // =========================================
-        // 4. INTERIOR LOGIC (RESTORED ANIMATIONS)
+        // 4. INTERIOR LOGIC
         // =========================================
         function enterBuilding(data) {
             if(isInside) return;
             isInside = true;
             document.getElementById('player').style.opacity = 0;
             
+            // Zoom Effect
             const world = document.getElementById('world');
             world.style.transition = "transform 0.5s ease-in";
-            world.style.transform = `rotateX(0deg) rotateZ(0deg) translate3d(${-player.x}px, ${-player.y}px, 300px)`;
+            world.style.transform = `rotateX(0deg) rotateZ(0deg) translate3d(${-player.x}px, ${-player.y}px, 200px)`;
 
             setTimeout(() => {
                 document.getElementById('folder-title').innerText = data.name;
                 const grid = document.getElementById('folder-content');
                 grid.innerHTML = '';
 
-                if(data.items && data.items.length > 0) {
+                if (data.items && data.items.length > 0) {
                     data.items.forEach((item, index) => {
                         grid.appendChild(create3DCube(item, index));
                     });
                 } else {
-                    grid.innerHTML = '<div style="text-align:center; color:#555;">NO DATA BLOCKS FOUND</div>';
+                    grid.innerHTML = '<div style="color:white; margin-top:50px;">NO DATA IN THIS SECTOR</div>';
                 }
 
                 document.getElementById('interior-view').classList.add('active');
@@ -385,7 +391,6 @@
         function create3DCube(item, index) {
             const cube = document.createElement('div');
             cube.className = 'data-cube';
-            // Stagger animation start for "wave" effect
             cube.style.animationDelay = `-${Math.random() * 5}s`; 
             
             const engTxt = item.eng || "???";
@@ -405,7 +410,10 @@
         }
 
         function activateCube(cubeEl, item) {
+            // Reset other cubes
             document.querySelectorAll('.data-cube').forEach(c => c.classList.remove('flipped'));
+            
+            // Activate this one
             cubeEl.classList.add('flipped');
 
             speak(item.eng, 'en-US', () => {
@@ -420,6 +428,8 @@
         function exitBuilding() {
             window.speechSynthesis.cancel();
             document.getElementById('interior-view').classList.remove('active');
+            
+            // Eject player (Safety bounce back)
             player.y += 120; 
             
             const world = document.getElementById('world');
@@ -466,7 +476,492 @@
             next();
         }
 
-        initCity();
+        // Start
+        loadData();
+        gameLoop();
+
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON LOCI: VIEWER</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --cyan: #00f3ff;
+            --pink: #ff00ff;
+            --purple: #bc13fe;
+            --dark: #050510;
+            --grid-size: 6000px;
+            --building-base: 100px; /* Edificios más anchos para mejor colisión */
+        }
+
+        body {
+            margin: 0; overflow: hidden; background: #020205;
+            font-family: 'Rajdhani', sans-serif; color: white;
+        }
+
+        /* =========================================
+           SCENE 1: THE CITY
+           ========================================= */
+        #viewport {
+            position: absolute; width: 100vw; height: 100vh;
+            perspective: 1000px; overflow: hidden;
+        }
+
+        #world {
+            position: absolute; left: 50%; top: 50%;
+            transform-style: preserve-3d;
+            transform: rotateX(60deg) rotateZ(45deg) translateZ(-100px); 
+            transition: transform 0.1s linear; /* Movimiento fluido */
+        }
+
+        .floor {
+            position: absolute;
+            width: var(--grid-size); height: var(--grid-size);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: 
+                linear-gradient(rgba(0, 243, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
+            background-size: 150px 150px;
+            background-color: rgba(5, 5, 16, 0.95);
+            box-shadow: 0 0 400px rgba(0,0,0,1) inset;
+            border: 2px solid var(--cyan);
+        }
+
+        /* PLAYER BALL */
+        #player {
+            position: absolute;
+            width: 30px; height: 30px;
+            background: white; border-radius: 50%;
+            transform: translate(-50%, -50%) translateZ(15px);
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--cyan), 0 0 50px var(--cyan);
+            z-index: 100; transition: opacity 0.3s;
+        }
+        /* Scanner Ring (Visual Aid) */
+        #player::before {
+            content:''; position: absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+            width: 80px; height: 80px; border: 1px dashed rgba(0, 243, 255, 0.3);
+            border-radius: 50%; animation: spinScan 4s linear infinite; pointer-events: none;
+        }
+        @keyframes spinScan { 0% {transform:translate(-50%,-50%) rotate(0deg);} 100% {transform:translate(-50%,-50%) rotate(360deg);} }
+
+        /* 3D BUILDINGS - SOLID CONSTRUCTION */
+        .building { 
+            position: absolute; 
+            transform-style: preserve-3d; 
+            width: var(--building-base); 
+            height: var(--building-base);
+            /* El centro del edificio para colisiones */
+        }
+        
+        .face {
+            position: absolute;
+            background: rgba(10, 15, 30, 0.95); /* Opacidad alta para solidez */
+            border: 1px solid rgba(188, 19, 254, 0.6);
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.9); /* Sombra interna para profundidad */
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+        
+        /* Ventanas falsas */
+        .face::before {
+            content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+            background: linear-gradient(transparent 90%, var(--cyan) 90%), linear-gradient(90deg, transparent 90%, var(--purple) 90%);
+            background-size: 15px 30px; opacity: 0.4;
+        }
+
+        /* Dimensiones exactas para evitar huecos */
+        .face.front, .face.back, .face.left, .face.right { 
+            width: var(--building-base); 
+            height: var(--h); 
+            bottom: 0; /* Anclados al suelo */
+        }
+        .face.top { 
+            width: var(--building-base); 
+            height: var(--building-base); 
+            background: #000; 
+            border: 2px solid var(--cyan);
+            box-shadow: 0 0 40px var(--cyan); 
+        }
+        
+        /* Transformaciones precisas (Base 100px -> Offset 50px) */
+        .face.front  { transform: rotateY(0deg) translateZ(50px); }
+        .face.back   { transform: rotateY(180deg) translateZ(50px); }
+        .face.right  { transform: rotateY(90deg) translateZ(50px); }
+        .face.left   { transform: rotateY(-90deg) translateZ(50px); }
+        .face.top    { transform: rotateX(90deg) translateZ(50px) translateY(calc(var(--h) * -1)); } /* Techo sube según altura */
+
+        /* Texto Neon Vertical */
+        .wall-text {
+            transform: rotate(-90deg); color: var(--cyan); font-size: 16px; font-weight: 900; letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--cyan); white-space: nowrap; background: rgba(0,0,0,0.9); padding: 5px 15px; border: 2px solid var(--cyan);
+            z-index: 20;
+        }
+
+        /* Base Glow Ring (Para ver donde chocar) */
+        .base-ring {
+            position: absolute; width: 140px; height: 140px;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border: 2px dashed rgba(255, 0, 255, 0.3); border-radius: 50%;
+            pointer-events: none;
+        }
+
+        /* =========================================
+           SCENE 2: INTERIOR (CUBES)
+           ========================================= */
+        #interior-view {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.5s; perspective: 1200px;
+        }
+        #interior-view.active { display: flex; opacity: 1; }
+
+        .cube-container {
+            width: 95%; max-width: 1200px; height: 75vh;
+            display: flex; flex-wrap: wrap; gap: 60px; justify-content: center;
+            overflow-y: auto; padding: 60px;
+            perspective: 1000px; /* Mantiene 3D al hacer scroll */
+        }
+
+        /* CUBES */
+        .data-cube {
+            width: 120px; height: 120px;
+            position: relative; transform-style: preserve-3d;
+            cursor: pointer; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: breathe-float 6s ease-in-out infinite;
+        }
+        .data-cube:hover { animation-play-state: paused; transform: scale(1.1) rotateY(20deg); z-index: 100; }
+        .data-cube.flipped { transform: rotateY(180deg) scale(1.1); animation: none; z-index: 50; }
+
+        @keyframes breathe-float {
+            0%, 100% { transform: translateY(0) rotateX(0deg); }
+            50% { transform: translateY(-10px) rotateX(5deg); }
+        }
+
+        .c-face {
+            position: absolute; width: 120px; height: 120px;
+            border: 2px solid var(--cyan); background: rgba(0, 20, 40, 0.9);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 800; text-align: center;
+            backface-visibility: hidden; box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+            user-select: none;
+        }
+        .c-face.front { transform: translateZ(60px); color: #fff; text-shadow: 0 0 10px var(--cyan); }
+        .c-face.back { 
+            transform: rotateY(180deg) translateZ(60px); 
+            border-color: var(--pink); background: rgba(40, 0, 40, 0.95);
+            color: var(--pink); text-shadow: 0 0 10px var(--pink);
+        }
+        
+        .c-side { position: absolute; width: 120px; height: 120px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,243,255,0.05); }
+        .c-side.top { transform: rotateX(90deg) translateZ(60px); }
+        .c-side.bottom { transform: rotateX(-90deg) translateZ(60px); }
+        .c-side.left { transform: rotateY(-90deg) translateZ(60px); }
+        .c-side.right { transform: rotateY(90deg) translateZ(60px); }
+
+        /* HUD STATUS ONLY */
+        #hud-status {
+            position: fixed; bottom: 20px; left: 20px;
+            color: var(--cyan); font-family: 'Orbitron'; font-size: 14px;
+            background: rgba(0,0,0,0.8); padding: 10px 20px; border: 1px solid var(--cyan);
+            border-radius: 4px; pointer-events: none;
+        }
+        
+        .room-header { 
+            display: flex; justify-content: space-between; width: 90%; max-width: 1000px; 
+            align-items: center; border-bottom: 1px solid var(--cyan); padding-bottom: 10px; margin-bottom: 10px; 
+        }
+        h1 { margin: 0; font-family: 'Orbitron'; color: var(--cyan); letter-spacing: 2px; font-size: 24px; }
+        
+        .hud-btn {
+            background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
+            padding: 8px 20px; cursor: pointer; font-family: inherit; text-transform: uppercase;
+            font-size: 14px; transition: 0.2s; font-weight: bold;
+        }
+        .hud-btn:hover { background: var(--cyan); color: #000; }
+
+    </style>
+</head>
+<body>
+
+    <div id="hud-status">SYSTEM READY <br> <span id="db-info" style="font-size:10px; opacity:0.7">LOADING...</span></div>
+
+    <div id="viewport">
+        <div id="world">
+            <div class="floor"></div>
+            <div id="player"></div>
+            <div id="city-layer"></div>
+        </div>
+    </div>
+
+    <div id="interior-view">
+        <div class="room-header">
+            <h1 id="folder-title">LOADING...</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="hud-btn" onclick="playAllInFolder()">AUTO-PLAY ▶</button>
+                <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT</button>
+            </div>
+        </div>
+        <div class="cube-container" id="folder-content"></div>
+    </div>
+
+    <script>
+        // =========================================
+        // 1. DATA LOGIC (READ ONLY)
+        // =========================================
+        const STORAGE_KEY = 'mdc_vocab_list';
+        let db = [];
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                db = raw ? JSON.parse(raw) : [];
+                
+                // Actualizar status
+                const folders = db.filter(i => i.isFolder).length;
+                const items = db.filter(i => !i.isFolder).length;
+                document.getElementById('db-info').innerHTML = `${folders} TOWERS DETECTED <br> ${items} LOOSE DATA UNITS`;
+                
+                if (db.length === 0) alert("NO DATA FOUND IN STORAGE. Please add words in the other app first.");
+                
+                initCity();
+            } catch(e) {
+                console.error(e);
+                document.getElementById('db-info').innerText = "DATA CORRUPTION ERROR";
+            }
+        }
+
+        // =========================================
+        // 2. PHYSICS ENGINE (CITY)
+        // =========================================
+        const player = { x: 0, y: 0, speed: 14, radius: 15 }; // Speed aumentado
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+        let buildings = []; 
+        let isInside = false;
+
+        window.addEventListener('keydown', (e) => keys[e.key] = true);
+        window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        function gameLoop() {
+            if (!isInside) {
+                if (keys.w || keys.ArrowUp) player.y -= player.speed;
+                if (keys.s || keys.ArrowDown) player.y += player.speed;
+                if (keys.a || keys.ArrowLeft) player.x -= player.speed;
+                if (keys.d || keys.ArrowRight) player.x += player.speed;
+
+                // Update DOM
+                const p = document.getElementById('player');
+                p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
+
+                const world = document.getElementById('world');
+                // Cámara sigue al jugador
+                world.style.transform = `rotateX(60deg) rotateZ(45deg) translate3d(${-player.x}px, ${-player.y}px, -100px)`;
+
+                // COLISIONES (Mejoradas)
+                // Usamos un radio de colisión más generoso (70px) para asegurar que se entre
+                for (let b of buildings) {
+                    const dx = player.x - b.x;
+                    const dy = player.y - b.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    // 70px = ~50px radio edificio + 15px jugador + 5px margen
+                    if (dist < 75) { 
+                        enterBuilding(b.data); 
+                        break; 
+                    }
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // =========================================
+        // 3. CITY GENERATION
+        // =========================================
+        function initCity() {
+            const layer = document.getElementById('city-layer');
+            layer.innerHTML = '';
+            buildings = []; 
+
+            const folders = db.filter(i => i.isFolder);
+            const loose = db.filter(i => !i.isFolder);
+
+            // DATA HUB (Loose items) en el centro
+            if (loose.length > 0) {
+                placeBuilding(0, 0, { name: "CENTRAL HUB", items: loose, id: 'root' }, true);
+            }
+
+            // Espiral para distribuir edificios
+            let step = 300; // Más espacio entre edificios para maniobrar
+            let x = 0, y = 0, dx = 0, dy = -1, t = step;
+
+            for (let i = 0; i < folders.length; i++) {
+                // Mover coordenadas hasta encontrar un hueco libre (no (0,0))
+                while (-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2) {
+                    if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
+                    x += dx * step; y += dy * step;
+                }
+                
+                placeBuilding(x, y, folders[i]);
+                
+                // Avanzar para el siguiente
+                if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
+                x += dx * step; y += dy * step;
+            }
+        }
+
+        function placeBuilding(x, y, data, isHub = false) {
+            const count = data.items ? data.items.length : 0;
+            // Altura dinámica: Mínimo 100px, Máximo 800px
+            const height = Math.max(100, Math.min(count * 20, 800));
+            const borderColor = isHub ? 'var(--pink)' : 'var(--purple)';
+
+            const b = document.createElement('div');
+            b.className = 'building';
+            // Translate centraliza el edificio en sus coordenadas X,Y
+            b.style.transform = `translate3d(${x}px, ${y}px, 0)`; 
+            b.style.setProperty('--h', `${height}px`);
+
+            b.innerHTML = `
+                <div class="base-ring"></div>
+                <div class="face front" style="border-color:${borderColor}"><div class="wall-text">${data.name}</div></div>
+                <div class="face back" style="border-color:${borderColor}"></div>
+                <div class="face right" style="border-color:${borderColor}"></div>
+                <div class="face left" style="border-color:${borderColor}"></div>
+                <div class="face top" style="border-color:${isHub?'var(--pink)':'var(--cyan)'}"></div>
+            `;
+            document.getElementById('city-layer').appendChild(b);
+            
+            // Guardamos coordenada para colisión
+            buildings.push({ x, y, data });
+        }
+
+        // =========================================
+        // 4. INTERIOR LOGIC
+        // =========================================
+        function enterBuilding(data) {
+            if(isInside) return;
+            isInside = true;
+            document.getElementById('player').style.opacity = 0;
+            
+            // Zoom Effect
+            const world = document.getElementById('world');
+            world.style.transition = "transform 0.5s ease-in";
+            world.style.transform = `rotateX(0deg) rotateZ(0deg) translate3d(${-player.x}px, ${-player.y}px, 200px)`;
+
+            setTimeout(() => {
+                document.getElementById('folder-title').innerText = data.name;
+                const grid = document.getElementById('folder-content');
+                grid.innerHTML = '';
+
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach((item, index) => {
+                        grid.appendChild(create3DCube(item, index));
+                    });
+                } else {
+                    grid.innerHTML = '<div style="color:white; margin-top:50px;">NO DATA IN THIS SECTOR</div>';
+                }
+
+                document.getElementById('interior-view').classList.add('active');
+            }, 400);
+        }
+
+        function create3DCube(item, index) {
+            const cube = document.createElement('div');
+            cube.className = 'data-cube';
+            cube.style.animationDelay = `-${Math.random() * 5}s`; 
+            
+            const engTxt = item.eng || "???";
+            const espTxt = item.esp || "???";
+
+            cube.innerHTML = `
+                <div class="c-face front">${engTxt}</div>
+                <div class="c-face back">${espTxt}</div>
+                <div class="c-side top"></div>
+                <div class="c-side bottom"></div>
+                <div class="c-side left"></div>
+                <div class="c-side right"></div>
+            `;
+
+            cube.onclick = () => activateCube(cube, item);
+            return cube;
+        }
+
+        function activateCube(cubeEl, item) {
+            // Reset other cubes
+            document.querySelectorAll('.data-cube').forEach(c => c.classList.remove('flipped'));
+            
+            // Activate this one
+            cubeEl.classList.add('flipped');
+
+            speak(item.eng, 'en-US', () => {
+                setTimeout(() => {
+                    speak(item.esp, 'es-ES', () => {
+                        setTimeout(() => cubeEl.classList.remove('flipped'), 800);
+                    });
+                }, 400);
+            });
+        }
+
+        function exitBuilding() {
+            window.speechSynthesis.cancel();
+            document.getElementById('interior-view').classList.remove('active');
+            
+            // Eject player (Safety bounce back)
+            player.y += 120; 
+            
+            const world = document.getElementById('world');
+            world.style.transition = "transform 0.1s linear"; 
+            
+            setTimeout(() => {
+                isInside = false;
+                document.getElementById('player').style.opacity = 1;
+            }, 500);
+        }
+
+        function speak(text, lang, callback) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text || "");
+            u.lang = lang; u.rate = 1.1;
+            if(callback) u.onend = callback;
+            window.speechSynthesis.speak(u);
+        }
+
+        function playAllInFolder() {
+            const cubes = document.querySelectorAll('.data-cube');
+            if(cubes.length === 0) return;
+            
+            let idx = 0;
+            const next = () => {
+                if (idx >= cubes.length || !isInside) return;
+                const cube = cubes[idx];
+                const eng = cube.querySelector('.front').innerText;
+                const esp = cube.querySelector('.back').innerText;
+                
+                cube.scrollIntoView({behavior: "smooth", block: "center"});
+                cube.classList.add('flipped');
+
+                speak(eng, 'en-US', () => {
+                    setTimeout(() => {
+                        speak(esp, 'es-ES', () => {
+                            cube.classList.remove('flipped');
+                            idx++;
+                            setTimeout(next, 500);
+                        });
+                    }, 400);
+                });
+            };
+            next();
+        }
+
+        // Start
+        loadData();
         gameLoop();
 
     </script>
