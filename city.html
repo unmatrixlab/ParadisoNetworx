@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEON LOCI: FREE ROAM</title>
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <title>NEON LOCI: HYBRID ENGINE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Orbitron:wght@900&display=swap" rel="stylesheet">
     
     <style>
         :root {
@@ -21,7 +21,9 @@
             font-family: 'Rajdhani', sans-serif; color: white;
         }
 
-        /* === 3D VIEWPORT === */
+        /* =========================================
+           SCENE 1: THE CITY (PHYSICS ENGINE)
+           ========================================= */
         #viewport {
             position: absolute; width: 100vw; height: 100vh;
             perspective: 800px; overflow: hidden;
@@ -30,12 +32,10 @@
         #world {
             position: absolute; left: 50%; top: 50%;
             transform-style: preserve-3d;
-            /* La cámara se controla vía JS, pero definimos la base */
             transform: rotateX(60deg) rotateZ(45deg) translateZ(-100px); 
-            transition: transform 0.1s linear; /* Suavizado para el movimiento */
+            transition: transform 0.1s linear;
         }
 
-        /* === SUELO INFINITO === */
         .floor {
             position: absolute;
             width: var(--grid-size); height: var(--grid-size);
@@ -45,43 +45,28 @@
                 linear-gradient(rgba(0, 243, 255, 0.1) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0, 243, 255, 0.1) 1px, transparent 1px);
             background-size: 100px 100px;
-            background-color: rgba(5, 5, 16, 0.8);
-            box-shadow: 0 0 100px rgba(0,0,0,0.9) inset;
+            background-color: rgba(5, 5, 16, 0.9);
+            box-shadow: 0 0 200px rgba(0,0,0,1) inset;
             border: 2px solid var(--cyan);
         }
 
-        /* === JUGADOR (LA BOLA DE NEON) === */
+        /* PLAYER BALL */
         #player {
             position: absolute;
             width: 30px; height: 30px;
-            background: white;
-            border-radius: 50%;
-            transform: translate(-50%, -50%) translateZ(15px); /* Elevada radio/2 */
-            box-shadow: 
-                0 0 10px #fff,
-                0 0 20px var(--cyan),
-                0 0 40px var(--cyan);
-            z-index: 100;
-            transition: opacity 0.3s;
+            background: white; border-radius: 50%;
+            transform: translate(-50%, -50%) translateZ(15px);
+            box-shadow: 0 0 10px #fff, 0 0 20px var(--cyan), 0 0 40px var(--cyan);
+            z-index: 100; transition: opacity 0.3s;
         }
-        /* Sombra del jugador */
         #player::after {
-            content: ''; position: absolute;
-            width: 100%; height: 100%;
-            background: rgba(0, 243, 255, 0.4);
-            border-radius: 50%;
-            transform: scale(1.2) translateZ(-30px); /* Sombra en el suelo */
-            filter: blur(5px);
+            content: ''; position: absolute; width: 100%; height: 100%;
+            background: rgba(0, 243, 255, 0.4); border-radius: 50%;
+            transform: scale(1.2) translateZ(-30px); filter: blur(5px);
         }
 
-        /* === EDIFICIOS (VOLUMETRICOS) === */
-        .building {
-            position: absolute;
-            transform-style: preserve-3d;
-            /* Posicionamiento dinámico en JS */
-        }
-
-        /* Caras del edificio */
+        /* 3D BUILDINGS */
+        .building { position: absolute; transform-style: preserve-3d; }
         .face {
             position: absolute;
             background: rgba(10, 15, 30, 0.95);
@@ -90,82 +75,87 @@
             display: flex; align-items: center; justify-content: center;
             overflow: hidden;
         }
-
-        /* Texturas de ventanas */
         .face::before {
             content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
-            background: 
-                linear-gradient(transparent 90%, var(--cyan) 90%),
-                linear-gradient(90deg, transparent 90%, var(--purple) 90%);
-            background-size: 10px 20px;
-            opacity: 0.3;
+            background: linear-gradient(transparent 90%, var(--cyan) 90%), linear-gradient(90deg, transparent 90%, var(--purple) 90%);
+            background-size: 10px 20px; opacity: 0.3;
         }
-
-        /* Dimensiones base */
-        .face.front, .face.back { width: var(--building-base); height: var(--h); }
-        .face.left, .face.right { width: var(--building-base); height: var(--h); }
+        .face.front, .face.back, .face.left, .face.right { width: var(--building-base); height: var(--h); }
         .face.top { width: var(--building-base); height: var(--building-base); background: #000; border: 2px solid var(--cyan); }
-
-        /* Transformaciones 3D para formar la caja */
-        .face.front  { transform: rotateY(  0deg) translateZ(40px); } /* 40px es la mitad de 80px */
+        
+        .face.front  { transform: rotateY(0deg) translateZ(40px); }
         .face.back   { transform: rotateY(180deg) translateZ(40px); }
-        .face.right  { transform: rotateY( 90deg) translateZ(40px); }
+        .face.right  { transform: rotateY(90deg) translateZ(40px); }
         .face.left   { transform: rotateY(-90deg) translateZ(40px); }
-        .face.top    { transform: rotateX( 90deg) translateZ(40px); box-shadow: 0 0 30px var(--cyan); }
+        .face.top    { transform: rotateX(90deg) translateZ(40px); box-shadow: 0 0 30px var(--cyan); }
 
-        /* Nombre en la pared */
         .wall-text {
-            transform: rotate(-90deg); /* Texto vertical */
-            color: var(--cyan);
-            font-size: 14px;
-            font-weight: bold;
-            letter-spacing: 2px;
-            text-shadow: 0 0 5px var(--cyan);
-            white-space: nowrap;
-            background: rgba(0,0,0,0.8);
-            padding: 5px 10px;
-            border: 1px solid var(--cyan);
+            transform: rotate(-90deg); color: var(--cyan); font-size: 14px; font-weight: bold; letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--cyan); white-space: nowrap; background: rgba(0,0,0,0.8); padding: 5px 10px; border: 1px solid var(--cyan);
         }
 
-        /* === INTERFAZ INTERIOR (HABITACIÓN) === */
+        /* =========================================
+           SCENE 2: THE DATA ROOM (CUBES)
+           ========================================= */
         #interior-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
-            z-index: 200;
-            display: none;
-            flex-direction: column;
-            align-items: center; justify-content: center;
-            opacity: 0; transition: opacity 0.5s;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
+            z-index: 200; display: none; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.5s; perspective: 1000px;
         }
         #interior-view.active { display: flex; opacity: 1; }
 
-        .data-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 20px; width: 90%; max-width: 1000px;
-            max-height: 70vh; overflow-y: auto;
-            padding: 20px;
+        /* SCROLLABLE 3D CONTAINER */
+        .cube-container {
+            width: 90%; max-width: 1000px; height: 70vh;
+            display: flex; flex-wrap: wrap; gap: 40px; justify-content: center;
+            overflow-y: auto; padding: 50px;
+            perspective: 800px; /* Essential for 3D cubes */
         }
 
-        .data-cell {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--purple);
-            padding: 15px; text-align: center;
-            border-radius: 4px; cursor: pointer;
-            transition: 0.3s; position: relative;
-            overflow: hidden;
+        /* THE CUBE ITSELF */
+        .data-cube {
+            width: 120px; height: 120px;
+            position: relative; transform-style: preserve-3d;
+            cursor: pointer; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: float 4s ease-in-out infinite;
         }
-        .data-cell:hover { background: var(--purple); color: #000; box-shadow: 0 0 15px var(--purple); }
-        .data-cell.playing { background: var(--cyan); color: #000; border-color: #fff; transform: scale(1.05); }
+        .data-cube:hover { z-index: 10; transform: scale(1.1); }
+        .data-cube.flipped { transform: rotateY(180deg) scale(1.2); z-index: 50; }
 
-        .eng-txt { font-weight: bold; font-size: 1.1em; display: block; }
-        .esp-txt { font-size: 0.8em; opacity: 0.7; margin-top: 5px; display: block; font-style: italic; }
+        /* CUBE FACES */
+        .c-face {
+            position: absolute; width: 120px; height: 120px;
+            border: 2px solid var(--cyan); background: rgba(0, 243, 255, 0.1);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold; text-align: center;
+            backface-visibility: hidden; /* Hides back when facing front */
+            box-shadow: inset 0 0 20px rgba(0, 243, 255, 0.2);
+        }
+        
+        .c-face.front { transform: translateZ(60px); color: white; text-shadow: 0 0 5px var(--cyan); }
+        
+        .c-face.back { 
+            transform: rotateY(180deg) translateZ(60px); 
+            border-color: var(--pink); background: rgba(255, 0, 255, 0.15); 
+            color: var(--pink); text-shadow: 0 0 5px var(--pink);
+        }
+        
+        /* Decorative sides to make it solid */
+        .c-side { position: absolute; width: 120px; height: 120px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.8); }
+        .c-side.top { transform: rotateX(90deg) translateZ(60px); }
+        .c-side.bottom { transform: rotateX(-90deg) translateZ(60px); }
+        .c-side.left { transform: rotateY(-90deg) translateZ(60px); }
+        .c-side.right { transform: rotateY(90deg) translateZ(60px); }
 
-        /* HUD INFERIOR */
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+
+        /* HUD & UI */
         #hud {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 10px; z-index: 150;
             background: rgba(0,0,0,0.8); padding: 10px; border-radius: 20px;
-            border: 1px solid var(--cyan);
+            border: 1px solid var(--cyan); backdrop-filter: blur(5px);
         }
         .hud-btn {
             background: transparent; color: var(--cyan); border: 1px solid var(--cyan);
@@ -173,17 +163,19 @@
             font-size: 12px; transition: 0.2s;
         }
         .hud-btn:hover { background: var(--cyan); color: #000; }
+        .tutorial-hint { position: fixed; top: 20px; left: 20px; color: rgba(255,255,255,0.5); font-size: 12px; pointer-events: none; }
         
-        .tutorial-hint {
-            position: fixed; top: 20px; left: 20px;
-            color: rgba(255,255,255,0.5); font-size: 12px;
-            pointer-events: none;
+        .room-header { 
+            display: flex; justify-content: space-between; width: 90%; max-width: 1000px; 
+            align-items: center; border-bottom: 1px solid var(--cyan); padding-bottom: 10px; margin-bottom: 10px; 
         }
+        h1 { margin: 0; font-family: 'Orbitron'; color: var(--cyan); letter-spacing: 2px; }
+
     </style>
 </head>
 <body>
 
-    <div class="tutorial-hint">ARROWS / WASD TO MOVE • HIT BUILDING TO ENTER</div>
+    <div class="tutorial-hint">USE ARROWS / WASD TO EXPLORE • HIT BUILDINGS TO ENTER</div>
 
     <div id="viewport">
         <div id="world">
@@ -194,27 +186,31 @@
     </div>
 
     <div id="interior-view">
-        <h1 id="folder-title" style="color: var(--cyan); text-shadow: 0 0 20px var(--cyan);">FOLDER NAME</h1>
-        <div class="data-grid" id="folder-content"></div>
-        <div style="margin-top: 20px; display: flex; gap: 20px;">
-            <button class="hud-btn" onclick="playAllInFolder()">AUTO-PLAY SEQUENCE</button>
-            <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT TO CITY</button>
+        <div class="room-header">
+            <h1 id="folder-title">FOLDER NAME</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="hud-btn" onclick="playAllInFolder()">AUTO-SEQUENCE ▶</button>
+                <button class="hud-btn" style="border-color:var(--pink); color:var(--pink);" onclick="exitBuilding()">EXIT TO CITY</button>
+            </div>
         </div>
+        
+        <div class="cube-container" id="folder-content">
+            </div>
     </div>
 
     <div id="hud">
-        <input type="text" id="quick-eng" placeholder="New Word (Eng)" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:100px; padding:5px;">
-        <input type="text" id="quick-esp" placeholder="Spanish" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:100px; padding:5px;">
-        <button class="hud-btn" onclick="quickAdd()">UPLOAD</button>
+        <input type="text" id="quick-eng" placeholder="Word (Eng)" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:90px; padding:5px;">
+        <input type="text" id="quick-esp" placeholder="Spanish" style="background:transparent; border:none; border-bottom:1px solid #555; color:white; width:90px; padding:5px;">
+        <button class="hud-btn" onclick="quickAdd()">ADD</button>
         <div style="width:1px; background:#555; margin:0 5px;"></div>
-        <button class="hud-btn" onclick="createFolder()">NEW BUILDING</button>
+        <button class="hud-btn" onclick="createFolder()">BUILD TOWER</button>
     </div>
 
     <script>
         // =========================================
-        // 1. GESTIÓN DE DATOS (Tu lógica existente)
+        // 1. DATA LOGIC
         // =========================================
-        const STORAGE_KEY = 'mdc_vocab_list_v2';
+        const STORAGE_KEY = 'mdc_vocab_list_v3';
         let db = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 
         function saveDb() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
@@ -223,16 +219,15 @@
             const eng = document.getElementById('quick-eng').value.trim();
             const esp = document.getElementById('quick-esp').value.trim();
             if(!eng) return;
-            // Agregar al "Central Hub" (o items sueltos)
             db.push({ id: Date.now(), isFolder: false, eng, esp });
             saveDb();
             document.getElementById('quick-eng').value = '';
             document.getElementById('quick-esp').value = '';
-            initCity(); // Regenerar ciudad
+            initCity();
         }
 
         function createFolder() {
-            const name = prompt("Nombre del Edificio:");
+            const name = prompt("NOMBRE DEL EDIFICIO:");
             if(!name) return;
             db.push({ id: Date.now(), isFolder: true, name: name.toUpperCase(), items: [] });
             saveDb();
@@ -240,228 +235,191 @@
         }
 
         // =========================================
-        // 2. MOTOR DEL JUEGO (NAV & FÍSICA)
+        // 2. PHYSICS ENGINE (CITY)
         // =========================================
-        const player = { x: 0, y: 0, speed: 8, radius: 15 };
+        const player = { x: 0, y: 0, speed: 10, radius: 15 };
         const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
-        let buildings = []; // Cache de coordenadas para colisiones
-        let isInside = false; // Estado del juego
+        let buildings = []; 
+        let isInside = false;
 
-        // Escuchar teclado
         window.addEventListener('keydown', (e) => keys[e.key] = true);
         window.addEventListener('keyup', (e) => keys[e.key] = false);
 
-        // Bucle Principal
         function gameLoop() {
             if (!isInside) {
-                movePlayer();
-                updateCamera();
-                checkCollisions();
+                if (keys.w || keys.ArrowUp) player.y -= player.speed;
+                if (keys.s || keys.ArrowDown) player.y += player.speed;
+                if (keys.a || keys.ArrowLeft) player.x -= player.speed;
+                if (keys.d || keys.ArrowRight) player.x += player.speed;
+
+                const p = document.getElementById('player');
+                p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
+
+                const world = document.getElementById('world');
+                world.style.transform = `rotateX(60deg) rotateZ(45deg) translate3d(${-player.x}px, ${-player.y}px, -100px)`;
+
+                // Collisions
+                for (let b of buildings) {
+                    const dist = Math.sqrt((player.x - b.x)**2 + (player.y - b.y)**2);
+                    if (dist < 60) { enterBuilding(b.data); break; }
+                }
             }
             requestAnimationFrame(gameLoop);
         }
 
-        function movePlayer() {
-            if (keys.w || keys.ArrowUp) player.y -= player.speed;
-            if (keys.s || keys.ArrowDown) player.y += player.speed;
-            if (keys.a || keys.ArrowLeft) player.x -= player.speed;
-            if (keys.d || keys.ArrowRight) player.x += player.speed;
-
-            // Actualizar DOM del jugador
-            const p = document.getElementById('player');
-            p.style.transform = `translate3d(${player.x}px, ${player.y}px, 15px)`;
-        }
-
-        function updateCamera() {
-            const world = document.getElementById('world');
-            // La cámara se mueve al contrario del jugador para mantenerlo centrado
-            // Añadimos un pequeño offset y rotación isométrica
-            world.style.transform = `
-                rotateX(60deg) 
-                rotateZ(45deg) 
-                translate3d(${-player.x}px, ${-player.y}px, -100px)
-            `;
-        }
-
-        function checkCollisions() {
-            // Chequeo simple de distancia (Círculo vs Cuadrado simplificado a Círculo vs Círculo para rendimiento)
-            const collisionThreshold = 60; // Radio edificio + Radio jugador aprox
-
-            for (let b of buildings) {
-                const dx = player.x - b.x;
-                const dy = player.y - b.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-
-                if (dist < collisionThreshold) {
-                    enterBuilding(b.data);
-                    break; // Solo entramos a uno a la vez
-                }
-            }
-        }
-
         // =========================================
-        // 3. GENERACIÓN DE LA CIUDAD 3D
+        // 3. CITY GENERATION
         // =========================================
         function initCity() {
             const layer = document.getElementById('city-layer');
             layer.innerHTML = '';
-            buildings = []; // Limpiar cache
+            buildings = []; 
 
-            // Separar carpetas e items sueltos
             const folders = db.filter(i => i.isFolder);
             const loose = db.filter(i => !i.isFolder);
 
-            // Si hay items sueltos, crear un edificio "HUB"
-            if (loose.length > 0) {
-                placeBuilding(0, 0, { name: "CENTRAL HUB", items: loose, id: 'root' }, true);
-            }
+            if (loose.length > 0) placeBuilding(0, 0, { name: "DATA HUB", items: loose, id: 'root' }, true);
 
-            // Colocar carpetas en una espiral o cuadrícula alrededor del centro
-            let step = 200; // Distancia entre edificios
-            let x = 0, y = 0, dx = 0, dy = -1;
-            let t = step;
-            let maxI = t;
+            let step = 250; 
+            let x = 0, y = 0, dx = 0, dy = -1, t = step;
 
-            // Algoritmo de espiral simple para generar calles
             for (let i = 0; i < folders.length; i++) {
-                if (-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2) {
-                    // Saltar el centro (0,0) porque ahí está el HUB
-                } else {
-                    placeBuilding(x, y, folders[i]);
-                }
-                
-                // Mover coordenadas en espiral
-                if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) {
-                    t = dx; dx = -dy; dy = t;
-                }
-                x += dx * step;
-                y += dy * step;
+                if (!(-step/2 < x && x <= step/2 && -step/2 < y && y <= step/2)) placeBuilding(x, y, folders[i]);
+                if ((x === y) || ((x < 0) && (x === -y)) || ((x > 0) && (x === 1-y))) { t = dx; dx = -dy; dy = t; }
+                x += dx * step; y += dy * step;
             }
         }
 
         function placeBuilding(x, y, data, isHub = false) {
-            // Calcular altura basada en contenido (Min 40px, Max 300px)
             const count = data.items ? data.items.length : 0;
-            const height = Math.max(60, Math.min(count * 15, 400));
-            
-            // Color especial para el HUB
+            const height = Math.max(80, Math.min(count * 20, 500));
             const borderColor = isHub ? 'var(--pink)' : 'var(--purple)';
 
-            // Crear HTML del edificio
             const b = document.createElement('div');
             b.className = 'building';
-            b.style.transform = `translate3d(${x}px, ${y}px, 0)`; // Posición en el suelo
-            
-            // Pasamos la altura como variable CSS para que las caras se ajusten
+            b.style.transform = `translate3d(${x}px, ${y}px, 0)`;
             b.style.setProperty('--h', `${height}px`);
 
-            // Construir caras
             b.innerHTML = `
                 <div class="face front" style="border-color:${borderColor}"><div class="wall-text">${data.name}</div></div>
                 <div class="face back" style="border-color:${borderColor}"></div>
-                <div class="face right" style="border-color:${borderColor}"><div class="wall-text">${count} DATAS</div></div>
+                <div class="face right" style="border-color:${borderColor}"><div class="wall-text">${count}</div></div>
                 <div class="face left" style="border-color:${borderColor}"></div>
                 <div class="face top" style="border-color:${isHub?'var(--pink)':'var(--cyan)'}"></div>
             `;
-
             document.getElementById('city-layer').appendChild(b);
-
-            // Guardar para colisiones
             buildings.push({ x, y, data });
         }
 
         // =========================================
-        // 4. LÓGICA DE INTERIOR (VISTA DE DATOS)
+        // 4. INTERIOR LOGIC (THE 3D CUBES)
         // =========================================
         function enterBuilding(data) {
             if(isInside) return;
             isInside = true;
-
-            // Efecto de entrada: Esconder jugador
             document.getElementById('player').style.opacity = 0;
+            
+            // Zoom Effect
+            const world = document.getElementById('world');
+            world.style.transition = "transform 0.5s ease-in";
+            world.style.transform = `rotateX(0deg) rotateZ(0deg) translate3d(${-player.x}px, ${-player.y}px, 300px)`;
 
-            // Llenar vista
-            document.getElementById('folder-title').innerText = data.name;
-            const grid = document.getElementById('folder-content');
-            grid.innerHTML = '';
-
-            data.items.forEach(item => {
-                const cell = document.createElement('div');
-                cell.className = 'data-cell';
-                cell.innerHTML = `<span class="eng-txt">${item.eng}</span><span class="esp-txt">${item.esp}</span>`;
-                cell.onclick = () => speak(item);
-                grid.appendChild(cell);
-            });
-
-            // Mostrar Overlay
             setTimeout(() => {
+                document.getElementById('folder-title').innerText = data.name;
+                const grid = document.getElementById('folder-content');
+                grid.innerHTML = '';
+
+                data.items.forEach((item, index) => {
+                    grid.appendChild(create3DCube(item, index));
+                });
+
                 document.getElementById('interior-view').classList.add('active');
-            }, 300);
+            }, 400);
+        }
+
+        function create3DCube(item, index) {
+            const cube = document.createElement('div');
+            cube.className = 'data-cube';
+            cube.style.animationDelay = `${index * 0.1}s`;
+            
+            // HTML Structure of a real 3D Cube
+            cube.innerHTML = `
+                <div class="c-face front">${item.eng}</div>
+                <div class="c-face back">${item.esp}</div>
+                <div class="c-side top"></div>
+                <div class="c-side bottom"></div>
+                <div class="c-side left"></div>
+                <div class="c-side right"></div>
+            `;
+
+            cube.onclick = () => activateCube(cube, item);
+            return cube;
+        }
+
+        function activateCube(cubeEl, item) {
+            // Remove flip from others
+            document.querySelectorAll('.data-cube').forEach(c => c.classList.remove('flipped'));
+            
+            // Flip this one
+            cubeEl.classList.add('flipped');
+
+            // Speak Sequence
+            speak(item.eng, 'en-US', () => {
+                setTimeout(() => {
+                    speak(item.esp, 'es-ES', () => {
+                        setTimeout(() => cubeEl.classList.remove('flipped'), 800);
+                    });
+                }, 400);
+            });
         }
 
         function exitBuilding() {
             window.speechSynthesis.cancel();
             document.getElementById('interior-view').classList.remove('active');
+            player.y += 120; // Push player out so no instant collision
             
-            // Empujar al jugador un poco atrás para no volver a chocar instantáneamente
-            // Necesitamos saber de dónde venía, pero un simple offset random funciona
-            player.y += 80; 
-
+            const world = document.getElementById('world');
+            world.style.transition = "transform 0.1s linear"; 
+            
             setTimeout(() => {
                 isInside = false;
                 document.getElementById('player').style.opacity = 1;
             }, 500);
         }
 
-        // --- SISTEMA DE AUDIO (TTS) ---
-        function speak(item, callback) {
+        function speak(text, lang, callback) {
             window.speechSynthesis.cancel();
-            const uEn = new SpeechSynthesisUtterance(item.eng);
-            uEn.lang = 'en-US';
-            uEn.rate = 1.1;
-            
-            uEn.onend = () => {
-                setTimeout(() => {
-                    const uEs = new SpeechSynthesisUtterance(item.esp);
-                    uEs.lang = 'es-ES';
-                    uEs.rate = 1.1;
-                    if(callback) uEs.onend = callback;
-                    window.speechSynthesis.speak(uEs);
-                }, 400);
-            };
-            
-            window.speechSynthesis.speak(uEn);
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang; u.rate = 1.1;
+            if(callback) u.onend = callback;
+            window.speechSynthesis.speak(u);
         }
 
         function playAllInFolder() {
-            const cells = document.querySelectorAll('.data-cell');
-            const items = [];
-            // Reconstruir items desde el DOM para mantener orden visual o usar DB
-            // Usamos una captura simple de los datos actuales en pantalla
-            // Simplificación: iterar visualmente
-            
+            const cubes = document.querySelectorAll('.data-cube');
             let idx = 0;
             const next = () => {
-                if (idx >= cells.length || !isInside) return;
+                if (idx >= cubes.length || !isInside) return;
+                const cube = cubes[idx];
+                const eng = cube.querySelector('.front').innerText;
+                const esp = cube.querySelector('.back').innerText;
                 
-                cells.forEach(c => c.classList.remove('playing'));
-                cells[idx].classList.add('playing');
-                cells[idx].scrollIntoView({behavior: "smooth", block: "center"});
+                cube.scrollIntoView({behavior: "smooth", block: "center"});
+                cube.classList.add('flipped');
 
-                const eng = cells[idx].querySelector('.eng-txt').innerText;
-                const esp = cells[idx].querySelector('.esp-txt').innerText;
-
-                speak({eng, esp}, () => {
-                    idx++;
-                    setTimeout(next, 500);
+                speak(eng, 'en-US', () => {
+                    setTimeout(() => {
+                        speak(esp, 'es-ES', () => {
+                            cube.classList.remove('flipped');
+                            idx++;
+                            setTimeout(next, 500);
+                        });
+                    }, 400);
                 });
             };
             next();
         }
 
-        // =========================================
-        // INICIO
-        // =========================================
         initCity();
         gameLoop();
 
