@@ -275,6 +275,70 @@
     #unified-pill.selection-mode .pill-save-action { display: block; }
     #unified-pill.selection-mode { border-color: var(--phrase-word); background: rgba(20, 20, 20, 0.98); }
 
+       /* === NUEVO: PREVIEW PANEL DENTRO DEL MODAL === */
+.modal-content {
+    /* Ajustamos para dejar espacio al panel inferior */
+    position: relative; 
+    padding-bottom: 0; 
+    overflow: hidden; /* Importante para contener el panel */
+}
+
+.mode-grid-container {
+    /* El grid ocupa el espacio restante pero deja hueco al preview */
+    flex: 1; 
+    overflow-y: auto; 
+    padding: 20px; 
+    padding-bottom: 220px; /* Espacio extra para que el scroll no tape el último item */
+}
+
+.preview-panel {
+    position: absolute;
+    bottom: 0; left: 0; width: 100%;
+    height: 190px; /* Altura fija para la info */
+    background: rgba(17, 24, 39, 0.98); /* Fondo casi opaco */
+    border-top: 1px solid var(--primary);
+    padding: 15px 20px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+    z-index: 10;
+    transition: transform 0.3s ease;
+}
+
+.preview-panel.hidden-panel {
+    transform: translateY(100%); /* Se oculta bajando */
+}
+
+.preview-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+}
+
+.preview-title { font-size: 1.1em; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+
+.preview-details {
+    display: grid; grid-template-columns: 1fr; gap: 6px;
+    font-size: 0.85em; color: var(--text-muted);
+    overflow-y: auto; flex: 1; margin-bottom: 10px;
+}
+
+.detail-row strong { color: var(--text); margin-right: 5px; }
+
+/* Botón de confirmar grande */
+.btn-confirm-selection {
+    background: var(--success); color: white; border: none; padding: 10px;
+    border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%;
+    font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 0.2s;
+}
+.btn-confirm-selection:hover { background: #059669; }
+
+/* Ajuste visual para la tarjeta seleccionada */
+.mode-card.active-preview {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.2);
+    transform: scale(1.02);
+}
+
 </style>
 </head>
 <body>
@@ -418,20 +482,35 @@
     <div id="magic-circle"></div>
 
     <div id="universal-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-title">Select Option</h3>
-                <button class="close-modal-btn" onclick="closeModal()">✕</button>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">Select Option</h3>
+            <button class="close-modal-btn" onclick="closeModal()">✕</button>
+        </div>
+        
+        <div class="modal-search-bar">
+            <input type="text" id="modalSearch" placeholder="🔍 Filter options..." onkeyup="filterGrid()">
+        </div>
+        
+        <div class="mode-grid-container">
+            <div id="universal-grid" class="mode-grid">
+                </div>
+        </div>
+
+        <div id="preview-panel" class="preview-panel hidden-panel">
+            <div class="preview-header">
+                <div class="preview-title" id="preview-title">Select an option</div>
             </div>
-            <div class="modal-search-bar">
-                <input type="text" id="modalSearch" placeholder="🔍 Filter options..." onkeyup="filterGrid()">
-            </div>
-            <div class="mode-grid-container">
-                <div id="universal-grid" class="mode-grid">
-                    </div>
-            </div>
+            
+            <div class="preview-details" id="preview-content">
+                </div>
+
+            <button class="btn-confirm-selection" onclick="confirmSelection()">
+                ✅ CONFIRM SELECTION
+            </button>
         </div>
     </div>
+</div>
 
 <script>
 
@@ -724,6 +803,8 @@ let pressTimer;
 let isLongPressHandled = false;
 let pendingPhraseStartIdx = null; 
 
+    let tempSelectedItem = null;
+
 /* 3. INITIALIZATION */
 document.addEventListener('DOMContentLoaded', () => {
     loadHistory('contextInput', 'context-history');
@@ -741,9 +822,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* === UNIVERSAL MODAL LOGIC === */
 function openModal(elementId) {
-    // If vocab mode is ON and we try to open Task, handle specific logic
+    // Resetear estado
+    tempSelectedItem = null;
+    document.getElementById('preview-panel').classList.add('hidden-panel');
+    
+    // ... (Tu lógica existente para Vocab Tasks) ...
     if (elementId === 'taskSelect' && document.getElementById('useVocabCheckbox').checked) {
-        // Just recreate the grid with VOCAB_TASKS manually injected into a fake structure
         const fakeVocabTasks = VOCAB_TASKS.map(t => ({...t, category: 'Vocab Practice'}));
         activeSelectionId = elementId;
         renderGrid(fakeVocabTasks, elementId);
@@ -754,7 +838,6 @@ function openModal(elementId) {
         if(!data) return;
         renderGrid(data, elementId);
         
-        // Update Title
         const label = document.querySelector(`label[for="${elementId}"]`) || document.querySelector(`div:has(> #${elementId}) label`);
         document.getElementById('modal-title').innerText = label ? `Select ${label.innerText}` : "Select Option";
     }
@@ -787,7 +870,7 @@ function renderGrid(dataArray, targetId, filterText = "") {
     const currentVal = document.getElementById(targetId).value;
     const filter = filterText.toLowerCase();
 
-    // 1. Group by Category
+    // Grouping Logic (Igual que antes)...
     const groups = {};
     dataArray.forEach(item => {
         if (item.label.toLowerCase().includes(filter) || (item.category && item.category.toLowerCase().includes(filter))) {
@@ -797,33 +880,31 @@ function renderGrid(dataArray, targetId, filterText = "") {
         }
     });
 
-    // 2. Render Groups
     for (const [catName, items] of Object.entries(groups)) {
-        // Header
         const header = document.createElement('div');
         header.className = 'grid-category-header';
         header.textContent = `--- ${catName} ---`;
         grid.appendChild(header);
 
-        // Items
         items.forEach(item => {
             const card = document.createElement('div');
-            // Check selection via ID or Instruction (for levels)
-            let isSel = (item.id === currentVal) || (item.instruction && item.instruction === currentVal);
+            // Nota: Usamos item.instruction para el valor si es levelSelect
+            let valCheck = (activeSelectionId === 'levelSelect') ? item.instruction : item.id;
+            let isSel = (valCheck === currentVal);
             
             card.className = `mode-card ${isSel ? 'selected' : ''}`;
-            card.onclick = () => selectOption(item);
+            card.id = `card-${item.id}`; // ID único para manipular clases
+            
+            // LOGICA CLICK:
+            // 1 Click = Previsualizar
+            // Doble Click = Confirmar inmediato
+            card.onclick = () => previewOption(item);
+            card.ondblclick = () => { previewOption(item); confirmSelection(); };
 
-            // Icon extraction logic
             let icon = "🔹";
             let labelClean = item.label;
-            
-            // If label has emoji at start (e.g. "⚙️ TECHNICAL")
             const emojiMatch = item.label.match(/^([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/);
-            if (emojiMatch) {
-                icon = emojiMatch[0];
-                labelClean = item.label.substring(icon.length).trim();
-            }
+            if (emojiMatch) { icon = emojiMatch[0]; labelClean = item.label.substring(icon.length).trim(); }
 
             card.innerHTML = `
                 <div class="mode-icon">${icon}</div>
@@ -858,6 +939,64 @@ function selectOption(item) {
     }
 
     // Set Display Value (UI)
+    const displayId = activeSelectionId.replace('Select', 'Display');
+    const displayInput = document.getElementById(displayId);
+    if(displayInput) displayInput.value = item.label;
+
+    // Trigger Side Effects
+    if (activeSelectionId === 'taskSelect') syncModeWithTask();
+
+    closeModal();
+}
+
+    function previewOption(item) {
+    tempSelectedItem = item;
+    
+    // 1. Quitar clase active de otras cartas
+    document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active-preview'));
+    const card = document.getElementById(`card-${item.id}`);
+    if(card) card.classList.add('active-preview');
+
+    // 2. Llenar datos del panel
+    const panel = document.getElementById('preview-panel');
+    const title = document.getElementById('preview-title');
+    const content = document.getElementById('preview-content');
+
+    title.innerHTML = item.label;
+    
+    let detailsHTML = "";
+    
+    // Si es un MODO (tiene Role, Style, Goal)
+    if (item.role) {
+        detailsHTML += `<div class="detail-row"><strong>🎭 Role:</strong> ${item.role}</div>`;
+        detailsHTML += `<div class="detail-row"><strong>🎨 Style:</strong> ${item.style}</div>`;
+        detailsHTML += `<div class="detail-row"><strong>🎯 Goal:</strong> ${item.goal}</div>`;
+    } 
+    // Si es otra cosa (tiene Instruction)
+    else if (item.instruction) {
+        detailsHTML += `<div class="detail-row"><strong>📝 Instruction:</strong> ${item.instruction}</div>`;
+    }
+
+    content.innerHTML = detailsHTML;
+
+    // 3. Mostrar panel
+    panel.classList.remove('hidden-panel');
+}
+
+// NUEVA FUNCIÓN: Confirmar y cerrar
+function confirmSelection() {
+    if (!tempSelectedItem || !activeSelectionId) return;
+    
+    const item = tempSelectedItem;
+
+    // Set Hidden Value
+    if (activeSelectionId === 'levelSelect') {
+        document.getElementById(activeSelectionId).value = item.instruction; 
+    } else {
+        document.getElementById(activeSelectionId).value = item.id;
+    }
+
+    // Set Display Value
     const displayId = activeSelectionId.replace('Select', 'Display');
     const displayInput = document.getElementById(displayId);
     if(displayInput) displayInput.value = item.label;
