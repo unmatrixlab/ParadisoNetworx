@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON LOCI | Memory Palace OS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* =========================================
+           CORE AESTHETICS (CYBERPUNK THEME)
+           ========================================= */
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff00ff;
+            --neon-purple: #bc13fe;
+            --neon-yellow: #fcee0a;
+            --dark-bg: #050510;
+            --panel-bg: rgba(10, 15, 30, 0.85);
+            --grid-color: rgba(0, 243, 255, 0.15);
+            
+            --floor-size: 2000px;
+            --iso-angle: rotateX(60deg) rotateZ(-45deg);
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--dark-bg);
+            background-image: 
+                radial-gradient(circle at 50% 50%, #1a1a2e 0%, #000 100%);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden; /* Prevent native scroll, we handle camera */
+            height: 100vh;
+            perspective: 1000px;
+        }
+
+        /* =========================================
+           3D WORLD STAGE
+           ========================================= */
+        #world-stage {
+            position: absolute;
+            width: 100%; height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        /* The Infinite Grid Floor */
+        .iso-grid {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: var(--floor-size); height: var(--floor-size);
+            transform: translate(-50%, -50%) var(--iso-angle);
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 50px 50px;
+            border: 2px solid var(--neon-cyan);
+            box-shadow: 0 0 50px var(--neon-cyan);
+            transform-style: preserve-3d;
+            transition: opacity 0.5s;
+        }
+
+        /* =========================================
+           BUILDINGS (FOLDERS)
+           ========================================= */
+        .city-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-wrap: wrap; 
+            justify-content: center; align-content: center;
+            gap: 60px; pointer-events: none; /* Let clicks pass to children */
+            transform: translateZ(0px); /* Base layer */
+        }
+
+        .building-plot {
+            position: relative;
+            width: 80px; height: 80px;
+            pointer-events: auto;
+            transform-style: preserve-3d;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .building-plot:hover {
+            transform: scale(1.1);
+        }
+
+        .building-base {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid var(--neon-cyan);
+            box-shadow: 0 0 15px var(--neon-cyan);
+            transform: translateZ(0);
+        }
+
+        /* Pure CSS 3D Cube Construction */
+        .tower {
+            position: absolute;
+            left: 10px; top: 10px;
+            width: 60px; height: 60px;
+            transform-style: preserve-3d;
+            /* Height is dynamic via JS inline styles */
+        }
+
+        .face {
+            position: absolute;
+            background: rgba(10, 20, 40, 0.9);
+            border: 1px solid var(--neon-purple);
+            opacity: 0.8;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 8px; color: var(--neon-pink);
+            box-shadow: inset 0 0 10px var(--neon-purple);
+        }
+
+        /* Cube mapping */
+        .face.front  { width: 60px; transform: rotateX(90deg) translateZ(30px); } /* Height set via JS */
+        .face.back   { width: 60px; transform: rotateX(-90deg) translateZ(30px); }
+        .face.right  { height: 60px; transform: rotateY(90deg) translateZ(30px); }
+        .face.left   { height: 60px; transform: rotateY(-90deg) translateZ(30px); }
+        .face.top    { width: 60px; height: 60px; transform: translateZ(var(--h)); background: var(--neon-cyan); border-color: #fff; }
+
+        /* Building Label Floating */
+        .b-label {
+            position: absolute;
+            top: -40px; left: 50%;
+            transform: translateX(-50%) rotateZ(45deg) rotateX(-60deg); /* Counter-rotate to face user */
+            background: #000;
+            border: 1px solid var(--neon-yellow);
+            color: var(--neon-yellow);
+            padding: 4px 8px;
+            font-size: 10px;
+            font-family: 'Orbitron', sans-serif;
+            white-space: nowrap;
+            box-shadow: 0 0 10px var(--neon-yellow);
+            pointer-events: none;
+        }
+
+        /* =========================================
+           DATA ROOM (INTERNAL VIEW)
+           ========================================= */
+        #room-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            display: none; /* Toggled */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #room-overlay.active { display: flex; opacity: 1; }
+
+        .room-container {
+            width: 90%; max-width: 800px;
+            height: 70vh;
+            border: 2px solid var(--neon-pink);
+            background: 
+                linear-gradient(0deg, transparent 24%, rgba(255, 0, 255, .1) 25%, rgba(255, 0, 255, .1) 26%, transparent 27%, transparent 74%, rgba(255, 0, 255, .1) 75%, rgba(255, 0, 255, .1) 76%, transparent 77%, transparent),
+                linear-gradient(90deg, transparent 24%, rgba(255, 0, 255, .1) 25%, rgba(255, 0, 255, .1) 26%, transparent 27%, transparent 74%, rgba(255, 0, 255, .1) 75%, rgba(255, 0, 255, .1) 76%, transparent 77%, transparent);
+            background-size: 50px 50px;
+            box-shadow: 0 0 30px var(--neon-pink), inset 0 0 50px rgba(188, 19, 254, 0.2);
+            position: relative;
+            overflow-y: auto;
+            perspective: 600px;
+            padding: 40px;
+            display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+        }
+
+        .data-cube {
+            width: 100px; height: 100px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: float 4s ease-in-out infinite;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .data-cube:hover { transform: scale(1.1) rotateY(20deg); z-index: 10; }
+        .data-cube.active-word { animation: spin 2s linear infinite; }
+
+        .cube-face {
+            position: absolute; width: 100px; height: 100px;
+            border: 1px solid var(--neon-cyan);
+            background: rgba(0, 243, 255, 0.1);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; text-align: center;
+            font-weight: bold; color: #fff;
+            text-shadow: 0 0 5px var(--neon-cyan);
+            backface-visibility: hidden;
+        }
+        
+        .cube-face.front { transform: translateZ(50px); }
+        .cube-face.back { transform: rotateY(180deg) translateZ(50px); background: rgba(255, 0, 255, 0.2); border-color: var(--neon-pink); color: var(--neon-pink); }
+        .cube-face.right { transform: rotateY(90deg) translateZ(50px); }
+        .cube-face.left { transform: rotateY(-90deg) translateZ(50px); }
+        .cube-face.top { transform: rotateX(90deg) translateZ(50px); }
+        .cube-face.bottom { transform: rotateX(-90deg) translateZ(50px); }
+
+        .cube-content { padding: 5px; word-break: break-word; }
+
+        /* =========================================
+           HUD INTERFACE (BOTTOM)
+           ========================================= */
+        #hud {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            height: 160px;
+            background: var(--panel-bg);
+            border-top: 2px solid var(--neon-cyan);
+            z-index: 200;
+            display: grid;
+            grid-template-columns: 200px 1fr 200px;
+            font-family: 'Orbitron', sans-serif;
+            backdrop-filter: blur(5px);
+        }
+
+        .hud-section { padding: 15px; border-right: 1px solid rgba(0, 243, 255, 0.3); display: flex; flex-direction: column; justify-content: center; }
+        .hud-center { align-items: center; gap: 10px; position: relative; }
+
+        .terminal-input {
+            width: 100%; max-width: 500px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--neon-yellow);
+            color: var(--neon-yellow);
+            padding: 10px; font-family: 'Courier New', monospace;
+            font-size: 14px; margin-bottom: 5px;
+        }
+        .terminal-input::placeholder { color: rgba(252, 238, 10, 0.4); }
+
+        .btn-neon {
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 8px 20px;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.2s;
+            box-shadow: 0 0 5px var(--neon-cyan);
+        }
+        .btn-neon:hover { background: var(--neon-cyan); color: #000; box-shadow: 0 0 20px var(--neon-cyan); }
+        
+        .btn-neon.secondary { border-color: var(--neon-pink); color: var(--neon-pink); box-shadow: 0 0 5px var(--neon-pink); }
+        .btn-neon.secondary:hover { background: var(--neon-pink); color: #fff; }
+
+        .status-line { font-size: 10px; color: #888; margin-top: 5px; }
+        
+        /* Scanline Effect */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            pointer-events: none; z-index: 999; opacity: 0.3;
+        }
+
+        /* =========================================
+           ANIMATIONS
+           ========================================= */
+        @keyframes float { 0% { transform: translateY(0); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0); } }
+        @keyframes spin { 0% { transform: rotateY(0); } 100% { transform: rotateY(360deg); } }
+        
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            #hud { grid-template-columns: 1fr; height: auto; padding-bottom: 20px; }
+            .hud-section { border: none; border-bottom: 1px solid rgba(0,243,255,0.2); padding: 10px; }
+            .building-plot { width: 60px; height: 60px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+
+    <div id="world-stage">
+        <div class="iso-grid" id="city-grid">
+            <div class="city-layer" id="city-layer"></div>
+        </div>
+    </div>
+
+    <div id="room-overlay">
+        <div style="width:90%; max-width:800px; display:flex; justify-content:space-between; margin-bottom:10px;">
+            <h2 id="room-title" style="color:var(--neon-cyan); text-transform:uppercase; margin:0; text-shadow:0 0 10px var(--neon-cyan);">DISTRICT A</h2>
+            <div>
+                <button class="btn-neon" onclick="startTour()">AUTO-LINK ▷</button>
+                <button class="btn-neon secondary" onclick="exitBuilding()">EXIT SYSTEM ✕</button>
+            </div>
+        </div>
+        <div class="room-container" id="room-content">
+            </div>
+    </div>
+
+    <div id="hud">
+        <div class="hud-section" style="align-items:flex-start;">
+            <div style="font-size:12px; color:var(--neon-cyan);">SYSTEM STATUS</div>
+            <div style="font-size:24px; font-weight:900;" id="total-count">0000</div>
+            <div class="status-line">DATA NODES ACTIVE</div>
+        </div>
+        
+        <div class="hud-section hud-center">
+            <input type="text" id="engInput" class="terminal-input" placeholder=">> INPUT_ENGLISH_DATA">
+            <input type="text" id="espInput" class="terminal-input" placeholder=">> INPUT_SPANISH_TRANSLATION">
+            <div style="display:flex; gap:10px; width:100%; max-width:500px;">
+                <button class="btn-neon" style="flex:1;" onclick="addData()">UPLOAD</button>
+                <button class="btn-neon secondary" style="flex:1;" onclick="createDistrict()">NEW DISTRICT</button>
+            </div>
+        </div>
+
+        <div class="hud-section" style="align-items:flex-end;">
+            <div style="font-size:12px; color:var(--neon-yellow);">LOCI OS v2.4</div>
+            <button class="btn-neon" style="margin-top:5px; font-size:10px;" onclick="backupData()">BACKUP</button>
+            <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+            <button class="btn-neon" style="margin-top:5px; font-size:10px;" onclick="document.getElementById('importFile').click()">RESTORE</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE DATA LOGIC (Adapted from your previous code) ---
+        const STORAGE_KEY = 'mdc_vocab_list';
+        let currentData = [];
+        let activeFolderId = null;
+        let isTouring = false;
+
+        function init() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            currentData = raw ? JSON.parse(raw) : [];
+            renderCity();
+            updateStats();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(currentData));
+            updateStats();
+        }
+
+        function updateStats() {
+            // Count total items including inside folders
+            let count = 0;
+            currentData.forEach(i => {
+                if (i.isFolder) count += i.items.length;
+                else count++;
+            });
+            document.getElementById('total-count').innerText = count.toString().padStart(4, '0');
+        }
+
+        // --- 3D RENDERING SYSTEM ---
+
+        function renderCity() {
+            const grid = document.getElementById('city-layer');
+            grid.innerHTML = '';
+
+            // 1. Loose Items (The Data Stream) - Put them in a "Central Hub"
+            const looseItems = currentData.filter(i => !i.isFolder);
+            if (looseItems.length > 0) {
+                grid.appendChild(createBuilding({
+                    id: 'root',
+                    name: 'CENTRAL_HUB',
+                    count: looseItems.length,
+                    items: looseItems,
+                    isRoot: true
+                }));
+            }
+
+            // 2. Folders (Districts)
+            const folders = currentData.filter(i => i.isFolder);
+            folders.forEach(f => {
+                grid.appendChild(createBuilding({
+                    id: f.id,
+                    name: f.name,
+                    count: f.items.length,
+                    items: f.items,
+                    isRoot: false
+                }));
+            });
+        }
+
+        function createBuilding(data) {
+            const plot = document.createElement('div');
+            plot.className = 'building-plot';
+            plot.onclick = () => enterBuilding(data);
+
+            // Dynamic height based on word count (min 20px, max 300px)
+            const height = Math.min(Math.max(data.count * 10, 40), 300);
+            
+            // Base Glow
+            const base = document.createElement('div');
+            base.className = 'building-base';
+            
+            // The 3D Tower
+            const tower = document.createElement('div');
+            tower.className = 'tower';
+            tower.style.setProperty('--h', `${height}px`);
+
+            // Creating faces dynamically
+            const faces = ['front', 'back', 'right', 'left', 'top'];
+            faces.forEach(type => {
+                const face = document.createElement('div');
+                face.className = `face ${type}`;
+                
+                // Adjust dimensions for side faces based on height
+                if(type === 'front' || type === 'back') {
+                    face.style.height = `${height}px`;
+                    // Front face translate adjustment
+                    face.style.transform = type === 'front' 
+                        ? `rotateX(0deg) translateZ(30px)` 
+                        : `rotateX(180deg) translateZ(30px)`;
+                }
+                if(type === 'right' || type === 'left') {
+                    face.style.width = `${height}px`; // Because rotated 90deg
+                    // Correction for rotation logic in CSS (simplified here for brevity)
+                    // Actually, simpler to just set height in CSS class via var
+                    face.style.height = '60px'; 
+                    face.style.width = `${height}px`;
+                    
+                    if(type === 'right') face.style.transform = `rotateY(90deg) translateZ(30px)`;
+                    if(type === 'left') face.style.transform = `rotateY(-90deg) translateZ(30px)`;
+                }
+                if (type === 'top') {
+                    face.style.transform = `translateZ(${height}px)`;
+                }
+
+                // Add "windows" texture
+                if(type !== 'top') {
+                    face.style.background = `
+                        linear-gradient(rgba(0,243,255,0.1) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0,243,255,0.1) 1px, transparent 1px)
+                    `;
+                    face.style.backgroundSize = "10px 10px";
+                }
+
+                tower.appendChild(face);
+            });
+
+            // Label
+            const label = document.createElement('div');
+            label.className = 'b-label';
+            label.innerHTML = `${data.name}<br>[${data.count}]`;
+            label.style.transform = `translate(-50%, -${height + 20}px) rotateX(0deg)`; // Simplified 2D overlay
+
+            plot.appendChild(base);
+            plot.appendChild(tower);
+            plot.appendChild(label);
+
+            return plot;
+        }
+
+        // --- NAVIGATION & ROOM LOGIC ---
+
+        function enterBuilding(data) {
+            activeFolderId = data.id;
+            
+            // 1. Camera Zoom Animation
+            const world = document.getElementById('world-stage');
+            world.style.transform = "scale(3) translateZ(200px) rotateX(60deg) rotateZ(-45deg)";
+            world.style.opacity = "0";
+
+            // 2. Open Room Overlay after delay
+            setTimeout(() => {
+                document.getElementById('room-title').innerText = data.name;
+                const container = document.getElementById('room-content');
+                container.innerHTML = '';
+
+                data.items.forEach((item, index) => {
+                    const cube = createDataCube(item, index);
+                    container.appendChild(cube);
+                });
+
+                document.getElementById('room-overlay').classList.add('active');
+            }, 800);
+        }
+
+        function createDataCube(item, index) {
+            const cube = document.createElement('div');
+            cube.className = 'data-cube';
+            cube.dataset.id = index;
+            cube.onclick = () => playCube(cube, item);
+
+            // Construct 3D Cube for word
+            const sides = [
+                { c: 'front', t: item.eng.toUpperCase() },
+                { c: 'back', t: item.esp.toUpperCase() },
+                { c: 'right', t: '' }, { c: 'left', t: '' },
+                { c: 'top', t: '' }, { c: 'bottom', t: '' }
+            ];
+
+            sides.forEach(s => {
+                const face = document.createElement('div');
+                face.className = `cube-face ${s.c}`;
+                face.innerHTML = `<div class="cube-content">${s.t}</div>`;
+                cube.appendChild(face);
+            });
+
+            // Stagger animation
+            cube.style.animationDelay = `${index * 0.1}s`;
+
+            return cube;
+        }
+
+        function exitBuilding() {
+            stopTour();
+            document.getElementById('room-overlay').classList.remove('active');
+            activeFolderId = null;
+
+            // Reset Camera
+            setTimeout(() => {
+                const world = document.getElementById('world-stage');
+                world.style.transform = "";
+                world.style.opacity = "1";
+                renderCity(); // Re-render to update counts if changed
+            }, 500);
+        }
+
+        // --- INTERACTIONS ---
+
+        function playCube(cubeElement, item) {
+            // Visual feedback
+            const allCubes = document.querySelectorAll('.data-cube');
+            allCubes.forEach(c => c.classList.remove('active-word'));
+            cubeElement.classList.add('active-word');
+
+            // Rotate to show Spanish (back)
+            cubeElement.style.transform = "rotateY(180deg) scale(1.5)";
+
+            // Audio
+            speak(item.eng, 'en-US', () => {
+                setTimeout(() => {
+                    speak(item.esp, 'es-ES', () => {
+                        // Reset visual after done
+                        setTimeout(() => {
+                            cubeElement.style.transform = "";
+                            cubeElement.classList.remove('active-word');
+                        }, 500);
+                    });
+                }, 500);
+            });
+        }
+
+        function speak(text, lang, callback) {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang;
+            u.rate = 1.0;
+            u.onend = callback || function(){};
+            window.speechSynthesis.speak(u);
+        }
+
+        // --- TOUR MODE (AUTO PLAY) ---
+        let tourTimer;
+        
+        function startTour() {
+            if(isTouring) return;
+            isTouring = true;
+            const cubes = Array.from(document.querySelectorAll('.data-cube'));
+            if(cubes.length === 0) return;
+
+            let idx = 0;
+            const next = () => {
+                if(!isTouring || idx >= cubes.length) {
+                    stopTour();
+                    return;
+                }
+                const cube = cubes[idx];
+                // Trigger click logic programmatically but access item data directly
+                // We need the data. Let's grab it from currentData hierarchy
+                // Simplification: We stored it in DOM or memory. 
+                // Let's refetch from memory based on activeFolderId
+                
+                let itemsList = [];
+                if(activeFolderId === 'root') {
+                    itemsList = currentData.filter(i => !i.isFolder);
+                } else {
+                    const folder = currentData.find(f => f.id === activeFolderId);
+                    itemsList = folder ? folder.items : [];
+                }
+
+                if(itemsList[idx]) {
+                    cube.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Manually trigger visual + audio
+                    cube.classList.add('active-word');
+                    cube.style.transform = "rotateY(180deg) scale(1.5)";
+                    
+                    speak(itemsList[idx].eng, 'en-US', () => {
+                        setTimeout(() => {
+                            speak(itemsList[idx].esp, 'es-ES', () => {
+                                cube.style.transform = "";
+                                cube.classList.remove('active-word');
+                                idx++;
+                                setTimeout(next, 800); // Pause between words
+                            });
+                        }, 500);
+                    });
+                }
+            };
+            next();
+        }
+
+        function stopTour() {
+            isTouring = false;
+            window.speechSynthesis.cancel();
+        }
+
+        // --- DATA MANAGEMENT (ADD / CREATE) ---
+
+        function addData() {
+            const eng = document.getElementById('engInput').value.trim();
+            const esp = document.getElementById('espInput').value.trim();
+            if(!eng) return alert("DATA CORRUPTION: MISSING ENGLISH INPUT");
+
+            const newItem = { id: Date.now(), isFolder: false, eng, esp };
+
+            // If inside a folder, add to folder. If in city, add to root.
+            if (activeFolderId && activeFolderId !== 'root') {
+                const folder = currentData.find(f => f.id === activeFolderId);
+                if (folder) {
+                    folder.items.push(newItem);
+                    // Refresh room
+                    enterBuilding(folder); // Re-trigger to reload cubes
+                }
+            } else {
+                currentData.push(newItem);
+                if(activeFolderId === 'root') {
+                     // Refresh root room logic if we were implementing live update
+                     // For now, save and alert
+                }
+            }
+            
+            saveData();
+            document.getElementById('engInput').value = '';
+            document.getElementById('espInput').value = '';
+            
+            // Visual feedback
+            if(!activeFolderId) renderCity();
+        }
+
+        function createDistrict() {
+            const name = prompt("DISTRICT NAME:");
+            if(!name) return;
+            const newFolder = {
+                id: Date.now(),
+                isFolder: true,
+                name: name.toUpperCase(),
+                items: []
+            };
+            currentData.push(newFolder);
+            saveData();
+            renderCity();
+        }
+
+        // --- BACKUP / RESTORE ---
+        function backupData() {
+            const blob = new Blob([JSON.stringify(currentData)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "NEON_LOCI_BACKUP.json";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    currentData = JSON.parse(e.target.result);
+                    saveData();
+                    renderCity();
+                    alert("SYSTEM RESTORE SUCCESSFUL");
+                } catch(err) {
+                    alert("CRITICAL ERROR: INVALID FILE");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Init
+        init();
+
+    </script>
+</body>
+</html>
