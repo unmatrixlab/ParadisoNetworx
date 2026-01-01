@@ -2019,7 +2019,8 @@ function loadSidebar() {
                 folders.forEach(folder => {
                     const folderEl = document.createElement('div');
                     folderEl.className = 'db-folder';
-                    folderEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="this.parentElement.classList.toggle('open')"><span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span></div><div class="db-folder-items"></div>`;
+                    // CAMBIO AQUÍ: onclick="toggleFolder(this)"
+                    folderEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="toggleFolder(this)"><span>📂 ${folder.name}</span> <span style="font-size:0.8em; opacity:0.7">${folder.items.length}</span></div><div class="db-folder-items"></div>`;
                     const container = folderEl.querySelector('.db-folder-items');
                     folder.items.forEach(item => { if(item && item.eng) container.appendChild(createDraggableChip(item.eng)); });
                     list.appendChild(folderEl);
@@ -2032,21 +2033,20 @@ function loadSidebar() {
             const vocabHeader = document.createElement('div');
             vocabHeader.className = 'sidebar-header';
             vocabHeader.innerText = 'Official Lists';
-            vocabHeader.style.color = '#fde047'; // Color amarillo para destacar
+            vocabHeader.style.color = '#fde047';
             list.appendChild(vocabHeader);
 
             Object.keys(INTERNAL_VOCAB).forEach(categoryName => {
                 const items = INTERNAL_VOCAB[categoryName];
-                const cleanName = categoryName.replace(/_/g, ' '); // Quitar guiones bajos
+                const cleanName = categoryName.replace(/_/g, ' ');
                 
                 const catEl = document.createElement('div');
                 catEl.className = 'db-folder';
-                // Icono diferente (❖) para distinguir oficial de personal
-                catEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="this.parentElement.classList.toggle('open')"><span>❖ ${cleanName}</span></div><div class="db-folder-items"></div>`;
+                // CAMBIO AQUÍ: onclick="toggleFolder(this)"
+                catEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="toggleFolder(this)"><span>❖ ${cleanName}</span></div><div class="db-folder-items"></div>`;
                 
                 const container = catEl.querySelector('.db-folder-items');
                 items.forEach(item => {
-                    // Usamos item.en para crear el chip arrastrable
                     if(item && item.en) container.appendChild(createDraggableChip(item.en));
                 });
                 list.appendChild(catEl);
@@ -2063,7 +2063,8 @@ function loadSidebar() {
             STATIC_GRAMMAR.forEach(cat => {
                 const catEl = document.createElement('div');
                 catEl.className = 'db-folder';
-                catEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="this.parentElement.classList.toggle('open')"><span>📚 ${cat.name}</span></div><div class="db-folder-items"></div>`;
+                // CAMBIO AQUÍ: onclick="toggleFolder(this)"
+                catEl.innerHTML = `<div class="db-folder-title" onmousedown="event.preventDefault()" onclick="toggleFolder(this)"><span>📚 ${cat.name}</span></div><div class="db-folder-items"></div>`;
                 const container = catEl.querySelector('.db-folder-items');
                 cat.words.forEach(word => container.appendChild(createDraggableChip(word)));
                 list.appendChild(catEl);
@@ -2071,15 +2072,87 @@ function loadSidebar() {
         }
     }
 
-  function createDraggableChip(text) {
+function createDraggableChip(text) {
         const chip = document.createElement('div');
         chip.className = 'draggable-word';
         chip.draggable = true;
         chip.innerHTML = `<span class="chip-text">${text}</span><button class="chip-audio-btn" title="Pronounce">🔊</button>`;
         
-        // 1. ESTO EVITA QUE SE PIERDA EL FOCO AL PULSAR
+        // Variables para gestionar los tiempos de espera
+        let hoverTimer = null;
+        let isLongPress = false; // Para diferenciar click de long press en móvil
+        const tooltip = document.getElementById('translation-tooltip');
+
+        // -----------------------------------------------------
+        // 1. LOGICA ESCRITORIO (HOVER)
+        // -----------------------------------------------------
+        chip.onmouseenter = (e) => {
+            // Reiniciamos timer
+            clearTimeout(hoverTimer);
+            hoverTimer = setTimeout(async () => {
+                // Solo traducimos si el mouse sigue encima
+                const tr = await ft(text, 'en', 'es');
+                if (tr) {
+                    tooltip.innerText = `${text} → ${tr}`;
+                    
+                    // Posicionamos el tooltip a la derecha del mouse/chip
+                    const rect = chip.getBoundingClientRect();
+                    tooltip.style.left = (rect.right + 10) + 'px';
+                    tooltip.style.top = (rect.top + 5) + 'px';
+                    tooltip.style.transform = 'none'; // Reseteamos transformaciones móviles
+                    tooltip.style.opacity = 1;
+                }
+            }, 500); // 500ms de espera
+        };
+
+        chip.onmouseleave = () => {
+            clearTimeout(hoverTimer);
+            tooltip.style.opacity = 0;
+        };
+
+        // -----------------------------------------------------
+        // 2. LOGICA MOVIL (LONG PRESS)
+        // -----------------------------------------------------
+        chip.ontouchstart = (e) => {
+            isLongPress = false; // Asumimos que es un tap normal al principio
+            clearTimeout(hoverTimer);
+            
+            hoverTimer = setTimeout(async () => {
+                isLongPress = true; // Se ha convertido en un long press
+                
+                // Efecto visual (vibración si el navegador lo soporta)
+                if (navigator.vibrate) navigator.vibrate(50);
+                
+                const tr = await ft(text, 'en', 'es');
+                if (tr) {
+                    tooltip.innerText = `${text} → ${tr}`;
+                    
+                    // En móvil, centramos el tooltip en la pantalla para que el dedo no lo tape
+                    tooltip.style.left = '50%';
+                    tooltip.style.top = '150px'; // Un poco abajo del top
+                    tooltip.style.transform = 'translateX(-50%)';
+                    tooltip.style.opacity = 1;
+
+                    // Ocultamos automáticamente después de 3 segundos
+                    setTimeout(() => { tooltip.style.opacity = 0; }, 3000);
+                }
+            }, 600); // 600ms para diferenciar del tap normal
+        };
+
+        chip.ontouchend = () => {
+            // Si soltamos el dedo antes de tiempo, cancelamos la traducción
+            clearTimeout(hoverTimer);
+        };
+        
+        chip.ontouchmove = () => {
+            // Si movemos el dedo (scrolling), cancelamos todo
+            clearTimeout(hoverTimer);
+        };
+
+        // -----------------------------------------------------
+        // 3. LOGICA DRAG & CLICK
+        // -----------------------------------------------------
         chip.onmousedown = (e) => {
-            // Si no es el botón de audio, prevenimos que robe el foco
             if (!e.target.closest('.chip-audio-btn')) {
                 e.preventDefault(); 
             }
@@ -2088,16 +2161,21 @@ function loadSidebar() {
         chip.ondragstart = (e) => { 
            e.dataTransfer.setData('text/plain', text); 
            e.dataTransfer.effectAllowed = 'copy'; 
-           // No hacemos preventDefault aquí porque necesitamos el drag
         };
 
         chip.onclick = (e) => {
+            // Si fue un Long Press (en móvil), NO insertamos el texto, solo mostramos la traducción
+            if (isLongPress) {
+                isLongPress = false; // Reset
+                return; 
+            }
+
             if (e.target.closest('.chip-audio-btn')) { 
                 e.stopPropagation(); 
                 speakText(text, 'en'); 
                 return; 
             }
-            // Como ya no perdemos el foco, insertSmartText usará la memoria correcta
+            
             if (lastFocusedInput) {
                 insertSmartText(text);
             } else {
@@ -2705,6 +2783,23 @@ function insertSmartText(word) {
         }, 2000);
     }
 }
+
+    // --- NUEVA FUNCIÓN PARA EFECTO ACORDEÓN ---
+    function toggleFolder(headerElement) {
+        const parentFolder = headerElement.parentElement;
+        // Guardamos si estaba abierta antes de cerrar todo
+        const wasOpen = parentFolder.classList.contains('open');
+
+        // 1. Cerrar TODAS las carpetas primero
+        const allFolders = document.getElementById('sidebar-list').querySelectorAll('.db-folder');
+        allFolders.forEach(folder => folder.classList.remove('open'));
+
+        // 2. Si la que tocamos estaba cerrada, la abrimos ahora
+        // (Si estaba abierta, el paso 1 ya la cerró y así se queda, logrando el efecto de cerrar al volver a tocar)
+        if (!wasOpen) {
+            parentFolder.classList.add('open');
+        }
+    }
 </script>
 </body>
 </html>
