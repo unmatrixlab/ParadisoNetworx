@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON MOSAIC | Configurable Master</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;900&family=Share+Tech+Mono&family=Poppins:wght@400;600&family=VT323&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* === VARIABLES DINÁMICAS === */
+            --hue: 180; /* Controlado por el Slider */
+            --sat: 100%;
+            --txt-scale: 1; 
+            
+            /* Colores calculados */
+            --cyan: hsl(var(--hue), var(--sat), 50%);
+            --pink: hsl(calc(var(--hue) + 180), var(--sat), 60%);
+            
+            --gap: 15px; 
+            --dark: #050508;
+            
+            /* Ajustes Responsive */
+            --tile-min-width: 100px;
+            --tile-height: 120px;
+        }
+
+        body {
+            margin: 0; background-color: var(--dark);
+            height: 100vh; overflow: hidden; 
+            font-family: 'Montserrat', sans-serif;
+            color: white; display: flex; flex-direction: column; align-items: center;
+            transition: background 0.5s ease, color 0.5s ease;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* === ESCENARIO 3D === */
+        #scene {
+            width: 100%; height: 100%; perspective: 1000px; 
+            display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+
+        #floor {
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(var(--tile-min-width), 1fr));
+            gap: var(--gap); 
+            width: 100%; max-width: 1600px;
+            height: 100%; 
+            padding: 120px 20px 300px 20px; 
+            box-sizing: border-box;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            overflow-y: auto; scrollbar-width: none;
+        }
+        #floor::-webkit-scrollbar { display: none; }
+
+        @media (max-width: 768px) {
+            #floor { padding-left: 10px; padding-right: 10px; width: 100%; }
+            :root { --gap: 10px; }
+        }
+
+        /* === TARJETA === */
+        .tile {
+            width: 100%; height: var(--tile-height);
+            position: relative; transform-style: preserve-3d; cursor: pointer;
+            opacity: 0; animation: popUp 0.5s ease-out forwards;
+            -webkit-tap-highlight-color: transparent;
+        }
+        @keyframes popUp { 0% { opacity: 0; transform: scale(0.8) translateZ(-50px); } 100% { opacity: 1; transform: scale(1) translateZ(0); } }
+
+        .tile-inner {
+            position: absolute; width: 100%; height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 1.8, 0.5, 0.9), filter 0.3s ease, opacity 0.3s ease;
+            transform-style: preserve-3d;
+            border-radius: 8px;
+            z-index: 1; /* Detrás del botón de check */
+        }
+
+        /* === ESTADO BLUR (CONOCIDO) === */
+        .tile.known .tile-inner {
+            filter: blur(5px) grayscale(0.8);
+            opacity: 0.3;
+            pointer-events: none; /* Evitar giro accidental si está borrosa */
+        }
+        
+        /* === BOTÓN CHECK (TILDE) MODIFICADO === */
+        .check-btn {
+            position: absolute; 
+            top: 6px; right: 6px; /* CAMBIO 1: Posición interna */
+            width: 24px; height: 24px; z-index: 100; /* Un poco mas pequeño para molestar menos */
+            border-radius: 50%;
+            
+            /* CAMBIO 2: Más transparente */
+            background: rgba(0, 0, 0, 0.2); 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; font-weight: bold; color: transparent;
+            transition: 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* Sombra muy suave */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .check-btn:hover { 
+            transform: scale(1.15); 
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.5); 
+        }
+        
+        /* Estado Checked */
+        .check-btn.checked {
+            background: rgba(0, 230, 118, 0.6); /* Verde semitransparente */
+            border-color: rgba(0, 230, 118, 0.8);
+            color: rgba(0,0,0,0.7);
+        }
+        
+        /* Estilos específicos según tema */
+        body.style-clean .check-btn { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); }
+        body.style-clean .check-btn.checked { background: rgba(76, 175, 80, 0.6); border-color: #4caf50; color: white; }
+
+        /* GIRO */
+        .tile.flipped .tile-inner { transform: rotateY(180deg); }
+
+        /* CARAS */
+        .face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; -webkit-backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 5px; text-align: center; box-sizing: border-box; 
+            border-radius: inherit; overflow: hidden;
+        }
+
+        /* Z-INDEX MANAGEMENT */
+        .face.front { transform: rotateY(0deg); z-index: 5; }
+        .face.back { transform: rotateY(180deg); z-index: 1; }
+        .tile.flipped .face.back { z-index: 10; }
+        .tile.flipped .face.front { z-index: 0; }
+        
+        /* TIPOGRAFÍA */
+        .word-text { 
+            text-transform: uppercase; line-height: 1.1; font-weight: 900; 
+            width: 100%; word-wrap: break-word; hyphens: auto;
+            transform: scale(var(--txt-scale)); 
+        }
+        .verb-stack { display:flex; flex-direction:column; gap:2px; width:100%; height:100%; justify-content:center; transform: scale(var(--txt-scale)); }
+        .verb-row { border-bottom: 1px solid rgba(0,0,0,0.1); padding: 2px 0; width: 100%; display: flex; justify-content: space-between; }
+        .verb-tag { font-size: 8px; opacity: 0.6; font-weight: 700; letter-spacing: 1px;}
+        .verb-word { font-size: 10px; font-weight: 900; text-align: right;}
+
+        /* ==================================================================
+           1. ESTILO NEON 3D
+           ================================================================== */
+        body.style-neon {
+            background-image: radial-gradient(circle at 50% 0%, #1a1a2e 0%, var(--dark) 80%);
+            font-family: 'Montserrat', sans-serif;
+        }
+        body.style-neon #floor { transform: rotateX(25deg); }
+        body.style-neon .tile-inner {
+            background: rgba(10, 10, 18, 0.95);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        body.style-neon .tile:not(.flipped):hover .tile-inner {
+            border-color: var(--cyan); box-shadow: 0 0 15px var(--cyan);
+        }
+        body.style-neon .face.front {
+            color: var(--cyan); text-shadow: 0 0 8px var(--cyan);
+            background: linear-gradient(180deg, rgba(255,255,255,0.05), transparent);
+        }
+        body.style-neon .face.back { background: var(--back-color); color: #000; }
+
+        /* ==================================================================
+           2. ESTILO CLEAN LIGHT
+           ================================================================== */
+        body.style-clean { background: #f0f2f5; color: #333; font-family: 'Poppins', sans-serif; }
+        body.style-clean #floor { transform: none !important; width: 100%; padding-top: 100px; gap: 20px;}
+        body.style-clean #scene { perspective: none; }
+        body.style-clean .tile-inner {
+            background: #fff; border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #e0e0e0;
+        }
+        body.style-clean .tile:not(.flipped):hover .tile-inner {
+            transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        body.style-clean .face.front { color: #444; }
+        body.style-clean .face.back { 
+            background: #fff; color: #333; border: 3px solid var(--back-color);
+        }
+
+        /* ==================================================================
+           3. ESTILO RETRO
+           ================================================================== */
+        body.style-retro { background-color: #8b9bb4; font-family: 'VT323', monospace; }
+        body.style-retro #floor { transform: none !important; gap: 15px; }
+        body.style-retro .tile-inner {
+            background: #0f380f; border-radius: 4px; box-shadow: 6px 6px 0px rgba(0,0,0,0.2);
+        }
+        body.style-retro .face.front { 
+            background: #9bbc0f; color: #0f380f; border: 4px solid #0f380f; font-size: 1.2em;
+        }
+        body.style-retro .face.back { 
+            background: #0f380f; color: #9bbc0f; border: 4px solid #306230;
+        }
+
+        /* ==================================================================
+           4. ESTILO GLASS
+           ================================================================== */
+        body.style-glass {
+            background: linear-gradient(135deg, var(--cyan) 0%, var(--pink) 100%);
+            font-family: 'Poppins', sans-serif;
+        }
+        body.style-glass #floor { transform: none !important; gap: 20px; }
+        body.style-glass .tile-inner { border-radius: 20px; }
+        body.style-glass .face.front {
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); color: #222; 
+        }
+        body.style-glass .face.back { 
+            background: rgba(255, 255, 255, 0.9); color: #111; border: 1px solid white;
+        }
+
+        /* ==================================================================
+           UI: HUD & CONFIG
+           ================================================================== */
+        #hud { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 80px; 
+            display: flex; justify-content: center; align-items: center; 
+            z-index: 100; pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        }
+        .hud-btn { 
+            pointer-events: auto; cursor: pointer; border:none; 
+            background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2);
+            width: 45px; height: 45px; border-radius: 50%; font-size: 20px;
+            display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(5px); transition: 0.2s;
+        }
+        .hud-btn:hover { background: white; color: black; transform: scale(1.1); }
+        .title { font-weight: 900; font-size: 16px; letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,0.5); pointer-events: auto;}
+
+        /* MODAL */
+        #settings-modal { 
+            position: fixed; top:0; left:0; width:100%; height:100%; 
+            background: rgba(0,0,0,0.85); z-index: 2000; 
+            display: none; align-items: center; justify-content: center; 
+            backdrop-filter: blur(10px); opacity: 0; transition: opacity 0.3s;
+        }
+        #settings-modal.active { display: flex; opacity: 1; }
+        
+        .settings-panel { 
+            background: #111; padding: 30px; border-radius: 20px; 
+            border: 1px solid #333; width: 320px; color: white; 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        
+        .st-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .st-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #aaa; text-transform: uppercase; }
+        
+        select { background: #222; color: white; border: 1px solid #444; padding: 5px 10px; border-radius: 6px; outline: none; }
+        
+        /* SELECTOR DE COLOR */
+        .color-picker-container { display: flex; align-items: center; gap: 10px; width: 140px; }
+        .hue-slider {
+            -webkit-appearance: none; appearance: none; width: 100%; height: 12px; border-radius: 6px;
+            background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+            outline: none; cursor: pointer;
+        }
+        .hue-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%;
+            background: #fff; border: 3px solid #000; box-shadow: 0 0 5px rgba(0,0,0,0.5); transform: scale(1.1);
+        }
+        .color-preview {
+            width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2);
+            background-color: var(--cyan); box-shadow: 0 0 10px var(--cyan); transition: background-color 0.1s;
+        }
+
+        input[type=range].std-range { accent-color: var(--cyan); width: 120px; cursor: pointer; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #444; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--cyan); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .close-st-btn { 
+            width: 100%; padding: 12px; background: white; color: black; 
+            border: none; border-radius: 8px; font-weight: 800; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; margin-top: 10px;
+        }
+
+        /* Estilos UI Específicos */
+        body.style-clean #hud { background: rgba(255,255,255,0.9); border-bottom: 1px solid #eee; }
+        body.style-clean .title { color: #333; text-shadow: none; }
+        body.style-clean .hud-btn { background: #eee; color: #333; border-color: #ddd; }
+        body.style-clean .settings-panel { background: white; color: #333; border: 1px solid #eee; }
+        body.style-clean input[type=range].std-range { accent-color: #333; }
+        body.style-clean .close-st-btn { background: #333; color: white; }
+
+        /* Botón Reset Rojo */
+        .reset-cat-btn {
+            width: 100%; padding: 10px; background: rgba(255,50,50,0.2); color: #ff5555;
+            border: 1px solid #ff5555; border-radius: 8px; font-weight: 700; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-size: 10px;
+            display: none; /* Oculto por defecto */
+        }
+        .reset-cat-btn:hover { background: #ff5555; color: white; }
+
+    </style>
+</head>
+<body class="style-neon">
+
+    <script src="https://paradisonetworx.com/database.js"></script>
+
+    <div id="hud">
+        <button class="hud-btn back-btn" style="position:absolute; left:20px; opacity:0; pointer-events:none; transition:0.3s;" onclick="initFolderView()">←</button>
+        <div class="title" id="page-title">SYSTEM READY</div>
+        <button class="hud-btn gear-btn" style="position:absolute; right:20px;" onclick="toggleSettings()">⚙</button>
+    </div>
+
+    <div id="settings-modal">
+        <div class="settings-panel">
+            <div style="text-align:center; font-weight:900; margin-bottom:20px; font-size:16px;">FULL CONFIGURATION</div>
+            
+            <div class="st-row">
+                <span class="st-label">THEME STYLE</span>
+                <select id="st-style" onchange="updateSettings()">
+                    <option value="style-neon">NEON 3D</option>
+                    <option value="style-clean">CLEAN (Study)</option>
+                    <option value="style-glass">GLASS OS</option>
+                    <option value="style-retro">RETRO BIT</option>
+                    </select>
+            </div>
+
+            <div class="st-row">
+                <span class="st-label">COLOR THEME</span>
+                <div class="color-picker-container">
+                    <input type="range" id="st-hue" class="hue-slider" min="0" max="360" value="180" oninput="updateSettings()">
+                    <div class="color-preview"></div>
+                </div>
+            </div>
+
+            <div class="st-row">
+                <span class="st-label">SWAP (ES FRONT)</span>
+                <label class="switch">
+                    <input type="checkbox" id="st-swap" onchange="updateSettings()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="st-row">
+                <span class="st-label">AUDIO ENABLED</span>
+                <label class="switch">
+                    <input type="checkbox" id="st-audio" checked onchange="updateSettings()">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="st-row">
+                <span class="st-label">VOICE SPEED</span>
+                <input type="range" id="st-speed" class="std-range" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updateSettings()">
+            </div>
+
+            <div class="st-row">
+                <span class="st-label">FONT SIZE</span>
+                <input type="range" id="st-size" class="std-range" min="0.8" max="1.3" step="0.1" value="1.0" oninput="updateSettings()">
+            </div>
+
+            <button id="btn-reset-cat" class="reset-cat-btn" onclick="resetCategoryProgress()">RESET THIS CATEGORY</button>
+
+            <button class="close-st-btn" onclick="toggleSettings()">SAVE & CLOSE</button>
+        </div>
+    </div>
+
+    <div id="loading" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:var(--cyan); font-weight:bold;">LOADING...</div>
+
+    <div id="scene">
+        <div id="floor"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // STATE MANAGEMENT
+        // ==========================================
+        let appConfig = {
+            style: 'style-neon', audio: true, speed: 1.0,
+            scale: 1.0, hue: 180, swapLang: false
+        };
+
+        // KEY PARA EL LOCALSTORAGE
+        const KNOWN_STORAGE_KEY = 'neon_known_words';
+        let knownRegistry = {};
+
+        function loadSettings() {
+            const saved = localStorage.getItem('neon_mosaic_v6_no_cyber');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if(parsed.style === 'style-cyber') parsed.style = 'style-neon';
+                    appConfig = { ...appConfig, ...parsed };
+                } catch(e) {}
+            }
+            // Cargar palabras conocidas
+            const savedKnown = localStorage.getItem(KNOWN_STORAGE_KEY);
+            if (savedKnown) {
+                try { knownRegistry = JSON.parse(savedKnown); } catch(e) { knownRegistry = {}; }
+            }
+
+            applyConfigToUI();
+            applyVisuals();
+        }
+
+        function applyConfigToUI() {
+            document.getElementById('st-style').value = appConfig.style;
+            document.getElementById('st-hue').value = appConfig.hue;
+            document.getElementById('st-audio').checked = appConfig.audio;
+            document.getElementById('st-speed').value = appConfig.speed;
+            document.getElementById('st-size').value = appConfig.scale;
+            document.getElementById('st-swap').checked = appConfig.swapLang;
+        }
+
+        function toggleSettings() {
+            const modal = document.getElementById('settings-modal');
+            const resetBtn = document.getElementById('btn-reset-cat');
+            
+            // Solo mostrar botón reset si estamos en modo palabras (dentro de una categoría)
+            if (currentMode === 'word') resetBtn.style.display = 'block';
+            else resetBtn.style.display = 'none';
+
+            modal.classList.toggle('active');
+        }
+
+        function updateSettings() {
+            appConfig.style = document.getElementById('st-style').value;
+            appConfig.hue = document.getElementById('st-hue').value;
+            appConfig.audio = document.getElementById('st-audio').checked;
+            appConfig.speed = parseFloat(document.getElementById('st-speed').value);
+            appConfig.scale = document.getElementById('st-size').value;
+            appConfig.swapLang = document.getElementById('st-swap').checked;
+
+            applyVisuals();
+            localStorage.setItem('neon_mosaic_v6_no_cyber', JSON.stringify(appConfig));
+            
+            if(currentMode === 'word') {
+                floor.innerHTML = ''; renderIndex = 0; loadNextBatch();
+            }
+        }
+
+        function applyVisuals() {
+            document.body.className = appConfig.style;
+            document.documentElement.style.setProperty('--hue', appConfig.hue); 
+            document.documentElement.style.setProperty('--txt-scale', appConfig.scale);
+            
+            const title = document.getElementById('page-title');
+            if(appConfig.style === 'style-clean') title.style.color = '#333';
+            else if(appConfig.style === 'style-retro') title.style.color = '#9bbc0f';
+            else title.style.color = 'white';
+        }
+
+        // ==========================================
+        // DATA & KNOWLEDGE LOGIC
+        // ==========================================
+        let db = [];
+        let activeList = [];       
+        let renderIndex = 0;       
+        let currentMode = '';      
+        const BATCH_SIZE = 40;     
+
+        function clean(txt) { if (!txt) return ""; return String(txt).split('/')[0].trim(); }
+        function getSmartFontSize(text) {
+            if(!text) return '14px';
+            const len = text.length;
+            if (len <= 4) return '22px'; if (len <= 8) return '18px'; 
+            if (len <= 14) return '14px'; return '12px';                  
+        }
+
+        // Función para guardar/quitar palabra conocida
+        function toggleKnown(e, wordKey) {
+            e.stopPropagation(); // Evita que gire la carta
+            const btn = e.currentTarget;
+            const tile = btn.parentElement;
+            
+            const isKnown = !!knownRegistry[wordKey];
+            
+            if (isKnown) {
+                // Desmarcar
+                delete knownRegistry[wordKey];
+                btn.classList.remove('checked');
+                btn.innerHTML = ''; // Quita el check
+                tile.classList.remove('known');
+            } else {
+                // Marcar
+                knownRegistry[wordKey] = true;
+                btn.classList.add('checked');
+                btn.innerHTML = '✓';
+                tile.classList.add('known');
+            }
+            
+            localStorage.setItem(KNOWN_STORAGE_KEY, JSON.stringify(knownRegistry));
+        }
+
+        // Función para resetear toda la categoría actual
+        function resetCategoryProgress() {
+            if (currentMode !== 'word') return;
+            
+            const confirmAction = confirm("Are you sure you want to unblur all cards in this list?");
+            if (!confirmAction) return;
+
+            // Recorremos la lista activa y borramos del registro
+            activeList.forEach(item => {
+                const key = item.eng; // Usamos la palabra en inglés como ID
+                if (knownRegistry[key]) delete knownRegistry[key];
+            });
+
+            localStorage.setItem(KNOWN_STORAGE_KEY, JSON.stringify(knownRegistry));
+            
+            // Refrescar vista
+            floor.innerHTML = ''; renderIndex = 0; loadNextBatch();
+            toggleSettings(); // Cerrar modal
+        }
+
+        async function initDB() {
+            let customData = [];
+            try { const raw = localStorage.getItem('mdc_vocab_list'); if(raw) customData = JSON.parse(raw); } catch(e) {}
+
+            return new Promise(resolve => {
+                const check = setInterval(() => {
+                    if (typeof INTERNAL_VOCAB !== 'undefined') {
+                        clearInterval(check);
+                        const officialFolders = Object.keys(INTERNAL_VOCAB).map(key => {
+                            return {
+                                id: key, isFolder: true, name: key.replace(/_/g, ' '), type: 'official',
+                                items: INTERNAL_VOCAB[key].map(item => ({
+                                    eng: clean(item.en), esp: item.es,
+                                    past: item.past ? clean(item.past) : null,
+                                    part: item.part ? clean(item.part) : null
+                                }))
+                            };
+                        });
+                        db = [...officialFolders, ...customData];
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
+
+        // ==========================================
+        // RENDER ENGINE
+        // ==========================================
+        const floor = document.getElementById('floor');
+        const title = document.getElementById('page-title');
+        const backBtn = document.querySelector('.back-btn');
+        const loading = document.getElementById('loading');
+
+        floor.addEventListener('scroll', () => {
+            if (floor.scrollTop + floor.clientHeight >= floor.scrollHeight - 300) loadNextBatch();
+        });
+
+        function initFolderView() {
+            floor.innerHTML = ''; floor.scrollTop = 0;
+            title.innerText = "LIBRARY";
+            backBtn.style.opacity = '0'; backBtn.style.pointerEvents = 'none';
+            
+            const folders = db.filter(i => i.isFolder);
+            const loose = db.filter(i => !i.isFolder);
+            activeList = [];
+            if (loose.length > 0) activeList.push({ name: "MY SAVED", count: loose.length, id: 'root', type: 'hub' });
+            folders.forEach((f) => {
+                activeList.push({ name: f.name, count: f.items.length, id: f.id, type: f.type });
+            });
+
+            currentMode = 'folder'; renderIndex = 0; loadNextBatch();
+        }
+
+        function openFolder(id) {
+            floor.innerHTML = ''; floor.scrollTop = 0;
+            backBtn.style.opacity = '1'; backBtn.style.pointerEvents = 'auto';
+            
+            let items = [], folderName = "";
+            if (id === 'root') { items = db.filter(i => !i.isFolder); folderName = "MY SAVED"; } 
+            else { const f = db.find(i => i.id === id); if (f) { items = f.items; folderName = f.name; }}
+
+            title.innerText = folderName;
+            activeList = items;
+            currentMode = 'word'; renderIndex = 0; loadNextBatch();
+        }
+
+        function loadNextBatch() {
+            if (renderIndex >= activeList.length) return;
+            const endIndex = Math.min(renderIndex + BATCH_SIZE, activeList.length);
+            for (let i = renderIndex; i < endIndex; i++) {
+                const item = activeList[i];
+                if (currentMode === 'folder') createTile(item, i);
+                else createWordTile(item, i);
+            }
+            renderIndex = endIndex;
+            if (floor.scrollHeight <= floor.clientHeight && renderIndex < activeList.length) {
+                setTimeout(loadNextBatch, 50);
+            }
+        }
+
+        function createTile(data, index) {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            if(index < 15) tile.style.animationDelay = `${(index % 10) * 0.04}s`;
+            else tile.style.animation = 'none'; 
+            if(index >= 15) tile.style.opacity = 1;
+
+            let icon = '◆'; 
+            if (data.type === 'official') icon = '❖'; 
+            if (data.type === 'hub') icon = '★'; 
+            
+            tile.innerHTML = `
+                <div class="tile-inner">
+                    <div class="face front" style="border-bottom-color:var(--cyan);">
+                        <div style="font-size:24px; margin-bottom:5px;">${icon}</div>
+                        <div class="word-text" style="font-size:12px;">${data.name}</div>
+                        <div style="font-size:10px; opacity:0.6; margin-top:5px;">${data.count} ITEMS</div>
+                    </div>
+                    <div class="face back"></div>
+                </div>
+            `;
+            tile.onclick = () => {
+                if(appConfig.style === 'style-neon') {
+                    document.querySelectorAll('.tile').forEach(t => t.style.transform = "scale(0) translateZ(-100px)");
+                    setTimeout(() => openFolder(data.id), 400);
+                } else {
+                    openFolder(data.id);
+                }
+            };
+            floor.appendChild(tile);
+        }
+
+        function createWordTile(item, index) {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            if(index < 15) tile.style.animationDelay = `${(index % 10) * 0.02}s`;
+            else { tile.style.animation = 'none'; tile.style.opacity = 1; }
+
+            const eng = item.eng || "?";
+            const esp = item.esp || "...";
+            const isIrregular = (item.past && item.part);
+            const colors = ['#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#00bcd4', '#009688', '#4caf50', '#ffc107', '#ff5722'];
+            tile.style.setProperty('--back-color', colors[Math.floor(Math.random() * colors.length)]);
+
+            const fSizeEng = getSmartFontSize(eng);
+            const fSizeEsp = getSmartFontSize(esp);
+
+            // LOGICA DE ESTADO "CONOCIDO"
+            const wordKey = eng; // Usamos la palabra en inglés como ID único
+            const isKnown = !!knownRegistry[wordKey];
+            const checkClass = isKnown ? 'check-btn checked' : 'check-btn';
+            const checkContent = isKnown ? '✓' : '';
+            if (isKnown) tile.classList.add('known');
+
+            let frontHTML = '', backHTML = '';
+
+            if (!appConfig.swapLang) {
+                frontHTML = `<div class="word-text" style="font-size:${fSizeEng}">${eng}</div>`;
+                if (isIrregular) {
+                    backHTML = `
+                        <div class="verb-stack">
+                            <div class="verb-row" style="border-bottom:none; margin-bottom:5px; justify-content:center;">
+                                <span style="font-style:italic; font-size:11px; opacity:0.8">${esp.substring(0,18)}</span>
+                            </div>
+                            <div class="verb-row"><span class="verb-tag">PAST</span><span class="verb-word">${item.past}</span></div>
+                            <div class="verb-row" style="border:none"><span class="verb-tag">PART</span><span class="verb-word">${item.part}</span></div>
+                        </div>`;
+                } else {
+                    backHTML = `<div class="word-text" style="font-size:${fSizeEsp}">${esp}</div>`;
+                }
+            } else {
+                frontHTML = `<div class="word-text" style="font-size:${fSizeEsp}">${esp}</div>`;
+                if (isIrregular) {
+                    backHTML = `
+                        <div class="verb-stack">
+                            <div class="verb-row"><span class="verb-tag">BASE</span><span class="verb-word">${eng}</span></div>
+                            <div class="verb-row"><span class="verb-tag">PAST</span><span class="verb-word">${item.past}</span></div>
+                            <div class="verb-row" style="border:none"><span class="verb-tag">PART</span><span class="verb-word">${item.part}</span></div>
+                        </div>`;
+                } else {
+                    backHTML = `<div class="word-text" style="font-size:${fSizeEng}">${eng}</div>`;
+                }
+            }
+
+            // Inyectamos el botón de check
+            const safeKey = eng.replace(/'/g, "\\'"); 
+
+            tile.innerHTML = `
+                <div class="${checkClass}" onclick="toggleKnown(event, '${safeKey}')">${checkContent}</div>
+                <div class="tile-inner">
+                    <div class="face front">${frontHTML}</div>
+                    <div class="face back">${backHTML}</div>
+                </div>
+            `;
+
+            tile.onclick = (e) => {
+                // Doble seguridad: si es known, no girar
+                if (tile.classList.contains('known')) return;
+
+                const isAlreadyFlipped = tile.classList.contains('flipped');
+                if (isAlreadyFlipped) { tile.classList.remove('flipped'); return; }
+                
+                const current = document.querySelector('.tile.flipped');
+                if (current) current.classList.remove('flipped');
+
+                requestAnimationFrame(() => tile.classList.add('flipped'));
+
+                if (isIrregular) speakSequence([eng, item.past, item.part]);
+                else speak(eng, 'en-US');
+            };
+            floor.appendChild(tile);
+        }
+
+        // ==========================================
+        // AUDIO
+        // ==========================================
+        function speak(text, lang) {
+            if (!appConfig.audio) return; 
+            window.speechSynthesis.cancel(); 
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = lang; u.rate = appConfig.speed; 
+            window.speechSynthesis.speak(u);
+        }
+
+        function speakSequence(words) {
+            if (!appConfig.audio) return;
+            window.speechSynthesis.cancel();
+            let i = 0;
+            function next() {
+                if (i >= words.length) return;
+                const u = new SpeechSynthesisUtterance(words[i]);
+                u.lang = 'en-US'; u.rate = appConfig.speed;
+                u.onend = () => { i++; setTimeout(next, 250); };
+                window.speechSynthesis.speak(u);
+            }
+            next();
+        }
+
+        loadSettings();
+        initDB().then(() => {
+            loading.style.display = 'none';
+            initFolderView();
+        });
+
+    </script>
+</body>
+</html>
