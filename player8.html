@@ -2474,80 +2474,152 @@ async function copyHistoryData(e, id, btnElement) {
 })();
 
 function highlightSavedFragments() {
-        const lines = document.querySelectorAll('.line');
+
+    const lines = document.querySelectorAll('.line');
+
+    
+
+    // 1. Limpieza inicial (Volvemos al estado 'limpio' del CSS)
+
+    lines.forEach(l => {
+
+        l.style.borderLeftColor = ''; 
+
+        l.style.boxShadow = ''; 
+
+        l.style.backgroundColor = ''; 
+
+    });
+
+
+
+    if (!videoFragments || videoFragments.length === 0) return;
+
+
+
+    // 2. Paleta de colores
+
+    const palette = [
+
+        '#FACC15', // Amarillo
+
+        '#4ADE80', // Verde
+
+        '#22D3EE', // Cian
+
+        '#A78BFA', // Violeta
+
+        '#F472B6', // Rosa
+
+        '#FB7185', // Coral
+
+        '#FB923C', // Naranja
+
+        '#94A3B8'  // Gris
+
+    ];
+
+
+
+    // 3. Iteramos LÍNEA por LÍNEA (Enfoque más robusto para solapamientos)
+
+    lines.forEach(line => {
+
+        const lStart = parseFloat(line.dataset.start);
+
+        const lEnd = parseFloat(line.dataset.end);
+
         
-        // 1. Limpieza inicial
-        lines.forEach(l => {
-            l.style.borderLeftColor = ''; 
-            l.style.boxShadow = ''; 
-            l.style.backgroundColor = ''; 
+
+        // Buscamos TODOS los fragmentos a los que pertenece esta línea
+
+        // (Usamos la lógica estricta de finalización que arreglamos antes)
+
+        const activeFrags = videoFragments.filter(frag => {
+
+            // Calculamos el índice para saber su color original (para que no cambie si borras otros)
+
+            frag._colorIndex = videoFragments.indexOf(frag); 
+
+            return (lStart >= frag.start && lEnd <= (frag.end + 0.05));
+
         });
 
-        if (!videoFragments || videoFragments.length === 0) return;
 
-        // 2. Paleta de colores ampliada (12 colores para más variedad)
-        const palette = [
-            '#FACC15', // Amarillo
-            '#4ADE80', // Verde Neón
-            '#22D3EE', // Cian
-            '#A78BFA', // Violeta
-            '#F472B6', // Rosa
-            '#FB7185', // Coral
-            '#FB923C', // Naranja
-            '#94A3B8', // Gris Azulado
-            '#E879F9', // Fucsia
-            '#818CF8', // Índigo
-            '#2DD4BF', // Turquesa
-            '#A3E635'  // Lima
-        ];
 
-        // 3. Iteramos línea por línea
-        lines.forEach(line => {
-            const lStart = parseFloat(line.dataset.start);
-            const lEnd = parseFloat(line.dataset.end);
+        // Si no pertenece a ninguno, pasamos a la siguiente
+
+        if (activeFrags.length === 0) return;
+
+
+
+        // 4. Si hay coincidencias, construimos las bandas
+
+        // Limitamos a 4 por seguridad visual (aunque el código aguanta más)
+
+        const visibleFrags = activeFrags.slice(0, 4);
+
+        
+
+        let shadowString = [];
+
+        let accumulatedWidth = 0;
+
+        const stripeWidth = 5; // Ancho de cada banda en píxeles
+
+
+
+        visibleFrags.forEach((frag) => {
+
+            const color = palette[frag._colorIndex % palette.length];
+
             
-            // Filtramos fragmentos activos en esta línea
-            const activeFrags = videoFragments.filter(frag => {
-                // CAMBIO CLAVE: Generamos el color usando el ID, no el índice.
-                // Sumamos los códigos de caracteres del ID para crear un número único.
-                const charCodeSum = frag.id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                frag._colorIndex = charCodeSum; 
-                
-                // Lógica estricta de coincidencia de tiempo
-                return (lStart >= frag.start && lEnd <= (frag.end + 0.05));
-            });
 
-            if (activeFrags.length === 0) return;
+            // Calculamos la posición de la sombra para que se apilen
 
-            // Ordenamos visualmente: Fragmentos más pequeños (slices cortos) primero para que su color predomine en el fondo
-            activeFrags.sort((a, b) => (a.end - a.start) - (b.end - b.start));
+            // Capa 1: 5px, Capa 2: 10px, Capa 3: 15px...
 
-            const visibleFrags = activeFrags.slice(0, 5); // Límite de 5 bandas para no saturar
+            accumulatedWidth += stripeWidth;
+
             
-            let shadowString = [];
-            let accumulatedWidth = 0;
-            const stripeWidth = 5; // Grosor de la banda lateral
 
-            visibleFrags.forEach((frag) => {
-                // Seleccionamos color usando el hash del ID generado arriba
-                const color = palette[frag._colorIndex % palette.length];
-                
-                accumulatedWidth += stripeWidth;
-                
-                // Creamos la banda lateral (shadow stack)
-                shadowString.push(`inset ${accumulatedWidth}px 0 0 0 ${color}`);
-            });
+            // Truco CSS: inset Xpx 0 0 0 Color
 
-            // Aplicamos estilos
-            line.style.borderLeftColor = 'transparent';
-            line.style.boxShadow = shadowString.join(', ');
-            
-            // El color de fondo será el del slice más pequeño (más específico)
-            const specificFrag = visibleFrags[0]; 
-            const specificColor = palette[specificFrag._colorIndex % palette.length];
-            line.style.backgroundColor = specificColor + '15'; // 15 = Transparencia muy baja
+            // Las sombras se apilan una DETRÁS de otra. La primera (más pequeña) tapa a la segunda.
+
+            shadowString.push(`inset ${accumulatedWidth}px 0 0 0 ${color}`);
+
         });
-    }
+
+
+
+        // 5. Aplicamos los estilos finales
+
+        // Quitamos el borde blanco por defecto para que las bandas empiecen desde el borde real
+
+        line.style.borderLeftColor = 'transparent';
+
+        
+
+        // Aplicamos la pila de sombras generada
+
+        line.style.boxShadow = shadowString.join(', ');
+
+        
+
+        // Aplicamos un fondo sutil del color del fragmento MÁS PEQUEÑO (el más específico)
+
+        // Ordenamos por duración para encontrar el más corto
+
+        const specificFrag = visibleFrags.sort((a,b) => (a.end - a.start) - (b.end - b.start))[0];
+
+        const specificColor = palette[specificFrag._colorIndex % palette.length];
+
+        line.style.backgroundColor = specificColor + '15'; // 15 = Transparencia muy baja
+
+    });
+
+}
 </script>
     
 </body>
