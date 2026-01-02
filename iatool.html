@@ -1349,19 +1349,43 @@ function pauseAudio(id) {
 }
 
 function rewindAudio(id) {
-    // Feedback visual
+    // 1. Feedback visual inmediato en el botón Rewind
     const rewBtn = document.getElementById(`rewind-${id}`);
-    rewBtn.classList.add('playing');
-    setTimeout(() => rewBtn.classList.remove('playing'), 200);
+    if (rewBtn) {
+        rewBtn.classList.add('playing');
+        setTimeout(() => rewBtn.classList.remove('playing'), 200);
+    }
 
-    // Stop and restart safely
+    // 2. DETECCIÓN INTELIGENTE DE PAUSA
+    // Si el navegador está en pausa, SpeechSynthesis se bloquea si intentas cancelar.
+    // El truco es decirle "resume" justo antes de matarlo.
+    if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+    }
+
+    // 3. Detener audio actual
     if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
     }
-    // Timeout prevents the 'cancel' onend event from overwriting the new play state
+
+    // 4. Resetear visualmente el botón de Play a "Listo para arrancar"
+    // Esto evita que se quede el icono de Pausa (⏸) durante el pequeño retraso
+    const playBtn = document.getElementById(`play-${id}`);
+    const screen = document.getElementById(`screen-${id}`);
+    
+    if (playBtn) {
+        playBtn.classList.remove('playing');
+        playBtn.innerHTML = '▶';
+    }
+    if (screen) {
+        screen.classList.remove('active');
+    }
+
+    // 5. Reiniciar (Rebobinar) con un pequeño respiro para el navegador
+    // 300ms es el punto dulce entre rapidez y seguridad
     setTimeout(() => {
         speakContent(id);
-    }, 100);
+    }, 300);
 }
 
 function toggleAudio(id) { 
