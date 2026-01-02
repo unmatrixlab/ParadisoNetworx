@@ -220,6 +220,9 @@
     }
     .daw-btn-icon:active { transform: translateY(2px); box-shadow: inset 0 4px 8px rgba(0,0,0,0.8); }
     
+    /* MODIFIED: Disabled State */
+    .daw-btn-icon:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+    
     /* Play activo */
     .daw-btn-icon.playing {
         color: var(--success); border-color: var(--success); text-shadow: 0 0 8px var(--success);
@@ -472,10 +475,8 @@
 </div>
 
 <script>
-
-
-
-
+// ... (The long config arrays remain exactly the same as your input, collapsing for brevity) ...
+/* 1. CONFIG DATA (FULL MERGED & CATEGORIZED) */
 /* 1. CONFIG DATA (FULL MERGED & CATEGORIZED) */
 const COMMON_DATA = {
     MODES: [
@@ -907,9 +908,6 @@ const SYSTEM_DATA = {
     ]
 };
 
-
-
-
 /* 2. GLOBAL STATE */
 let lastGeneratedPrompt = ""; 
 let currentData = SYSTEM_DATA; 
@@ -921,7 +919,7 @@ const PREF_AUDIO_SPEED = 'nexus_audio_speed';
 let availableVoices = [];
 
 // MODAL STATE
-let activeSelectionId = null; // 'modeSelect', 'formatSelect', etc.
+let activeSelectionId = null; 
 
 // PILL STATE
 let currentStatsContext = null;
@@ -932,8 +930,7 @@ let lastStorageString = "";
 let pressTimer;
 let isLongPressHandled = false;
 let pendingPhraseStartIdx = null; 
-
-    let tempSelectedItem = null;
+let tempSelectedItem = null;
 
 /* 3. INITIALIZATION */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1193,7 +1190,6 @@ function deletePhraseFromDB(phraseText) {
 }
 function clearManualSelection() { document.querySelectorAll('.phrase-selecting').forEach(el => { el.classList.remove('phrase-selecting'); delete el.dataset.userSelected; }); pendingPhraseStartIdx = null; const pill = document.getElementById('unified-pill'); if(pill) pill.classList.remove('selection-mode'); }
 
-// MODIFIED: Added Translation Trigger on Selection
 function checkSelectionState(element) {
     const contentDiv = element.closest('.interactive-content') || currentStatsContext; if (!contentDiv) return;
     const selected = Array.from(contentDiv.querySelectorAll('.phrase-selecting')); 
@@ -1205,10 +1201,9 @@ function checkSelectionState(element) {
         pill.classList.add('selection-mode'); 
         saveBtn.innerHTML = `💾 SAVE`;
         
-        // Build phrase and Translate immediately
         selected.sort((a,b) => parseInt(a.dataset.idx) - parseInt(b.dataset.idx));
         const phraseText = selected.map(el => sanitizeText(el.innerText)).join(" ");
-        translateWord(phraseText); // Shows translation in pill while selecting
+        translateWord(phraseText); 
         
     } else { 
         pill.classList.remove('selection-mode'); 
@@ -1240,7 +1235,6 @@ function updateUnifiedPill(translationData = null) {
     statsText.innerText = `${currentWordStats.occurrences} | ${currentWordStats.uniqueTotal}`;
     if(currentWordStats.uniqueTotal > 0) statsText.classList.add('stats-active'); else statsText.classList.remove('stats-active');
     
-    // Translation Logic (Works for hover AND selection now via CSS)
     if (translationData) { 
         divider.style.display = 'block'; 
         transPart.classList.add('active'); 
@@ -1314,28 +1308,60 @@ function loadVoices() { availableVoices = window.speechSynthesis.getVoices().fil
 function updateVoiceSelect(select) { const savedVoiceURI = localStorage.getItem(PREF_AUDIO_VOICE); select.innerHTML = ''; availableVoices.forEach(v => { const opt = document.createElement('option'); opt.value = v.voiceURI; opt.textContent = v.name.substring(0, 18); select.appendChild(opt); }); if(savedVoiceURI) select.value = savedVoiceURI; }
 function updateAudioLive(id) { const speed = document.getElementById(`speed-${id}`).value; const voiceURI = document.getElementById(`voice-${id}`).value; localStorage.setItem(PREF_AUDIO_SPEED, speed); localStorage.setItem(PREF_AUDIO_VOICE, voiceURI); const screen = document.getElementById(`screen-${id}`); const voiceName = availableVoices.find(v => v.voiceURI === voiceURI)?.name.substring(0,6) || "DEF"; if(screen) screen.innerText = `SPD:${speed}x | ${voiceName}`; }
 
-/* MODIFIED: TTS Engine with Pause/Rewind */
+/* MODIFIED: ROBUST AUDIO LOGIC - DISABLED STATE */
 function speakContent(id) {
-    const contentDiv = document.querySelector(`#content-${id} .interactive-content`); const text = contentDiv.innerText; const speed = document.getElementById(`speed-${id}`).value; const voiceURI = document.getElementById(`voice-${id}`).value; const playBtn = document.getElementById(`play-${id}`); const screen = document.getElementById(`screen-${id}`);
+    const contentDiv = document.querySelector(`#content-${id} .interactive-content`); 
+    const text = contentDiv.innerText; 
+    const speed = document.getElementById(`speed-${id}`).value; 
+    const voiceURI = document.getElementById(`voice-${id}`).value; 
+    const playBtn = document.getElementById(`play-${id}`); 
+    const rewBtn = document.getElementById(`rewind-${id}`); // Get Rewind Btn
+    const screen = document.getElementById(`screen-${id}`);
     
-    // Check if paused
-    if (window.speechSynthesis.paused) {
+    // Check if we are resuming OR starting new
+    // If Play button is already in 'playing' state and we are paused -> RESUME
+    if (playBtn.classList.contains('playing') && window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
-        playBtn.classList.add('playing'); playBtn.innerHTML = '⏸';
-        if(screen) screen.classList.add('active');
         return;
     }
+    
+    // If paused via system but we want to start fresh or resume logic:
+    if (window.speechSynthesis.paused) {
+         window.speechSynthesis.resume();
+         playBtn.classList.add('playing'); playBtn.innerHTML = '⏸';
+         if(screen) screen.classList.add('active');
+         if(rewBtn) rewBtn.disabled = false; // ENABLE REWIND
+         return;
+    }
 
-    // New Play
+    // Otherwise: START NEW
     window.speechSynthesis.cancel(); 
+    
     playBtn.classList.add('playing'); playBtn.innerHTML = '⏸'; 
     if(screen) screen.classList.add('active');
     
-    const utter = new SpeechSynthesisUtterance(text); const selectedVoice = availableVoices.find(v => v.voiceURI === voiceURI); if(selectedVoice) utter.voice = selectedVoice; utter.rate = parseFloat(speed);
+    const utter = new SpeechSynthesisUtterance(text); 
+    const selectedVoice = availableVoices.find(v => v.voiceURI === voiceURI); 
+    if(selectedVoice) utter.voice = selectedVoice; 
+    utter.rate = parseFloat(speed);
     
-    utter.onstart = () => { playBtn.classList.add('playing'); playBtn.innerHTML = '⏸'; }; 
-    utter.onend = () => { playBtn.classList.remove('playing'); playBtn.innerHTML = '▶'; if(screen) screen.classList.remove('active'); }; 
-    utter.onerror = () => { playBtn.classList.remove('playing'); playBtn.innerHTML = '▶'; if(screen) screen.classList.remove('active'); }; 
+    utter.onstart = () => { 
+        playBtn.classList.add('playing'); 
+        playBtn.innerHTML = '⏸'; 
+        if(rewBtn) rewBtn.disabled = false; // ENABLE REWIND
+    }; 
+    utter.onend = () => { 
+        playBtn.classList.remove('playing'); 
+        playBtn.innerHTML = '▶'; 
+        if(screen) screen.classList.remove('active'); 
+        if(rewBtn) rewBtn.disabled = true; // DISABLE REWIND
+    }; 
+    utter.onerror = () => { 
+        playBtn.classList.remove('playing'); 
+        playBtn.innerHTML = '▶'; 
+        if(screen) screen.classList.remove('active'); 
+        if(rewBtn) rewBtn.disabled = true; // DISABLE REWIND
+    }; 
     
     window.speechSynthesis.speak(utter);
 }
@@ -1343,46 +1369,37 @@ function speakContent(id) {
 function pauseAudio(id) {
     if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
         window.speechSynthesis.pause();
-        const playBtn = document.getElementById(`play-${id}`);
-        playBtn.classList.remove('playing'); playBtn.innerHTML = '▶'; 
     }
 }
 
 function rewindAudio(id) {
-    // 1. Feedback visual inmediato en el botón Rewind
+    // 1. Visual feedback
     const rewBtn = document.getElementById(`rewind-${id}`);
+    
+    // Safety check: if disabled, do nothing (though UI prevents click)
+    if(rewBtn && rewBtn.disabled) return;
+
     if (rewBtn) {
         rewBtn.classList.add('playing');
         setTimeout(() => rewBtn.classList.remove('playing'), 200);
     }
 
-    // 2. DETECCIÓN INTELIGENTE DE PAUSA
-    // Si el navegador está en pausa, SpeechSynthesis se bloquea si intentas cancelar.
-    // El truco es decirle "resume" justo antes de matarlo.
+    // 2. FORCE RESET SYSTEM
     if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
     }
+    window.speechSynthesis.cancel();
 
-    // 3. Detener audio actual
-    if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-    }
-
-    // 4. Resetear visualmente el botón de Play a "Listo para arrancar"
-    // Esto evita que se quede el icono de Pausa (⏸) durante el pequeño retraso
+    // 3. RESET UI MANUALLY
     const playBtn = document.getElementById(`play-${id}`);
-    const screen = document.getElementById(`screen-${id}`);
-    
     if (playBtn) {
         playBtn.classList.remove('playing');
         playBtn.innerHTML = '▶';
     }
-    if (screen) {
-        screen.classList.remove('active');
-    }
+    const screen = document.getElementById(`screen-${id}`);
+    if(screen) screen.classList.remove('active');
 
-    // 5. Reiniciar (Rebobinar) con un pequeño respiro para el navegador
-    // 300ms es el punto dulce entre rapidez y seguridad
+    // 4. RESTART AFTER DELAY
     setTimeout(() => {
         speakContent(id);
     }, 300);
@@ -1390,13 +1407,16 @@ function rewindAudio(id) {
 
 function toggleAudio(id) { 
     const btn = document.getElementById(`play-${id}`); 
+    const rewBtn = document.getElementById(`rewind-${id}`);
+
     if (btn.classList.contains('playing')) { 
-        // Logic for PAUSE
+        // PAUSE LOGIC
         window.speechSynthesis.pause();
         btn.classList.remove('playing'); 
         btn.innerHTML = '▶'; 
+        if(rewBtn) rewBtn.disabled = true; // DISABLE REWIND
     } else { 
-        // Logic for PLAY/RESUME
+        // PLAY LOGIC
         speakContent(id); 
     } 
 }
@@ -1421,7 +1441,7 @@ function renderAccordionDOM(data) {
     const interactiveHTML = formatInteractiveContent(data.content); 
     const savedSpeed = localStorage.getItem(PREF_AUDIO_SPEED) || "1";
     
-    // MODIFIED: Added Rewind/Pause controls
+    // MODIFIED: Rewind button starts DISABLED
     item.innerHTML = `
     <div class="accordion-header" onclick="toggleAccordion(${data.id})">
         <div class="header-content"><span class="meta-tag">${data.modeName}</span><strong>${data.topic}</strong></div>
@@ -1430,7 +1450,7 @@ function renderAccordionDOM(data) {
     <div class="accordion-content" id="content-${data.id}">
         <div class="daw-panel">
             <div class="daw-top-deck">
-                <button id="rewind-${data.id}" class="daw-btn-icon" onclick="rewindAudio(${data.id})">⏪</button>
+                <button id="rewind-${data.id}" class="daw-btn-icon" onclick="rewindAudio(${data.id})" disabled>⏪</button>
                 <button id="play-${data.id}" class="daw-btn-icon" onclick="toggleAudio(${data.id})">▶</button>
                 <div class="daw-screen" id="screen-${data.id}">MASTER OUT</div>
             </div>
