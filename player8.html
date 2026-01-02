@@ -1364,50 +1364,97 @@ if (activeFragmentId) {
     updateFragmentTime(id, type, totalSecs);
 }
 
-    function renderFragmentList() {
-        const tbody = document.getElementById('frag-table-body');
-        tbody.innerHTML = '';
-        let totalSecs = 0;
+function renderFragmentList() {
+    const tbody = document.getElementById('frag-table-body');
+    tbody.innerHTML = '';
+    let totalSecs = 0;
 
-        videoFragments.forEach(frag => {
-            totalSecs += (frag.timeSpent || 0);
-            const stats = calculateFragmentStats(frag.start, frag.end);
-            const timeStudied = formatTime(frag.timeSpent || 0);
+    // 1. ORDENAMIENTO (Idéntico a highlightSavedFragments)
+    videoFragments.sort((a, b) => {
+        if (Math.abs(a.start - b.start) > 0.5) return a.start - b.start;
+        return (b.end - b.start) - (a.end - a.start);
+    });
 
-            const tr = document.createElement('tr');
-            let rowClass = 'frag-row';
-            if (activeFragmentId === frag.id) rowClass += ' active-loop';
-            if (frag.type === 'manual') rowClass += ' manual';
-            tr.className = rowClass;
+    // 2. PALETAS (Copia exacta para consistencia visual)
+    const paletteParents = ['#3b82f6', '#8b5cf6', '#06b6d4', '#6366f1', '#10b981'];
+    const paletteChildren = ['#facc15', '#f472b6', '#fb923c', '#a3e635', '#f87171'];
+
+    let pIdx = 0;
+    let cIdx = 0;
+
+    // Pre-calculamos la anidación y colores en orden
+    videoFragments.forEach(frag => {
+        const parent = videoFragments.find(p => p !== frag && p.start <= frag.start && p.end >= frag.end);
+        frag._isChild = !!parent;
+        
+        if (frag._isChild) {
+            frag._safeColor = paletteChildren[cIdx % paletteChildren.length];
+            cIdx++;
+        } else {
+            frag._safeColor = paletteParents[pIdx % paletteParents.length];
+            pIdx++;
+        }
+    });
+
+    // 3. RENDERIZADO
+    videoFragments.forEach(frag => {
+        totalSecs += (frag.timeSpent || 0);
+        const stats = calculateFragmentStats(frag.start, frag.end);
+        const timeStudied = formatTime(frag.timeSpent || 0);
+        const color = frag._safeColor; // Usamos el color calculado arriba
+
+        // Estilos según si es hijo o padre
+        const nameStyle = frag._isChild 
+            ? `padding-left: 25px; border-left: 2px solid ${color}44;` 
+            : `font-weight:600;`; // Padre un poco más negrita
             
-            const statusClass = frag.status === 'master' ? 'st-master' : (frag.status === 'study' ? 'st-study' : 'st-new');
-            const statusLabel = frag.status === 'master' ? 'Mastered' : (frag.status === 'study' ? 'Studying' : 'New');
+        const nestIcon = frag._isChild ? `<span style="opacity:0.5; margin-right:5px;">↳</span>` : ``;
 
-            tr.innerHTML = `
-                <td><span class="status-badge ${statusClass}" onclick="cycleFragmentStatus('${frag.id}')">${statusLabel}</span></td>
-                <td contenteditable="true" onblur="updateFragmentName('${frag.id}', this.innerText)">${frag.name}</td>
-                <td>${makeTimeInputHTML(frag.id, 'start', frag.start)}</td>
-                <td>${makeTimeInputHTML(frag.id, 'end', frag.end)}</td>
-                <td>
-                    <span class="metric-pill">📖 ${stats.phrases} Phr</span>
-                    <span class="metric-pill">🔑 ${stats.words} Wrd</span>
-                </td>
-                <td style="font-weight:700; color:#6366f1;">${timeStudied}</td>
-                <td>
-                    ${activeFragmentId === frag.id 
-                        ? `<button class="frag-btn" onclick="stopFragmentLoop()" style="background:#ef4444">⏹ Stop</button>`
-                        : `<button class="frag-btn primary" onclick="playFragment('${frag.id}')">▶ Focus</button>`
-                    }
-                </td>
-                <td>
-                    <button class="frag-btn-del" onclick="deleteFragment('${frag.id}')">✕</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
+        // Badge de duración
+        const durationMin = ((frag.end - frag.start) / 60).toFixed(1);
+        const durationBadge = `<span class="metric-pill" style="background:#1f2937; color:${color}; border:1px solid ${color}44">${durationMin}m</span>`;
 
-        document.getElementById('total-time-studied').innerText = `Total Study: ${formatTime(totalSecs)}`;
-    }
+        const tr = document.createElement('tr');
+        let rowClass = 'frag-row';
+        if (activeFragmentId === frag.id) rowClass += ' active-loop';
+        if (frag.type === 'manual') rowClass += ' manual';
+        tr.className = rowClass;
+        
+        const statusClass = frag.status === 'master' ? 'st-master' : (frag.status === 'study' ? 'st-study' : 'st-new');
+        const statusLabel = frag.status === 'master' ? 'Mastered' : (frag.status === 'study' ? 'Studying' : 'New');
+
+        tr.innerHTML = `
+            <td><span class="status-badge ${statusClass}" onclick="cycleFragmentStatus('${frag.id}')">${statusLabel}</span></td>
+            
+            <td contenteditable="true" onblur="updateFragmentName('${frag.id}', this.innerText)" style="${nameStyle}">
+                ${nestIcon}
+                <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${color}; margin-right:8px; box-shadow: 0 0 5px ${color}66;"></span>
+                <span style="color:#f3f4f6;">${frag.name}</span>
+                <div style="margin-top:4px; font-size:10px; opacity:0.7; margin-left:${frag._isChild ? '18px' : '18px'}">${durationBadge}</div>
+            </td>
+
+            <td>${makeTimeInputHTML(frag.id, 'start', frag.start)}</td>
+            <td>${makeTimeInputHTML(frag.id, 'end', frag.end)}</td>
+            <td>
+                <span class="metric-pill">📖 ${stats.phrases} Phr</span>
+                <span class="metric-pill">🔑 ${stats.words} Wrd</span>
+            </td>
+            <td style="font-weight:700; color:#6366f1;">${timeStudied}</td>
+            <td>
+                ${activeFragmentId === frag.id 
+                    ? `<button class="frag-btn" onclick="stopFragmentLoop()" style="background:#ef4444">⏹ Stop</button>`
+                    : `<button class="frag-btn primary" onclick="playFragment('${frag.id}')">▶ Focus</button>`
+                }
+            </td>
+            <td>
+                <button class="frag-btn-del" onclick="deleteFragment('${frag.id}')">✕</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('total-time-studied').innerText = `Total Study: ${formatTime(totalSecs)}`;
+}
 
     function updateFragmentTime(id, type, value) {
         const frag = videoFragments.find(f => f.id === id);
@@ -2474,151 +2521,102 @@ async function copyHistoryData(e, id, btnElement) {
 })();
 
 function highlightSavedFragments() {
-
     const lines = document.querySelectorAll('.line');
 
-    
-
-    // 1. Limpieza inicial (Volvemos al estado 'limpio' del CSS)
-
+    // 1. Limpieza inicial
     lines.forEach(l => {
-
         l.style.borderLeftColor = ''; 
-
         l.style.boxShadow = ''; 
-
         l.style.backgroundColor = ''; 
-
     });
-
-
 
     if (!videoFragments || videoFragments.length === 0) return;
 
-
-
-    // 2. Paleta de colores
-
-    const palette = [
-
-        '#FACC15', // Amarillo
-
-        '#4ADE80', // Verde
-
-        '#22D3EE', // Cian
-
-        '#A78BFA', // Violeta
-
-        '#F472B6', // Rosa
-
-        '#FB7185', // Coral
-
-        '#FB923C', // Naranja
-
-        '#94A3B8'  // Gris
-
+    // === DEFINICIÓN DE DOS GRUPOS DE COLORES (MÁXIMO CONTRASTE) ===
+    
+    // Grupo 1: PADRES (Largos) -> Tonos Fríos/Serios (Azul, Violeta, Cian, Indigo)
+    const paletteParents = [
+        '#3b82f6', // Blue
+        '#8b5cf6', // Violet
+        '#06b6d4', // Cyan
+        '#6366f1', // Indigo
+        '#10b981'  // Emerald
     ];
 
+    // Grupo 2: HIJOS (Cortos) -> Tonos Cálidos/Vibrantes (Amarillo, Rosa, Naranja, Lima)
+    const paletteChildren = [
+        '#facc15', // Yellow
+        '#f472b6', // Pink
+        '#fb923c', // Orange
+        '#a3e635', // Lime
+        '#f87171'  // Red Light
+    ];
 
+    // === ASIGNACIÓN DE COLORES ===
+    // Ordenamos igual que en la lista: Inicio > Duración
+    const sortedFrags = [...videoFragments].sort((a, b) => {
+        if (Math.abs(a.start - b.start) > 0.5) return a.start - b.start;
+        return (b.end - b.start) - (a.end - a.start);
+    });
+    
+    // Contadores independientes para rotar colores sin que se repitan en su propio grupo
+    let pIdx = 0; 
+    let cIdx = 0;
 
-    // 3. Iteramos LÍNEA por LÍNEA (Enfoque más robusto para solapamientos)
-
-    lines.forEach(line => {
-
-        const lStart = parseFloat(line.dataset.start);
-
-        const lEnd = parseFloat(line.dataset.end);
-
+    sortedFrags.forEach(frag => {
+        // Detectar si es Hijo (está dentro de otro fragmento anterior)
+        // Buscamos si existe algun 'padre' en la lista que lo contenga completamente
+        const parent = sortedFrags.find(p => p !== frag && p.start <= frag.start && p.end >= frag.end);
         
+        if (parent) {
+            // ES HIJO -> Usar Paleta Cálida
+            frag._safeColor = paletteChildren[cIdx % paletteChildren.length];
+            frag._isChild = true;
+            cIdx++;
+        } else {
+            // ES PADRE -> Usar Paleta Fría
+            frag._safeColor = paletteParents[pIdx % paletteParents.length];
+            frag._isChild = false;
+            pIdx++;
+        }
+    });
 
-        // Buscamos TODOS los fragmentos a los que pertenece esta línea
-
-        // (Usamos la lógica estricta de finalización que arreglamos antes)
-
+    // === PINTADO DE LÍNEAS ===
+    lines.forEach(line => {
+        const lStart = parseFloat(line.dataset.start);
+        
+        // Filtro estricto
         const activeFrags = videoFragments.filter(frag => {
-
-            // Calculamos el índice para saber su color original (para que no cambie si borras otros)
-
-            frag._colorIndex = videoFragments.indexOf(frag); 
-
-            return (lStart >= frag.start && lEnd <= (frag.end + 0.05));
-
+            return (lStart >= frag.start && lStart < frag.end);
         });
-
-
-
-        // Si no pertenece a ninguno, pasamos a la siguiente
 
         if (activeFrags.length === 0) return;
 
+        // Ordenamos: PADRES (Largos) Primero, HIJOS (Cortos) Después
+        // Esto asegura que el color frío quede a la izquierda (borde) y el cálido a la derecha
+        activeFrags.sort((a,b) => (b.end - b.start) - (a.end - a.start));
 
-
-        // 4. Si hay coincidencias, construimos las bandas
-
-        // Limitamos a 4 por seguridad visual (aunque el código aguanta más)
-
-        const visibleFrags = activeFrags.slice(0, 4);
-
-        
+        // Límite de 2
+        const visibleFrags = activeFrags.slice(0, 2);
 
         let shadowString = [];
-
         let accumulatedWidth = 0;
+        const stripeWidth = 6; 
 
-        const stripeWidth = 5; // Ancho de cada banda en píxeles
-
-
-
-        visibleFrags.forEach((frag) => {
-
-            const color = palette[frag._colorIndex % palette.length];
-
-            
-
-            // Calculamos la posición de la sombra para que se apilen
-
-            // Capa 1: 5px, Capa 2: 10px, Capa 3: 15px...
-
+        visibleFrags.forEach(frag => {
             accumulatedWidth += stripeWidth;
-
-            
-
-            // Truco CSS: inset Xpx 0 0 0 Color
-
-            // Las sombras se apilan una DETRÁS de otra. La primera (más pequeña) tapa a la segunda.
-
-            shadowString.push(`inset ${accumulatedWidth}px 0 0 0 ${color}`);
-
+            shadowString.push(`inset ${accumulatedWidth}px 0 0 0 ${frag._safeColor}`);
         });
 
-
-
-        // 5. Aplicamos los estilos finales
-
-        // Quitamos el borde blanco por defecto para que las bandas empiecen desde el borde real
-
-        line.style.borderLeftColor = 'transparent';
-
-        
-
-        // Aplicamos la pila de sombras generada
-
+        line.style.borderLeftColor = 'transparent'; 
         line.style.boxShadow = shadowString.join(', ');
 
-        
-
-        // Aplicamos un fondo sutil del color del fragmento MÁS PEQUEÑO (el más específico)
-
-        // Ordenamos por duración para encontrar el más corto
-
-        const specificFrag = visibleFrags.sort((a,b) => (a.end - a.start) - (b.end - b.start))[0];
-
-        const specificColor = palette[specificFrag._colorIndex % palette.length];
-
-        line.style.backgroundColor = specificColor + '15'; // 15 = Transparencia muy baja
-
+        // El fondo toma el color del fragmento más específico (el último/hijo)
+        if (visibleFrags.length > 0) {
+            const specificFrag = visibleFrags[visibleFrags.length - 1];
+            line.style.backgroundColor = specificFrag._safeColor + '15'; // 10% opacidad
+        }
     });
-
 }
 </script>
     
