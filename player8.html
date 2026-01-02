@@ -1369,22 +1369,35 @@ function renderFragmentList() {
     tbody.innerHTML = '';
     let totalSecs = 0;
 
-    // 1. ORDENAMIENTO (Idéntico a highlightSavedFragments)
-    videoFragments.sort((a, b) => {
+    // === PASO DE SEGURIDAD: FILTRAR DUPLICADOS EXACTOS ===
+    // Esto oculta visualmente el "Part 13" si es idéntico al "Part 7"
+    const uniqueFrags = videoFragments.filter((frag, index, self) =>
+        index === self.findIndex((t) => (
+            Math.abs(t.start - frag.start) < 1 && Math.abs(t.end - frag.end) < 1
+        ))
+    );
+
+    // 1. ORDENAMIENTO
+    uniqueFrags.sort((a, b) => {
         if (Math.abs(a.start - b.start) > 0.5) return a.start - b.start;
         return (b.end - b.start) - (a.end - a.start);
     });
 
-    // 2. PALETAS (Copia exacta para consistencia visual)
+    // 2. PALETAS (Sincronizadas)
     const paletteParents = ['#3b82f6', '#8b5cf6', '#06b6d4', '#6366f1', '#10b981'];
     const paletteChildren = ['#facc15', '#f472b6', '#fb923c', '#a3e635', '#f87171'];
 
     let pIdx = 0;
     let cIdx = 0;
 
-    // Pre-calculamos la anidación y colores en orden
-    videoFragments.forEach(frag => {
-        const parent = videoFragments.find(p => p !== frag && p.start <= frag.start && p.end >= frag.end);
+    // Pre-calculamos colores
+    uniqueFrags.forEach(frag => {
+        // Lógica reforzada: El padre debe ser mayor que el hijo
+        const parent = uniqueFrags.find(p => p !== frag && 
+            p.start <= frag.start && 
+            p.end >= frag.end &&
+            (p.end - p.start) > (frag.end - frag.start) + 1 
+        );
         frag._isChild = !!parent;
         
         if (frag._isChild) {
@@ -1397,20 +1410,17 @@ function renderFragmentList() {
     });
 
     // 3. RENDERIZADO
-    videoFragments.forEach(frag => {
+    uniqueFrags.forEach(frag => {
         totalSecs += (frag.timeSpent || 0);
         const stats = calculateFragmentStats(frag.start, frag.end);
         const timeStudied = formatTime(frag.timeSpent || 0);
-        const color = frag._safeColor; // Usamos el color calculado arriba
+        const color = frag._safeColor;
 
-        // Estilos según si es hijo o padre
         const nameStyle = frag._isChild 
             ? `padding-left: 25px; border-left: 2px solid ${color}44;` 
-            : `font-weight:600;`; // Padre un poco más negrita
+            : `font-weight:600;`; 
             
         const nestIcon = frag._isChild ? `<span style="opacity:0.5; margin-right:5px;">↳</span>` : ``;
-
-        // Badge de duración
         const durationMin = ((frag.end - frag.start) / 60).toFixed(1);
         const durationBadge = `<span class="metric-pill" style="background:#1f2937; color:${color}; border:1px solid ${color}44">${durationMin}m</span>`;
 
@@ -2532,71 +2542,60 @@ function highlightSavedFragments() {
 
     if (!videoFragments || videoFragments.length === 0) return;
 
-    // === DEFINICIÓN DE DOS GRUPOS DE COLORES (MÁXIMO CONTRASTE) ===
-    
-    // Grupo 1: PADRES (Largos) -> Tonos Fríos/Serios (Azul, Violeta, Cian, Indigo)
-    const paletteParents = [
-        '#3b82f6', // Blue
-        '#8b5cf6', // Violet
-        '#06b6d4', // Cyan
-        '#6366f1', // Indigo
-        '#10b981'  // Emerald
-    ];
+    // === PASO DE SEGURIDAD: FILTRAR DUPLICADOS EXACTOS ===
+    // Si dos fragmentos tienen el mismo start y end (con margen de 1s), nos quedamos solo con el primero.
+    const uniqueFrags = videoFragments.filter((frag, index, self) =>
+        index === self.findIndex((t) => (
+            Math.abs(t.start - frag.start) < 1 && Math.abs(t.end - frag.end) < 1
+        ))
+    );
 
-    // Grupo 2: HIJOS (Cortos) -> Tonos Cálidos/Vibrantes (Amarillo, Rosa, Naranja, Lima)
-    const paletteChildren = [
-        '#facc15', // Yellow
-        '#f472b6', // Pink
-        '#fb923c', // Orange
-        '#a3e635', // Lime
-        '#f87171'  // Red Light
-    ];
+    // 2. PALETAS
+    const paletteParents = ['#3b82f6', '#8b5cf6', '#06b6d4', '#6366f1', '#10b981'];
+    const paletteChildren = ['#facc15', '#f472b6', '#fb923c', '#a3e635', '#f87171'];
 
-    // === ASIGNACIÓN DE COLORES ===
-    // Ordenamos igual que en la lista: Inicio > Duración
-    const sortedFrags = [...videoFragments].sort((a, b) => {
+    // 3. CLASIFICACIÓN Y COLORES (Usando la lista limpia uniqueFrags)
+    const sortedFrags = [...uniqueFrags].sort((a, b) => {
         if (Math.abs(a.start - b.start) > 0.5) return a.start - b.start;
         return (b.end - b.start) - (a.end - a.start);
     });
     
-    // Contadores independientes para rotar colores sin que se repitan en su propio grupo
     let pIdx = 0; 
     let cIdx = 0;
 
     sortedFrags.forEach(frag => {
-        // Detectar si es Hijo (está dentro de otro fragmento anterior)
-        // Buscamos si existe algun 'padre' en la lista que lo contenga completamente
-        const parent = sortedFrags.find(p => p !== frag && p.start <= frag.start && p.end >= frag.end);
+        // Lógica reforzada: Para ser padre, debe ser AL MENOS 1 segundo más largo que el hijo
+        const parent = sortedFrags.find(p => p !== frag && 
+            p.start <= frag.start && 
+            p.end >= frag.end &&
+            (p.end - p.start) > (frag.end - frag.start) + 1 // <--- REFUERZO DE LÓGICA
+        );
         
         if (parent) {
-            // ES HIJO -> Usar Paleta Cálida
             frag._safeColor = paletteChildren[cIdx % paletteChildren.length];
             frag._isChild = true;
             cIdx++;
         } else {
-            // ES PADRE -> Usar Paleta Fría
             frag._safeColor = paletteParents[pIdx % paletteParents.length];
             frag._isChild = false;
             pIdx++;
         }
     });
 
-    // === PINTADO DE LÍNEAS ===
+    // 4. PINTADO
     lines.forEach(line => {
         const lStart = parseFloat(line.dataset.start);
         
-        // Filtro estricto
-        const activeFrags = videoFragments.filter(frag => {
+        // Usamos uniqueFrags para el filtrado
+        const activeFrags = uniqueFrags.filter(frag => {
             return (lStart >= frag.start && lStart < frag.end);
         });
 
         if (activeFrags.length === 0) return;
 
         // Ordenamos: PADRES (Largos) Primero, HIJOS (Cortos) Después
-        // Esto asegura que el color frío quede a la izquierda (borde) y el cálido a la derecha
         activeFrags.sort((a,b) => (b.end - b.start) - (a.end - a.start));
 
-        // Límite de 2
         const visibleFrags = activeFrags.slice(0, 2);
 
         let shadowString = [];
@@ -2611,10 +2610,9 @@ function highlightSavedFragments() {
         line.style.borderLeftColor = 'transparent'; 
         line.style.boxShadow = shadowString.join(', ');
 
-        // El fondo toma el color del fragmento más específico (el último/hijo)
         if (visibleFrags.length > 0) {
             const specificFrag = visibleFrags[visibleFrags.length - 1];
-            line.style.backgroundColor = specificFrag._safeColor + '15'; // 10% opacidad
+            line.style.backgroundColor = specificFrag._safeColor + '15'; 
         }
     });
 }
