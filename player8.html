@@ -1022,22 +1022,26 @@
         const currentTime = player.getCurrentTime();
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
-        if (activeFragmentId) {
-            const frag = videoFragments.find(f => f.id === activeFragmentId);
-            if (frag) {
-                if (!document.body.classList.contains('focus-mode')) {
-                    document.body.classList.add('focus-mode');
-                }
-                
-                document.querySelectorAll('.line').forEach(line => {
-                    const lStart = parseFloat(line.dataset.start);
-                    const lEnd = parseFloat(line.dataset.end);
-                    if (lStart < frag.end && lEnd > frag.start) {
-                        line.classList.add('active-loop-range');
-                    } else {
-                        line.classList.remove('active-loop-range');
-                    }
-                });
+if (activeFragmentId) {
+    const frag = videoFragments.find(f => f.id === activeFragmentId);
+    if (frag) {
+        if (!document.body.classList.contains('focus-mode')) {
+            document.body.classList.add('focus-mode');
+        }
+        
+        document.querySelectorAll('.line').forEach(line => {
+            const lStart = parseFloat(line.dataset.start);
+            const lEnd = parseFloat(line.dataset.end);
+
+            // === CAMBIO AQUÍ: MISMA LÓGICA ESTRICTA ===
+            
+            if (lStart >= frag.start && lEnd <= (frag.end + 0.05)) {
+                line.classList.add('active-loop-range');
+            } else {
+                line.classList.remove('active-loop-range');
+            }
+            // ==========================================
+        });
 
                if (currentTime >= frag.end || currentTime < frag.start - 0.5) {
     player.pauseVideo();       // 1. Pausa el video
@@ -1235,23 +1239,31 @@
         const savedActiveId = localStorage.getItem('mdc_active_frag_' + YOUTUBE_ID);
         if (savedActiveId) {
             const exists = videoFragments.find(f => f.id === savedActiveId);
-            if (exists) {
-                activeFragmentId = savedActiveId;
-                document.body.classList.add('focus-mode');
-                setTimeout(() => {
-                    document.querySelectorAll('.line').forEach(line => {
-                        const lStart = parseFloat(line.dataset.start);
-                        const lEnd = parseFloat(line.dataset.end);
-                        if (lStart < exists.end && lEnd > exists.start) {
-                            line.classList.add('active-loop-range');
-                        } else {
-                            line.classList.remove('active-loop-range');
-                        }
-                    });
-                    const firstActive = document.querySelector('.active-loop-range');
-                    if(firstActive) scrollToActiveElement(firstActive);
-                }, 50);
+           if (exists) {
+    activeFragmentId = savedActiveId;
+    document.body.classList.add('focus-mode');
+    setTimeout(() => {
+        document.querySelectorAll('.line').forEach(line => {
+            const lStart = parseFloat(line.dataset.start);
+            const lEnd = parseFloat(line.dataset.end);
+
+            // === CAMBIO AQUÍ: LÓGICA ESTRICTA ===
+            // Antes: if (lStart < exists.end && lEnd > exists.start)
+            // Ahora: Comprobamos que la línea termine ANTES (o igual) al final del fragmento
+            // (El +0.05 es una pequeña tolerancia por si hay decimales, pero excluye al siguiente)
+            
+            if (lStart >= exists.start && lEnd <= (exists.end + 0.05)) {
+                line.classList.add('active-loop-range');
             } else {
+                line.classList.remove('active-loop-range');
+            }
+            // ====================================
+
+        });
+        const firstActive = document.querySelector('.active-loop-range');
+        if(firstActive) scrollToActiveElement(firstActive);
+    }, 50);
+} else {
                 localStorage.removeItem('mdc_active_frag_' + YOUTUBE_ID);
             }
         }
@@ -2453,43 +2465,77 @@ async function copyHistoryData(e, id, btnElement) {
 
     // === NUEVA FUNCIÓN PARA COLOREAR FRAGMENTOS ===
 function highlightSavedFragments() {
-    // 1. Limpiar colores previos (reseteamos al estado original)
-    document.querySelectorAll('.line').forEach(l => {
-        l.style.borderLeftColor = ''; // Quita el color del borde
-        l.style.backgroundColor = ''; // Quita el fondo
-    });
-
-    // 2. Si no hay fragmentos, no hacemos nada
-    if (!videoFragments || videoFragments.length === 0) return;
-
-    // 3. Paleta de colores rotativos (optimizados para modo oscuro)
-    const palette = [
-        '#facc15', // Amarillo
-        '#4ade80', // Verde
-        '#22d3ee', // Cian
-        '#a78bfa', // Violeta
-        '#f472b6', // Rosa
-        '#fb7185', // Coral
-        '#fb923c', // Naranja
-        '#94a3b8'  // Gris
-    ];
-
     const lines = document.querySelectorAll('.line');
     
-    // 4. Pintar las líneas
-    videoFragments.forEach((frag, index) => {
-        // Elegir color basado en el índice (rota si se acaban los colores)
-        const color = palette[index % palette.length];
+    // 1. Limpieza inicial (Volvemos al estado 'limpio' del CSS)
+    lines.forEach(l => {
+        l.style.borderLeftColor = ''; 
+        l.style.boxShadow = ''; 
+        l.style.backgroundColor = ''; 
+    });
 
-        lines.forEach(line => {
-            const lStart = parseFloat(line.dataset.start);
-            // Si la línea está dentro del tiempo del fragmento
-            if (lStart >= frag.start && lStart < frag.end) {
-                line.style.borderLeftColor = color;
-                // Opcional: Un fondo MUY sutil del mismo color (transparencia baja)
-                line.style.backgroundColor = color + '11'; // '11' es hex para transparencia muy baja
-            }
+    if (!videoFragments || videoFragments.length === 0) return;
+
+    // 2. Paleta de colores
+    const palette = [
+        '#FACC15', // Amarillo
+        '#4ADE80', // Verde
+        '#22D3EE', // Cian
+        '#A78BFA', // Violeta
+        '#F472B6', // Rosa
+        '#FB7185', // Coral
+        '#FB923C', // Naranja
+        '#94A3B8'  // Gris
+    ];
+
+    // 3. Iteramos LÍNEA por LÍNEA (Enfoque más robusto para solapamientos)
+    lines.forEach(line => {
+        const lStart = parseFloat(line.dataset.start);
+        const lEnd = parseFloat(line.dataset.end);
+        
+        // Buscamos TODOS los fragmentos a los que pertenece esta línea
+        // (Usamos la lógica estricta de finalización que arreglamos antes)
+        const activeFrags = videoFragments.filter(frag => {
+            // Calculamos el índice para saber su color original (para que no cambie si borras otros)
+            frag._colorIndex = videoFragments.indexOf(frag); 
+            return (lStart >= frag.start && lEnd <= (frag.end + 0.05));
         });
+
+        // Si no pertenece a ninguno, pasamos a la siguiente
+        if (activeFrags.length === 0) return;
+
+        // 4. Si hay coincidencias, construimos las bandas
+        // Limitamos a 4 por seguridad visual (aunque el código aguanta más)
+        const visibleFrags = activeFrags.slice(0, 4);
+        
+        let shadowString = [];
+        let accumulatedWidth = 0;
+        const stripeWidth = 5; // Ancho de cada banda en píxeles
+
+        visibleFrags.forEach((frag) => {
+            const color = palette[frag._colorIndex % palette.length];
+            
+            // Calculamos la posición de la sombra para que se apilen
+            // Capa 1: 5px, Capa 2: 10px, Capa 3: 15px...
+            accumulatedWidth += stripeWidth;
+            
+            // Truco CSS: inset Xpx 0 0 0 Color
+            // Las sombras se apilan una DETRÁS de otra. La primera (más pequeña) tapa a la segunda.
+            shadowString.push(`inset ${accumulatedWidth}px 0 0 0 ${color}`);
+        });
+
+        // 5. Aplicamos los estilos finales
+        // Quitamos el borde blanco por defecto para que las bandas empiecen desde el borde real
+        line.style.borderLeftColor = 'transparent';
+        
+        // Aplicamos la pila de sombras generada
+        line.style.boxShadow = shadowString.join(', ');
+        
+        // Aplicamos un fondo sutil del color del fragmento MÁS PEQUEÑO (el más específico)
+        // Ordenamos por duración para encontrar el más corto
+        const specificFrag = visibleFrags.sort((a,b) => (a.end - a.start) - (b.end - b.start))[0];
+        const specificColor = palette[specificFrag._colorIndex % palette.length];
+        line.style.backgroundColor = specificColor + '15'; // 15 = Transparencia muy baja
     });
 }
 </script>
