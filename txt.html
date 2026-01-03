@@ -2703,14 +2703,73 @@ function insertSmartText(word) {
         saveDocument();
     };
 
+   /* =========================================
+       MEJORA DE AUDIO: BING / NATURAL VOICES
+       ========================================= */
     window.speakText = function(text, lang) {
+        if (!('speechSynthesis' in window)) return;
+
+        // Cancelar audio anterior para evitar colas
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        let l = 'en-US';
-        if(lang === 'es') l = 'es-ES'; if(lang === 'pt') l = 'pt-BR'; if(lang === 'it') l = 'it-IT';
-        u.lang = l;
-        u.rate = speechRate;
-        window.speechSynthesis.speak(u);
+
+        const utter = new SpeechSynthesisUtterance(text);
+        
+        // Mapeo básico de locales por si no se encuentran voces avanzadas
+        let locale = 'en-US';
+        if (lang === 'es') locale = 'es-ES';
+        if (lang === 'pt') locale = 'pt-BR';
+        if (lang === 'it') locale = 'it-IT';
+        
+        utter.lang = locale;
+        utter.rate = speechRate; // Usa tu variable global de velocidad (1.0x, 0.75x, etc.)
+
+        const setBestVoiceAndSpeak = () => {
+            const voices = window.speechSynthesis.getVoices();
+            let selectedVoice = null;
+
+            // 1. LÓGICA PARA INGLÉS (Prioridad: Liam > Naturales > Google)
+            if (lang === 'en') {
+                // Intento VIP: Microsoft Liam (Tu favorito)
+                selectedVoice = voices.find(v => v.name.includes("Liam") && v.name.includes("Natural"));
+                
+                // Si no está Liam, busca cualquier "Natural" en inglés (Aria, Guy, Jenny...)
+                if (!selectedVoice) {
+                    selectedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes("Natural") || v.name.includes("Online")));
+                }
+            } 
+            // 2. LÓGICA PARA OTROS IDIOMAS (Español, etc.)
+            else {
+                // Buscar voces "Natural" que coincidan con el idioma (ej: 'es')
+                selectedVoice = voices.find(v => v.lang.startsWith(lang) && (v.name.includes("Natural") || v.name.includes("Online")));
+            }
+
+            // 3. FALLBACK: Si no hay Natural (ej: Chrome), buscar Google
+            if (!selectedVoice) {
+                selectedVoice = voices.find(v => v.lang.startsWith(lang) && v.name.includes("Google"));
+            }
+
+            // 4. ÚLTIMO RECURSO: La primera que coincida con el idioma
+            if (!selectedVoice) {
+                selectedVoice = voices.find(v => v.lang.startsWith(lang));
+            }
+
+            // Aplicar la voz encontrada
+            if (selectedVoice) {
+                utter.voice = selectedVoice;
+                // Ajuste técnico: Actualizamos el idioma del utterance al de la voz para evitar conflictos (ej: Liam es en-CA)
+                utter.lang = selectedVoice.lang; 
+                // console.log("Voz activa:", selectedVoice.name);
+            }
+
+            window.speechSynthesis.speak(utter);
+        };
+
+        // Manejo de carga asíncrona de voces (necesario en Chrome/Edge al inicio)
+        if (window.speechSynthesis.getVoices().length === 0) {
+            window.speechSynthesis.onvoiceschanged = setBestVoiceAndSpeak;
+        } else {
+            setBestVoiceAndSpeak();
+        }
     };
 
     function initCustomDropdowns() {
