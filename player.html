@@ -705,7 +705,7 @@
         }
     }
 
-  function renderLibraryItems() {
+function renderLibraryItems() {
         const list = document.getElementById('library-list');
         list.innerHTML = '';
         const filteredLib = (activeCategoryFilter === 'All') 
@@ -722,7 +722,6 @@
             div.onclick = () => loadFromLibrary(originalIndex);
             const catDisplay = item.category ? `<span class="h-tag">${item.category}</span>` : '';
             
-            // --- AQUÍ ESTÁ EL CAMBIO ---
             div.innerHTML = `
                 <div class="h-thumb" style="background-image: url('https://img.youtube.com/vi/${item.id}/default.jpg')"></div>
                 <div class="h-info">
@@ -731,13 +730,11 @@
                         <div class="h-tag">${catDisplay}</div>
                     </div>
                 </div>
-                <button class="h-btn-copy" onclick="handleLiteratureCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar como Texto (Literatura)">📖</button>
+                <button class="h-btn-copy" onclick="handleLiteratureCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar Literatura">📖</button>
                 
-                <button class="h-btn-copy" onclick="handleRawSrtCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar Subtítulo Raw (SRT)">📄</button>
+                <button class="h-btn-copy" onclick="handleCleanListCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar Lista Limpia">📄</button>
                 
                 <div style="font-size:18px; color:#aaa; margin-left:10px;">▶</div>`;
-            // ---------------------------
-            
             list.appendChild(div);
         });
     }
@@ -2747,18 +2744,40 @@ async function handleLiteratureCopy(e, srtText, btn) {
 }
 
 
-    // Función para copiar el SRT tal cual (sin quitar tiempos ni formato)
-async function handleRawSrtCopy(e, srtText, btn) {
-    e.stopPropagation(); // Evita que se abra el video al hacer click
+// Función para copiar lista limpia (Sin tiempos, sin [Music], sin huecos)
+async function handleCleanListCopy(e, srtText, btn) {
+    e.stopPropagation();
     
     if (!srtText) return alert("No subtitles available.");
 
+    const parsedLines = parseSRT(srtText);
+
+    const cleanText = parsedLines
+        .map(line => {
+            let text = line.text;
+            
+            // === LIMPIEZA AGRESIVA ===
+            text = text.replace(/\[.*?\]/g, "");      // Quitar corchetes: [Music], [Applause]
+            text = text.replace(/\(.*?\)/g, "");      // Quitar paréntesis: (Laughter)
+            text = text.replace(/\{.*?\}/g, "");      // Quitar llaves: {Speaker}
+            text = text.replace(/[♪♫♬]/g, "");        // Quitar símbolos musicales
+            text = text.replace(/<[^>]*>/g, "");      // Quitar etiquetas HTML (<i>, <b>)
+            text = text.replace(/^\s*[-—>]\s*/, "");  // Quitar guiones de diálogo al inicio
+            
+            // Quitar espacios extra a los lados
+            return text.trim();
+        })
+        // === FILTRO ===
+        // Si después de limpiar la línea quedó vacía (ej: era solo "[Music]"), la eliminamos de la lista
+        .filter(text => text.length > 0) 
+        .join('\n');
+
     try {
-        await navigator.clipboard.writeText(srtText);
+        await navigator.clipboard.writeText(cleanText);
         
-        // Feedback visual en el botón (igual que el otro)
+        // Animación de éxito
         const original = btn.innerText;
-        btn.innerText = "✅"; 
+        btn.innerText = "✨"; 
         btn.style.opacity = "1";
         btn.style.transform = "scale(1.2)";
         
