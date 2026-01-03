@@ -2068,30 +2068,55 @@ function renderFragmentList() {
         }
     }
     
-    function speakText(text, onStart, onEnd) { 
+function speakText(text, onStart, onEnd) { 
         if (!('speechSynthesis' in window)) {
             console.warn("Tu navegador no soporta síntesis de voz.");
             return;
         }
+        
         window.speechSynthesis.cancel(); 
+        
         const utter = new SpeechSynthesisUtterance(text); 
-        utter.lang = TTS_LANG; 
-        utter.rate = TTS_RATE; 
+        // Importante: Liam es técnicamente en-CA (Canadá), pero lee en-US perfecto.
+        // Si ponemos en-US aquí, a veces el navegador lo filtra si es estricto.
+        // Lo dejamos genérico o dejamos que la voz decida.
+        utter.lang = 'en-US'; 
+        
+        // Usamos tu variable de velocidad
+        utter.rate = currentPlaybackRate || 1.0; 
+
         if(onStart) utter.onstart = onStart; 
         if(onEnd) utter.onend = onEnd; 
         
-        if (speechSynthesis.getVoices().length === 0) {
-            speechSynthesis.onvoiceschanged = () => {
-                const voices = speechSynthesis.getVoices();
-                const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-                if (enVoice) utter.voice = enVoice;
-                speechSynthesis.speak(utter);
-            };
+        const setBestVoiceAndSpeak = () => {
+            const voices = window.speechSynthesis.getVoices();
+            
+            // 1. PRIORIDAD VIP: Buscar explícitamente a "Liam"
+            let selectedVoice = voices.find(v => v.name.includes("Liam") && v.name.includes("Natural"));
+            
+            // 2. Si no está Liam, busca cualquier otra "Natural" (Aria, Guy, Jenny, Michelle...)
+            if (!selectedVoice) {
+                selectedVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes("Natural") || v.name.includes("Online")));
+            }
+            
+            // 3. Fallbacks habituales
+            if (!selectedVoice) selectedVoice = voices.find(v => v.lang === 'en-US' && v.name.includes("Google"));
+            if (!selectedVoice) selectedVoice = voices.find(v => v.lang.startsWith('en'));
+
+            if (selectedVoice) {
+                utter.voice = selectedVoice;
+                // Pequeño ajuste: A veces Liam suena mejor si se fuerza su lang específico
+                utter.lang = selectedVoice.lang; 
+                // console.log("🎙️ Voz seleccionada:", selectedVoice.name);
+            }
+
+            window.speechSynthesis.speak(utter);
+        };
+
+        if (window.speechSynthesis.getVoices().length === 0) {
+            window.speechSynthesis.onvoiceschanged = setBestVoiceAndSpeak;
         } else {
-            const voices = speechSynthesis.getVoices();
-            const enVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-            if (enVoice) utter.voice = enVoice;
-            speechSynthesis.speak(utter);
+            setBestVoiceAndSpeak();
         }
     }
 
