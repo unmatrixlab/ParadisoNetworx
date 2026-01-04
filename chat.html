@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Web con Chat AI</title>
+    <style>
+        /* --- ESTILOS DEL CHAT (CSS) --- */
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; height: 100vh; margin: 0; }
+        
+        #chat-widget {
+            width: 400px;
+            height: 600px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-top: 50px;
+        }
+
+        #chat-header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #chat-history {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .user-msg {
+            align-self: flex-end;
+            background: #007bff;
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+
+        .bot-msg {
+            align-self: flex-start;
+            background: #e9ecef;
+            color: #333;
+            border-bottom-left-radius: 2px;
+        }
+
+        #input-area {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        button {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin-left: 10px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        
+        button:disabled { background: #95a5a6; }
+    </style>
+</head>
+<body>
+
+    <div id="chat-widget">
+        <div id="chat-header">Nexus AI (HTML Version)</div>
+        <div id="chat-history"></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Escribe aquí..." onkeypress="handleEnter(event)">
+            <button id="send-btn" onclick="sendMessage()">Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        const MODELO = "llama3.1"; // Cambia esto por tu modelo preferido
+        const HISTORY = []; // Memoria a corto plazo
+
+        const chatHistory = document.getElementById('chat-history');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'bot-msg'}`;
+            
+            // Usamos innerHTML simple para formatear saltos de línea
+            msgDiv.innerText = text; 
+            
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return msgDiv;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // 1. Mostrar mensaje usuario
+            appendMessage('user', text);
+            userInput.value = '';
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            
+            // Guardar en historial para contexto
+            HISTORY.push({ role: "user", content: text });
+
+            // Crear burbuja vacía para la IA (efecto streaming)
+            const botBubble = appendMessage('assistant', "Pensando...");
+            let botText = "";
+
+            try {
+                // 2. Conectar con Ollama API
+                const response = await fetch('http://localhost:11434/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: MODELO,
+                        messages: HISTORY,
+                        stream: true // Activamos streaming
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                botBubble.innerText = ""; // Limpiar el "Pensando..."
+
+                // 3. Leer la respuesta en tiempo real
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    // Ollama envía múltiples objetos JSON por chunk, hay que parsearlos
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const json = JSON.parse(line);
+                            if (json.message && json.message.content) {
+                                const content = json.message.content;
+                                botText += content;
+                                botBubble.innerText = botText; // Actualizar UI
+                                chatHistory.scrollTop = chatHistory.scrollHeight;
+                            }
+                        } catch (e) { console.error("Error parseando JSON", e); }
+                    }
+                }
+
+                // Guardar respuesta final en historial
+                HISTORY.push({ role: "assistant", content: botText });
+
+            } catch (error) {
+                botBubble.innerText = "Error: No pude conectar con Ollama. ¿Está corriendo?";
+                console.error(error);
+            } finally {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+    </script>
+</body>
+</html>
