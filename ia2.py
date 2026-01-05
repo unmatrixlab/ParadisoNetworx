@@ -1,25 +1,39 @@
 import streamlit as st
 import ollama
+import streamlit.components.v1 as components  # <--- NUEVA IMPORTACIÓN
 
 # --- DICCIONARIO DE MODELOS ---
 INFO_MODELOS = {
-    "Llama 3.1 (Oficial)": "llama3.1",
-    "DeepSeek R1 (Razonamiento Puro)": "deepseek-r1:32b",
+    "Gemma 3 27B (Heavy / Solo pruebas)": "gemma3:27b-it-qat",
+    "Gemma 3 12B (Recomendado RTX 4080)": "gemma3:12b-it-qat",
     "Gemma 2 (Equilibrio Premium)": "gemma2:27b",
+
+
+    "Llama 3.1 (Oficial)": "llama3.1",
+    "Llama 3.2 Vision (Multimodal)": "llama3.2-vision:latest",
+
+    "DeepSeek R1 (Razonamiento Puro)": "deepseek-r1:32b",
+    "DeepSeek Coder v2 (Técnico/Código)": "deepseek-coder-v2:lite",
+
     "Mistral Small (Lógica Pesada)": "mistral-small:latest",
-    "Mistral NeMo (Optimizado NVIDIA)": "mistral-nemo",
-    "Dolphin Llama 3 (Sin Censura)": "dolphin-llama3",
-    "DeepSeek Coder (Técnico/Código)": "deepseek-coder-v2:lite",
-    "LLaVA (Visión/Imagen)": "llava"
+    "Mistral NeMo (Optimizado NVIDIA)": "mistral-nemo:latest",
+
+    "Qwen 2.5 32B (Generalista Potente)": "qwen2.5:32b",
+
+    "Dolphin Llama 3 (Sin Censura)": "dolphin-llama3:latest",
+
+    "LLaVA (Visión / Imagen)": "llava:latest",
+
+    "Nomic Embed Text (Embeddings)": "nomic-embed-text:latest"
 }
+
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Chat IA", page_icon="🤖", layout="centered")
 
-# --- CSS PERSONALIZADO PARA FIJAR EL CHAT_INPUT AL FONDO SIEMPRE ---
+# --- CSS PERSONALIZADO ---
 st.markdown("""
 <style>
-    /* Contenedor principal ocupa toda la altura de la ventana */
     .main > div {
         padding-bottom: 0px !important;
         height: 100vh;
@@ -27,20 +41,17 @@ st.markdown("""
         flex-direction: column;
     }
 
-    /* El bloque que contiene los mensajes crece para ocupar el espacio disponible */
     section[data-testid="stSidebar"] + div > div:first-child {
         flex-grow: 1;
         display: flex;
         flex-direction: column;
     }
 
-    /* El área del chat (donde van los mensajes) ocupa todo el espacio y permite scroll */
     [data-testid="stVerticalBlock"] > div:first-child {
         flex-grow: 1;
         overflow-y: auto;
     }
 
-    /* Fijar el chat_input al fondo permanentemente */
     [data-testid="stChatInput"] {
         position: fixed !important;
         bottom: 0;
@@ -52,7 +63,6 @@ st.markdown("""
         border-top: 1px solid var(--neutral-200);
     }
 
-    /* Añadir padding inferior al contenedor de mensajes para que no quede tapado por el input */
     .block-container {
         padding-bottom: 100px !important;
     }
@@ -83,7 +93,7 @@ for mensaje in st.session_state.mensajes:
     with st.chat_message(mensaje["role"]):
         st.markdown(mensaje["content"])
 
-# --- ENTRADA DEL USUARIO (siempre pegada al fondo) ---
+# --- ENTRADA DEL USUARIO ---
 if pregunta := st.chat_input("Escribe tu mensaje aquí..."):
     st.session_state.mensajes.append({"role": "user", "content": pregunta})
     with st.chat_message("user"):
@@ -92,6 +102,9 @@ if pregunta := st.chat_input("Escribe tu mensaje aquí..."):
     with st.chat_message("assistant"):
         placeholder = st.empty()
         respuesta_completa = ""
+
+        # ENVIAR SEÑAL DE INICIO (Activa el latido)
+        components.html("<script>window.parent.postMessage('start_thinking', '*');</script>", height=0)
 
         try:
             stream = ollama.chat(
@@ -109,5 +122,8 @@ if pregunta := st.chat_input("Escribe tu mensaje aquí..."):
 
         except Exception as e:
             st.error(f"Error: {e}")
+        
+        # ENVIAR SEÑAL DE FIN (Detiene el latido)
+        components.html("<script>window.parent.postMessage('stop_thinking', '*');</script>", height=0)
 
     st.session_state.mensajes.append({"role": "assistant", "content": respuesta_completa})
