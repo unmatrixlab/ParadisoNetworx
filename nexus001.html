@@ -1,385 +1,406 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8"> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>NEXUS HUB | Resizable</title>
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    
+    <title>NEXUS | V5 Sync-Fix</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 
     <style>
-        /* ==========================================================================
-           1. ESTÉTICA (Variables y Reset)
-           ========================================================================== */
+        /* =========================================
+           1. CORE VARIABLES
+           ========================================= */
         :root {
-            /* DARK MODE (Default) */
-            --bg-deep: #09090b; 
-            --bg-card: #18181b; 
-            --bg-hover: #27272a; 
-            --border: #3f3f46;
-            --txt-main: #f4f4f5;
-            --txt-sec: #a1a1aa;
+            --bg-body: #050505;
+            --glass-border: rgba(255, 255, 255, 0.08);
             
-            /* Accents */
-            --c-1: #38bdf8; --c-2: #e879f9; --c-3: #4ade80; --c-4: #fbbf24; --c-5: #818cf8;
-            --c-6: #ff5733; 
-            
-            --font-head: 'Bebas Neue', sans-serif;
-            --font-ui: 'Inter', sans-serif;
-            --safe-bottom: env(safe-area-inset-bottom);
-        }
+            /* Colores Neón */
+            --neon-1: #0ea5e9;
+            --neon-2: #d946ef;
+            --neon-3: #22c55e;
+            --neon-4: #f59e0b;
+            --neon-5: #6366f1;
+            --neon-6: #ef4444;
 
-        :root.light-mode {
-            --bg-deep: #f8fafc; --bg-card: #ffffff; --bg-hover: #f1f5f9; --border: #e2e8f0;
-            --txt-main: #0f172a; --txt-sec: #64748b;
-            --c-1: #0284c7; --c-2: #c026d3; --c-3: #16a34a; --c-4: #d97706; --c-5: #4f46e5;
-            --c-6: #c2410c;
+            --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-        
-        body { 
-            background-color: var(--bg-deep); color: var(--txt-main); 
-            font-family: var(--font-ui); margin: 0; height: 100vh; 
-            display: flex; flex-direction: column; overflow: hidden;
-            transition: background 0.3s, color 0.3s;
+
+        body {
+            background-color: var(--bg-body);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100dvh; 
+            padding-top: max(40px, env(safe-area-inset-top)); 
+            padding-bottom: 40px;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
-        header { 
-            height: 70px; flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; 
-            padding: 0 24px; background: var(--bg-deep); 
-            border-bottom: 1px solid var(--border); z-index: 100;
-        }
-        .hub-brand { font-family: var(--font-head); font-size: 32px; letter-spacing: 1px; color: var(--txt-main); }
-        .theme-btn { background: none; border: none; color: var(--txt-sec); cursor: pointer; transition: 0.2s; padding: 5px; }
-        
-        main { 
-            flex: 1; overflow-y: auto; overflow-x: hidden; 
-            padding: 20px 0; 
-            padding-bottom: calc(40px + var(--safe-bottom)); 
-            max-width: 900px; margin: 0 auto; width: 100%;
-        }
+        body.locked { overflow: hidden; height: 100dvh; padding: 0; }
 
-        .acc-item {
-            margin: 0 20px 15px 20px; 
-            border-radius: 16px;
-            border: 1px solid var(--border);
-            background: var(--bg-card);
-            overflow: hidden;
-            transition: margin 0.3s, border-radius 0.3s, border 0.3s;
-        }
-
-        /* Drag & Drop Visuals */
-        .sortable-ghost { opacity: 0.4; background: var(--bg-hover); border: 1px dashed var(--txt-sec); }
-        .sortable-drag { cursor: grabbing; opacity: 1; background: var(--bg-card); box-shadow: 0 10px 20px rgba(0,0,0,0.5); transform: scale(1.02); }
-
-        .acc-item.active {
-            margin-left: 0; margin-right: 0; border-radius: 0;
-            border-left: none; border-right: none;
-            border-color: var(--active-color);
-        }
-
-        .acc-header {
-            padding: 24px; 
-            display: flex; justify-content: space-between; align-items: center;
-            background: var(--bg-card); transition: background 0.2s; user-select: none;
-            cursor: grab; 
-        }
-        .acc-header:active { cursor: grabbing; }
-        .acc-header:hover { background: var(--bg-hover); }
-
-        .acc-title-group { display: flex; align-items: center; gap: 12px; }
-        .acc-title { font-family: var(--font-head); font-size: 28px; line-height: 1; margin: 0; display: flex; align-items: center; gap: 12px; }
-        .acc-tag { font-family: var(--font-ui); font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); letter-spacing: 1px; }
-        
-        .acc-controls { display: flex; align-items: center; gap: 15px; }
-        .acc-icon { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); color: var(--txt-sec); }
-
-        .fs-btn {
-            background: none; border: none; color: var(--txt-sec); cursor: pointer;
-            padding: 5px; opacity: 0; transition: 0.2s; pointer-events: none;
-        }
-        .fs-btn:hover { color: var(--active-color); transform: scale(1.1); }
-        .acc-item:hover .fs-btn, .acc-item.active .fs-btn { opacity: 1; pointer-events: auto; }
-
-        .acc-content {
-            /* NUEVO: Flex column para que el iframe ocupe el resto y el handle se quede abajo */
-            display: flex; 
-            flex-direction: column;
-            height: 0; /* Usamos height en lugar de max-height para el resize manual */
-            overflow: hidden;
-            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Transición suave al abrir */
-            background: var(--bg-deep);
-            border-top: 1px solid transparent;
-            will-change: height;
-        }
-        
-        .acc-item.active .acc-content { border-top-color: var(--border); }
-        
-        /* NUEVO: Ajuste del Iframe para que sea elástico */
-        iframe { 
-            width: 100%; 
-            flex: 1; /* Ocupa todo el espacio disponible menos el handle */
-            border: none; 
-            display: block; 
-            pointer-events: auto; /* Importante para que el iframe funcione */
-        }
-        /* Cuando estamos redimensionando, desactivamos eventos del iframe para que no "capture" el mouse */
-        .resizing iframe { pointer-events: none; }
-
-        /* NUEVO: Estilos para el Handle (La manija) */
-        .resize-handle {
-            height: 24px;
-            background: var(--bg-card);
-            border-top: 1px solid var(--border);
-            cursor: row-resize; /* Cursor de flecha arriba/abajo */
+        /* =========================================
+           2. ITEMS & LIST
+           ========================================= */
+        .nexus-list {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-shrink: 0; /* No encoger */
-            touch-action: none; /* Previene scroll de la página al tocar esto en móvil */
-            transition: background 0.2s;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
         }
-        .resize-handle:hover, .resize-handle:active {
-            background: var(--bg-hover);
+
+        .card {
+            background: linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.01) 100%);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--accent-color-dim, #333);
+            border-radius: 8px;
+            margin: 0 16px;
+            overflow: hidden;
+            position: relative;
+            transition: transform 0.2s ease, background 0.3s ease;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
+
+        /* Helpers de colores */
+        .neon-1 { --accent-color: var(--neon-1); --accent-color-dim: rgba(14, 165, 233, 0.4); }
+        .neon-2 { --accent-color: var(--neon-2); --accent-color-dim: rgba(217, 70, 239, 0.4); }
+        .neon-3 { --accent-color: var(--neon-3); --accent-color-dim: rgba(34, 197, 94, 0.4); }
+        .neon-4 { --accent-color: var(--neon-4); --accent-color-dim: rgba(245, 158, 11, 0.4); }
+        .neon-5 { --accent-color: var(--neon-5); --accent-color-dim: rgba(99, 102, 241, 0.4); }
+        .neon-6 { --accent-color: var(--neon-6); --accent-color-dim: rgba(239, 68, 68, 0.4); }
+
+        /* =========================================
+           3. ESTADO ACTIVO (FIXED MODE)
+           ========================================= */
+        .card.active {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100dvh;
+            z-index: 9999; margin: 0; border-radius: 0; border: none; border-left: none;
+            background: #000;
+            display: flex; flex-direction: column;
+            animation: expandCard 0.35s var(--ease-snap) forwards;
+        }
+
+        @keyframes expandCard {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* =========================================
+           4. HEADER & ICONO
+           ========================================= */
+        .card-header {
+            padding: 20px 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; background: transparent;
+            border-bottom: 1px solid transparent; transition: background 0.3s ease;
+        }
+
+        .card.active .card-header {
+            padding-top: max(20px, env(safe-area-inset-top));
+            background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .title-group { display: flex; align-items: center; gap: 15px; }
+
+        .card-title {
+            font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 1.5px;
+            color: #999; margin: 0; transition: color 0.3s ease;
+        }
+
+        .card-tag {
+            font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 1px;
+            text-transform: uppercase; padding: 3px 8px; border-radius: 2px;
+            background: rgba(255,255,255,0.03); color: #444; border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .card.active .card-title { color: #fff; }
         
-        /* La linea visual dentro de la manija */
-        .resize-bar {
-            width: 40px;
-            height: 4px;
-            background-color: var(--txt-sec);
-            border-radius: 2px;
-            opacity: 0.5;
+        .card.active .card-tag {
+            color: var(--accent-color); border-color: var(--accent-color);
+            background: rgba(0,0,0,0.5); box-shadow: 0 0 10px -2px var(--accent-color);
         }
 
-        /* Fullscreen override */
-        .acc-content:fullscreen { overflow: hidden; width: 100vw; height: 100vh !important; padding: 0; margin: 0; }
-        .acc-content:fullscreen iframe { height: 100%; }
-        .acc-content:fullscreen .resize-handle { display: none; } /* Ocultar manija en fullscreen */
+        /* --- LOGICA DEL ICONO Y ANIMACION --- */
+        .card-icon {
+            color: #333; 
+            transition: transform 0.4s var(--ease-snap), color 0.4s ease, opacity 0.4s ease;
+            opacity: 0.3;
+            /* La animación se inyecta inline en el HTML */
+        }
 
-        /* Mapeo de Colores dinámicos */
-        .color-1 { --active-color: var(--c-1); color: var(--c-1); }
-        .color-2 { --active-color: var(--c-2); color: var(--c-2); }
-        .color-3 { --active-color: var(--c-3); color: var(--c-3); }
-        .color-4 { --active-color: var(--c-4); color: var(--c-4); }
-        .color-5 { --active-color: var(--c-5); color: var(--c-5); }
-        .color-6 { --active-color: var(--c-6); color: var(--c-6); }
+        /* FIX CLAVE: Cuando está activo, NO quitamos la animación con 'animation: none'.
+           Simplemente forzamos los estilos visuales encima con !important.
+           Esto permite que el "reloj" de la animación siga corriendo de fondo.
+        */
+        .card.active .card-icon {
+            color: #fff !important; 
+            /* Forzamos escala 1 para que no palpite si justo le tocó el turno de brillar */
+            transform: rotate(180deg) scale(1) !important; 
+            text-shadow: none !important; 
+            opacity: 1 !important; 
+        }
 
+        /* =========================================
+           5. CONTENIDO
+           ========================================= */
+        .card-content {
+            flex: 1; display: none; background: #000; position: relative;
+        }
+        .card.active .card-content {
+            display: block; animation: fadeInContent 0.5s ease 0.2s forwards; opacity: 0;
+        }
+        @keyframes fadeInContent { to { opacity: 1; } }
+        iframe { width: 100%; height: 100%; border: none; display: block; }
+        .sortable-ghost { opacity: 0.2; border: 1px dashed #fff; }
+
+        /* =========================================
+           6. EFECTO NEON (Auto Fantástico)
+           ========================================= */
+        @keyframes kitt-scanner-neon {
+            0% { 
+                color: #333; 
+                transform: scale(1);
+                text-shadow: none;
+                opacity: 0.3;
+            }
+            10% { 
+                color: #fff; /* Núcleo blanco */
+                transform: scale(1.3);
+                opacity: 1;
+                text-shadow: 
+                    0 0 5px #fff,
+                    0 0 10px var(--accent-color),
+                    0 0 20px var(--accent-color),
+                    0 0 40px var(--accent-color);
+            }
+            25%, 100% { 
+                color: #333; 
+                transform: scale(1);
+                text-shadow: none;
+                opacity: 0.3;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <header>
-        <div class="hub-brand">NEXUS HUB</div>
-        <button class="theme-btn" onclick="toggleHubTheme()">
-            <svg id="hub-theme-icon" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-        </button>
-    </header>
-
-    <main id="accordion-list"></main>
+    <div id="nexus-container" class="nexus-list">
+    </div>
 
 <script>
-    // === DATOS DE CONFIGURACIÓN ===
-    const defaultData = [
-        { id: '1', title: 'PLAYER DECK', tag: 'APP',  url: 'https://paradisonetworx.com/player4', color: 'color-1' },
-        { id: '2', title: 'VOCABULARY DECK',  tag: 'APP', url: 'https://paradisonetworx.com/voc1', color: 'color-2' },
-        { id: '3', title: 'EXERCISE CREATORE',tag: 'LIST', url: 'https://paradisonetworx.com/LinguistDeckCel.html', color: 'color-3' },
-        { id: '4', title: 'VOCABULARY PRACTICE',tag: 'LIST', url: 'https://paradisonetworx.com/practice3.html', color: 'color-4' }
+    // === 1. DATA ===
+    const appData = [
+        { id: '1', title: 'PLAYER DECK', tag: 'CREATE',   url: 'https://paradisonetworx.com/player', theme: 'neon-1' }, // estable player3//5//7//8//9
+        { id: '2', title: 'VOCABULARY',  tag: 'CORE',     url: 'https://paradisonetworx.com/voc2',     theme: 'neon-2' },
+        { id: '3', title: 'TXT',     tag: 'WRITER',   url: 'https://paradisonetworx.com/txt',  theme: 'neon-3' },
+        //{ id: '3', title: 'CREATOR',     tag: 'PRACTICE', url: 'https://paradisonetworx.com/LinguistDeckCel6.html', theme: 'neon-3' },
+        //{ id: '3', title: 'ARCADE',      tag: 'GAME',     url: 'https://paradisonetworx.com/game5.html',       theme: 'neon-3' },
+        { id: '4', title: 'AI-GEN',      tag: 'STUDY',    url: 'https://paradisonetworx.com/iatool3',   theme: 'neon-4' }, 
+        
+        { id: '5', title: 'ARCADE',      tag: 'GAME',     url: 'https://paradisonetworx.com/game6.html',       theme: 'neon-5' },
+        //{ id: '6', title: 'CARDS',     tag: 'LEARN', url: 'https://paradisonetworx.com/city3', theme: 'neon-6' },
+        { id: '6', title: 'SYSTEM',      tag: 'DATA',     url: 'https://paradisonetworx.com/backup1',  theme: 'neon-6' }
+
+
+        
     ];
 
-    const chevronIcon = `<path d="M6 9l6 6 6-6"></path>`;
-
-    // === INICIALIZACIÓN ===
-    document.addEventListener('DOMContentLoaded', () => {
-        loadTheme();
-        renderItems();
-        initSortable();
-    });
-
-    // === 1. GENERACIÓN DINÁMICA & RENDERIZADO ===
-    function renderItems() {
-        const container = document.getElementById('accordion-list');
-        const savedOrder = JSON.parse(localStorage.getItem('nexus_order'));
-        let dataToRender = [...defaultData];
-
-        if (savedOrder && savedOrder.length > 0) {
-            dataToRender.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
+    // === 2. RENDERIZADO ===
+    function renderApp() {
+        const container = document.getElementById('nexus-container');
+        const savedOrder = JSON.parse(localStorage.getItem('nexus_sort_v2'));
+        
+        if (savedOrder) {
+            appData.sort((a, b) => savedOrder.indexOf(a.id) - savedOrder.indexOf(b.id));
         }
 
-        // NUEVO: Se agregó el div .resize-handle debajo del iframe
-        container.innerHTML = dataToRender.map(item => `
-            <div class="acc-item ${item.color}" data-id="${item.id}">
-                <div class="acc-header" onclick="toggleAcc('${item.id}')">
-                    <div class="acc-title-group">
-                        <h2 class="acc-title">${item.title} <span class="acc-tag">${item.tag}</span></h2>
+        const speedPerItem = 0.8; 
+        const totalDuration = appData.length * speedPerItem;
+
+        container.innerHTML = appData.map((item, index) => {
+            const delay = index * speedPerItem;
+            // Esta animación NO se tocará con JS nunca más para evitar el error de sync
+            const animStyle = `animation: kitt-scanner-neon ${totalDuration}s infinite ease-in-out; animation-delay: ${delay}s;`;
+
+            return `
+            <div class="card ${item.theme}" data-id="${item.id}">
+                <div class="card-header" onclick="toggleCard('${item.id}')">
+                    <div class="title-group">
+                        <h2 class="card-title">${item.title}</h2>
+                        <span class="card-tag">${item.tag}</span>
                     </div>
-                    <div class="acc-controls">
-                        <button class="fs-btn" onclick="event.stopPropagation(); toggleFS('content-${item.id}')" title="Fullscreen">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
-                        </button>
-                        <svg class="acc-icon" id="icon-${item.id}" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${chevronIcon}</svg>
-                    </div>
+                    <svg class="card-icon" style="${animStyle}" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M6 9l6 6 6-6"></path>
+                    </svg>
                 </div>
-                <div class="acc-content" id="content-${item.id}">
-                    <iframe src="${item.url}" loading="lazy"></iframe>
-                    <div class="resize-handle" onmousedown="startResize(event, '${item.id}')" ontouchstart="startResize(event, '${item.id}')">
-                        <div class="resize-bar"></div>
-                    </div>
+                <div class="card-content" id="content-${item.id}">
+                    <iframe data-src="${item.url}"></iframe>
                 </div>
             </div>
-        `).join('');
-    }
+        `}).join('');
 
-    // === 2. SORTABLE ===
-    function initSortable() {
-        const el = document.getElementById('accordion-list');
-        new Sortable(el, {
+        new Sortable(container, {
             animation: 300,
-            handle: '.acc-header',
-            ghostClass: 'sortable-ghost',
-            dragClass: 'sortable-drag',
-            delay: 100,
+            handle: '.card-header',
+            delay: 200, 
             delayOnTouchOnly: true,
-            onEnd: function (evt) {
-                const sortable = this;
-                const order = sortable.toArray();
-                localStorage.setItem('nexus_order', JSON.stringify(order));
+            ghostClass: 'sortable-ghost',
+            onStart: function() {
+                if(document.body.classList.contains('locked')) return false;
+            },
+            onEnd: () => {
+                const order = Array.from(container.children).map(c => c.dataset.id);
+                localStorage.setItem('nexus_sort_v2', JSON.stringify(order));
+                renderApp(); 
             }
         });
+        
+        // Ya no necesitamos la clase idle-mode porque la animación siempre corre
     }
 
-    // === 3. LÓGICA ACORDEÓN (MODIFICADA PARA RESIZE) ===
-    function toggleAcc(id) {
-        const item = document.querySelector(`.acc-item[data-id="${id}"]`);
+    // === 3. LÓGICA DE APERTURA (LIMPIA) ===
+    function toggleCard(id) {
+        const card = document.querySelector(`.card[data-id="${id}"]`);
         const content = document.getElementById(`content-${id}`);
-        const icon = document.getElementById(`icon-${id}`);
+        const iframe = content.querySelector('iframe');
+        const isActive = card.classList.contains('active');
         
-        // Chequeamos si tiene altura (ya sea por style inline o clase)
-        const isOpen = item.classList.contains('active');
+        // 1. CERRAR CARTA
+        if (isActive) {
+            if(iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage('FORCE_PAUSE', '*');
+            }
+            card.classList.remove('active');
+            document.body.classList.remove('locked');
+            // NOTA: NO tocamos la animación aquí. CSS se encarga de mostrarla de nuevo.
+            return;
+        }
 
-        // Cerrar todos
-        document.querySelectorAll('.acc-content').forEach(el => {
-            el.style.height = '0px'; // Reset a 0 explícito
-            el.classList.remove('resizing'); // Limpieza
+        // 2. CERRAR OTRAS
+        document.querySelectorAll('.card.active').forEach(c => {
+            const otherIframe = c.querySelector('iframe');
+            if(otherIframe && otherIframe.contentWindow) {
+                otherIframe.contentWindow.postMessage('FORCE_PAUSE', '*');
+            }
+            c.classList.remove('active');
         });
-        document.querySelectorAll('.acc-icon').forEach(el => el.style.transform = 'rotate(0deg)');
-        document.querySelectorAll('.acc-item').forEach(el => el.classList.remove('active'));
 
-        // Abrir seleccionado si estaba cerrado
-        if (!isOpen) {
-            item.classList.add('active');
-            
-            // Altura por defecto (puedes cambiar 650px por lo que quieras como base)
-            content.style.height = "650px"; 
-            
-            icon.style.transform = 'rotate(180deg)';
-            
-            setTimeout(() => {
-                item.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
-            }, 300);
+        // 3. ABRIR CARTA ACTUAL
+        card.classList.add('active');
+        document.body.classList.add('locked');
+        
+        // NOTA: NO detenemos la animación con JS. El CSS (.active .card-icon) la oculta visualmente.
+        
+        if (!iframe.src) {
+            iframe.src = iframe.getAttribute('data-src');
         }
     }
 
-    // === 4. LÓGICA DE REDIMENSIONAMIENTO (NUEVO) ===
-    let startY, startHeight, currentContent;
+    renderApp();
+</script>
 
-    function startResize(e, id) {
-        // Prevenir selección de texto y comportamiento default
-        if(e.type === 'mousedown') {
-            e.preventDefault(); 
-        }
-        // No detener propagación para que no rompa otros eventos, pero sí prevenir scroll si es touch
-        
-        currentContent = document.getElementById(`content-${id}`);
-        currentContent.classList.add('resizing'); // Desactiva pointer-events en iframe
-        
-        // Obtener posición inicial Y (mouse o touch)
-        startY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        
-        // Obtener altura actual calculada
-        startHeight = parseInt(document.defaultView.getComputedStyle(currentContent).height, 10);
 
-        // Listeners globales para el movimiento
-        if (e.type.includes('mouse')) {
-            document.documentElement.addEventListener('mousemove', doDrag, false);
-            document.documentElement.addEventListener('mouseup', stopDrag, false);
+
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+    /* Estilos del contenedor flotante */
+    #ai-chat-wrapper {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999999;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Estilo del botón (Círculo) */
+    #chat-trigger {
+        width: 60px;
+        height: 60px;
+        background-color: #007bff;
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+    }
+
+    #chat-trigger:hover { transform: scale(1.1); background-color: #0056b3; }
+
+    /* Estilo de la ventana del chat */
+    #chat-window {
+        display: none; /* Oculta al inicio */
+        position: absolute;
+        bottom: 75px;
+        right: 0;
+        width: 380px;
+        height: 600px;
+        background: #050505;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        border: 1px solid #333;
+        overflow: hidden;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Ajuste para móviles */
+    @media (max-width: 450px) {
+        #chat-window { width: 300px; height: 500px; }
+    }
+</style>
+
+
+<div id="ai-chat-wrapper">
+    <div id="chat-window">
+      <iframe
+    id="chat-iframe"
+    src="https://conditions-inputs-environment-directions.trycloudflare.com" 
+    width="100%" 
+    height="100%" 
+    style="border: none;"
+    allow="clipboard-read; clipboard-write">
+</iframe>
+    </div>
+
+    <div id="chat-trigger" onclick="toggleChat()">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="white">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+        </svg>
+    </div>
+</div>
+
+<script>
+    function toggleChat() {
+        const chatWin = document.getElementById('chat-window');
+        if (chatWin.style.display === 'none' || chatWin.style.display === '') {
+            chatWin.style.display = 'block';
         } else {
-            document.documentElement.addEventListener('touchmove', doDrag, { passive: false });
-            document.documentElement.addEventListener('touchend', stopDrag, false);
-        }
-    }
-
-    function doDrag(e) {
-        // Prevenir scroll en móviles mientras arrastras la manija
-        if(e.type === 'touchmove') {
-            e.preventDefault(); 
-        }
-
-        const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
-        
-        // Calcular nueva altura
-        // clientY - startY es la diferencia de movimiento
-        const newHeight = startHeight + (clientY - startY);
-
-        // Aplicar (Mínimo 100px para que no desaparezca)
-        if (newHeight > 100) {
-            currentContent.style.height = newHeight + 'px';
-        }
-    }
-
-    function stopDrag(e) {
-        if(currentContent) {
-            currentContent.classList.remove('resizing'); // Reactiva iframe
-        }
-        
-        // Remover listeners
-        document.documentElement.removeEventListener('mousemove', doDrag, false);
-        document.documentElement.removeEventListener('mouseup', stopDrag, false);
-        document.documentElement.removeEventListener('touchmove', doDrag);
-        document.documentElement.removeEventListener('touchend', stopDrag);
-    }
-
-    // === TEMA ===
-    function loadTheme() {
-        const savedTheme = localStorage.getItem('nexus_theme');
-        const icon = document.getElementById('hub-theme-icon');
-        if (savedTheme === 'light') {
-            document.documentElement.classList.add('light-mode');
-            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
-        } else {
-            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
-        }
-    }
-
-    function toggleHubTheme() {
-        const doc = document.documentElement;
-        const icon = document.getElementById('hub-theme-icon');
-        let newTheme = 'dark';
-        if (doc.classList.contains('light-mode')) {
-            doc.classList.remove('light-mode');
-            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>';
-        } else {
-            doc.classList.add('light-mode');
-            newTheme = 'light';
-            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
-        }
-        localStorage.setItem('nexus_theme', newTheme);
-    }
-
-    // Fullscreen
-    function toggleFS(id) {
-        const elem = document.getElementById(id);
-        if (!document.fullscreenElement) {
-            if (elem.requestFullscreen) elem.requestFullscreen();
-            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-            else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
-        } else {
-            if (document.exitFullscreen) document.exitFullscreen();
+            chatWin.style.display = 'none';
         }
     }
 </script>
 
+
+
+
 </body>
 </html>
+
+
