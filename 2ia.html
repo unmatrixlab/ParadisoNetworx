@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interfaz Chat IA (FastAPI)</title>
+    <style>
+        /* --- VARIABLES Y RESET --- */
+        :root {
+            --bg-sidebar: #171717;
+            --bg-main: #212121;
+            --text-primary: #ececec;
+            --text-secondary: #b4b4b4;
+            --input-bg: #2f2f2f;
+            --accent-color: #10a37f;
+            --hover-color: #2f2f2f;
+            --border-color: #424242;
+            --sidebar-width: 260px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+        body { display: flex; height: 100vh; background-color: var(--bg-main); color: var(--text-primary); overflow: hidden; }
+
+        /* --- SIDEBAR --- */
+        body.sidebar-collapsed .sidebar { width: 0; padding: 10px 0; border-right: none; }
+        .sidebar { width: var(--sidebar-width); background-color: var(--bg-sidebar); display: flex; flex-direction: column; padding: 10px; border-right: 1px solid #333; transition: width 0.3s ease, padding 0.3s ease; overflow-x: hidden; white-space: nowrap; }
+        .new-chat-btn { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-primary); padding: 10px; border-radius: 5px; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.2s; margin-bottom: 20px; flex-shrink: 0; }
+        .new-chat-btn:hover { background-color: var(--hover-color); }
+        .history-section { flex-grow: 1; overflow-y: auto; opacity: 1; transition: opacity 0.2s ease-in; }
+        body.sidebar-collapsed .history-section, body.sidebar-collapsed .user-section { opacity: 0; pointer-events: none; }
+        .history-label { font-size: 0.75rem; color: var(--text-secondary); padding: 10px 5px; font-weight: bold; }
+        .history-item { padding: 10px; border-radius: 5px; cursor: pointer; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-secondary); }
+        .history-item:hover { background-color: var(--hover-color); color: var(--text-primary); }
+        .user-section { border-top: 1px solid var(--border-color); padding-top: 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px; flex-shrink: 0; transition: opacity 0.2s ease-in; }
+        .user-avatar { width: 30px; height: 30px; background-color: #555; border-radius: 4px; }
+
+        /* --- MAIN CHAT --- */
+        .main-chat { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+        .chat-header { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #333; color: var(--text-secondary); }
+        .toggle-btn { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; padding: 8px; margin-right: 10px; border-radius: 5px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, color 0.2s; }
+        .toggle-btn:hover { background-color: var(--hover-color); color: var(--text-primary); }
+        .model-selector { font-weight: 600; margin: auto; padding-right: 30px; }
+
+        .chat-container { flex: 1; padding: 20px 10%; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; }
+        
+        .message { display: flex; gap: 15px; line-height: 1.6; padding: 20px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+        .avatar { width: 30px; height: 30px; border-radius: 2px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .avatar.ai { background-color: var(--accent-color); color: white; }
+        .avatar.user { background-color: #5d5d5d; color: white; }
+        .message-content { padding-top: 2px; width: 100%; white-space: pre-wrap; word-wrap: break-word; }
+
+        /* --- INPUT AREA --- */
+        .input-area { padding: 20px 10%; background-image: linear-gradient(180deg, rgba(33,33,33,0), rgba(33,33,33,1) 20%); padding-bottom: 30px; }
+        .input-container { background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-end; padding: 10px 15px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .input-container:focus-within { border-color: #666; }
+        textarea { background: transparent; border: none; color: white; width: 100%; resize: none; outline: none; height: 24px; max-height: 200px; overflow-y: auto; font-size: 1rem; line-height: 24px; padding: 0; margin-bottom: 2px; }
+        .send-btn { background: transparent; border: none; color: #666; cursor: pointer; padding: 5px 0 5px 10px; transition: color 0.2s; flex-shrink: 0; height: 30px; }
+        .send-btn:hover { color: var(--accent-color); }
+        .disclaimer { text-align: center; font-size: 0.75rem; color: #666; margin-top: 10px; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        @media (max-width: 768px) {
+            .sidebar { position: absolute; z-index: 100; height: 100%; transform: translateX(0); }
+            body.sidebar-collapsed .sidebar { transform: translateX(-100%); width: var(--sidebar-width); padding: 10px; }
+            .chat-container, .input-area { padding-left: 15px; padding-right: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <button class="new-chat-btn" onclick="location.reload()">
+            <span>+</span> Nuevo Chat
+        </button>
+        <div class="history-section">
+            <div class="history-label">Hoy</div>
+            <div class="history-item">Chat activo...</div>
+        </div>
+        <div class="user-section">
+            <div class="user-avatar"></div>
+            <div style="font-size: 0.9rem;">Usuario Local</div>
+        </div>
+    </aside>
+
+    <main class="main-chat">
+        <div class="chat-header">
+            <button class="toggle-btn" id="sidebarToggle" title="Alternar barra lateral">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12H21"/><path d="M3 6H21"/><path d="M3 18H21"/></svg>
+            </button>
+            <div class="model-selector">Llama 3.1 (Local)</div>
+        </div>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="message">
+                <div class="avatar ai">IA</div>
+                <div class="message-content">Hola. Estoy conectado a tu Ollama local mediante FastAPI. Escribe algo.</div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <textarea id="chatInput" placeholder="Envía un mensaje (Shift+Enter para salto de línea)..." rows="1" oninput="autoResize(this)"></textarea>
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                    <svg stroke="currentColor" fill="none" stroke-width="2" viewBox="0 0 24 24" height="20" width="20"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+            <div class="disclaimer">La IA local puede cometer errores.</div>
+        </div>
+    </main>
+
+    <script>
+        const chatInput = document.getElementById('chatInput');
+        const chatContainer = document.getElementById('chatContainer');
+        const sendBtn = document.getElementById('sendBtn');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        
+        // Historial simple en memoria del navegador
+        let chatHistory = [];
+
+        sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-collapsed'));
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            sendBtn.style.color = textarea.value.trim() === "" ? "#666" : "white";
+        }
+
+        chatInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage() {
+            const text = chatInput.value;
+            if (text.trim() === "") return;
+
+            // 1. Mostrar mensaje del usuario
+            addMessageToChat(text, 'user');
+            chatInput.value = '';
+            chatInput.style.height = '24px';
+            
+            // 2. Preparar contenedor para la respuesta de la IA (vacío al principio)
+            const aiMessageContentDiv = addMessageToChat('', 'ai');
+            
+            try {
+                // 3. Llamar al servidor FastAPI
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: text,
+                        history: chatHistory // Enviamos el historial previo
+                    })
+                });
+
+                // Añadir mensaje actual al historial
+                chatHistory.push({ role: "user", content: text });
+
+                // 4. Leer el Stream (flujo de datos)
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    fullResponse += chunk;
+                    
+                    // Actualizar el div en tiempo real (efecto escribir)
+                    aiMessageContentDiv.innerText = fullResponse; 
+                    scrollToBottom();
+                }
+
+                // Guardar respuesta final en historial
+                chatHistory.push({ role: "assistant", content: fullResponse });
+
+            } catch (error) {
+                aiMessageContentDiv.innerText = "Error: No pude conectar con el servidor.";
+                console.error(error);
+            }
+        }
+
+        function addMessageToChat(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            if (sender === 'user') messageDiv.classList.add('user');
+
+            const avatarClass = sender === 'ai' ? 'ai' : 'user';
+            const avatarLabel = sender === 'ai' ? 'IA' : 'Tú';
+
+            messageDiv.innerHTML = `
+                <div class="avatar ${avatarClass}">${avatarLabel}</div>
+                <div class="message-content">${text}</div>
+            `;
+
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+
+            // Devolvemos el div del contenido para poder actualizarlo luego
+            return messageDiv.querySelector('.message-content');
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
