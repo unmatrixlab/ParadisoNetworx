@@ -108,7 +108,7 @@
 
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">⚙️ CONFIG</button>
-        <div class="title">NEXUS RPG <span style="font-size:0.6em; opacity:0.7">v3.0 FREE</span></div>
+        <div class="title">NEXUS RPG <span style="font-size:0.6em; opacity:0.7">v3.1 OLLAMA NATIVE</span></div>
         <div class="status-led" id="connection-status"></div>
     </div>
 
@@ -127,8 +127,8 @@
             
             <h4 style="color:var(--user-color); margin-bottom:10px; border-bottom:1px solid #333">TEXT AI (Your Local LLM)</h4>
             <div class="setting-row">
-                <label>API URL</label>
-                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com/api/chat/completions">
+                <label>API URL (Must end in /api/chat)</label>
+                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com/api/chat">
             </div>
             <div class="setting-row">
                 <label>Token (Optional)</label>
@@ -172,6 +172,7 @@
         let isProcessing = false;
 
         function loadConfig() {
+            // Load config or use defaults
             if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
             if(localStorage.getItem('nexus_token')) document.getElementById('cfg-token').value = localStorage.getItem('nexus_token');
             if(localStorage.getItem('nexus_model')) document.getElementById('cfg-model').value = localStorage.getItem('nexus_model');
@@ -232,7 +233,7 @@
                         3. Use **bold** for items/enemies.
                         4. Ask "What do you do?" at the end.`
                     },
-                    { role: "user", content: "Start the game." }
+                    { role: "user", content: "Initialize game. Generate a starting scenario." }
                 ];
                 fetchAI();
             }
@@ -258,16 +259,38 @@
             const imgStyle = document.getElementById('cfg-img-style').value;
 
             try {
-                // 1. OLLAMA REQUEST
+                // FIX: Native Ollama Request Structure
                 const response = await fetch(textUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ model: model, messages: messageHistory, temperature: 0.8, max_tokens: 300 })
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: messageHistory, 
+                        stream: false, // CRITICAL: Disable streaming for simple JSON handling
+                        options: {
+                            temperature: 0.8, 
+                            num_predict: 300 // Replaces max_tokens
+                        }
+                    })
                 });
 
                 if (!response.ok) throw new Error(`AI Error: ${response.status}`);
                 const data = await response.json();
-                const reply = data.choices[0].message.content;
+                
+                // Ollama returns data.message.content
+                // OpenWebUI proxies often mimic this OR the OpenAI format. 
+                // We try both to be safe.
+                let reply = "";
+                if (data.message && data.message.content) {
+                    reply = data.message.content;
+                } else if (data.choices && data.choices[0].message.content) {
+                    reply = data.choices[0].message.content;
+                } else {
+                    reply = JSON.stringify(data); // Fallback debug
+                }
 
                 TERMINAL.removeChild(loadingDiv);
                 appendToTerminal(reply, 'ai');
@@ -275,24 +298,18 @@
                 localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
                 document.getElementById('connection-status').className = 'status-led online';
 
-                // 2. IMAGE GENERATION (Via Free Pollinations API)
-                // We create a container, then set the image source properly
+                // 2. IMAGE GENERATION
                 const imgContainer = appendImagePlaceholder();
-                
-                // Summarize prompt: "Genre + Key phrase from AI reply"
-                // Using the first 100 chars of the AI reply as prompt + style
                 const cleanReply = reply.replace(/[\r\n]+/g, " ").replace(/[^\w\s]/gi, '').substring(0, 150);
                 const finalPrompt = encodeURIComponent(`${imgStyle} ${cleanReply}`);
                 
-                // Magic URL (Random seed added to prevent caching)
                 const randomSeed = Math.floor(Math.random() * 10000);
                 const imageUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?nologo=true&seed=${randomSeed}&width=512&height=512`;
 
-                // Load image object explicitly to handle loading state
                 const img = new Image();
                 img.className = 'terminal-image';
                 img.onload = function() {
-                    imgContainer.innerHTML = ''; // Clear "Loading..." text
+                    imgContainer.innerHTML = '';
                     imgContainer.appendChild(img);
                     img.style.display = 'block';
                     scrollToBottom();
@@ -304,7 +321,7 @@
 
             } catch (error) {
                 if(loadingDiv.parentNode) TERMINAL.removeChild(loadingDiv);
-                appendToTerminal(`Error: ${error.message}`, 'system');
+                appendToTerminal(`Error: ${error.message}\n(Check if your URL ends in /api/chat)`, 'system');
             } finally {
                 isProcessing = false; BTN.disabled = false; BTN.innerText = "ACT"; INPUT.focus();
             }
