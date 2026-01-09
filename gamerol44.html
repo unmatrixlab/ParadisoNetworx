@@ -3,19 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RPG: Architect Edition</title>
+    <title>NEXUS RPG: Final Audio Override</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
         :root {
             --bg-color: #050505;
             --terminal-bg: #000000;
-            --text-color: #00ff41;
-            --user-color: #00bfff;
+            --text-color: #00ff41; 
+            --user-color: #00bfff; 
             --sys-color: #ff3333;
             --dim-color: #1a331a;
             --font-main: 'Fira Code', monospace;
         }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
@@ -26,34 +29,67 @@
             flex-direction: column;
             align-items: center;
         }
+
         /* CRT SCANLINES */
         .crt::before {
             content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
             z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
         }
+
         .header {
             width: 100%; padding: 15px; border-bottom: 2px solid var(--dim-color);
             background: #000; z-index: 3; display: flex; justify-content: space-between; align-items: center;
         }
         .title { font-weight: 700; letter-spacing: 2px; }
-       
+        
         .audio-ctrl { font-size: 0.8rem; cursor: pointer; color: var(--dim-color); display: flex; gap: 10px; align-items: center;}
-        .audio-ctrl.active { color: var(--text-color); text-shadow: 0 0 5px var(--text-color); }
+        .audio-ctrl.active { color: var(--user-color); text-shadow: 0 0 5px var(--user-color); }
+
         .terminal-container {
             flex: 1; width: 100%; max-width: 900px; background: var(--terminal-bg);
             padding: 20px; overflow-y: auto; scroll-behavior: smooth;
             border-left: 1px solid var(--dim-color); border-right: 1px solid var(--dim-color);
         }
-        .message { margin-bottom: 20px; line-height: 1.6; opacity: 0; animation: fadeIn 0.3s forwards; white-space: pre-wrap; }
+
+        .message { margin-bottom: 20px; line-height: 1.6; opacity: 0; animation: fadeIn 0.3s forwards; white-space: pre-wrap; position: relative; }
         .role-ai { color: var(--text-color); }
         .role-user { color: var(--user-color); text-align: right; margin-left: 20%; border-right: 2px solid var(--user-color); padding-right: 10px; }
         .role-system { color: #666; font-size: 0.8rem; text-align: center; margin: 15px 0; border-top: 1px dashed #333; border-bottom: 1px dashed #333; padding: 5px; }
-        /* LOADING ANIMATION TEXT */
+
+        /* NEW: IN-MESSAGE PLAY BUTTON */
+        .msg-footer {
+            margin-top: 5px;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mini-play-btn {
+            background: transparent;
+            border: 1px solid var(--dim-color);
+            color: var(--dim-color);
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .mini-play-btn:hover {
+            border-color: var(--text-color);
+            color: var(--text-color);
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        /* LOADING ANIMATION */
         .typing-indicator { color: var(--dim-color); font-style: italic; animation: pulse 1s infinite; }
         .typing-dots::after { content: ''; animation: typing 1.5s infinite; }
         @keyframes typing { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
         @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
         /* IMAGE CONTAINER */
         .terminal-image-container {
             margin: 10px 0 20px 0; border: 1px solid var(--dim-color);
@@ -67,6 +103,7 @@
         }
         .image-loading { color: var(--dim-color); font-size: 0.8rem; font-family: monospace; }
         .image-loading::after { content: '...'; animation: blink 1s infinite; }
+
         .input-area {
             width: 100%; max-width: 900px; padding: 15px; background: #000;
             border-top: 2px solid var(--dim-color); display: flex; gap: 10px; z-index: 3;
@@ -81,41 +118,47 @@
         }
         button:hover { background: var(--text-color); color: black; }
         button:disabled { background: #222; color: #555; }
+
         /* MODAL */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; justify-content: center; align-items: center; }
         .modal-content { background: #050505; border: 1px solid var(--text-color); padding: 30px; width: 90%; max-width: 500px; }
         .setting-row { margin-bottom: 20px; }
         .setting-row label { display: block; margin-bottom: 8px; color: #888; font-size: 0.8rem; letter-spacing: 1px; }
         .setting-row input, .setting-row select { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: white; font-family: var(--font-main); }
+
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes blink { 50% { opacity: 0; } }
         strong { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
     </style>
 </head>
 <body class="crt">
+
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
-        <div class="title">NEXUS v9.0</div>
-       
+        <div class="title">NEXUS v10.0</div>
+        
         <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
             <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
         </div>
     </div>
+
     <div class="terminal-container" id="game-terminal">
         <div class="message role-system">
             >> SYSTEM ONLINE<br>
             >> VISUAL: POLLINATIONS<br>
-            >> AUDIO: ROBUST ENGINE v9
+            >> AUDIO: HYBRID (AUTO + MANUAL)
         </div>
     </div>
+
     <div class="input-area">
         <input type="text" id="user-input" placeholder="Enter command..." autocomplete="off" onkeypress="handleEnter(event)">
         <button id="send-btn" onclick="sendAction()">EXECUTE</button>
     </div>
+
     <div class="modal" id="settings-modal">
         <div class="modal-content">
             <h3 style="margin-bottom:20px; text-align:center; color:var(--text-color); border-bottom:1px solid #333; padding-bottom:10px;">CORE SETTINGS</h3>
-           
+            
             <div class="setting-row">
                 <label>OLLAMA URL (Base)</label>
                 <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
@@ -141,6 +184,7 @@
                     <option value="Eldritch Horror">Eldritch Horror</option>
                 </select>
             </div>
+
             <div style="display:flex; gap:10px;">
                 <button onclick="startGame()" style="flex:1;">INITIALIZE</button>
                 <button onclick="document.getElementById('settings-modal').style.display='none'" style="background:transparent; border:1px solid #333; color:#666">X</button>
@@ -148,6 +192,7 @@
             <button onclick="clearMemory()" style="width:100%; margin-top:15px; background:#300; font-size:0.7rem">FORMAT MEMORY</button>
         </div>
     </div>
+
     <script>
         const TERMINAL = document.getElementById('game-terminal');
         const INPUT = document.getElementById('user-input');
@@ -156,59 +201,30 @@
         let isProcessing = false;
         let worldState = { heroVisual: "", currentScene: "" };
 
-        // --- AUDIO ENGINE v4.1 (CORREGIDO Y ROBUSTO) ---
+        // --- AUDIO ENGINE ---
         const TRACKS = {
-            TRANSITION: new Audio('https://cdn.pixabay.com/audio/2023/09/06/audio_43232cb961.mp3'),
-            MYSTERY: new Audio('https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3'),
-            ACTION: new Audio('https://cdn.pixabay.com/audio/2022/03/22/audio_c2b097b87b.mp3')
+            TRANSITION: new Audio('https://cdn.pixabay.com/audio/2023/09/06/audio_43232cb961.mp3'), 
+            MYSTERY: new Audio('https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3'),   
+            ACTION: new Audio('https://cdn.pixabay.com/audio/2022/03/22/audio_c2b097b87b.mp3')     
         };
 
-        Object.values(TRACKS).forEach(t => {
-            t.loop = true;
-            t.volume = 0;
-            t.preload = 'auto'; // Ayuda a cargar más rápido
-        });
+        Object.values(TRACKS).forEach(t => { t.loop = true; t.volume = 0; });
 
         let currentActiveAudio = null;
         let audioEnabled = false;
-
         let fadeOutTimer = null;
         let fadeInTimer = null;
 
-        // 🔥 FUNCIÓN CLAVE: Desbloquea audio + inicia música de fondo
         function enableAudioContext() {
-            if (audioEnabled) return;
-
             audioEnabled = true;
-            const label = document.getElementById('music-label');
-            const indicator = document.getElementById('audio-indicator');
-            label.innerText = "AUDIO READY";
-            indicator.classList.add('active');
-
-            // Truco para desbloquear el contexto de audio en el clic del usuario
-            const unlocker = TRACKS.TRANSITION;
-            unlocker.volume = 0;
-            unlocker.play()
-                .then(() => {
-                    unlocker.pause();
-                    unlocker.currentTime = 0;
-                    console.log("Audio context desbloqueado correctamente");
-
-                    // Ahora sí: inicia la música ambiental inicial
-                    startTrack('TRANSITION');
-                })
-                .catch(err => {
-                    console.warn("Error al desbloquear audio:", err);
-                    label.innerText = "AUDIO BLOQUEADO";
-                });
+            document.getElementById('music-label').innerText = "AUDIO READY";
+            document.getElementById('audio-indicator').style.color = "#00ff41";
         }
 
         function fadeOutAndStop() {
             if (!currentActiveAudio) return;
-
             clearInterval(fadeOutTimer);
             const sound = currentActiveAudio;
-
             fadeOutTimer = setInterval(() => {
                 if (sound.volume > 0.05) {
                     sound.volume -= 0.05;
@@ -217,16 +233,17 @@
                     sound.pause();
                     sound.currentTime = 0;
                     clearInterval(fadeOutTimer);
-                    if (currentActiveAudio === sound) {
-                        document.getElementById('music-label').innerText = "...";
-                    }
+                    fadeOutTimer = null;
+                    if(currentActiveAudio === sound) document.getElementById('music-label').innerText = "...";
                 }
             }, 100);
         }
 
         function startTrack(trackKey) {
-            if (!audioEnabled || !TRACKS[trackKey]) return;
+            if (!audioEnabled && !TRACKS[trackKey]) return; // Only block if audio completely disabled
+            if (!TRACKS[trackKey]) return;
 
+            // Stop Fades
             clearInterval(fadeOutTimer);
             clearInterval(fadeInTimer);
 
@@ -237,38 +254,43 @@
 
             const newSound = TRACKS[trackKey];
             currentActiveAudio = newSound;
-
             document.getElementById('music-label').innerText = trackKey;
-
+            
             newSound.volume = 0;
-            newSound.play().catch(err => console.warn("Error al reproducir:", err));
-
-            fadeInTimer = setInterval(() => {
-                if (newSound.volume < 0.6) {
-                    newSound.volume += 0.05;
-                } else {
-                    newSound.volume = 0.6;
-                    clearInterval(fadeInTimer);
-                }
-            }, 100);
+            newSound.play().then(() => {
+                // Fade In
+                fadeInTimer = setInterval(() => {
+                    if (newSound.volume < 0.6) {
+                        newSound.volume += 0.05;
+                    } else {
+                        newSound.volume = 0.6;
+                        clearInterval(fadeInTimer);
+                        fadeInTimer = null;
+                    }
+                }, 100);
+            }).catch(e => {
+                console.log("Auto-play blocked. Use manual button.");
+            });
         }
 
-        // --- RESTO DE FUNCIONES (sin cambios importantes) ---
+        // --- CORE FUNCTIONS ---
+
         function loadConfig() {
             if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
             if(localStorage.getItem('nexus_token')) document.getElementById('cfg-token').value = localStorage.getItem('nexus_token');
             if(localStorage.getItem('nexus_model')) document.getElementById('cfg-model').value = localStorage.getItem('nexus_model');
             if(localStorage.getItem('nexus_img_style')) document.getElementById('cfg-img-style').value = localStorage.getItem('nexus_img_style');
-           
+            
             const savedHist = localStorage.getItem('nexus_history');
             if(savedHist) {
                 messageHistory = JSON.parse(savedHist);
                 messageHistory.forEach(msg => {
-                    if(msg.role !== 'system') appendToTerminal(msg.content, msg.role, false);
+                    if(msg.role !== 'system') appendToTerminal(msg.content, msg.role, msg.tone, false);
                 });
             }
             const savedState = localStorage.getItem('nexus_world_state');
             if(savedState) worldState = JSON.parse(savedState);
+
             scrollToBottom();
         }
 
@@ -279,17 +301,30 @@
             localStorage.setItem('nexus_img_style', document.getElementById('cfg-img-style').value);
         }
 
-        function appendToTerminal(text, role, animate = true) {
+        // MODIFIED: Accepts Tone argument for Button Rendering
+        function appendToTerminal(text, role, tone = null, animate = true) {
             let cleanText = text
                 .replace(/\[HERO_DESC:.*?\]/g, "")
                 .replace(/\[SCENE:.*?\]/g, "")
                 .replace(/\[NPC_DESC:.*?\]/g, "")
                 .replace(/\[TONE:.*?\]/g, "")
                 .trim();
+
             if (!cleanText) return;
+
             const div = document.createElement('div');
             div.className = `message role-${role}`;
-            div.innerHTML = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            let htmlContent = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // --- INJECT PLAY BUTTON IF AI AND TONE EXISTS ---
+            if (role === 'ai' && tone) {
+                htmlContent += `<div class="msg-footer">
+                    <button class="mini-play-btn" onclick="startTrack('${tone}'); enableAudioContext();">▶ REPLAY [${tone}]</button>
+                </div>`;
+            }
+
+            div.innerHTML = htmlContent;
             TERMINAL.appendChild(div);
             scrollToBottom();
             return div;
@@ -303,6 +338,7 @@
             TERMINAL.appendChild(loadingDiv);
             scrollToBottom();
         }
+
         function hideLoading() {
             if (loadingDiv && loadingDiv.parentNode) {
                 loadingDiv.parentNode.removeChild(loadingDiv);
@@ -321,11 +357,11 @@
 
         function scrollToBottom() { TERMINAL.scrollTop = TERMINAL.scrollHeight; }
         function handleEnter(e) { if (e.key === 'Enter') sendAction(); }
-        function clearMemory() {
-            if(confirm("WIPE SYSTEM MEMORY?")) {
-                localStorage.removeItem('nexus_history');
+        function clearMemory() { 
+            if(confirm("WIPE SYSTEM MEMORY?")) { 
+                localStorage.removeItem('nexus_history'); 
                 localStorage.removeItem('nexus_world_state');
-                location.reload();
+                location.reload(); 
             }
         }
 
@@ -333,23 +369,27 @@
             document.getElementById('settings-modal').style.display = 'none';
             saveConfig();
             const genre = document.getElementById('cfg-genre').value;
+
             if (messageHistory.length === 0) {
                 const systemPrompt = `
                 You are a sophisticated RPG Game Engine. Genre: ${genre}.
-               
+                
                 MANDATORY HIDDEN OUTPUTS (Used by code, user does not see these):
                 1. [HERO_DESC: visual description] (First turn only)
                 2. [SCENE: visual description] (Every turn)
                 3. [NPC_DESC: visual description] (If character appears)
                 4. [TONE: TYPE] (Required: TRANSITION, MYSTERY, or ACTION)
+
                 NARRATIVE RULES (What user reads):
                 - Be concise (max 3 sentences).
                 - Use **bold** for key items.
                 - ALWAYS end by asking "What do you do?"
+
                 EXAMPLE:
                 [SCENE: Dark alley] [TONE: MYSTERY]
                 The shadows move. A **knife** lies on the floor. What do you do?
                 `;
+
                 messageHistory = [
                     { role: "system", content: systemPrompt },
                     { role: "user", content: "Initialize game. Describe hero, location, and set tone." }
@@ -361,8 +401,9 @@
         async function sendAction() {
             const text = INPUT.value.trim();
             if (!text || isProcessing) return;
-           
-            fadeOutAndStop();
+            
+            fadeOutAndStop(); // Silence previous
+
             INPUT.value = '';
             appendToTerminal(text, 'user');
             messageHistory.push({ role: "user", content: text });
@@ -382,28 +423,28 @@
                 const response = await fetch(`${baseUrl}/api/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({
-                        model: model,
-                        messages: messageHistory,
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: messageHistory, 
                         temperature: 0.8,
                         max_tokens: 1000
                     })
                 });
+
                 if (!response.ok) throw new Error(`AI Error: ${response.status}`);
                 const data = await response.json();
                 const rawReply = data.choices[0].message.content;
+
                 hideLoading();
 
-                // --- CAMBIO DE TONO DE AUDIO ---
+                // --- EXTRACT DATA ---
+                
+                // Audio Tone
+                let currentTone = 'TRANSITION'; // Default
                 const toneMatch = rawReply.match(/\[TONE:(.*?)\]/i);
-                if (toneMatch) {
-                    let tone = toneMatch[1].trim().toUpperCase();
-                    startTrack(tone);
-                } else {
-                    startTrack('TRANSITION');
-                }
-
-                // --- VISUALES ---
+                if (toneMatch) currentTone = toneMatch[1].trim().toUpperCase();
+                
+                // Visuals
                 const heroMatch = rawReply.match(/\[HERO_DESC:(.*?)\]/);
                 if (heroMatch) {
                     worldState.heroVisual = heroMatch[1].trim();
@@ -416,20 +457,29 @@
                 const npcMatch = rawReply.match(/\[NPC_DESC:(.*?)\]/);
                 if (npcMatch) npcDesc = npcMatch[1].trim();
 
-                appendToTerminal(rawReply, 'ai');
-                messageHistory.push({ role: "assistant", content: rawReply });
+                // --- ACTIONS ---
+                
+                // 1. Try Auto-Play
+                startTrack(currentTone);
+
+                // 2. Render Text (Passing Tone to generate button)
+                // We add tone to history object too for reload persistence
+                appendToTerminal(rawReply, 'ai', currentTone);
+                messageHistory.push({ role: "assistant", content: rawReply, tone: currentTone });
                 localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
 
-                // --- IMAGEN ---
+                // 3. Generate Image
                 let promptParts = [imgStyle];
                 if (worldState.heroVisual) promptParts.push(`Hero: ${worldState.heroVisual}`);
                 if (npcDesc) promptParts.push(`Character: ${npcDesc}`);
                 if (sceneDesc) promptParts.push(`Environment: ${sceneDesc}`);
-                if (!sceneDesc && !npcDesc) promptParts.push(rawReply.substring(0, 100));
+                if (!sceneDesc && !npcDesc) promptParts.push(rawReply.substring(0, 100)); 
+
                 const finalPrompt = encodeURIComponent(promptParts.join(", "));
                 const imgContainer = appendImagePlaceholder();
                 const randomSeed = Math.floor(Math.random() * 99999);
-                const imageUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?nologo=true&seed=${randomSeed}&width=512&height=512&model=flux`;
+                const imageUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?nologo=true&seed=${randomSeed}&width=512&height=512&model=flux`; 
+
                 const img = new Image();
                 img.className = 'terminal-image';
                 img.onload = function() {
