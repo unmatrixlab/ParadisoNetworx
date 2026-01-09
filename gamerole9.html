@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RPG: High Quality Engine</title>
+    <title>NEXUS RPG: v11.1 (FIXED)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
@@ -115,7 +115,7 @@
 
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
-        <div class="title">NEXUS v11.0 (HQ MODE)</div>
+        <div class="title">NEXUS v11.1 (HQ+AUDIO FIX)</div>
         
         <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
             <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
@@ -126,7 +126,7 @@
         <div class="message role-system">
             >> SYSTEM ONLINE<br>
             >> VISUAL: HIGH QUALITY PROMPTS + NEGATIVES<br>
-            >> AUDIO: STABLE ENGINE
+            >> AUDIO: FORCED VOLUME ON
         </div>
     </div>
 
@@ -192,13 +192,14 @@
         let isProcessing = false;
         let worldState = { heroVisual: "", currentScene: "" };
 
-        // --- AUDIO ENGINE ---
+        // --- AUDIO ENGINE (FIXED) ---
         const TRACKS = {
             TRANSITION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Village%20Consort.mp3'), 
             MYSTERY: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Aftermath.mp3'),    
             ACTION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Volatile%20Reaction.mp3')      
         };
 
+        // Configuración inicial de pistas
         Object.values(TRACKS).forEach(t => { t.loop = true; t.volume = 0.5; });
 
         let currentActiveAudio = null;
@@ -215,8 +216,10 @@
             if (!TRACKS[trackKey]) return;
             const newSound = TRACKS[trackKey];
             
+            // Si es la misma pista, no la interrumpimos
             if (currentActiveAudio === newSound && !newSound.paused) return; 
 
+            // Detenemos la anterior
             if (currentActiveAudio) {
                 currentActiveAudio.pause();
                 currentActiveAudio.currentTime = 0;
@@ -224,6 +227,10 @@
 
             currentActiveAudio = newSound;
             document.getElementById('music-label').innerText = trackKey;
+            
+            // --- FIX VITAL: FORZAR VOLUMEN ---
+            // En la versión anterior olvidé esta línea, por eso sonaba "mudo".
+            newSound.volume = 0.6; 
             
             const playPromise = newSound.play();
             if (playPromise !== undefined) {
@@ -328,6 +335,7 @@
         function startGame() {
             document.getElementById('settings-modal').style.display = 'none';
             saveConfig();
+            // Aseguramos que el audio está listo
             enableAudioContext();
             const genre = document.getElementById('cfg-genre').value;
 
@@ -363,7 +371,9 @@
         async function sendAction() {
             const text = INPUT.value.trim();
             if (!text || isProcessing) return;
+            // Aseguramos permiso de audio al hacer clic
             enableAudioContext();
+            
             INPUT.value = '';
             appendToTerminal(text, 'user');
             messageHistory.push({ role: "user", content: text });
@@ -378,7 +388,6 @@
             const token = document.getElementById('cfg-token').value;
             const model = document.getElementById('cfg-model').value;
             const imgStyle = document.getElementById('cfg-img-style').value;
-            // OBTENER EL SAMPLER ELEGIDO
             const samplerName = document.getElementById('cfg-sampler').value || "Euler a";
 
             try {
@@ -423,7 +432,7 @@
                 messageHistory.push({ role: "assistant", content: rawReply, tone: currentTone });
                 localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
 
-                // 3. Generate Image (CON BOOST DE CALIDAD)
+                // 3. Generate Image (CON BOOST DE CALIDAD Y SAMPLER)
                 let promptParts = [imgStyle];
                 if (worldState.heroVisual) promptParts.push(`Hero: ${worldState.heroVisual}`);
                 if (npcDesc) promptParts.push(`Featuring: ${npcDesc}`);
@@ -432,12 +441,9 @@
                 let actionContext = rawReply.replace(/\[.*?\]/g, "").trim().substring(0, 150);
                 promptParts.push(`Action details: ${actionContext}`);
 
-                // --- CALIDAD SUPREMA: AÑADIMOS MODIFICADORES ---
                 promptParts.push("(masterpiece, best quality, highres:1.2), 8k uhd, soft lighting, film grain");
 
                 const finalPrompt = promptParts.join(", ");
-                
-                // --- NEGATIVE PROMPT (LIMPIEZA) ---
                 const negativePrompt = "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name";
 
                 const imgContainer = appendImagePlaceholder();
@@ -448,12 +454,12 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             prompt: finalPrompt,
-                            negative_prompt: negativePrompt, // AQUI ESTA LA MAGIA
-                            steps: 25, // Subimos un poco los pasos
+                            negative_prompt: negativePrompt,
+                            steps: 25, 
                             width: 512,
                             height: 512,
                             cfg_scale: 7,
-                            sampler_name: samplerName // USAMOS EL SAMPLER DEL MENU
+                            sampler_name: samplerName 
                         })
                     });
 
