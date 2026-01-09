@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEXUS RPG: Final Audio Fix</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #050505;
+            --terminal-bg: #000000;
+            --text-color: #00ff41; 
+            --user-color: #00bfff; 
+            --sys-color: #ff3333;
+            --dim-color: #1a331a;
+            --font-main: 'Fira Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* CRT SCANLINES */
+        .crt::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        .header {
+            width: 100%; padding: 15px; border-bottom: 2px solid var(--dim-color);
+            background: #000; z-index: 3; display: flex; justify-content: space-between; align-items: center;
+        }
+        .title { font-weight: 700; letter-spacing: 2px; }
+        
+        .audio-ctrl { font-size: 0.8rem; cursor: pointer; color: var(--dim-color); display: flex; gap: 10px; align-items: center;}
+        .audio-ctrl.active { color: var(--user-color); text-shadow: 0 0 5px var(--user-color); }
+
+        .terminal-container {
+            flex: 1; width: 100%; max-width: 900px; background: var(--terminal-bg);
+            padding: 20px; overflow-y: auto; scroll-behavior: smooth;
+            border-left: 1px solid var(--dim-color); border-right: 1px solid var(--dim-color);
+        }
+
+        .message { margin-bottom: 20px; line-height: 1.6; opacity: 0; animation: fadeIn 0.3s forwards; white-space: pre-wrap; }
+        .role-ai { color: var(--text-color); }
+        .role-user { color: var(--user-color); text-align: right; margin-left: 20%; border-right: 2px solid var(--user-color); padding-right: 10px; }
+        .role-system { color: #666; font-size: 0.8rem; text-align: center; margin: 15px 0; border-top: 1px dashed #333; border-bottom: 1px dashed #333; padding: 5px; }
+
+        /* ANIMATIONS */
+        .typing-indicator { color: var(--dim-color); font-style: italic; animation: pulse 1s infinite; }
+        .typing-dots::after { content: ''; animation: typing 1.5s infinite; }
+        
+        @keyframes typing { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* IMAGE CONTAINER */
+        .terminal-image-container {
+            margin: 10px 0 20px 0; border: 1px solid var(--dim-color);
+            background: #020202; text-align: center; min-height: 150px;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; animation: fadeIn 1s forwards;
+        }
+        .terminal-image {
+            width: 100%; max-height: 450px; object-fit: contain; display: none;
+            filter: contrast(1.1) saturate(1.1);
+        }
+        .image-loading { color: var(--dim-color); font-size: 0.8rem; font-family: monospace; }
+        .image-loading::after { content: '...'; animation: blink 1s infinite; }
+
+        .input-area {
+            width: 100%; max-width: 900px; padding: 15px; background: #000;
+            border-top: 2px solid var(--dim-color); display: flex; gap: 10px; z-index: 3;
+        }
+        input[type="text"] {
+            flex: 1; background: #111; border: 1px solid var(--dim-color); color: var(--user-color);
+            padding: 12px; font-family: var(--font-main); font-size: 1rem; outline: none;
+        }
+        button {
+            background: var(--dim-color); color: white; border: none; padding: 0 25px;
+            cursor: pointer; font-family: var(--font-main); font-weight: bold; text-transform: uppercase;
+        }
+        button:hover { background: var(--text-color); color: black; }
+        button:disabled { background: #222; color: #555; }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #050505; border: 1px solid var(--text-color); padding: 30px; width: 90%; max-width: 500px; }
+        .setting-row { margin-bottom: 20px; }
+        .setting-row label { display: block; margin-bottom: 8px; color: #888; font-size: 0.8rem; letter-spacing: 1px; }
+        .setting-row input, .setting-row select { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: white; font-family: var(--font-main); }
+        strong { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body class="crt">
+
+    <div class="header">
+        <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
+        <div class="title">NEXUS v8.0</div>
+        
+        <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
+            <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
+        </div>
+    </div>
+
+    <div class="terminal-container" id="game-terminal">
+        <div class="message role-system">
+            >> SYSTEM ONLINE<br>
+            >> VISUAL: POLLINATIONS<br>
+            >> AUDIO: CINEMATIC MODE
+        </div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Enter command..." autocomplete="off" onkeypress="handleEnter(event)">
+        <button id="send-btn" onclick="sendAction()">EXECUTE</button>
+    </div>
+
+    <div class="modal" id="settings-modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px; text-align:center; color:var(--text-color); border-bottom:1px solid #333; padding-bottom:10px;">CORE SETTINGS</h3>
+            
+            <div class="setting-row">
+                <label>OLLAMA URL (Base)</label>
+                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
+            </div>
+            <div class="setting-row">
+                <label>AUTH TOKEN</label>
+                <input type="password" id="cfg-token" placeholder="Optional...">
+            </div>
+            <div class="setting-row">
+                <label>MODEL ID</label>
+                <input type="text" id="cfg-model" value="llama3:latest">
+            </div>
+            <div class="setting-row">
+                <label>VISUAL STYLE</label>
+                <input type="text" id="cfg-img-style" value="cinematic fantasy art, 8k, detailed, dramatic lighting">
+            </div>
+            <div class="setting-row">
+                <label>GENRE</label>
+                <select id="cfg-genre">
+                    <option value="Epic Fantasy">Epic Fantasy</option>
+                    <option value="Cyberpunk Noir">Cyberpunk Noir</option>
+                    <option value="Space Opera">Space Opera</option>
+                    <option value="Eldritch Horror">Eldritch Horror</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="startGame()" style="flex:1;">INITIALIZE</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" style="background:transparent; border:1px solid #333; color:#666">X</button>
+            </div>
+            <button onclick="clearMemory()" style="width:100%; margin-top:15px; background:#300; font-size:0.7rem">FORMAT MEMORY</button>
+        </div>
+    </div>
+
+    <script>
+        const TERMINAL = document.getElementById('game-terminal');
+        const INPUT = document.getElementById('user-input');
+        const BTN = document.getElementById('send-btn');
+        let messageHistory = [];
+        let isProcessing = false;
+        let worldState = { heroVisual: "", currentScene: "" };
+
+        // --- AUDIO ENGINE v3.0 (Strict Switching) ---
+        const TRACKS = {
+            TRANSITION: new Audio('https://cdn.pixabay.com/audio/2023/09/06/audio_43232cb961.mp3'), 
+            MYSTERY: new Audio('https://cdn.pixabay.com/audio/2022/01/18/audio_d0a13f69d2.mp3'),   
+            ACTION: new Audio('https://cdn.pixabay.com/audio/2022/03/22/audio_c2b097b87b.mp3')     
+        };
+
+        // Prepare tracks
+        Object.values(TRACKS).forEach(t => { t.loop = true; t.volume = 0; });
+
+        let currentActiveAudio = null;
+        let fadeTimer = null;
+        let audioEnabled = false;
+
+        function enableAudioContext() {
+            audioEnabled = true;
+            document.getElementById('music-label').innerText = "AUDIO READY";
+            document.getElementById('audio-indicator').style.color = "#00ff41";
+        }
+
+        // STEP 1: FADE OUT (User clicks Execute)
+        function fadeOutAndStop() {
+            if (!currentActiveAudio) return;
+            
+            clearInterval(fadeTimer);
+            const sound = currentActiveAudio;
+            
+            // Fast fade out (2 seconds approx)
+            fadeTimer = setInterval(() => {
+                if (sound.volume > 0.05) {
+                    sound.volume -= 0.05;
+                } else {
+                    sound.volume = 0;
+                    sound.pause();
+                    sound.currentTime = 0;
+                    clearInterval(fadeTimer);
+                    document.getElementById('music-label').innerText = "...";
+                }
+            }, 100);
+        }
+
+        // STEP 2: START NEW (AI Responds)
+        function startTrack(trackKey) {
+            if (!audioEnabled || !TRACKS[trackKey]) return;
+
+            // Ensure silence first (safety check)
+            if (currentActiveAudio) {
+                currentActiveAudio.volume = 0;
+                currentActiveAudio.pause();
+            }
+
+            const newSound = TRACKS[trackKey];
+            currentActiveAudio = newSound;
+            
+            // UI
+            document.getElementById('music-label').innerText = trackKey;
+            
+            // Play & Fade In
+            newSound.volume = 0;
+            newSound.play().catch(e => console.log("Audio block:", e));
+
+            clearInterval(fadeTimer);
+            fadeTimer = setInterval(() => {
+                if (newSound.volume < 0.6) {
+                    newSound.volume += 0.05;
+                } else {
+                    clearInterval(fadeTimer);
+                }
+            }, 100);
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        function loadConfig() {
+            if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
+            if(localStorage.getItem('nexus_token')) document.getElementById('cfg-token').value = localStorage.getItem('nexus_token');
+            if(localStorage.getItem('nexus_model')) document.getElementById('cfg-model').value = localStorage.getItem('nexus_model');
+            if(localStorage.getItem('nexus_img_style')) document.getElementById('cfg-img-style').value = localStorage.getItem('nexus_img_style');
+            
+            const savedHist = localStorage.getItem('nexus_history');
+            if(savedHist) {
+                messageHistory = JSON.parse(savedHist);
+                messageHistory.forEach(msg => {
+                    if(msg.role !== 'system') appendToTerminal(msg.content, msg.role, false);
+                });
+            }
+            const savedState = localStorage.getItem('nexus_world_state');
+            if(savedState) worldState = JSON.parse(savedState);
+
+            scrollToBottom();
+        }
+
+        function saveConfig() {
+            localStorage.setItem('nexus_url', document.getElementById('cfg-url').value);
+            localStorage.setItem('nexus_token', document.getElementById('cfg-token').value);
+            localStorage.setItem('nexus_model', document.getElementById('cfg-model').value);
+            localStorage.setItem('nexus_img_style', document.getElementById('cfg-img-style').value);
+        }
+
+        function appendToTerminal(text, role, animate = true) {
+            let cleanText = text
+                .replace(/\[HERO_DESC:.*?\]/g, "")
+                .replace(/\[SCENE:.*?\]/g, "")
+                .replace(/\[NPC_DESC:.*?\]/g, "")
+                .replace(/\[TONE:.*?\]/g, "")
+                .trim();
+
+            if (!cleanText) return;
+
+            const div = document.createElement('div');
+            div.className = `message role-${role}`;
+            div.innerHTML = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            TERMINAL.appendChild(div);
+            scrollToBottom();
+            return div;
+        }
+
+        // LOADING
+        let loadingDiv = null;
+        function showLoading() {
+            loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message role-system typing-indicator';
+            loadingDiv.innerHTML = 'Generating narrative<span class="typing-dots"></span>';
+            TERMINAL.appendChild(loadingDiv);
+            scrollToBottom();
+        }
+
+        function hideLoading() {
+            if (loadingDiv && loadingDiv.parentNode) {
+                loadingDiv.parentNode.removeChild(loadingDiv);
+                loadingDiv = null;
+            }
+        }
+
+        function appendImagePlaceholder() {
+            const container = document.createElement('div');
+            container.className = 'terminal-image-container';
+            container.innerHTML = '<div class="image-loading">RENDERING WORLD STATE</div>';
+            TERMINAL.appendChild(container);
+            scrollToBottom();
+            return container;
+        }
+
+        function scrollToBottom() { TERMINAL.scrollTop = TERMINAL.scrollHeight; }
+        function handleEnter(e) { if (e.key === 'Enter') sendAction(); }
+        function clearMemory() { 
+            if(confirm("WIPE SYSTEM MEMORY?")) { 
+                localStorage.removeItem('nexus_history'); 
+                localStorage.removeItem('nexus_world_state');
+                location.reload(); 
+            }
+        }
+
+        function startGame() {
+            document.getElementById('settings-modal').style.display = 'none';
+            saveConfig();
+            enableAudioContext(); // Try to enable audio on start click
+            const genre = document.getElementById('cfg-genre').value;
+
+            if (messageHistory.length === 0) {
+                const systemPrompt = `
+                You are a sophisticated RPG Game Engine. Genre: ${genre}.
+                
+                MANDATORY HIDDEN OUTPUTS (Used by code, user does not see these):
+                1. [HERO_DESC: visual description] (First turn only)
+                2. [SCENE: visual description] (Every turn)
+                3. [NPC_DESC: visual description] (If character appears)
+                4. [TONE: TYPE] (Required: TRANSITION, MYSTERY, or ACTION)
+
+                NARRATIVE RULES (What user reads):
+                - Be concise (max 3 sentences).
+                - Use **bold** for key items.
+                - ALWAYS end by asking "What do you do?"
+
+                EXAMPLE:
+                [SCENE: Dark alley] [TONE: MYSTERY]
+                The shadows move. A **knife** lies on the floor. What do you do?
+                `;
+
+                messageHistory = [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: "Initialize game. Describe hero, location, and set tone." }
+                ];
+                fetchAI();
+            }
+        }
+
+        async function sendAction() {
+            const text = INPUT.value.trim();
+            if (!text || isProcessing) return;
+            
+            // 1. STOP AUDIO IMMEDIATELY
+            fadeOutAndStop();
+
+            INPUT.value = '';
+            appendToTerminal(text, 'user');
+            messageHistory.push({ role: "user", content: text });
+            await fetchAI();
+        }
+
+        async function fetchAI() {
+            isProcessing = true; BTN.disabled = true; BTN.innerText = "...";
+            showLoading(); // ANIMATION
+
+            const baseUrl = document.getElementById('cfg-url').value.replace(/\/$/, "");
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value;
+            const imgStyle = document.getElementById('cfg-img-style').value;
+
+            try {
+                const response = await fetch(`${baseUrl}/api/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: messageHistory, 
+                        temperature: 0.8,
+                        max_tokens: 1000
+                    })
+                });
+
+                if (!response.ok) throw new Error(`AI Error: ${response.status}`);
+                const data = await response.json();
+                const rawReply = data.choices[0].message.content;
+
+                hideLoading();
+
+                // --- AUDIO TRIGGER ---
+                const toneMatch = rawReply.match(/\[TONE:(.*?)\]/i);
+                if (toneMatch) {
+                    let tone = toneMatch[1].trim().toUpperCase();
+                    startTrack(tone);
+                } else {
+                    startTrack('TRANSITION');
+                }
+
+                // --- VISUAL DATA ---
+                const heroMatch = rawReply.match(/\[HERO_DESC:(.*?)\]/);
+                if (heroMatch) {
+                    worldState.heroVisual = heroMatch[1].trim();
+                    localStorage.setItem('nexus_world_state', JSON.stringify(worldState));
+                }
+
+                let sceneDesc = "";
+                const sceneMatch = rawReply.match(/\[SCENE:(.*?)\]/);
+                if (sceneMatch) sceneDesc = sceneMatch[1].trim();
+
+                let npcDesc = "";
+                const npcMatch = rawReply.match(/\[NPC_DESC:(.*?)\]/);
+                if (npcMatch) npcDesc = npcMatch[1].trim();
+
+                // DISPLAY TEXT
+                appendToTerminal(rawReply, 'ai');
+                messageHistory.push({ role: "assistant", content: rawReply });
+                localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
+
+                // IMAGE
+                let promptParts = [imgStyle];
+                if (worldState.heroVisual) promptParts.push(`Hero: ${worldState.heroVisual}`);
+                if (npcDesc) promptParts.push(`Character: ${npcDesc}`);
+                if (sceneDesc) promptParts.push(`Environment: ${sceneDesc}`);
+                if (!sceneDesc && !npcDesc) promptParts.push(rawReply.substring(0, 100)); 
+
+                const finalPrompt = encodeURIComponent(promptParts.join(", "));
+                const imgContainer = appendImagePlaceholder();
+                const randomSeed = Math.floor(Math.random() * 99999);
+                const imageUrl = `https://image.pollinations.ai/prompt/${finalPrompt}?nologo=true&seed=${randomSeed}&width=512&height=512&model=flux`; 
+
+                const img = new Image();
+                img.className = 'terminal-image';
+                img.onload = function() {
+                    imgContainer.innerHTML = '';
+                    imgContainer.appendChild(img);
+                    img.style.display = 'block';
+                    scrollToBottom();
+                };
+                img.onerror = () => { imgContainer.innerText = "[IMG ERROR]"; };
+                img.src = imageUrl;
+
+            } catch (error) {
+                hideLoading();
+                appendToTerminal(`SYSTEM FAILURE: ${error.message}`, 'system');
+            } finally {
+                isProcessing = false; BTN.disabled = false; BTN.innerText = "EXECUTE"; INPUT.focus();
+            }
+        }
+
+        window.onload = loadConfig;
+    </script>
+</body>
+</html>
