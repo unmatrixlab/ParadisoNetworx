@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RPG: v11.1 (FIXED)</title>
+    <title>NEXUS RPG: Ultimate Control</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
@@ -101,10 +101,11 @@
         button:disabled { background: #222; color: #555; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; justify-content: center; align-items: center; }
-        .modal-content { background: #050505; border: 1px solid var(--text-color); padding: 30px; width: 90%; max-width: 500px; }
+        .modal-content { background: #050505; border: 1px solid var(--text-color); padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .setting-row { margin-bottom: 20px; }
         .setting-row label { display: block; margin-bottom: 8px; color: #888; font-size: 0.8rem; letter-spacing: 1px; }
         .setting-row input, .setting-row select { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: white; font-family: var(--font-main); }
+        .refresh-btn { background: #333; color: #fff; border: 1px solid #555; font-size: 0.6rem; padding: 2px 6px; margin-left: 10px; cursor: pointer; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes blink { 50% { opacity: 0; } }
@@ -115,7 +116,7 @@
 
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
-        <div class="title">NEXUS v11.1 (HQ+AUDIO FIX)</div>
+        <div class="title">NEXUS v12.0 (ULTIMATE)</div>
         
         <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
             <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
@@ -125,8 +126,8 @@
     <div class="terminal-container" id="game-terminal">
         <div class="message role-system">
             >> SYSTEM ONLINE<br>
-            >> VISUAL: HIGH QUALITY PROMPTS + NEGATIVES<br>
-            >> AUDIO: FORCED VOLUME ON
+            >> VISUAL: LOCAL SD (FULL CONTROL)<br>
+            >> AUDIO: STABILIZED
         </div>
     </div>
 
@@ -148,16 +149,25 @@
                 <input type="password" id="cfg-token" placeholder="Optional...">
             </div>
             <div class="setting-row">
-                <label>MODEL ID (Story)</label>
+                <label>MODEL ID (Narrative)</label>
                 <input type="text" id="cfg-model" value="llama3:latest">
             </div>
             
+            <div style="border-top:1px dashed #333; margin: 20px 0;"></div>
+
             <div class="setting-row">
-                <label>SD SAMPLER (Image Brain)</label>
+                <label>SD MODEL (Checkpoint) <button class="refresh-btn" onclick="fetchLocalModels()">↻ REFRESH LIST</button></label>
+                <select id="cfg-sd-model">
+                    <option value="">(Default / Use Loaded)</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <label>IMAGE SAMPLER</label>
                 <select id="cfg-sampler">
                     <option value="DPM++ 2M">DPM++ 2M (Recomendado)</option>
-                    <option value="DPM++ SDE">DPM++ SDE (Lento/Alta Calidad)</option>
-                    <option value="Euler a">Euler a (Rápido/Creativo)</option>
+                    <option value="DPM++ SDE">DPM++ SDE (Alta Calidad)</option>
+                    <option value="Euler a">Euler a (Rápido)</option>
                     <option value="UniPC">UniPC (Muy Rápido)</option>
                 </select>
             </div>
@@ -166,6 +176,9 @@
                 <label>VISUAL STYLE</label>
                 <input type="text" id="cfg-img-style" value="cinematic fantasy art, 8k, detailed, dramatic lighting">
             </div>
+
+            <div style="border-top:1px dashed #333; margin: 20px 0;"></div>
+
             <div class="setting-row">
                 <label>GENRE</label>
                 <select id="cfg-genre">
@@ -192,14 +205,13 @@
         let isProcessing = false;
         let worldState = { heroVisual: "", currentScene: "" };
 
-        // --- AUDIO ENGINE (FIXED) ---
+        // --- AUDIO ENGINE ---
         const TRACKS = {
             TRANSITION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Village%20Consort.mp3'), 
             MYSTERY: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Aftermath.mp3'),    
             ACTION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Volatile%20Reaction.mp3')      
         };
 
-        // Configuración inicial de pistas
         Object.values(TRACKS).forEach(t => { t.loop = true; t.volume = 0.5; });
 
         let currentActiveAudio = null;
@@ -215,11 +227,8 @@
         function startTrack(trackKey) {
             if (!TRACKS[trackKey]) return;
             const newSound = TRACKS[trackKey];
-            
-            // Si es la misma pista, no la interrumpimos
             if (currentActiveAudio === newSound && !newSound.paused) return; 
 
-            // Detenemos la anterior
             if (currentActiveAudio) {
                 currentActiveAudio.pause();
                 currentActiveAudio.currentTime = 0;
@@ -227,20 +236,35 @@
 
             currentActiveAudio = newSound;
             document.getElementById('music-label').innerText = trackKey;
-            
-            // --- FIX VITAL: FORZAR VOLUMEN ---
-            // En la versión anterior olvidé esta línea, por eso sonaba "mudo".
-            newSound.volume = 0.6; 
+            newSound.volume = 0.6; // VOLUMEN FORZADO
             
             const playPromise = newSound.play();
             if (playPromise !== undefined) {
                 playPromise.catch(error => {
-                    console.log("Waiting for user interaction for audio...");
+                    console.log("Audio waiting for interaction...");
                 });
             }
         }
 
         // --- CORE FUNCTIONS ---
+
+        async function fetchLocalModels() {
+            const select = document.getElementById('cfg-sd-model');
+            select.innerHTML = '<option>Loading...</option>';
+            try {
+                const res = await fetch("http://127.0.0.1:7860/sdapi/v1/sd-models");
+                const data = await res.json();
+                select.innerHTML = '<option value="">(Default / Use Loaded)</option>';
+                data.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.title; // El titulo incluye el hash, necesario para override
+                    opt.innerText = m.model_name;
+                    select.appendChild(opt);
+                });
+            } catch(e) {
+                select.innerHTML = '<option value="">Error connecting to SD</option>';
+            }
+        }
 
         function loadConfig() {
             if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
@@ -258,6 +282,9 @@
             }
             const savedState = localStorage.getItem('nexus_world_state');
             if(savedState) worldState = JSON.parse(savedState);
+            
+            // Intentar cargar modelos al inicio si SD está corriendo
+            fetchLocalModels();
 
             scrollToBottom();
         }
@@ -335,7 +362,6 @@
         function startGame() {
             document.getElementById('settings-modal').style.display = 'none';
             saveConfig();
-            // Aseguramos que el audio está listo
             enableAudioContext();
             const genre = document.getElementById('cfg-genre').value;
 
@@ -371,9 +397,7 @@
         async function sendAction() {
             const text = INPUT.value.trim();
             if (!text || isProcessing) return;
-            // Aseguramos permiso de audio al hacer clic
             enableAudioContext();
-            
             INPUT.value = '';
             appendToTerminal(text, 'user');
             messageHistory.push({ role: "user", content: text });
@@ -388,7 +412,10 @@
             const token = document.getElementById('cfg-token').value;
             const model = document.getElementById('cfg-model').value;
             const imgStyle = document.getElementById('cfg-img-style').value;
+            
+            // OBTENER SETTINGS VISUALES
             const samplerName = document.getElementById('cfg-sampler').value || "Euler a";
+            const selectedModel = document.getElementById('cfg-sd-model').value; // Checkpoint elegido
 
             try {
                 // 1. Obtener Narrativa
@@ -432,7 +459,7 @@
                 messageHistory.push({ role: "assistant", content: rawReply, tone: currentTone });
                 localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
 
-                // 3. Generate Image (CON BOOST DE CALIDAD Y SAMPLER)
+                // 3. Generate Image
                 let promptParts = [imgStyle];
                 if (worldState.heroVisual) promptParts.push(`Hero: ${worldState.heroVisual}`);
                 if (npcDesc) promptParts.push(`Featuring: ${npcDesc}`);
@@ -440,27 +467,38 @@
 
                 let actionContext = rawReply.replace(/\[.*?\]/g, "").trim().substring(0, 150);
                 promptParts.push(`Action details: ${actionContext}`);
-
-                promptParts.push("(masterpiece, best quality, highres:1.2), 8k uhd, soft lighting, film grain");
+                
+                // BOOST DE CALIDAD
+                promptParts.push("(masterpiece, best quality, highres:1.2), 8k uhd, soft lighting");
 
                 const finalPrompt = promptParts.join(", ");
-                const negativePrompt = "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name";
+                const negativePrompt = "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry";
 
                 const imgContainer = appendImagePlaceholder();
+
+                // PREPARAR PAYLOAD PARA SD
+                const sdPayload = {
+                    prompt: finalPrompt,
+                    negative_prompt: negativePrompt,
+                    steps: 25, 
+                    width: 512,
+                    height: 512,
+                    cfg_scale: 7,
+                    sampler_name: samplerName
+                };
+
+                // SI SE ELIGIO UN MODELO, FORZARLO CON OVERRIDE_SETTINGS
+                if (selectedModel) {
+                    sdPayload.override_settings = {
+                        sd_model_checkpoint: selectedModel
+                    };
+                }
 
                 try {
                     const sdResponse = await fetch("http://127.0.0.1:7860/sdapi/v1/txt2img", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            prompt: finalPrompt,
-                            negative_prompt: negativePrompt,
-                            steps: 25, 
-                            width: 512,
-                            height: 512,
-                            cfg_scale: 7,
-                            sampler_name: samplerName 
-                        })
+                        body: JSON.stringify(sdPayload)
                     });
 
                     if (!sdResponse.ok) throw new Error("Local SD Error");
