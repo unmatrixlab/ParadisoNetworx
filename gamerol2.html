@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RPG: Infinite Realms</title>
+    <title>NEXUS RPG: Final Hybrid</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
@@ -67,8 +67,8 @@
             opacity: 0; animation: fadeIn 0.5s forwards; display: flex; justify-content: center; align-items: center;
         }
         .terminal-image {
-            width: 100%; max-height: 400px; object-fit: contain; display: none; /* Hidden until loaded */
-            filter: sepia(100%) hue-rotate(90deg) saturate(1.5) contrast(1.2); /* Matrix Filter */
+            width: 100%; max-height: 400px; object-fit: contain; display: none; 
+            filter: sepia(100%) hue-rotate(90deg) saturate(1.5) contrast(1.2); /* Retro Filter */
         }
         .image-loading { color: var(--dim-color); font-size: 0.8rem; font-style: italic; }
         .image-loading::after { content: '.'; animation: dots 1.5s steps(5, end) infinite; }
@@ -108,7 +108,7 @@
 
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">⚙️ CONFIG</button>
-        <div class="title">NEXUS RPG <span style="font-size:0.6em; opacity:0.7">v3.1 OLLAMA NATIVE</span></div>
+        <div class="title">NEXUS RPG <span style="font-size:0.6em; opacity:0.7">v4.0 HYBRID</span></div>
         <div class="status-led" id="connection-status"></div>
     </div>
 
@@ -125,10 +125,10 @@
         <div class="modal-content">
             <h3 style="margin-bottom:20px; text-align:center; color:var(--text-color)">SYSTEM CONFIG</h3>
             
-            <h4 style="color:var(--user-color); margin-bottom:10px; border-bottom:1px solid #333">TEXT AI (Your Local LLM)</h4>
+            <h4 style="color:var(--user-color); margin-bottom:10px; border-bottom:1px solid #333">TEXT AI (Your Server)</h4>
             <div class="setting-row">
-                <label>API URL (Must end in /api/chat)</label>
-                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com/api/chat">
+                <label>Base URL (No /api/...)</label>
+                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
             </div>
             <div class="setting-row">
                 <label>Token (Optional)</label>
@@ -141,7 +141,7 @@
 
             <h4 style="color:var(--user-color); margin: 20px 0 10px 0; border-bottom:1px solid #333">VISUAL STYLE</h4>
             <div class="setting-row">
-                <label>Art Style Prompt</label>
+                <label>Art Prompt Style</label>
                 <input type="text" id="cfg-img-style" value="cyberpunk sci-fi concept art, dark green lighting, retro terminal aesthetics, high detail, 8k">
             </div>
             <div class="setting-row">
@@ -253,14 +253,18 @@
             document.getElementById('connection-status').className = 'status-led';
             const loadingDiv = appendToTerminal("Processing...", 'system', true);
 
-            const textUrl = document.getElementById('cfg-url').value;
+            const baseUrl = document.getElementById('cfg-url').value.replace(/\/$/, ""); // Remove trailing slash
             const token = document.getElementById('cfg-token').value;
             const model = document.getElementById('cfg-model').value;
             const imgStyle = document.getElementById('cfg-img-style').value;
 
+            // HERE IS THE FIX: Use exactly the path structure from Code #1
+            // Most OpenWebUI instances use /api/chat/completions compatible with OpenAI
+            const endpoint = `${baseUrl}/api/chat/completions`;
+
             try {
-                // FIX: Native Ollama Request Structure
-                const response = await fetch(textUrl, {
+                // 1. OLLAMA REQUEST (OpenAI Compatible Mode - Same as Code #1)
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json', 
@@ -269,28 +273,15 @@
                     body: JSON.stringify({ 
                         model: model, 
                         messages: messageHistory, 
-                        stream: false, // CRITICAL: Disable streaming for simple JSON handling
-                        options: {
-                            temperature: 0.8, 
-                            num_predict: 300 // Replaces max_tokens
-                        }
+                        temperature: 0.8,
+                        max_tokens: 500 // OpenAI style param
                     })
                 });
 
-                if (!response.ok) throw new Error(`AI Error: ${response.status}`);
-                const data = await response.json();
+                if (!response.ok) throw new Error(`AI Error: ${response.status} ${response.statusText}`);
                 
-                // Ollama returns data.message.content
-                // OpenWebUI proxies often mimic this OR the OpenAI format. 
-                // We try both to be safe.
-                let reply = "";
-                if (data.message && data.message.content) {
-                    reply = data.message.content;
-                } else if (data.choices && data.choices[0].message.content) {
-                    reply = data.choices[0].message.content;
-                } else {
-                    reply = JSON.stringify(data); // Fallback debug
-                }
+                const data = await response.json();
+                const reply = data.choices[0].message.content; // OpenAI response structure
 
                 TERMINAL.removeChild(loadingDiv);
                 appendToTerminal(reply, 'ai');
@@ -298,8 +289,10 @@
                 localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
                 document.getElementById('connection-status').className = 'status-led online';
 
-                // 2. IMAGE GENERATION
+                // 2. IMAGE GENERATION (Pollinations Free API)
                 const imgContainer = appendImagePlaceholder();
+                
+                // Create a concise prompt based on the reply
                 const cleanReply = reply.replace(/[\r\n]+/g, " ").replace(/[^\w\s]/gi, '').substring(0, 150);
                 const finalPrompt = encodeURIComponent(`${imgStyle} ${cleanReply}`);
                 
@@ -321,7 +314,7 @@
 
             } catch (error) {
                 if(loadingDiv.parentNode) TERMINAL.removeChild(loadingDiv);
-                appendToTerminal(`Error: ${error.message}\n(Check if your URL ends in /api/chat)`, 'system');
+                appendToTerminal(`Error: ${error.message}`, 'system');
             } finally {
                 isProcessing = false; BTN.disabled = false; BTN.innerText = "ACT"; INPUT.focus();
             }
