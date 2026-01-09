@@ -2555,51 +2555,83 @@ function insertSmartText(word) {
         }, 100);
     }
 
-    function processJsonAndSave(rawString) {
+ function processJsonAndSave(rawString) {
         try {
-            console.log("Recibido crudo:", rawString); // Para ver en consola qué llega
+            console.log("Recibido crudo:", rawString);
 
-            // 1. Limpieza de Markdown (quitar ```json y ```)
+            // 1. Limpieza básica de Markdown
             let clean = rawString.trim()
-                .replace(/```json/gi, '') // Quita ```json (mayus/minus)
-                .replace(/```/g, '');     // Quita ``` finales
+                .replace(/```json/gi, '')
+                .replace(/```/g, '');
 
-            // 2. Búsqueda quirúrgica del JSON (encuentra el primer { y el último })
-            const start = clean.indexOf('{');
-            const end = clean.lastIndexOf('}');
+            // 2. DETECCIÓN INTELIGENTE: ¿Es Lista [] u Objeto {}?
+            const firstSquare = clean.indexOf('['); // Busca corchete
+            const firstCurly = clean.indexOf('{');  // Busca llave
 
-            if (start === -1 || end === -1) {
-                throw new Error("No se detectó una estructura JSON válida ({ ... }).");
+            let start = -1;
+            let end = -1;
+
+            // Si hay un corchete '[' y aparece ANTES que la llave '{' (o no hay llave), ES UNA LISTA
+            if (firstSquare !== -1 && (firstSquare < firstCurly || firstCurly === -1)) {
+                start = firstSquare;
+                end = clean.lastIndexOf(']'); // Buscamos el cierre de lista
+            } else {
+                // Si no, ES UN OBJETO ÚNICO
+                start = firstCurly;
+                end = clean.lastIndexOf('}'); // Buscamos el cierre de objeto
             }
 
-            // Cortamos el texto para quedarnos solo con lo que está entre llaves
+            if (start === -1 || end === -1) {
+                throw new Error("No se detectó estructura JSON válida ({...} o [...]).");
+            }
+
+            // Cortamos quirúrgicamente usando los índices correctos
             clean = clean.substring(start, end + 1);
 
-            // 3. === SANITIZACIÓN AGRESIVA (AQUÍ ESTÁ EL ARREGLO) ===
+            // 3. Sanitización de caracteres (comillas inteligentes, etc.)
             clean = clean
-                // Reemplaza comillas inteligentes dobles (“ ”) por rectas (")
-                .replace(/[\u201C\u201D]/g, '"') 
-                // Reemplaza comillas inteligentes simples (‘ ’) por rectas (')
-                .replace(/[\u0000-\u001F]+/g, " "); // Elimina caracteres invisibles de control
+                .replace(/[\u201C\u201D]/g, '"')
+                .replace(/[\u0000-\u001F]+/g, " ")
+                .replace(/'\s*:/g, '":').replace(/{\s*'/g, '{"').replace(/,\s*'/g, ',"');
 
-            // Intento de corrección de comillas simples en claves (Riesgoso pero efectivo para errores comunes)
-            // Si el error dice "position 2", es probable que sea {'clave': ...}
-            // Esto intenta cambiar 'clave': por "clave":
-            clean = clean.replace(/'\s*:/g, '":').replace(/{\s*'/g, '{"').replace(/,\s*'/g, ',"');
-
-            console.log("Texto limpio a procesar:", clean);
+            console.log("Texto arreglado:", clean);
 
             // 4. Parseo
             let aiData = JSON.parse(clean);
 
-            // 5. Normalización (Array vs Objeto)
-            let finalData = Array.isArray(aiData) 
-                ? { title: "AI Exercise", lang_code: currentTargetLang, theory: "Generated", exercises: aiData } 
-                : aiData;
+            // 5. Normalización (Manejar Listas vs Objetos)
+            let finalData;
+
+            if (Array.isArray(aiData)) {
+                // CASO ESPECIAL: La IA mandó una lista de varios temas (Morning, Afternoon, Evening...)
+                // Vamos a fusionarlos todos en una sola "Mega Misión"
+                let combinedExercises = [];
+                let combinedTheory = "";
+                
+                aiData.forEach(block => {
+                    if (block.exercises) combinedExercises.push(...block.exercises);
+                    if (block.theory) combinedTheory += `<b>${block.title}:</b> ${block.theory}<br><br>`;
+                });
+
+                finalData = { 
+                    title: aiData[0].title + " & More", // Título del primero + etc
+                    lang_code: currentTargetLang, 
+                    theory: combinedTheory, 
+                    exercises: combinedExercises 
+                };
+            } else {
+                // Caso normal (Un solo objeto)
+                finalData = aiData;
+            }
 
             // Validación mínima
             if (!finalData.exercises || !Array.isArray(finalData.exercises)) {
-                throw new Error("El JSON es válido pero le falta la lista de 'exercises'.");
+                // Si el JSON es válido pero no tiene ejercicios, intentamos arreglarlo si es un array plano
+                if (Array.isArray(finalData) && finalData[0].full_sentence) {
+                     finalData = { title: "AI Generated", lang_code: currentTargetLang, theory: "", exercises: finalData };
+                } else {
+                     throw new Error("El JSON es válido pero le falta la lista de 'exercises'.");
+                }
             }
 
             // 6. Guardar en Memoria
@@ -2620,14 +2652,25 @@ function insertSmartText(word) {
             renderAiList();
             insertExerciseFromMem(newItem.id);
             
-            // Feedback visual en el botón
+            // Feedback visual
             const btn = document.getElementById('btn-paste-json');
             if(btn) btn.innerText = "✅ Listo!";
-            setTimeout(() => { if(btn) btn.innerHTML = "<span>📋</span> Paste & Insert"; }, 2000);
+            const magicBtn = document.getElementById('btn-magic-ai');
+            if(magicBtn) magicBtn.innerHTML = "✅";
+
+            setTimeout(() => { 
+                if(btn) btn.innerHTML = "<span>📋</span> Paste & Insert"; 
+                if(magicBtn) magicBtn.innerHTML = "🚀";
+            }, 2000);
 
         } catch (e) { 
             console.error(e);
-            alert("Error al procesar JSON:\n" + e.message + "\n\nRevisa la consola (F12) para ver el texto exacto."); 
+            const debugBox = document.getElementById('ai-extra-data');
+            if (debugBox) {
+                debugBox.value = "--- ERROR: INTENTO DE PARSEO FALLIDO ---\n\n" + rawString;
+                debugBox.style.border = "2px solid red";
+            }
+            alert("❌ EL JSON FALLÓ.\n\nHe pegado lo que respondió la IA en el cuadro 'Extra Instructions'.\nError: " + e.message); 
         }
     }
 
