@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEXUS RPG: Infinite Realms</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #0d1117;
+            --terminal-bg: #000000;
+            --text-color: #39ff14; /* Neon Green */
+            --user-color: #00f3ff; /* Cyan */
+            --sys-color: #ff0055; /* Error/System */
+            --dim-color: #2d5e30;
+            --font-main: 'Fira Code', monospace;
+            --scanline-color: rgba(18, 16, 16, 0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* CRT EFFECT OVERLAY */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* HEADER */
+        .header {
+            width: 100%;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 2px solid var(--dim-color);
+            background: #050505;
+            z-index: 3;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .title { font-weight: 700; letter-spacing: 2px; text-shadow: 0 0 10px var(--text-color); }
+        .status-led { width: 10px; height: 10px; background: red; border-radius: 50%; box-shadow: 0 0 5px red; transition: all 0.3s; }
+        .status-led.online { background: #39ff14; box-shadow: 0 0 10px #39ff14; }
+
+        /* GAME TERMINAL AREA */
+        .terminal-container {
+            flex: 1;
+            width: 100%;
+            max-width: 900px;
+            background: var(--terminal-bg);
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+            scroll-behavior: smooth;
+            border-left: 1px solid var(--dim-color);
+            border-right: 1px solid var(--dim-color);
+        }
+
+        .message {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            opacity: 0; /* For animation */
+            animation: fadeIn 0.3s forwards;
+            white-space: pre-wrap; /* Keeps formatting */
+        }
+
+        .role-ai { color: var(--text-color); }
+        .role-user { color: var(--user-color); text-align: right; border-right: 2px solid var(--user-color); padding-right: 10px; }
+        .role-system { color: #888; font-style: italic; font-size: 0.8rem; text-align: center; margin: 10px 0; }
+
+        /* INPUT AREA */
+        .input-area {
+            width: 100%;
+            max-width: 900px;
+            padding: 15px;
+            background: #050505;
+            border-top: 2px solid var(--dim-color);
+            display: flex;
+            gap: 10px;
+            z-index: 3;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: #111;
+            border: 1px solid var(--dim-color);
+            color: var(--user-color);
+            padding: 12px;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            outline: none;
+        }
+        input[type="text"]:focus { border-color: var(--user-color); box-shadow: 0 0 10px rgba(0, 243, 255, 0.2); }
+
+        button {
+            background: var(--dim-color);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            cursor: pointer;
+            font-family: var(--font-main);
+            font-weight: bold;
+            transition: 0.2s;
+            text-transform: uppercase;
+        }
+        button:hover { background: var(--text-color); color: black; }
+        button:disabled { background: #333; color: #555; cursor: not-allowed; }
+
+        /* SETTINGS MODAL */
+        .modal {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #111; border: 2px solid var(--text-color);
+            padding: 20px; width: 90%; max-width: 500px;
+        }
+        .setting-row { margin-bottom: 15px; }
+        .setting-row label { display: block; margin-bottom: 5px; color: #aaa; }
+        .setting-row input, .setting-row select { width: 100%; padding: 8px; background: #222; border: 1px solid #444; color: white; font-family: var(--font-main); }
+
+        /* ANIMATIONS */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes blink { 50% { opacity: 0; } }
+        
+        .cursor::after { content: '█'; animation: blink 1s infinite; }
+        
+        /* Loading Spinner inside text */
+        .loading-dots::after { content: '.'; animation: dots 1.5s steps(5, end) infinite; }
+        @keyframes dots { 0%, 20% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } 80%, 100% { content: ''; } }
+
+        /* MARKDOWN STYLES FOR AI TEXT */
+        .role-ai strong { color: #fff; font-weight: 900; text-shadow: 0 0 5px white; }
+        .role-ai em { font-style: italic; opacity: 0.8; }
+    </style>
+</head>
+<body class="crt">
+
+    <div class="header">
+        <button onclick="document.getElementById('settings-modal').style.display='flex'">⚙️ CONFIG</button>
+        <div class="title">NEXUS RPG <span style="font-size:0.6em; opacity:0.7">v2.0</span></div>
+        <div class="status-led" id="connection-status" title="Connection Status"></div>
+    </div>
+
+    <div class="terminal-container" id="game-terminal">
+        <div class="message role-system">Initializing Neural Interface...<br>Connected to Local Ollama Cluster.<br>Waiting for input...</div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="What do you want to do?" autocomplete="off" onkeypress="handleEnter(event)">
+        <button id="send-btn" onclick="sendAction()">ACT</button>
+    </div>
+
+    <div class="modal" id="settings-modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px; text-align:center; color:var(--text-color)">SYSTEM CONFIG</h3>
+            
+            <div class="setting-row">
+                <label>API URL</label>
+                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
+            </div>
+            
+            <div class="setting-row">
+                <label>API Key / Token (Optional)</label>
+                <input type="password" id="cfg-token" placeholder="Bearer token if needed...">
+            </div>
+
+            <div class="setting-row">
+                <label>Model Name</label>
+                <input type="text" id="cfg-model" value="llama3:latest">
+            </div>
+
+            <div class="setting-row">
+                <label>Genre / Theme</label>
+                <select id="cfg-genre">
+                    <option value="Cyberpunk Dystopia">Cyberpunk Dystopia</option>
+                    <option value="Dark Fantasy">Dark Fantasy (D&D Style)</option>
+                    <option value="Space Horror">Space Horror (Alien Style)</option>
+                    <option value="Zombie Survival">Zombie Survival</option>
+                    <option value="Lovecraftian Mystery">Lovecraftian Mystery</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="startGame()" style="flex:1; border-color:var(--text-color)">INITIALIZE WORLD</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" style="background:transparent; border:1px solid #555">CLOSE</button>
+            </div>
+            
+            <div style="margin-top:15px; text-align:center;">
+                <button onclick="clearMemory()" style="background:#500; font-size:0.8rem">⚠️ HARD RESET MEMORY</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        const TERMINAL = document.getElementById('game-terminal');
+        const INPUT = document.getElementById('user-input');
+        const BTN = document.getElementById('send-btn');
+        let messageHistory = [];
+        let isProcessing = false;
+
+        // --- CONFIG LOADER ---
+        // Load settings from LocalStorage or Defaults
+        function loadConfig() {
+            if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
+            if(localStorage.getItem('nexus_token')) document.getElementById('cfg-token').value = localStorage.getItem('nexus_token');
+            if(localStorage.getItem('nexus_model')) document.getElementById('cfg-model').value = localStorage.getItem('nexus_model');
+            
+            // Load History if exists
+            const savedHist = localStorage.getItem('nexus_history');
+            if(savedHist) {
+                messageHistory = JSON.parse(savedHist);
+                messageHistory.forEach(msg => {
+                    if(msg.role !== 'system') appendToTerminal(msg.content, msg.role, false);
+                });
+                scrollToBottom();
+            }
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        function appendToTerminal(text, role, animate = true) {
+            const div = document.createElement('div');
+            div.className = `message role-${role}`;
+            
+            // Markdown basic parsing for bold text
+            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+            if (animate && role === 'ai') {
+                div.innerHTML = "";
+                TERMINAL.appendChild(div);
+                typeWriter(div, formattedText);
+            } else {
+                div.innerHTML = formattedText;
+                TERMINAL.appendChild(div);
+            }
+            scrollToBottom();
+        }
+
+        function typeWriter(element, html) {
+            // Temporary simple typewriter - for complex HTML it's tricky, 
+            // so we inject HTML but reveal it quickly or just fade in.
+            // For stability, we stick to the CSS fade-in animation defined in style.
+            element.innerHTML = html; 
+        }
+
+        function scrollToBottom() {
+            TERMINAL.scrollTop = TERMINAL.scrollHeight;
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendAction();
+        }
+
+        function clearMemory() {
+            if(confirm("Are you sure? This deletes the entire campaign.")) {
+                localStorage.removeItem('nexus_history');
+                location.reload();
+            }
+        }
+
+        // --- AI ENGINE ---
+
+        function startGame() {
+            document.getElementById('settings-modal').style.display = 'none';
+            
+            // Save Config
+            const url = document.getElementById('cfg-url').value;
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value;
+            const genre = document.getElementById('cfg-genre').value;
+
+            localStorage.setItem('nexus_url', url);
+            localStorage.setItem('nexus_token', token);
+            localStorage.setItem('nexus_model', model);
+
+            // If history is empty, start fresh
+            if (messageHistory.length === 0) {
+                messageHistory = [
+                    {
+                        role: "system",
+                        content: `You are the DUNGEON MASTER (Game Engine) for a text adventure game. 
+                        Genre: ${genre}.
+                        
+                        RULES:
+                        1. Describe the world vividly but concisely (max 3-4 sentences per turn).
+                        2. Keep track of the player's inventory and health implicitly.
+                        3. Be fair but challenging. Allow the player to die if they do something stupid.
+                        4. Ask "What do you do?" at the end of turns.
+                        5. Use **bold** for key items or enemies.
+                        6. Never break character. You are the simulator.`
+                    },
+                    {
+                        role: "user",
+                        content: "Initialize game. Generate a starting scenario."
+                    }
+                ];
+                fetchAI();
+            }
+        }
+
+        async function sendAction() {
+            const text = INPUT.value.trim();
+            if (!text || isProcessing) return;
+
+            // UI Updates
+            INPUT.value = '';
+            appendToTerminal(text, 'user');
+            
+            // Add to history
+            messageHistory.push({ role: "user", content: text });
+            
+            // Call AI
+            await fetchAI();
+        }
+
+        async function fetchAI() {
+            isProcessing = true;
+            BTN.disabled = true;
+            BTN.innerText = "THINKING...";
+            document.getElementById('connection-status').className = 'status-led'; // Red
+
+            // Loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message role-system loading-dots';
+            loadingDiv.innerText = "Processing Neural Network";
+            TERMINAL.appendChild(loadingDiv);
+            scrollToBottom();
+
+            const url = document.getElementById('cfg-url').value;
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value;
+
+            // Determine endpoint path (Standard Ollama usually uses /api/chat, but wrappers use /v1)
+            // User requested: https://ai.paradisonetworx.com
+            // We will assume the OpenAI compatible path which is standard for webuis
+            const apiEndpoint = `${url}/api/chat/completions`; 
+
+            try {
+                const response = await fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messageHistory,
+                        temperature: 0.8, // Creative
+                        max_tokens: 500
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Server Error: ${response.status}`);
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+
+                // Remove loading
+                TERMINAL.removeChild(loadingDiv);
+
+                // Update UI
+                appendToTerminal(reply, 'ai');
+                messageHistory.push({ role: "assistant", content: reply });
+                
+                // Save state
+                localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
+                document.getElementById('connection-status').className = 'status-led online'; // Green
+
+            } catch (error) {
+                TERMINAL.removeChild(loadingDiv);
+                appendToTerminal(`❌ CONNECTION FAILURE: ${error.message}`, 'system');
+                console.error(error);
+            } finally {
+                isProcessing = false;
+                BTN.disabled = false;
+                BTN.innerText = "ACT";
+                INPUT.focus();
+            }
+        }
+
+        // Init
+        window.onload = loadConfig;
+
+    </script>
+</body>
+</html>
