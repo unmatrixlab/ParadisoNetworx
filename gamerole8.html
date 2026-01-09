@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEXUS RPG: Local SD + Stable Audio</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #050505;
+            --terminal-bg: #000000;
+            --text-color: #00ff41; 
+            --user-color: #00bfff; 
+            --sys-color: #ff3333;
+            --dim-color: #1a331a;
+            --font-main: 'Fira Code', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* CRT SCANLINES */
+        .crt::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        .header {
+            width: 100%; padding: 15px; border-bottom: 2px solid var(--dim-color);
+            background: #000; z-index: 3; display: flex; justify-content: space-between; align-items: center;
+        }
+        .title { font-weight: 700; letter-spacing: 2px; }
+        
+        .audio-ctrl { font-size: 0.8rem; cursor: pointer; color: var(--dim-color); display: flex; gap: 10px; align-items: center;}
+        .audio-ctrl.active { color: var(--user-color); text-shadow: 0 0 5px var(--user-color); }
+
+        .terminal-container {
+            flex: 1; width: 100%; max-width: 900px; background: var(--terminal-bg);
+            padding: 20px; overflow-y: auto; scroll-behavior: smooth;
+            border-left: 1px solid var(--dim-color); border-right: 1px solid var(--dim-color);
+        }
+
+        .message { margin-bottom: 20px; line-height: 1.6; opacity: 0; animation: fadeIn 0.3s forwards; white-space: pre-wrap; position: relative; }
+        .role-ai { color: var(--text-color); }
+        .role-user { color: var(--user-color); text-align: right; margin-left: 20%; border-right: 2px solid var(--user-color); padding-right: 10px; }
+        .role-system { color: #666; font-size: 0.8rem; text-align: center; margin: 15px 0; border-top: 1px dashed #333; border-bottom: 1px dashed #333; padding: 5px; }
+
+        /* NEW: IN-MESSAGE PLAY BUTTON */
+        .msg-footer {
+            margin-top: 5px;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mini-play-btn {
+            background: transparent;
+            border: 1px solid var(--dim-color);
+            color: var(--dim-color);
+            padding: 2px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .mini-play-btn:hover {
+            border-color: var(--text-color);
+            color: var(--text-color);
+            background: rgba(0, 255, 65, 0.1);
+        }
+
+        /* LOADING ANIMATION */
+        .typing-indicator { color: var(--dim-color); font-style: italic; animation: pulse 1s infinite; }
+        .typing-dots::after { content: ''; animation: typing 1.5s infinite; }
+        @keyframes typing { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+        @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
+        /* IMAGE CONTAINER */
+        .terminal-image-container {
+            margin: 10px 0 20px 0; border: 1px solid var(--dim-color);
+            background: #020202; text-align: center; min-height: 150px;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; animation: fadeIn 1s forwards;
+        }
+        .terminal-image {
+            width: 100%; max-height: 450px; object-fit: contain; display: none;
+            filter: contrast(1.1) saturate(1.1);
+        }
+        .image-loading { color: var(--dim-color); font-size: 0.8rem; font-family: monospace; }
+        .image-loading::after { content: '...'; animation: blink 1s infinite; }
+
+        .input-area {
+            width: 100%; max-width: 900px; padding: 15px; background: #000;
+            border-top: 2px solid var(--dim-color); display: flex; gap: 10px; z-index: 3;
+        }
+        input[type="text"] {
+            flex: 1; background: #111; border: 1px solid var(--dim-color); color: var(--user-color);
+            padding: 12px; font-family: var(--font-main); font-size: 1rem; outline: none;
+        }
+        button {
+            background: var(--dim-color); color: white; border: none; padding: 0 25px;
+            cursor: pointer; font-family: var(--font-main); font-weight: bold; text-transform: uppercase;
+        }
+        button:hover { background: var(--text-color); color: black; }
+        button:disabled { background: #222; color: #555; }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; justify-content: center; align-items: center; }
+        .modal-content { background: #050505; border: 1px solid var(--text-color); padding: 30px; width: 90%; max-width: 500px; }
+        .setting-row { margin-bottom: 20px; }
+        .setting-row label { display: block; margin-bottom: 8px; color: #888; font-size: 0.8rem; letter-spacing: 1px; }
+        .setting-row input, .setting-row select { width: 100%; padding: 10px; background: #111; border: 1px solid #333; color: white; font-family: var(--font-main); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes blink { 50% { opacity: 0; } }
+        strong { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+    </style>
+</head>
+<body class="crt">
+
+    <div class="header">
+        <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
+        <div class="title">NEXUS v10.0 (LOCAL SD)</div>
+        
+        <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
+            <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
+        </div>
+    </div>
+
+    <div class="terminal-container" id="game-terminal">
+        <div class="message role-system">
+            >> SYSTEM ONLINE<br>
+            >> VISUAL: AUTOMATIC1111 (LOCAL)<br>
+            >> AUDIO: HYBRID (DIRECT SWITCH)
+        </div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Enter command..." autocomplete="off" onkeypress="handleEnter(event)">
+        <button id="send-btn" onclick="sendAction()">EXECUTE</button>
+    </div>
+
+    <div class="modal" id="settings-modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px; text-align:center; color:var(--text-color); border-bottom:1px solid #333; padding-bottom:10px;">CORE SETTINGS</h3>
+            
+            <div class="setting-row">
+                <label>OLLAMA URL (Base)</label>
+                <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
+            </div>
+            <div class="setting-row">
+                <label>AUTH TOKEN</label>
+                <input type="password" id="cfg-token" placeholder="Optional...">
+            </div>
+            <div class="setting-row">
+                <label>MODEL ID</label>
+                <input type="text" id="cfg-model" value="llama3:latest">
+            </div>
+            <div class="setting-row">
+                <label>VISUAL STYLE</label>
+                <input type="text" id="cfg-img-style" value="cinematic fantasy art, 8k, detailed, dramatic lighting">
+            </div>
+            <div class="setting-row">
+                <label>GENRE</label>
+                <select id="cfg-genre">
+                    <option value="Epic Fantasy">Epic Fantasy</option>
+                    <option value="Cyberpunk Noir">Cyberpunk Noir</option>
+                    <option value="Space Opera">Space Opera</option>
+                    <option value="Eldritch Horror">Eldritch Horror</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button onclick="startGame()" style="flex:1;">INITIALIZE</button>
+                <button onclick="document.getElementById('settings-modal').style.display='none'" style="background:transparent; border:1px solid #333; color:#666">X</button>
+            </div>
+            <button onclick="clearMemory()" style="width:100%; margin-top:15px; background:#300; font-size:0.7rem">FORMAT MEMORY</button>
+        </div>
+    </div>
+
+    <script>
+        const TERMINAL = document.getElementById('game-terminal');
+        const INPUT = document.getElementById('user-input');
+        const BTN = document.getElementById('send-btn');
+        let messageHistory = [];
+        let isProcessing = false;
+        let worldState = { heroVisual: "", currentScene: "" };
+
+        // --- AUDIO ENGINE (SIMPLIFICADO PARA NO ROMPERSE) ---
+        const TRACKS = {
+            // TRANSITION -> "Village Consort" (Medieval/Calma)
+            TRANSITION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Village%20Consort.mp3'), 
+            
+            // MYSTERY -> "Aftermath" (Oscuridad/Tensión)
+            MYSTERY: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Aftermath.mp3'),    
+            
+            // ACTION -> "Volatile Reaction" (Combate/Peligro)
+            ACTION: new Audio('https://incompetech.com/music/royalty-free/mp3-royaltyfree/Volatile%20Reaction.mp3')      
+        };
+
+        // Configuración inicial de pistas
+        Object.values(TRACKS).forEach(t => { 
+            t.loop = true; 
+            t.volume = 0.5; // Volumen fijo seguro
+        });
+
+        let currentActiveAudio = null;
+        let audioEnabled = false;
+
+        function enableAudioContext() {
+            if (audioEnabled) return;
+            audioEnabled = true;
+            document.getElementById('music-label').innerText = "AUDIO ACTIVE";
+            document.getElementById('audio-indicator').style.color = "#00ff41";
+        }
+
+        // NUEVA FUNCIÓN startTrack (SIN FADES QUE FALLAN)
+        function startTrack(trackKey) {
+            if (!TRACKS[trackKey]) return;
+
+            const newSound = TRACKS[trackKey];
+
+            // 1. Si ya suena la misma, no hacer nada (para no cortarla)
+            if (currentActiveAudio === newSound && !newSound.paused) {
+                return; 
+            }
+
+            // 2. Parar la anterior inmediatamente
+            if (currentActiveAudio) {
+                currentActiveAudio.pause();
+                currentActiveAudio.currentTime = 0;
+            }
+
+            // 3. Reproducir la nueva
+            currentActiveAudio = newSound;
+            document.getElementById('music-label').innerText = trackKey;
+            
+            // Intento de reproducción seguro
+            const playPromise = newSound.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log("Esperando interacción del usuario para audio...");
+                });
+            }
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        function loadConfig() {
+            if(localStorage.getItem('nexus_url')) document.getElementById('cfg-url').value = localStorage.getItem('nexus_url');
+            if(localStorage.getItem('nexus_token')) document.getElementById('cfg-token').value = localStorage.getItem('nexus_token');
+            if(localStorage.getItem('nexus_model')) document.getElementById('cfg-model').value = localStorage.getItem('nexus_model');
+            if(localStorage.getItem('nexus_img_style')) document.getElementById('cfg-img-style').value = localStorage.getItem('nexus_img_style');
+            
+            const savedHist = localStorage.getItem('nexus_history');
+            if(savedHist) {
+                messageHistory = JSON.parse(savedHist);
+                messageHistory.forEach(msg => {
+                    if(msg.role !== 'system') appendToTerminal(msg.content, msg.role, msg.tone, false);
+                });
+            }
+            const savedState = localStorage.getItem('nexus_world_state');
+            if(savedState) worldState = JSON.parse(savedState);
+
+            scrollToBottom();
+        }
+
+        function saveConfig() {
+            localStorage.setItem('nexus_url', document.getElementById('cfg-url').value);
+            localStorage.setItem('nexus_token', document.getElementById('cfg-token').value);
+            localStorage.setItem('nexus_model', document.getElementById('cfg-model').value);
+            localStorage.setItem('nexus_img_style', document.getElementById('cfg-img-style').value);
+        }
+
+        function appendToTerminal(text, role, tone = null, animate = true) {
+            let cleanText = text
+                .replace(/\[HERO_DESC:.*?\]/g, "")
+                .replace(/\[SCENE:.*?\]/g, "")
+                .replace(/\[NPC_DESC:.*?\]/g, "")
+                .replace(/\[TONE:.*?\]/g, "")
+                .trim();
+
+            if (!cleanText) return;
+
+            const div = document.createElement('div');
+            div.className = `message role-${role}`;
+            
+            let htmlContent = cleanText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+            // --- INJECT PLAY BUTTON IF AI AND TONE EXISTS ---
+            if (role === 'ai' && tone) {
+                htmlContent += `<div class="msg-footer">
+                    <button class="mini-play-btn" onclick="startTrack('${tone}'); enableAudioContext();">▶ REPLAY [${tone}]</button>
+                </div>`;
+            }
+
+            div.innerHTML = htmlContent;
+            TERMINAL.appendChild(div);
+            scrollToBottom();
+            return div;
+        }
+
+        let loadingDiv = null;
+        function showLoading() {
+            loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message role-system typing-indicator';
+            loadingDiv.innerHTML = 'Generating narrative<span class="typing-dots"></span>';
+            TERMINAL.appendChild(loadingDiv);
+            scrollToBottom();
+        }
+
+        function hideLoading() {
+            if (loadingDiv && loadingDiv.parentNode) {
+                loadingDiv.parentNode.removeChild(loadingDiv);
+                loadingDiv = null;
+            }
+        }
+
+        function appendImagePlaceholder() {
+            const container = document.createElement('div');
+            container.className = 'terminal-image-container';
+            container.innerHTML = '<div class="image-loading">CONTACTING LOCAL NEURAL NET</div>';
+            TERMINAL.appendChild(container);
+            scrollToBottom();
+            return container;
+        }
+
+        function scrollToBottom() { TERMINAL.scrollTop = TERMINAL.scrollHeight; }
+        function handleEnter(e) { if (e.key === 'Enter') sendAction(); }
+        function clearMemory() { 
+            if(confirm("WIPE SYSTEM MEMORY?")) { 
+                localStorage.removeItem('nexus_history'); 
+                localStorage.removeItem('nexus_world_state');
+                location.reload(); 
+            }
+        }
+
+        function startGame() {
+            document.getElementById('settings-modal').style.display = 'none';
+            saveConfig();
+            const genre = document.getElementById('cfg-genre').value;
+            
+            // Intentar activar audio al inicio del juego
+            enableAudioContext();
+
+            if (messageHistory.length === 0) {
+                const systemPrompt = `
+                You are a sophisticated RPG Game Engine. Genre: ${genre}.
+                
+                MANDATORY HIDDEN OUTPUTS (You must include these tags):
+                1. [HERO_DESC: visual description] (First turn only)
+                2. [SCENE: visual description] (Every turn)
+                3. [NPC_DESC: visual description] (CRITICAL: Use this if ANY character, MONSTER, or ANIMAL appears)
+                4. [TONE: TYPE] (Action/Mystery/Transition)
+
+                AUDIO RULES:
+                - [TONE: ACTION] Combat, danger, running.
+                - [TONE: MYSTERY] Dungeons, stealth, secrets.
+                - [TONE: TRANSITION] Towns, calm, travel.
+
+                NARRATIVE RULES:
+                - Be concise (max 3 sentences).
+                - Use **bold** for key items.
+                - ALWAYS end by asking "What do you do?"
+                `;
+
+                messageHistory = [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: "Initialize game. Describe hero, location, and set the appropriate initial tone." }
+                ];
+                fetchAI();
+            }
+        }
+
+        async function sendAction() {
+            const text = INPUT.value.trim();
+            if (!text || isProcessing) return;
+            
+            // Activar contexto de audio al interactuar (Click/Enter)
+            enableAudioContext();
+
+            // ELIMINADO: fadeOutAndStop() para evitar errores
+
+            INPUT.value = '';
+            appendToTerminal(text, 'user');
+            messageHistory.push({ role: "user", content: text });
+            await fetchAI();
+        }
+
+        async function fetchAI() {
+            isProcessing = true; BTN.disabled = true; BTN.innerText = "...";
+            showLoading();
+
+            const baseUrl = document.getElementById('cfg-url').value.replace(/\/$/, "");
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value;
+            const imgStyle = document.getElementById('cfg-img-style').value;
+
+            try {
+                // 1. Obtener Narrativa
+                const response = await fetch(`${baseUrl}/api/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: messageHistory, 
+                        temperature: 0.8,
+                        max_tokens: 1000
+                    })
+                });
+
+                if (!response.ok) throw new Error(`AI Error: ${response.status}`);
+                const data = await response.json();
+                const rawReply = data.choices[0].message.content;
+
+                hideLoading();
+
+                // --- EXTRACT DATA ---
+                
+                // Audio Tone
+                let currentTone = 'TRANSITION'; 
+                const toneMatch = rawReply.match(/\[TONE:(.*?)\]/i);
+                if (toneMatch) currentTone = toneMatch[1].trim().toUpperCase();
+                
+                // Visuals
+                const heroMatch = rawReply.match(/\[HERO_DESC:(.*?)\]/);
+                if (heroMatch) {
+                    worldState.heroVisual = heroMatch[1].trim();
+                    localStorage.setItem('nexus_world_state', JSON.stringify(worldState));
+                }
+                let sceneDesc = "";
+                const sceneMatch = rawReply.match(/\[SCENE:(.*?)\]/);
+                if (sceneMatch) sceneDesc = sceneMatch[1].trim();
+                
+                let npcDesc = "";
+                const npcMatch = rawReply.match(/\[NPC_DESC:(.*?)\]/);
+                if (npcMatch) npcDesc = npcMatch[1].trim();
+
+                // --- ACTIONS ---
+                startTrack(currentTone);
+
+                appendToTerminal(rawReply, 'ai', currentTone);
+                messageHistory.push({ role: "assistant", content: rawReply, tone: currentTone });
+                localStorage.setItem('nexus_history', JSON.stringify(messageHistory));
+
+                // 3. Generate Image (MEJORADO PARA INCLUIR CONTEXTO)
+                let promptParts = [imgStyle];
+                
+                // Siempre ponemos al Héroe
+                if (worldState.heroVisual) promptParts.push(`Hero: ${worldState.heroVisual}`);
+                
+                // Ponemos al NPC/Animal si la IA lo detectó
+                if (npcDesc) promptParts.push(`Featuring: ${npcDesc}`);
+                
+                // Ponemos el entorno
+                if (sceneDesc) promptParts.push(`Environment: ${sceneDesc}`);
+
+                // --- EL CAMBIO CLAVE (Mantengo esto de tu código pegado) ---
+                let actionContext = rawReply.replace(/\[.*?\]/g, "").trim().substring(0, 150);
+                promptParts.push(`Action scene details: ${actionContext}`);
+
+                const finalPrompt = promptParts.join(", ");
+                
+                const imgContainer = appendImagePlaceholder();
+
+                try {
+                    const sdResponse = await fetch("http://127.0.0.1:7860/sdapi/v1/txt2img", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            prompt: finalPrompt,
+                            steps: 20,
+                            width: 512,
+                            height: 512,
+                            cfg_scale: 7,
+                            sampler_name: "Euler a"
+                        })
+                    });
+
+                    if (!sdResponse.ok) throw new Error("Local SD Error");
+
+                    const sdData = await sdResponse.json();
+                    
+                    if (sdData.images && sdData.images.length > 0) {
+                        const img = new Image();
+                        img.className = 'terminal-image';
+                        img.onload = function() {
+                            imgContainer.innerHTML = '';
+                            imgContainer.appendChild(img);
+                            img.style.display = 'block';
+                            scrollToBottom();
+                        };
+                        img.src = "data:image/png;base64," + sdData.images[0];
+                    }
+
+                } catch (sdError) {
+                    imgContainer.innerHTML = '<div class="image-loading" style="color:red">SD CONNECTION FAILED</div>';
+                    console.error("Stable Diffusion Error:", sdError);
+                }
+
+            } catch (error) {
+                hideLoading();
+                appendToTerminal(`SYSTEM FAILURE: ${error.message}`, 'system');
+            } finally {
+                isProcessing = false; BTN.disabled = false; BTN.innerText = "EXECUTE"; INPUT.focus();
+            }
+        }
+
+        window.onload = loadConfig;
+    </script>
+</body>
+</html>
