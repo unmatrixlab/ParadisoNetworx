@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEXUS RPG: Ultimate Control</title>
+    <title>NEXUS RPG: v13.0 (CLEAN)</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
@@ -116,7 +116,7 @@
 
     <div class="header">
         <button onclick="document.getElementById('settings-modal').style.display='flex'">/// CONFIG</button>
-        <div class="title">NEXUS v12.0 (ULTIMATE)</div>
+        <div class="title">NEXUS v13.0 (CLEAN OUTPUT)</div>
         
         <div class="audio-ctrl" id="audio-indicator" onclick="enableAudioContext()">
             <span id="music-label">CLICK TO ENABLE AUDIO</span> 🔊
@@ -127,7 +127,7 @@
         <div class="message role-system">
             >> SYSTEM ONLINE<br>
             >> VISUAL: LOCAL SD (FULL CONTROL)<br>
-            >> AUDIO: STABILIZED
+            >> OUTPUT: SANITIZED
         </div>
     </div>
 
@@ -222,13 +222,25 @@
             audioEnabled = true;
             document.getElementById('music-label').innerText = "AUDIO ACTIVE";
             document.getElementById('audio-indicator').style.color = "#00ff41";
+            
+            // Intento de desbloqueo silencioso
+            const silent = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAGZGF0YQQAAAAAAA==");
+            silent.play().catch(e => {});
         }
 
         function startTrack(trackKey) {
             if (!TRACKS[trackKey]) return;
             const newSound = TRACKS[trackKey];
-            if (currentActiveAudio === newSound && !newSound.paused) return; 
+            
+            // Si ya está sonando la misma, asegurarse de que no esté en pausa
+            if (currentActiveAudio === newSound) {
+                if(newSound.paused) {
+                    newSound.play().catch(e => console.log("User interaction needed"));
+                }
+                return; 
+            }
 
+            // Parar anterior
             if (currentActiveAudio) {
                 currentActiveAudio.pause();
                 currentActiveAudio.currentTime = 0;
@@ -236,7 +248,7 @@
 
             currentActiveAudio = newSound;
             document.getElementById('music-label').innerText = trackKey;
-            newSound.volume = 0.6; // VOLUMEN FORZADO
+            newSound.volume = 0.6; // Forzar volumen
             
             const playPromise = newSound.play();
             if (playPromise !== undefined) {
@@ -257,7 +269,7 @@
                 select.innerHTML = '<option value="">(Default / Use Loaded)</option>';
                 data.forEach(m => {
                     const opt = document.createElement('option');
-                    opt.value = m.title; // El titulo incluye el hash, necesario para override
+                    opt.value = m.title; 
                     opt.innerText = m.model_name;
                     select.appendChild(opt);
                 });
@@ -283,9 +295,7 @@
             const savedState = localStorage.getItem('nexus_world_state');
             if(savedState) worldState = JSON.parse(savedState);
             
-            // Intentar cargar modelos al inicio si SD está corriendo
             fetchLocalModels();
-
             scrollToBottom();
         }
 
@@ -298,11 +308,9 @@
         }
 
         function appendToTerminal(text, role, tone = null, animate = true) {
+            // FIX: Limpieza agresiva de etiquetas (borra todo entre [] incluso con saltos de línea)
             let cleanText = text
-                .replace(/\[HERO_DESC:.*?\]/g, "")
-                .replace(/\[SCENE:.*?\]/g, "")
-                .replace(/\[NPC_DESC:.*?\]/g, "")
-                .replace(/\[TONE:.*?\]/g, "")
+                .replace(/\[(HERO_DESC|SCENE|NPC_DESC|TONE):[\s\S]*?\]/g, "") 
                 .trim();
 
             if (!cleanText) return;
@@ -413,9 +421,8 @@
             const model = document.getElementById('cfg-model').value;
             const imgStyle = document.getElementById('cfg-img-style').value;
             
-            // OBTENER SETTINGS VISUALES
             const samplerName = document.getElementById('cfg-sampler').value || "Euler a";
-            const selectedModel = document.getElementById('cfg-sd-model').value; // Checkpoint elegido
+            const selectedModel = document.getElementById('cfg-sd-model').value;
 
             try {
                 // 1. Obtener Narrativa
@@ -436,21 +443,21 @@
 
                 hideLoading();
 
-                // --- EXTRACT DATA ---
+                // --- EXTRACT DATA (USANDO REGEX MULTILÍNEA [\s\S]*?) ---
                 let currentTone = 'TRANSITION'; 
-                const toneMatch = rawReply.match(/\[TONE:(.*?)\]/i);
+                const toneMatch = rawReply.match(/\[TONE:([\s\S]*?)\]/i);
                 if (toneMatch) currentTone = toneMatch[1].trim().toUpperCase();
                 
-                const heroMatch = rawReply.match(/\[HERO_DESC:(.*?)\]/);
+                const heroMatch = rawReply.match(/\[HERO_DESC:([\s\S]*?)\]/);
                 if (heroMatch) {
                     worldState.heroVisual = heroMatch[1].trim();
                     localStorage.setItem('nexus_world_state', JSON.stringify(worldState));
                 }
                 let sceneDesc = "";
-                const sceneMatch = rawReply.match(/\[SCENE:(.*?)\]/);
+                const sceneMatch = rawReply.match(/\[SCENE:([\s\S]*?)\]/);
                 if (sceneMatch) sceneDesc = sceneMatch[1].trim();
                 let npcDesc = "";
-                const npcMatch = rawReply.match(/\[NPC_DESC:(.*?)\]/);
+                const npcMatch = rawReply.match(/\[NPC_DESC:([\s\S]*?)\]/);
                 if (npcMatch) npcDesc = npcMatch[1].trim();
 
                 // --- ACTIONS ---
@@ -467,8 +474,6 @@
 
                 let actionContext = rawReply.replace(/\[.*?\]/g, "").trim().substring(0, 150);
                 promptParts.push(`Action details: ${actionContext}`);
-                
-                // BOOST DE CALIDAD
                 promptParts.push("(masterpiece, best quality, highres:1.2), 8k uhd, soft lighting");
 
                 const finalPrompt = promptParts.join(", ");
@@ -476,7 +481,6 @@
 
                 const imgContainer = appendImagePlaceholder();
 
-                // PREPARAR PAYLOAD PARA SD
                 const sdPayload = {
                     prompt: finalPrompt,
                     negative_prompt: negativePrompt,
@@ -487,7 +491,6 @@
                     sampler_name: samplerName
                 };
 
-                // SI SE ELIGIO UN MODELO, FORZARLO CON OVERRIDE_SETTINGS
                 if (selectedModel) {
                     sdPayload.override_settings = {
                         sd_model_checkpoint: selectedModel
