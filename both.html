@@ -2,80 +2,189 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus Minimal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <title>Nexus App</title>
     <style>
         :root {
             --bg-color: #f4f4f9;
-            --header-bg: #222;
+            --header-bg: #1a1a1a;
             --header-text: #fff;
             --accent: #007bff;
+            --msg-user: #007bff;
+            --msg-ai: #ffffff;
         }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; background: var(--bg-color); }
 
-        /* --- TOP BAR --- */
+        /* RESET & LAYOUT "APP STYLE" */
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;       /* Fallback */
+            height: 100dvh;     /* Dynamic Height para móviles */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;   /* Evita scroll en la página principal */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            overscroll-behavior: none; /* Evita rebote elástico en iOS */
+        }
+
+        /* --- 1. TOP BAR (FIXED) --- */
         .top-bar {
-            background: var(--header-bg); color: var(--header-text);
-            padding: 10px 15px; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 100;
+            flex: 0 0 auto; /* No encoge ni estira */
+            background: var(--header-bg); 
+            color: var(--header-text);
+            height: 60px;
+            padding: 0 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+            z-index: 1000;
+            padding-top: env(safe-area-inset-top); /* Notch support */
         }
+
+        .title { font-weight: 700; letter-spacing: 1px; }
+
         .bar-btn {
-            background: #444; color: #fff; border: 1px solid #666;
-            padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+            background: rgba(255,255,255,0.1); 
+            color: #fff; 
+            border: none;
+            padding: 8px 12px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 0.85rem;
+            transition: background 0.2s;
         }
-        .bar-btn:hover { background: #666; }
+        .bar-btn:active { background: rgba(255,255,255,0.3); }
 
-        /* --- MENU PANELS (Hidden by default) --- */
+        /* --- 2. MENUS (OVERLAY) --- */
         .menu-panel {
-            display: none; background: #fff; padding: 20px;
-            border-bottom: 1px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            position: absolute; top: 50px; left: 0; right: 0; z-index: 99;
+            display: none; 
+            position: absolute; 
+            top: 60px; /* Debajo de la top-bar */
+            left: 0; 
+            width: 100%; 
+            background: rgba(255, 255, 255, 0.98); 
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-bottom: 1px solid #ccc; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            z-index: 999;
+            animation: slideDown 0.2s ease-out;
         }
-        
-        .setting-group { margin-bottom: 15px; }
-        .setting-group label { display: block; font-size: 0.8rem; color: #666; margin-bottom: 5px; font-weight: bold; }
-        .setting-group input, .setting-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        @keyframes slideDown { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-        /* --- CHAT AREA --- */
-        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { padding: 10px 15px; border-radius: 8px; max-width: 85%; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
-        .role-user { background: var(--accent); color: white; align-self: flex-end; }
-        .role-assistant { background: white; color: #333; align-self: flex-start; border: 1px solid #ddd; }
-        .role-system { font-size: 0.75rem; color: #999; text-align: center; width: 100%; margin: 5px 0; }
+        .setting-group { margin-bottom: 20px; }
+        .setting-group label { display: block; font-size: 0.75rem; text-transform: uppercase; color: #666; margin-bottom: 8px; font-weight: 700; letter-spacing: 0.5px; }
+        .setting-group input, .setting-group select { 
+            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; 
+            background: #f8f8f8; font-size: 1rem; outline: none;
+        }
+        .setting-group input:focus { border-color: var(--accent); background: #fff; }
 
-        /* --- BOTTOM INPUT --- */
-        .input-area { padding: 15px; background: white; border-top: 1px solid #ddd; display: flex; gap: 10px; }
-        #user-input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
-        #send-btn { background: var(--accent); color: white; border: none; padding: 0 25px; border-radius: 20px; cursor: pointer; font-weight: bold; }
-        #send-btn:disabled { background: #ccc; }
+        /* --- 3. CHAT AREA (SCROLLABLE) --- */
+        #chat-container { 
+            flex: 1;                /* Ocupa todo el espacio disponible */
+            overflow-y: auto;       /* Scroll vertical */
+            padding: 20px 15px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 12px;
+            -webkit-overflow-scrolling: touch; /* Scroll suave nativo en iOS */
+        }
+
+        .msg { 
+            padding: 12px 16px; 
+            border-radius: 18px; 
+            max-width: 85%; 
+            line-height: 1.5; 
+            font-size: 0.95rem;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .role-user { 
+            background: var(--msg-user); 
+            color: white; 
+            align-self: flex-end; 
+            border-bottom-right-radius: 4px;
+        }
+        .role-assistant { 
+            background: var(--msg-ai); 
+            color: #111; 
+            align-self: flex-start; 
+            border-bottom-left-radius: 4px;
+        }
+        .role-system { 
+            font-size: 0.7rem; color: #888; text-align: center; width: 100%; margin: 10px 0; font-style: italic;
+        }
+
+        /* --- 4. INPUT AREA (FIXED BOTTOM) --- */
+        .input-area { 
+            flex: 0 0 auto; /* No encoge */
+            background: #fff; 
+            border-top: 1px solid #eee; 
+            display: flex; 
+            gap: 10px;
+            padding: 10px 15px;
+            /* Safe area para iPhone X y superiores */
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+
+        #user-input { 
+            flex: 1; 
+            padding: 12px 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 25px; 
+            font-size: 1rem; 
+            outline: none;
+            background: #f9f9f9;
+        }
+        #user-input:focus { border-color: var(--accent); background: #fff; }
+
+        #send-btn { 
+            background: var(--accent); 
+            color: white; 
+            border: none; 
+            width: 45px; height: 45px;
+            border-radius: 50%; 
+            cursor: pointer; 
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            box-shadow: 0 2px 5px rgba(0,123,255,0.3);
+        }
+        #send-btn:disabled { background: #ccc; box-shadow: none; }
+
     </style>
 </head>
 <body>
 
     <div class="top-bar">
-        <button class="bar-btn" onclick="toggleMenu('menu-config')">⚙️ Config</button>
-        <div style="font-weight:bold; font-size:0.9rem;">NEXUS</div>
-        <button class="bar-btn" onclick="toggleMenu('menu-chat-config')">Chat Config 🤖</button>
+        <button class="bar-btn" onclick="toggleMenu('menu-config')">⚙️</button>
+        <div class="title">NEXUS</div>
+        <button class="bar-btn" onclick="toggleMenu('menu-chat-config')">🤖</button>
     </div>
 
     <div id="menu-config" class="menu-panel">
         <div class="setting-group">
-            <label>API URL (Ollama/Server)</label>
+            <label>API URL</label>
             <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com">
         </div>
         <div class="setting-group">
-            <label>AUTH TOKEN</label>
-            <input type="password" id="cfg-token" placeholder="Bearer Token (Optional)">
+            <label>Auth Token</label>
+            <input type="password" id="cfg-token" placeholder="Optional...">
         </div>
         <div style="display:flex; gap:10px;">
-            <button class="bar-btn" style="background:#28a745; border:none; flex:1;" onclick="saveConfig()">Save Settings</button>
-            <button class="bar-btn" style="background:#dc3545; border:none;" onclick="clearChat()">Clear Chat</button>
+            <button class="bar-btn" style="background:#28a745; flex:1; text-align:center;" onclick="saveConfig()">Save</button>
+            <button class="bar-btn" style="background:#dc3545; flex:1; text-align:center;" onclick="clearChat()">Clear</button>
         </div>
     </div>
 
     <div id="menu-chat-config" class="menu-panel">
         <div class="setting-group">
-            <label>AI MODEL</label>
+            <label>Select Model</label>
             <select id="cfg-model">
                 <option value="llama3.1:8b">Llama 3.1 (8B)</option>
                 <option value="llama3.2:3b">Llama 3.2 (3B)</option>
@@ -83,19 +192,14 @@
                 <option value="gemma3:27b">Gemma 3 (27B)</option>
             </select>
         </div>
-        
-        <div style="padding:10px; background:#f0f0f0; border-radius:4px; color:#666; font-size:0.8rem; text-align:center;">
-            More options coming soon...
-        </div>
-        <br>
-        <button class="bar-btn" style="background:#28a745; border:none; width:100%;" onclick="saveConfig()">Apply Changes</button>
+        <button class="bar-btn" style="background:#28a745; width:100%; text-align:center;" onclick="saveConfig()">Apply</button>
     </div>
 
     <div id="chat-container"></div>
 
     <div class="input-area">
-        <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMsg()">
-        <button id="send-btn" onclick="sendMsg()">Send</button>
+        <input type="text" id="user-input" placeholder="Message..." autocomplete="off" onkeypress="if(event.key==='Enter') sendMsg()">
+        <button id="send-btn" onclick="sendMsg()">➤</button>
     </div>
 
     <script>
@@ -104,25 +208,31 @@
         const btn = document.getElementById('send-btn');
         let history = [];
 
-        // --- MENU MANAGEMENT ---
+        // --- MENU LOGIC ---
         function toggleMenu(menuId) {
-            // Close others first
-            document.querySelectorAll('.menu-panel').forEach(el => {
-                if (el.id !== menuId) el.style.display = 'none';
-            });
-            // Toggle requested
             const menu = document.getElementById(menuId);
-            menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+            const isVisible = menu.style.display === 'block';
+            
+            // Close all
+            document.querySelectorAll('.menu-panel').forEach(el => el.style.display = 'none');
+
+            // Toggle specific
+            if (!isVisible) {
+                menu.style.display = 'block';
+            }
         }
 
-        // --- LOAD/SAVE PERSISTENCE ---
+        // Click outside to close menus
+        document.getElementById('chat-container').addEventListener('click', () => {
+            document.querySelectorAll('.menu-panel').forEach(el => el.style.display = 'none');
+        });
+
+        // --- PERSISTENCE ---
         window.onload = () => {
-            // Load credentials and settings
             if(localStorage.getItem('nx_url')) document.getElementById('cfg-url').value = localStorage.getItem('nx_url');
             if(localStorage.getItem('nx_token')) document.getElementById('cfg-token').value = localStorage.getItem('nx_token');
             if(localStorage.getItem('nx_model')) document.getElementById('cfg-model').value = localStorage.getItem('nx_model');
 
-            // Load history
             const savedHist = localStorage.getItem('nx_history');
             if(savedHist) {
                 history = JSON.parse(savedHist);
@@ -134,28 +244,28 @@
             localStorage.setItem('nx_url', document.getElementById('cfg-url').value);
             localStorage.setItem('nx_token', document.getElementById('cfg-token').value);
             localStorage.setItem('nx_model', document.getElementById('cfg-model').value);
-            
-            // Hide menus on save
             document.querySelectorAll('.menu-panel').forEach(el => el.style.display = 'none');
+            // Visual feedback (optional)
             alert("Settings Saved");
         }
 
         function clearChat() {
-            if(confirm("Clear entire chat history?")) {
+            if(confirm("Delete history?")) {
                 localStorage.removeItem('nx_history');
                 history = [];
                 chatBox.innerHTML = '';
-                toggleMenu('menu-config'); // Close menu
+                document.querySelectorAll('.menu-panel').forEach(el => el.style.display = 'none');
             }
         }
 
-        // --- CHAT LOGIC ---
+        // --- CHAT ENGINE ---
         function appendMessage(text, role, save = true) {
             const div = document.createElement('div');
             div.className = `msg role-${role}`;
             div.textContent = text; 
             chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            // Force scroll to bottom
+            setTimeout(() => chatBox.scrollTop = chatBox.scrollHeight, 50);
 
             if (save) {
                 history.push({ role, content: text });
@@ -167,13 +277,14 @@
             const text = input.value.trim();
             if (!text) return;
 
-            // UI Updates
             input.value = '';
+            // Close keyboard on mobile (optional, personal preference)
+            // input.blur(); 
+            
             appendMessage(text, 'user');
             btn.disabled = true;
-            btn.innerText = "...";
+            btn.style.opacity = "0.5";
 
-            // Get Current Config
             const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
             const token = document.getElementById('cfg-token').value;
             const model = document.getElementById('cfg-model').value;
@@ -193,18 +304,19 @@
                     })
                 });
 
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                if (!response.ok) throw new Error(`Status: ${response.status}`);
                 
                 const data = await response.json();
                 const reply = data.choices[0].message.content;
                 appendMessage(reply, 'assistant');
 
             } catch (error) {
-                appendMessage(`System Error: ${error.message}`, 'system');
+                appendMessage(`Error: ${error.message}`, 'system');
             } finally {
                 btn.disabled = false;
-                btn.innerText = "Send";
-                input.focus();
+                btn.style.opacity = "1";
+                // Keep focus for desktop, maybe not for mobile? 
+                // input.focus(); 
             }
         }
     </script>
