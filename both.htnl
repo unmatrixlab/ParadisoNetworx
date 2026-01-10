@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minimal Chat</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; margin: 0; background: #f0f0f0; }
+        
+        /* Configuración colapsable */
+        details { background: #ddd; padding: 10px; font-size: 0.9rem; }
+        input { margin: 5px 0; padding: 5px; width: 100%; box-sizing: border-box; }
+        
+        /* Área de Chat */
+        #chat-container { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 10px 15px; border-radius: 8px; max-width: 80%; line-height: 1.5; white-space: pre-wrap; }
+        .role-user { background: #007bff; color: white; align-self: flex-end; }
+        .role-assistant { background: white; color: black; align-self: flex-start; border: 1px solid #ccc; }
+        .role-system { font-size: 0.8em; color: #666; text-align: center; width: 100%; font-style: italic; }
+
+        /* Área de Entrada */
+        .input-area { padding: 15px; background: white; border-top: 1px solid #ccc; display: flex; gap: 10px; }
+        #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; background: #333; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button:disabled { background: #999; }
+    </style>
+</head>
+<body>
+
+    <details>
+        <summary>⚙️ Configuración & Credenciales</summary>
+        <input type="text" id="cfg-url" value="https://ai.paradisonetworx.com" placeholder="API URL">
+        <input type="password" id="cfg-token" placeholder="Auth Token (Opcional)">
+        <input type="text" id="cfg-model" value="llama3:latest" placeholder="Modelo">
+        <button onclick="saveConfig()">Guardar Configuración</button>
+        <button onclick="clearChat()" style="background:#800;">Borrar Chat</button>
+    </details>
+
+    <div id="chat-container"></div>
+
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Escribe un mensaje..." onkeypress="if(event.key==='Enter') sendMsg()">
+        <button id="send-btn" onclick="sendMsg()">ENVIAR</button>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chat-container');
+        const input = document.getElementById('user-input');
+        const btn = document.getElementById('send-btn');
+        let history = [];
+
+        // Cargar config al iniciar
+        window.onload = () => {
+            if(localStorage.getItem('min_url')) document.getElementById('cfg-url').value = localStorage.getItem('min_url');
+            if(localStorage.getItem('min_token')) document.getElementById('cfg-token').value = localStorage.getItem('min_token');
+            if(localStorage.getItem('min_model')) document.getElementById('cfg-model').value = localStorage.getItem('min_model');
+            
+            // Cargar historial si existe
+            const savedHist = localStorage.getItem('min_history');
+            if(savedHist) {
+                history = JSON.parse(savedHist);
+                history.forEach(msg => appendMessage(msg.content, msg.role, false));
+            }
+        };
+
+        function saveConfig() {
+            localStorage.setItem('min_url', document.getElementById('cfg-url').value);
+            localStorage.setItem('min_token', document.getElementById('cfg-token').value);
+            localStorage.setItem('min_model', document.getElementById('cfg-model').value);
+            alert("Configuración guardada");
+        }
+
+        function clearChat() {
+            localStorage.removeItem('min_history');
+            history = [];
+            chatBox.innerHTML = '';
+        }
+
+        function appendMessage(text, role, save = true) {
+            const div = document.createElement('div');
+            div.className = `msg role-${role}`;
+            div.textContent = text; // Texto plano para seguridad y simplicidad
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            if (save) {
+                history.push({ role, content: text });
+                localStorage.setItem('min_history', JSON.stringify(history));
+            }
+        }
+
+        async function sendMsg() {
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            appendMessage(text, 'user');
+            btn.disabled = true;
+            btn.textContent = "...";
+
+            const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value;
+
+            try {
+                const response = await fetch(`${url}/api/chat/completions`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: history, // Envía todo el historial para contexto
+                        temperature: 0.7 
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Error ${response.status}`);
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+                
+                appendMessage(reply, 'assistant');
+
+            } catch (error) {
+                appendMessage(`Error: ${error.message}`, 'system');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "ENVIAR";
+                input.focus();
+            }
+        }
+    </script>
+</body>
+</html>
