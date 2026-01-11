@@ -78,6 +78,22 @@
             border-color: var(--accent);
             box-shadow: 0 2px 5px rgba(0,132,255,0.3);
         }
+        
+        /* ESTILO PARA IDIOMAS */
+        .q-chip.lang {
+            border: none;
+            background-color: transparent;
+            font-size: 1.4rem;
+            padding: 5px 8px;
+            border-radius: 0;
+            opacity: 0.5; /* Apagado por defecto */
+            filter: grayscale(100%);
+        }
+        .q-chip.lang.active-lang {
+            opacity: 1;
+            filter: grayscale(0%);
+            border-bottom: 3px solid var(--accent); /* LA RAYITA QUE PEDISTE */
+        }
 
         /* --- MENUS (OVERLAYS) --- */
         .menu-overlay {
@@ -188,12 +204,12 @@
             <input type="password" id="cfg-token" class="form-input" placeholder="Auth Token (JWT)">
             
             <label style="font-size:0.8rem; font-weight:bold; color:#555; margin-top:5px; display:block;">Active Model</label>
-      <select id="cfg-model" class="form-select">
-    <option value="assistant-pro">🤖 Assistant Pro (Gemma 27B)</option>
-    <option value="screenwriter-pro">🎬 Screenwriter Pro (Gemma 27B)</option>
-    <option value="writer-pro">✍️ Writer Pro (Gemma 27B)</option>
-    <option value="executive-pro">🦈 Executive Pro (Gemma 27B)</option>
-</select>
+            <select id="cfg-model" class="form-select">
+                <option value="assistant-pro">🤖 Assistant Pro (Gemma 27B)</option>
+                <option value="screenwriter-pro">🎬 Screenwriter Pro (Gemma 27B)</option>
+                <option value="writer-pro">✍️ Writer Pro (Gemma 27B)</option>
+                <option value="executive-pro">🦈 Executive Pro (Gemma 27B)</option>
+            </select>
         </div>
 
         <div class="btn-row">
@@ -249,43 +265,34 @@
     </div>
 
     <script>
-        // --- PRESETS ---
-        // 'model' property must match the 'value' in the HTML Select above
-      const DEFAULT_PRESETS = [
-    { 
-        id: 'assistant', 
-        name: '🤖 Assistant Pro', 
-        model: 'assistant-pro', 
-        prompt: 'ROLE: Senior Producer & Tech Expert. BEHAVIOR: Practical, wise, "The Fixer". TONE: Professional veteran.', 
-        temp: 0.7, ctx: 20, len: 1024 
-    },
-    { 
-        id: 'screenwriter', 
-        name: '🎬 Screenwriter Pro', 
-        model: 'screenwriter-pro', 
-        prompt: 'ROLE: Hollywood Screenwriter Legend. FORMAT: Standard Screenplay. STYLE: Show, Don\'t Tell.', 
-        temp: 0.8, ctx: 30, len: 3000 
-    },
-    { 
-        id: 'writer', 
-        name: '✍️ Writer Pro', 
-        model: 'writer-pro', 
-        prompt: 'ROLE: Elite Modern Editor. STYLE: Absolute clarity, short sentences, active voice. TONE: Brutal efficiency.', 
-        temp: 0.6, ctx: 40, len: 4096 
-    },
-    // 👇 AGREGA ESTE BLOQUE AL FINAL (Cuidado con las comas)
-    { 
-        id: 'executive', 
-        name: '🦈 Executive Pro', 
-        model: 'executive-pro', 
-        prompt: 'ROLE: Ruthless Talent Agent & Strategist. FOCUS: Leverage, Sales, Networking, Psychology. TONE: Cold, direct, street-smart.', 
-        temp: 0.5, ctx: 20, len: 2048 
-    }
-];
+        // --- PRESETS CONFIG ---
+        const DEFAULT_PRESETS = [
+            { 
+                id: 'assistant', name: '🤖 Assistant Pro', model: 'assistant-pro', 
+                prompt: 'ROLE: Senior Producer & Tech Expert (30 years exp). EXPERTISE: Cinematography, Audio, Art. BEHAVIOR: Practical, wise, "The Fixer". TONE: Professional veteran.', 
+                temp: 0.7, ctx: 20, len: 1024 
+            },
+            { 
+                id: 'screenwriter', name: '🎬 Screenwriter Pro', model: 'screenwriter-pro', 
+                prompt: 'ROLE: Hollywood Screenwriter Legend. FORMAT: Standard Screenplay (INT./EXT.). STYLE: Show, Don\'t Tell. Cinematic language. CRITICAL: Follow plot beats exactly.', 
+                temp: 0.8, ctx: 30, len: 3000 
+            },
+            { 
+                id: 'writer', name: '✍️ Writer Pro', model: 'writer-pro', 
+                prompt: 'ROLE: Elite Modern Editor. STYLE: Absolute clarity, short sentences, active voice, no fluff. TONE: Brutal efficiency.', 
+                temp: 0.6, ctx: 40, len: 4096 
+            },
+            { 
+                id: 'executive', name: '🦈 Executive Pro', model: 'executive-pro', 
+                prompt: 'ROLE: Ruthless Talent Agent & Strategist. FOCUS: Leverage, Sales, Networking, Psychology. TONE: Cold, direct, street-smart. ROI focused.', 
+                temp: 0.5, ctx: 20, len: 2048 
+            }
+        ];
 
         let chatHistory = [];
         let savedPresets = [];
         let currentConfig = { ...DEFAULT_PRESETS[0] }; 
+        let activeLangCode = null; // Para saber qué bandera subrayar
 
         // --- DOM ELEMENTS ---
         const chatView = document.getElementById('chat-view');
@@ -297,8 +304,6 @@
             loadSystemConfig();
             loadPresets(); 
             loadChatHistory();
-            
-            // Load Quick Bar State
             const showQuick = localStorage.getItem('nx_show_quick') === 'true';
             document.getElementById('cfg-show-quick').checked = showQuick;
             toggleQuickBar(false); 
@@ -313,8 +318,9 @@
 
         function renderQuickBar() {
             quickBar.innerHTML = '';
+
+            // 1. PRIMERO: Los Personajes (Roles)
             const allPresets = [...DEFAULT_PRESETS, ...savedPresets];
-            
             allPresets.forEach(p => {
                 const chip = document.createElement('div');
                 chip.className = 'q-chip';
@@ -323,12 +329,58 @@
                 if(currentConfig.id === p.id) chip.classList.add('active');
                 quickBar.appendChild(chip);
             });
+
+            // 2. SEPARADOR
+            const sep = document.createElement('div');
+            sep.style.width = '1px'; sep.style.height = '20px'; sep.style.background = '#ccc'; sep.style.margin = '0 5px';
+            quickBar.appendChild(sep);
+
+            // 3. DESPUÉS: Banderas (Idiomas)
+            const langs = [
+                { code: 'EN', icon: '🇺🇸', rule: '(OUTPUT LANGUAGE: ENGLISH)' },
+                { code: 'ES', icon: '🇪🇸', rule: '(OUTPUT LANGUAGE: SPANISH)' },
+                { code: 'PT', icon: '🇧🇷', rule: '(OUTPUT LANGUAGE: PORTUGUESE)' },
+                { code: 'IT', icon: '🇮🇹', rule: '(OUTPUT LANGUAGE: ITALIAN)' }
+            ];
+
+            langs.forEach(lang => {
+                const chip = document.createElement('div');
+                chip.className = 'q-chip lang'; 
+                // AQUI ESTA LA LOGICA DE SUBRAYADO
+                if (activeLangCode === lang.code) chip.classList.add('active-lang');
+                
+                chip.textContent = lang.icon;
+                chip.onclick = () => setLanguage(lang.rule, lang.code);
+                quickBar.appendChild(chip);
+            });
+        }
+
+        function setLanguage(rule, code) {
+            const promptArea = document.getElementById('p-prompt');
+            let currentText = promptArea.value;
+
+            // Limpiar regla anterior
+            currentText = currentText.replace(/\(OUTPUT LANGUAGE:.*?\)/g, "").trim();
+
+            // Agregar nueva regla
+            const newText = currentText + "\n\n" + rule;
+            
+            // Actualizar 
+            promptArea.value = newText;
+            activeLangCode = code; // GUARDAR ESTADO VISUAL
+            
+            saveActiveConfig();
+            renderQuickBar(); // RE-PINTAR PARA MOSTRAR LA RAYITA
         }
 
         function activateQuickPreset(id) {
             const select = document.getElementById('preset-select');
             select.value = id;
             loadPresetToUI();
+            
+            // RESETEAR IDIOMA AL CAMBIAR DE PERSONAJE
+            activeLangCode = null; 
+            
             renderQuickBar();
         }
 
@@ -336,14 +388,12 @@
         function loadSystemConfig() {
             if(localStorage.getItem('nx_url')) document.getElementById('cfg-url').value = localStorage.getItem('nx_url');
             if(localStorage.getItem('nx_token')) document.getElementById('cfg-token').value = localStorage.getItem('nx_token');
-            // Try to load model, fallback to first option
             const savedModel = localStorage.getItem('nx_model');
             if(savedModel) {
                 const sel = document.getElementById('cfg-model');
                 if([...sel.options].some(o => o.value === savedModel)) sel.value = savedModel;
             }
         }
-        
         function saveSystemConfig() {
             localStorage.setItem('nx_url', document.getElementById('cfg-url').value);
             localStorage.setItem('nx_token', document.getElementById('cfg-token').value);
@@ -351,7 +401,6 @@
             closeMenus();
             alert("Config Saved");
         }
-        
         function clearChat() {
             if(confirm("Delete chat history?")) {
                 localStorage.removeItem('nx_history');
@@ -365,7 +414,6 @@
         function loadPresets() {
             const stored = localStorage.getItem('nx_presets');
             savedPresets = stored ? JSON.parse(stored) : [];
-
             const select = document.getElementById('preset-select');
             select.innerHTML = '';
             
@@ -412,7 +460,6 @@
                 currentConfig = { ...found };
                 updateUIFromConfig(currentConfig);
 
-                // --- AUTO-SWITCH MODEL LOGIC ---
                 if (found.model) {
                     const modelSelect = document.getElementById('cfg-model');
                     const optionExists = Array.from(modelSelect.options).some(opt => opt.value === found.model);
@@ -421,7 +468,6 @@
                         localStorage.setItem('nx_model', found.model); 
                     }
                 }
-                
                 saveActiveConfig();
                 renderQuickBar();
             }
@@ -438,7 +484,7 @@
                 temp: parseFloat(document.getElementById('p-temp').value),
                 ctx: parseInt(document.getElementById('p-ctx').value),
                 len: parseInt(document.getElementById('p-len').value),
-                model: document.getElementById('cfg-model').value // Saves current model to preset
+                model: document.getElementById('cfg-model').value
             };
 
             const existingIdx = savedPresets.findIndex(p => p.name === name);
@@ -453,7 +499,6 @@
             localStorage.setItem('nx_presets', JSON.stringify(savedPresets));
             currentConfig = newPreset;
             saveActiveConfig();
-            
             loadPresets();
             document.getElementById('preset-select').value = newPreset.id;
             alert("Preset Saved");
@@ -515,7 +560,7 @@
 
             const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
             const token = document.getElementById('cfg-token').value;
-            const model = document.getElementById('cfg-model').value; // Always reads from selector
+            const model = document.getElementById('cfg-model').value;
 
             const systemMsg = { role: "system", content: document.getElementById('p-prompt').value };
             const limit = parseInt(document.getElementById('p-ctx').value);
