@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+    <title>Nexus: AI Persona Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --header-bg: #1a1a1a;
+            --accent: #0084ff;
+            --accent-danger: #ff3b30;
+            --accent-success: #34c759;
+            --text-main: #000;
+            --text-sec: #666;
+            --bubble-user: #0084ff;
+            --bubble-ai: #ffffff;
+        }
+
+        /* --- BASE --- */
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-color); margin: 0; height: 100dvh; display: flex; flex-direction: column;
+            overscroll-behavior: none; position: fixed; width: 100%;
+        }
+
+        /* --- TOP BAR --- */
+        .top-bar {
+            flex: 0 0 55px; background: var(--header-bg); color: #fff;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 15px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .app-title { font-weight: 700; letter-spacing: 1px; font-size: 1rem; }
+        .icon-btn {
+            background: rgba(255,255,255,0.15); border: none; color: #fff;
+            width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+        .icon-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.3); }
+
+        /* --- QUICK ACTION BAR --- */
+        #quick-bar {
+            display: none; /* Active via checkbox */
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 10px 15px;
+            overflow-x: auto;
+            white-space: nowrap;
+            gap: 10px;
+            align-items: center;
+            flex: 0 0 auto;
+            -webkit-overflow-scrolling: touch;
+            z-index: 90;
+        }
+        #quick-bar::-webkit-scrollbar { display: none; }
+        
+        .q-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #f0f2f5;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .q-chip:hover { background: #e4e6eb; }
+        .q-chip.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 2px 5px rgba(0,132,255,0.3);
+        }
+
+        /* --- MENUS (OVERLAYS) --- */
+        .menu-overlay {
+            display: none; position: absolute; top: 55px; left: 0; width: 100%; height: calc(100dvh - 55px);
+            background: rgba(245, 245, 247, 0.98); backdrop-filter: blur(15px);
+            padding: 20px; z-index: 99; overflow-y: auto;
+            animation: slideIn 0.2s ease-out;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Form Elements */
+        .section-title { font-size: 0.8rem; text-transform: uppercase; color: var(--text-sec); font-weight: 700; margin: 20px 0 10px 0; letter-spacing: 0.5px; }
+        .section-title:first-child { margin-top: 0; }
+        .card { background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .form-input, .form-select, .form-area {
+            width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px;
+            font-size: 16px; background: #fafafa; outline: none; margin-bottom: 10px; font-family: inherit;
+        }
+        .form-input:focus, .form-area:focus { border-color: var(--accent); background: #fff; }
+        .form-area { resize: vertical; min-height: 100px; line-height: 1.4; }
+        
+        .toggle-row { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 0.9rem; color: #333; }
+        input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
+
+        /* Sliders */
+        .slider-group { margin-bottom: 15px; }
+        .slider-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px; font-weight: 600; }
+        .slider-val { color: var(--accent); }
+        input[type=range] { width: 100%; accent-color: var(--accent); height: 6px; border-radius: 3px; }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; color: #fff; font-size: 0.9rem; }
+        .btn-primary { background: var(--accent); }
+        .btn-success { background: var(--accent-success); }
+        .btn-danger { background: var(--accent-danger); }
+        .btn-outline { background: transparent; border: 1px solid #ccc; color: #333; }
+
+        /* --- CHAT VIEW --- */
+        #chat-view {
+            flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px;
+            scroll-behavior: smooth;
+        }
+        .msg-row { display: flex; width: 100%; animation: fadeMsg 0.3s ease; }
+        @keyframes fadeMsg { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .msg-row.user { justify-content: flex-end; }
+        .msg-row.ai { justify-content: flex-start; }
+        .bubble {
+            max-width: 88%; padding: 12px 16px; border-radius: 20px;
+            font-size: 0.95rem; line-height: 1.5; position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .bubble.user { background: var(--bubble-user); color: #fff; border-bottom-right-radius: 4px; }
+        .bubble.ai { background: var(--bubble-ai); color: #000; border-bottom-left-radius: 4px; border: 1px solid #e5e5e5; }
+        .bubble p { margin: 0 0 8px 0; } .bubble p:last-child { margin: 0; }
+        .bubble code { background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; font-family: monospace; color: #d63384; }
+        .bubble pre { background: #222; color: #f8f8f2; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+        
+        .typing { padding: 15px; background: #fff; border-radius: 20px; width: fit-content; border: 1px solid #e5e5e5; display: flex; gap: 5px; margin-bottom: 20px; }
+        .dot { width: 8px; height: 8px; background: #ccc; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out; }
+        .dot:nth-child(1) { animation-delay: -0.32s; } .dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        /* --- INPUT BAR --- */
+        .bottom-bar {
+            flex: 0 0 auto; background: #fff; border-top: 1px solid #e0e0e0;
+            padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            display: flex; align-items: flex-end; gap: 10px;
+        }
+        #message-input {
+            flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #ddd;
+            background: #f9f9f9; font-size: 16px; outline: none; max-height: 120px;
+        }
+        #message-input:focus { border-color: var(--accent); background: #fff; }
+        #send-btn {
+            width: 44px; height: 44px; border-radius: 50%; border: none;
+            background: var(--accent); color: white; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+            flex-shrink: 0; transition: transform 0.1s;
+        }
+        #send-btn:active { transform: scale(0.9); }
+        #send-btn:disabled { background: #ccc; }
+
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <button class="icon-btn" onclick="toggleMenu('menu-sys')">⚙️</button>
+        <div class="app-title">NEXUS</div>
+        <button class="icon-btn" onclick="toggleMenu('menu-persona')">🧠</button>
+    </div>
+
+    <div id="quick-bar"></div>
+
+    <div id="menu-sys" class="menu-overlay">
+        <div class="section-title">Interface</div>
+        <div class="card">
+            <div class="toggle-row">
+                <input type="checkbox" id="cfg-show-quick" onchange="toggleQuickBar(true)">
+                <label for="cfg-show-quick">Show Quick Access Bar</label>
+            </div>
+        </div>
+
+        <div class="section-title">Communication Channel</div>
+        <div class="card">
+            <input type="text" id="cfg-url" class="form-input" placeholder="Server URL" value="https://ai.paradisonetworx.com">
+            <input type="password" id="cfg-token" class="form-input" placeholder="Auth Token (JWT)">
+            
+            <label style="font-size:0.8rem; font-weight:bold; color:#555; margin-top:5px; display:block;">Model</label>
+            <select id="cfg-model" class="form-select">
+                <optgroup label="Specialized Agents">
+                    <option value="writer-modern">✍️ The Writer (Modern)</option>
+                    <option value="screenwriter-pro">🎬 The Screenwriter</option>
+                    <option value="nexus-core">⚡ Nexus Core</option>
+                </optgroup>
+                <optgroup label="Base Models">
+                    <option value="gemma3:27b">Gemma 3 (27B)</option>
+                    <option value="llama3.1:8b">Llama 3.1 (8B)</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn btn-success" onclick="saveSystemConfig()">Save Config</button>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-danger" onclick="clearChat()">Clear Chat</button>
+        </div>
+    </div>
+
+    <div id="menu-persona" class="menu-overlay">
+        <div class="section-title">Roles (Presets)</div>
+        <div class="card">
+            <select id="preset-select" class="form-select" onchange="loadPresetToUI()">
+                </select>
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="resetToDefault()">🔄 Reset</button>
+                <button class="btn btn-danger" id="btn-delete-preset" onclick="deletePreset()">🗑️</button>
+            </div>
+        </div>
+
+        <div class="section-title">Fine Tuning</div>
+        <div class="card">
+            <label style="font-size:0.8rem; font-weight:bold; color:#555;">Name</label>
+            <input type="text" id="p-name" class="form-input">
+            
+            <label style="font-size:0.8rem; font-weight:bold; color:#555; margin-top:10px; display:block;">System Prompt</label>
+            <textarea id="p-prompt" class="form-area"></textarea>
+            
+            <div class="slider-group" style="margin-top:20px;">
+                <div class="slider-header"><span>Creativity (Temp)</span><span id="val-temp" class="slider-val">0.7</span></div>
+                <input type="range" id="p-temp" min="0" max="1" step="0.1" oninput="document.getElementById('val-temp').innerText = this.value">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-header"><span>Memory (Msgs)</span><span id="val-ctx" class="slider-val">10</span></div>
+                <input type="range" id="p-ctx" min="0" max="50" step="1" oninput="document.getElementById('val-ctx').innerText = (this.value==0?'Infinite':this.value)">
+            </div>
+
+            <div class="slider-group">
+                <div class="slider-header"><span>Length (Tokens)</span><span id="val-len" class="slider-val">1024</span></div>
+                <input type="range" id="p-len" min="100" max="4096" step="100" oninput="document.getElementById('val-len').innerText = this.value">
+            </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-success" onclick="saveCurrentPreset()">💾 Save Preset</button></div>
+    </div>
+
+    <div id="chat-view"></div>
+
+    <div class="bottom-bar">
+        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+        <button id="send-btn">➤</button>
+    </div>
+
+    <script>
+        // --- UPDATED PRESETS: Added 'model' property ---
+       const DEFAULT_PRESETS = [
+    { id: 'default', name: '🤖 Assistant', model: 'nexus-core', prompt: 'You are a helpful assistant.', temp: 0.7, ctx: 20, len: 1024 },
+    { id: 'screenwriter', name: '🎬 Screenwriter', model: 'screenwriter-pro', prompt: 'You are an expert Hollywood Screenwriter...', temp: 0.9, ctx: 30, len: 3000 },
+    { id: 'writer', name: '✍️ Writer', model: 'writer-modern', prompt: 'You are an elite modern editor...', temp: 0.6, ctx: 40, len: 4096 }
+];
+
+        let chatHistory = [];
+        let savedPresets = [];
+        let currentConfig = { ...DEFAULT_PRESETS[0] }; 
+
+        // --- DOM ELEMENTS ---
+        const chatView = document.getElementById('chat-view');
+        const inputField = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const quickBar = document.getElementById('quick-bar');
+
+        window.onload = () => {
+            loadSystemConfig();
+            loadPresets(); 
+            loadChatHistory();
+            
+            // Load Quick Bar State
+            const showQuick = localStorage.getItem('nx_show_quick') === 'true';
+            document.getElementById('cfg-show-quick').checked = showQuick;
+            toggleQuickBar(false); 
+        };
+
+        // --- QUICK BAR LOGIC ---
+        function toggleQuickBar(save = true) {
+            const isChecked = document.getElementById('cfg-show-quick').checked;
+            quickBar.style.display = isChecked ? 'flex' : 'none';
+            if(save) localStorage.setItem('nx_show_quick', isChecked);
+        }
+
+        function renderQuickBar() {
+            quickBar.innerHTML = '';
+            const allPresets = [...DEFAULT_PRESETS, ...savedPresets];
+            
+            allPresets.forEach(p => {
+                const chip = document.createElement('div');
+                chip.className = 'q-chip';
+                chip.textContent = p.name;
+                chip.onclick = () => activateQuickPreset(p.id);
+                if(currentConfig.id === p.id) chip.classList.add('active');
+                quickBar.appendChild(chip);
+            });
+        }
+
+        function activateQuickPreset(id) {
+            const select = document.getElementById('preset-select');
+            select.value = id;
+            loadPresetToUI();
+            renderQuickBar();
+        }
+
+        // --- SYSTEM LOGIC ---
+        function loadSystemConfig() {
+            if(localStorage.getItem('nx_url')) document.getElementById('cfg-url').value = localStorage.getItem('nx_url');
+            if(localStorage.getItem('nx_token')) document.getElementById('cfg-token').value = localStorage.getItem('nx_token');
+            if(localStorage.getItem('nx_model')) document.getElementById('cfg-model').value = localStorage.getItem('nx_model');
+        }
+        function saveSystemConfig() {
+            localStorage.setItem('nx_url', document.getElementById('cfg-url').value);
+            localStorage.setItem('nx_token', document.getElementById('cfg-token').value);
+            localStorage.setItem('nx_model', document.getElementById('cfg-model').value);
+            closeMenus();
+            alert("Config Saved");
+        }
+        function clearChat() {
+            if(confirm("Delete chat history?")) {
+                localStorage.removeItem('nx_history');
+                chatHistory = [];
+                chatView.innerHTML = '';
+                closeMenus();
+            }
+        }
+
+        // --- PRESETS LOGIC ---
+        function loadPresets() {
+            const stored = localStorage.getItem('nx_presets');
+            savedPresets = stored ? JSON.parse(stored) : [];
+
+            const select = document.getElementById('preset-select');
+            select.innerHTML = '';
+            
+            const addGroup = (label, list) => {
+                const grp = document.createElement('optgroup'); grp.label = label;
+                list.forEach(p => { const o = document.createElement('option'); o.value = p.id; o.text = p.name; grp.appendChild(o); });
+                select.appendChild(grp);
+            };
+
+            addGroup("Default", DEFAULT_PRESETS);
+            if(savedPresets.length) addGroup("My Personas", savedPresets);
+
+            const lastActive = localStorage.getItem('nx_active_config');
+            if (lastActive) {
+                currentConfig = JSON.parse(lastActive);
+                const exists = [...DEFAULT_PRESETS, ...savedPresets].some(p => p.id === currentConfig.id);
+                select.value = exists ? currentConfig.id : 'default';
+            }
+            
+            updateUIFromConfig(currentConfig);
+            renderQuickBar(); 
+        }
+
+        function updateUIFromConfig(cfg) {
+            document.getElementById('p-name').value = cfg.name;
+            document.getElementById('p-prompt').value = cfg.prompt;
+            document.getElementById('p-temp').value = cfg.temp;
+            document.getElementById('p-ctx').value = cfg.ctx;
+            document.getElementById('p-len').value = cfg.len || 1024;
+            
+            document.getElementById('val-temp').innerText = cfg.temp;
+            document.getElementById('val-ctx').innerText = cfg.ctx==0?'Infinite':cfg.ctx;
+            document.getElementById('val-len').innerText = cfg.len||1024;
+
+            const isDefault = DEFAULT_PRESETS.some(p => p.id === cfg.id);
+            document.getElementById('btn-delete-preset').style.display = isDefault ? 'none' : 'block';
+        }
+
+        function loadPresetToUI() {
+    const id = document.getElementById('preset-select').value;
+    // Buscamos en default y en guardados
+    let found = [...DEFAULT_PRESETS, ...savedPresets].find(p => p.id === id);
+    
+    if(found) {
+        currentConfig = { ...found };
+        updateUIFromConfig(currentConfig);
+
+        // --- 👇 CAMBIO IMPORTANTE: CAMBIAR EL MODELO AUTOMÁTICAMENTE 👇 ---
+        if (found.model) {
+            const modelSelect = document.getElementById('cfg-model');
+            // Verificamos que el modelo exista en la lista del HTML para evitar errores
+            const optionExists = Array.from(modelSelect.options).some(opt => opt.value === found.model);
+            
+            if (optionExists) {
+                modelSelect.value = found.model; // <--- Aquí ocurre la magia
+                localStorage.setItem('nx_model', found.model); // Guardamos la preferencia
+            }
+        }
+        // ---------------------------------------------------------------
+
+        saveActiveConfig();
+        renderQuickBar();
+    }
+}
+
+        function saveCurrentPreset() {
+            const name = document.getElementById('p-name').value.trim();
+            if(!name) return alert("Name required");
+
+            const newPreset = {
+                id: 'cust_' + Date.now(),
+                name: name,
+                prompt: document.getElementById('p-prompt').value,
+                temp: parseFloat(document.getElementById('p-temp').value),
+                ctx: parseInt(document.getElementById('p-ctx').value),
+                len: parseInt(document.getElementById('p-len').value),
+                // Note: We don't force a model on custom user presets to keep it flexible, 
+                // but you could add: model: document.getElementById('cfg-model').value
+            };
+
+            const existingIdx = savedPresets.findIndex(p => p.name === name);
+            if(existingIdx >= 0) {
+                if(!confirm("Overwrite existing preset?")) return;
+                newPreset.id = savedPresets[existingIdx].id;
+                savedPresets[existingIdx] = newPreset;
+            } else {
+                savedPresets.push(newPreset);
+            }
+
+            localStorage.setItem('nx_presets', JSON.stringify(savedPresets));
+            currentConfig = newPreset;
+            saveActiveConfig();
+            
+            loadPresets();
+            document.getElementById('preset-select').value = newPreset.id;
+            alert("Preset Saved");
+        }
+
+        function deletePreset() {
+            if(!confirm("Delete this preset?")) return;
+            savedPresets = savedPresets.filter(p => p.id !== currentConfig.id);
+            localStorage.setItem('nx_presets', JSON.stringify(savedPresets));
+            resetToDefault();
+            loadPresets();
+        }
+
+        function resetToDefault() {
+            currentConfig = { ...DEFAULT_PRESETS[0] };
+            updateUIFromConfig(currentConfig);
+            saveActiveConfig();
+            document.getElementById('preset-select').value = 'default';
+            renderQuickBar();
+        }
+
+        function saveActiveConfig() {
+            const liveConfig = {
+                id: document.getElementById('preset-select').value,
+                name: document.getElementById('p-name').value,
+                prompt: document.getElementById('p-prompt').value,
+                temp: document.getElementById('p-temp').value,
+                ctx: document.getElementById('p-ctx').value,
+                len: document.getElementById('p-len').value
+            };
+            localStorage.setItem('nx_active_config', JSON.stringify(liveConfig));
+        }
+        
+        ['p-prompt', 'p-temp', 'p-ctx', 'p-len'].forEach(id => {
+            document.getElementById(id).addEventListener('change', saveActiveConfig);
+        });
+
+        // --- CHAT ENGINE ---
+        function loadChatHistory() {
+            const hist = localStorage.getItem('nx_history');
+            if(hist) {
+                chatHistory = JSON.parse(hist);
+                chatHistory.forEach(msg => renderMessage(msg.role, msg.content));
+                scrollToBottom();
+            }
+        }
+
+        async function handleSend() {
+            const text = inputField.value.trim();
+            if(!text) return;
+
+            inputField.value = '';
+            renderMessage('user', text);
+            sendBtn.disabled = true;
+            showTyping();
+
+            chatHistory.push({ role: "user", content: text });
+            localStorage.setItem('nx_history', JSON.stringify(chatHistory));
+
+            const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
+            const token = document.getElementById('cfg-token').value;
+            const model = document.getElementById('cfg-model').value; // Reads current model
+
+            const systemMsg = { role: "system", content: document.getElementById('p-prompt').value };
+            const limit = parseInt(document.getElementById('p-ctx').value);
+            let contextMessages = (limit === 0) ? [...chatHistory] : chatHistory.slice(-limit);
+            
+            const finalMessages = [systemMsg, ...contextMessages];
+
+            try {
+                const response = await fetch(`${url}/api/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        model: model, 
+                        messages: finalMessages, 
+                        temperature: parseFloat(document.getElementById('p-temp').value),
+                        max_tokens: parseInt(document.getElementById('p-len').value)
+                    })
+                });
+
+                if(!response.ok) throw new Error(`API: ${response.status}`);
+                const data = await response.json();
+                const reply = (data.choices && data.choices[0].message) ? data.choices[0].message.content : "Error";
+
+                removeTyping();
+                renderMessage('ai', reply);
+                
+                chatHistory.push({ role: "assistant", content: reply });
+                localStorage.setItem('nx_history', JSON.stringify(chatHistory));
+
+            } catch (err) {
+                removeTyping();
+                renderMessage('ai', `⚠️ Error: ${err.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                if(window.innerWidth > 768) inputField.focus();
+            }
+        }
+
+        function renderMessage(role, text) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${role === 'user' ? 'user' : 'ai'}`;
+            const bubble = document.createElement('div');
+            bubble.className = `bubble ${role === 'user' ? 'user' : 'ai'}`;
+            if (role === 'assistant' || role === 'ai') {
+                try { bubble.innerHTML = marked.parse(text); } catch (e) { bubble.textContent = text; }
+            } else { bubble.textContent = text; }
+            row.appendChild(bubble);
+            chatView.appendChild(row);
+            scrollToBottom();
+        }
+
+        function showTyping() {
+            const l = document.createElement('div'); l.id='typing-indicator'; l.className='typing';
+            l.innerHTML='<div class="dot"></div><div class="dot"></div>'; chatView.appendChild(l); scrollToBottom();
+        }
+        function removeTyping() { const l=document.getElementById('typing-indicator'); if(l) l.remove(); }
+        function scrollToBottom() { chatView.scrollTop = chatView.scrollHeight; }
+        
+        function toggleMenu(id) {
+            const el = document.getElementById(id);
+            const isVisible = el.style.display === 'block';
+            closeMenus();
+            if(!isVisible) el.style.display = 'block';
+        }
+        function closeMenus() { document.querySelectorAll('.menu-overlay').forEach(el => el.style.display = 'none'); }
+        chatView.addEventListener('click', closeMenus);
+        sendBtn.addEventListener('click', handleSend);
+        inputField.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSend(); });
+
+    </script>
+</body>
+</html>
