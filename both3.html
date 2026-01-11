@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
-    <title>Nexus: AI Persona Engine</title>
+    <title>AI Persona Engine</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <style>
         :root {
@@ -167,7 +167,7 @@
 
     <div class="top-bar">
         <button class="icon-btn" onclick="toggleMenu('menu-sys')">⚙️</button>
-        <div class="app-title">NEXUS</div>
+        <div class="app-title">AI ENGINE</div>
         <button class="icon-btn" onclick="toggleMenu('menu-persona')">🧠</button>
     </div>
 
@@ -182,22 +182,16 @@
             </div>
         </div>
 
-        <div class="section-title">Communication Channel</div>
+        <div class="section-title">Connection</div>
         <div class="card">
             <input type="text" id="cfg-url" class="form-input" placeholder="Server URL" value="https://ai.paradisonetworx.com">
             <input type="password" id="cfg-token" class="form-input" placeholder="Auth Token (JWT)">
             
-            <label style="font-size:0.8rem; font-weight:bold; color:#555; margin-top:5px; display:block;">Model</label>
+            <label style="font-size:0.8rem; font-weight:bold; color:#555; margin-top:5px; display:block;">Active Model</label>
             <select id="cfg-model" class="form-select">
-                <optgroup label="Specialized Agents">
-                    <option value="writer-modern">✍️ The Writer (Modern)</option>
-                    <option value="screenwriter-pro">🎬 The Screenwriter</option>
-                    <option value="nexus-core">⚡ Nexus Core</option>
-                </optgroup>
-                <optgroup label="Base Models">
-                    <option value="gemma3:27b">Gemma 3 (27B)</option>
-                    <option value="llama3.1:8b">Llama 3.1 (8B)</option>
-                </optgroup>
+                <option value="gemma:27b">🤖 Assistant (Gemma 27B)</option>
+                <option value="screenwriter-pro">🎬 Screenwriter (Gemma 27B)</option>
+                <option value="writer-modern">✍️ Writer (Gemma 27B)</option>
             </select>
         </div>
 
@@ -254,12 +248,13 @@
     </div>
 
     <script>
-        // --- UPDATED PRESETS: Added 'model' property ---
-       const DEFAULT_PRESETS = [
-    { id: 'default', name: '🤖 Assistant', model: 'nexus-core', prompt: 'You are a helpful assistant.', temp: 0.7, ctx: 20, len: 1024 },
-    { id: 'screenwriter', name: '🎬 Screenwriter', model: 'screenwriter-pro', prompt: 'You are an expert Hollywood Screenwriter...', temp: 0.9, ctx: 30, len: 3000 },
-    { id: 'writer', name: '✍️ Writer', model: 'writer-modern', prompt: 'You are an elite modern editor...', temp: 0.6, ctx: 40, len: 4096 }
-];
+        // --- PRESETS ---
+        // 'model' property must match the 'value' in the HTML Select above
+        const DEFAULT_PRESETS = [
+            { id: 'assistant', name: '🤖 Assistant', model: 'gemma:27b', prompt: 'You are a helpful, concise, and professional assistant.', temp: 0.7, ctx: 20, len: 1024 },
+            { id: 'screenwriter', name: '🎬 Screenwriter', model: 'screenwriter-pro', prompt: 'You are an expert Hollywood Screenwriter. Focus on narrative, format, and drama. Use standard screenplay format (INT./EXT.).', temp: 0.9, ctx: 30, len: 3000 },
+            { id: 'writer', name: '✍️ Writer', model: 'writer-modern', prompt: 'You are an elite modern editor. Absolute clarity. Short sentences. No fluff. Active voice. Avoid complex words.', temp: 0.6, ctx: 40, len: 4096 }
+        ];
 
         let chatHistory = [];
         let savedPresets = [];
@@ -314,8 +309,14 @@
         function loadSystemConfig() {
             if(localStorage.getItem('nx_url')) document.getElementById('cfg-url').value = localStorage.getItem('nx_url');
             if(localStorage.getItem('nx_token')) document.getElementById('cfg-token').value = localStorage.getItem('nx_token');
-            if(localStorage.getItem('nx_model')) document.getElementById('cfg-model').value = localStorage.getItem('nx_model');
+            // Try to load model, fallback to first option
+            const savedModel = localStorage.getItem('nx_model');
+            if(savedModel) {
+                const sel = document.getElementById('cfg-model');
+                if([...sel.options].some(o => o.value === savedModel)) sel.value = savedModel;
+            }
         }
+        
         function saveSystemConfig() {
             localStorage.setItem('nx_url', document.getElementById('cfg-url').value);
             localStorage.setItem('nx_token', document.getElementById('cfg-token').value);
@@ -323,6 +324,7 @@
             closeMenus();
             alert("Config Saved");
         }
+        
         function clearChat() {
             if(confirm("Delete chat history?")) {
                 localStorage.removeItem('nx_history');
@@ -376,66 +378,59 @@
         }
 
         function loadPresetToUI() {
-    const id = document.getElementById('preset-select').value;
-    // Buscamos en default y en guardados
-    let found = [...DEFAULT_PRESETS, ...savedPresets].find(p => p.id === id);
-    
-    if(found) {
-        currentConfig = { ...found };
-        updateUIFromConfig(currentConfig);
-
-        // --- 👇 CAMBIO IMPORTANTE: CAMBIAR EL MODELO AUTOMÁTICAMENTE 👇 ---
-        if (found.model) {
-            const modelSelect = document.getElementById('cfg-model');
-            // Verificamos que el modelo exista en la lista del HTML para evitar errores
-            const optionExists = Array.from(modelSelect.options).some(opt => opt.value === found.model);
+            const id = document.getElementById('preset-select').value;
+            let found = [...DEFAULT_PRESETS, ...savedPresets].find(p => p.id === id);
             
-            if (optionExists) {
-                modelSelect.value = found.model; // <--- Aquí ocurre la magia
-                localStorage.setItem('nx_model', found.model); // Guardamos la preferencia
+            if(found) {
+                currentConfig = { ...found };
+                updateUIFromConfig(currentConfig);
+
+                // --- AUTO-SWITCH MODEL LOGIC ---
+                if (found.model) {
+                    const modelSelect = document.getElementById('cfg-model');
+                    const optionExists = Array.from(modelSelect.options).some(opt => opt.value === found.model);
+                    if (optionExists) {
+                        modelSelect.value = found.model;
+                        localStorage.setItem('nx_model', found.model); 
+                    }
+                }
+                
+                saveActiveConfig();
+                renderQuickBar();
             }
         }
-        // ---------------------------------------------------------------
 
-        saveActiveConfig();
-        renderQuickBar();
-    }
-}
+        function saveCurrentPreset() {
+            const name = document.getElementById('p-name').value.trim();
+            if(!name) return alert("Name required");
 
-      function saveCurrentPreset() {
-    const name = document.getElementById('p-name').value.trim();
-    if(!name) return alert("Name required");
+            const newPreset = {
+                id: 'cust_' + Date.now(),
+                name: name,
+                prompt: document.getElementById('p-prompt').value,
+                temp: parseFloat(document.getElementById('p-temp').value),
+                ctx: parseInt(document.getElementById('p-ctx').value),
+                len: parseInt(document.getElementById('p-len').value),
+                model: document.getElementById('cfg-model').value // Saves current model to preset
+            };
 
-    const newPreset = {
-        id: 'cust_' + Date.now(),
-        name: name,
-        prompt: document.getElementById('p-prompt').value,
-        temp: parseFloat(document.getElementById('p-temp').value),
-        ctx: parseInt(document.getElementById('p-ctx').value),
-        len: parseInt(document.getElementById('p-len').value),
-        
-        // 👇 ESTA ES LA LÍNEA NUEVA DEL PUNTO 3 👇
-        model: document.getElementById('cfg-model').value 
-        // ⬆️ Esto "lee" qué modelo tienes puesto ahora y lo guarda en el botón
-    };
+            const existingIdx = savedPresets.findIndex(p => p.name === name);
+            if(existingIdx >= 0) {
+                if(!confirm("Overwrite existing preset?")) return;
+                newPreset.id = savedPresets[existingIdx].id;
+                savedPresets[existingIdx] = newPreset;
+            } else {
+                savedPresets.push(newPreset);
+            }
 
-    const existingIdx = savedPresets.findIndex(p => p.name === name);
-    if(existingIdx >= 0) {
-        if(!confirm("Overwrite existing preset?")) return;
-        newPreset.id = savedPresets[existingIdx].id;
-        savedPresets[existingIdx] = newPreset;
-    } else {
-        savedPresets.push(newPreset);
-    }
-
-    localStorage.setItem('nx_presets', JSON.stringify(savedPresets));
-    currentConfig = newPreset;
-    saveActiveConfig();
-    
-    loadPresets();
-    document.getElementById('preset-select').value = newPreset.id;
-    alert("Preset Saved");
-}
+            localStorage.setItem('nx_presets', JSON.stringify(savedPresets));
+            currentConfig = newPreset;
+            saveActiveConfig();
+            
+            loadPresets();
+            document.getElementById('preset-select').value = newPreset.id;
+            alert("Preset Saved");
+        }
 
         function deletePreset() {
             if(!confirm("Delete this preset?")) return;
@@ -493,7 +488,7 @@
 
             const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
             const token = document.getElementById('cfg-token').value;
-            const model = document.getElementById('cfg-model').value; // Reads current model
+            const model = document.getElementById('cfg-model').value; // Always reads from selector
 
             const systemMsg = { role: "system", content: document.getElementById('p-prompt').value };
             const limit = parseInt(document.getElementById('p-ctx').value);
