@@ -104,8 +104,12 @@
 
         /* --- CHAT VIEW --- */
         #chat-view { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; scroll-behavior: smooth; }
-        .msg-row { display: flex; width: 100%; }
-        .msg-row.user { justify-content: flex-end; } .msg-row.ai { justify-content: flex-start; }
+        
+        /* ESTILO NUEVO PARA FILAS DE MENSAJES (Para acomodar la X) */
+        .msg-row { display: flex; width: 100%; align-items: flex-end; gap: 8px; } /* Añadido gap y align-items */
+        .msg-row.user { justify-content: flex-end; flex-direction: row; } 
+        .msg-row.ai { justify-content: flex-start; flex-direction: row-reverse; } /* Invertimos orden para que la X quede fuera */
+
         .bubble { max-width: 88%; padding: 12px 16px; border-radius: 20px; font-size: 0.95rem; line-height: 1.5; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .bubble.user { background: var(--bubble-user); color: #fff; border-bottom-right-radius: 4px; }
         .bubble.ai { background: var(--bubble-ai); color: #000; border-bottom-left-radius: 4px; border: 1px solid #e5e5e5; padding-right: 35px; }
@@ -113,7 +117,7 @@
         .bubble code { background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; color: #d63384; font-family: monospace; }
         .bubble pre { background: #222; color: #f8f8f2; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
         
-        /* Botón '+' de Captura */
+        /* Botón '+' de Captura (Dentro de la burbuja) */
         .add-btn {
             position: absolute; top: 8px; right: 8px;
             background: rgba(0,0,0,0.05); border: none; border-radius: 50%;
@@ -124,6 +128,15 @@
         }
         .add-btn:hover { background: #ddd; color: #000; }
         .add-btn.success { background: var(--accent-success) !important; color: white !important; transform: scale(1.1); }
+
+        /* Botón 'X' de Borrado (Fuera de la burbuja) */
+        .del-msg-btn {
+            width: 24px; height: 24px; border-radius: 50%; border: none;
+            background: transparent; color: #ccc; cursor: pointer;
+            font-size: 14px; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0;
+        }
+        .del-msg-btn:hover { background: #ffebee; color: var(--accent-danger); transform: scale(1.1); }
 
         /* Estilo Guion */
         pre code.language-screenplay {
@@ -237,25 +250,24 @@
     <script>
         const DEFAULT_PRESETS = [
             { id: 'assistant', name: '🤖 Assistant Pro', model: 'assistant-pro', prompt: 'ROLE: Senior Producer & Tech Expert. BEHAVIOR: Practical, wise, "The Fixer".', temp: 0.7, ctx: 20, len: 1024 },
-           { 
-    id: 'screenwriter', 
-    name: '🎬 Screenwriter Pro', 
-    model: 'screenwriter-pro', 
-    // CAMBIO CLAVE: Instrucciones más estrictas
-    prompt: 'ROLE: Hollywood Screenwriter. TASK: Write fictional scenes. DO NOT SEARCH. DO NOT USE RAG. PURE FICTION ONLY. \n\nFORMAT RULE: You MUST wrap the output in a markdown code block with the language "screenplay". \n\nExample:\n```screenplay\nINT. ROOM - NIGHT\n...text...\n```', 
-    temp: 0.9, // Subimos un poco la temperatura para más creatividad
-    ctx: 30, 
-    len: 3000,
-},
-           { 
-    id: 'writer', 
-    name: '✍️ Writer Pro', 
-    model: 'writer-pro', 
-    prompt: 'ROLE: You are an elite Modern Editor and Writer... (RESTO DEL PROMPT)...', 
-    temp: 0.6, 
-    ctx: 40, // Recordar 40 mensajes atrás (necesita buena memoria)
-    len: 4096 
-},
+            { 
+                id: 'screenwriter', 
+                name: '🎬 Screenwriter Pro', 
+                model: 'screenwriter-pro', 
+                prompt: 'ROLE: Hollywood Screenwriter. TASK: Write fictional scenes. DO NOT SEARCH. DO NOT USE RAG. PURE FICTION ONLY. \n\nFORMAT RULE: You MUST wrap the output in a markdown code block with the language "screenplay". \n\nExample:\n```screenplay\nINT. ROOM - NIGHT\n...text...\n```', 
+                temp: 0.9, 
+                ctx: 10, 
+                len: 3000 
+            },
+            { 
+                id: 'writer', 
+                name: '✍️ Writer Pro', 
+                model: 'writer-pro', 
+                prompt: 'ROLE: You are an elite Modern Editor and Writer. You believe in the power of simplicity.\n\nSTYLE GUIDE:\n1. CLARITY IS KING: Use short sentences.\n2. NO FLUFF: Delete adjectives unless vital.\n3. TONE: Sophisticated but accessible.\n4. VOICE: Active voice always.\n\nBEHAVIOR:\n- Rewrite messy text to be punchy.\n- Never lecture. Just write.', 
+                temp: 0.6, 
+                ctx: 40, 
+                len: 4096 
+            },
             { id: 'executive', name: '🦈 Executive Pro', model: 'executive-pro', prompt: 'ROLE: Ruthless Talent Agent. FOCUS: Leverage, Sales, Networking. TONE: Cold, direct.', temp: 0.5, ctx: 20, len: 2048 }
         ];
 
@@ -289,12 +301,9 @@
             const currentContent = projectArea.value;
             const sep = currentContent ? "\n\n---\n\n" : ""; 
             const newContent = currentContent + sep + text;
-            
             projectArea.value = newContent;
             localStorage.setItem('nx_project_board', newContent);
             updateStats();
-
-            // VISUAL FEEDBACK (No Alert)
             if(btnElement) {
                 btnElement.classList.add('success');
                 setTimeout(() => btnElement.classList.remove('success'), 1000);
@@ -336,7 +345,7 @@
             a.click();
         }
 
-        // --- BARRA RÁPIDA ---
+        // --- QUICK BAR ---
         function toggleQuickBar(save = true) {
             const isChecked = document.getElementById('cfg-show-quick').checked;
             quickBar.style.display = isChecked ? 'flex' : 'none';
@@ -358,7 +367,7 @@
             sep.style.width = '1px'; sep.style.height = '20px'; sep.style.background = '#ccc'; sep.style.margin = '0 5px';
             quickBar.appendChild(sep);
 
-        [{ code: 'EN', icon: '🇺🇸', rule: '[OUTPUT: ENGLISH]' }, { code: 'ES', icon: '🇪🇸', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN SPANISH. TRANSLATE ALL CONTENT.]' }, { code: 'PT', icon: '🇧🇷', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN PORTUGUESE.]' }, { code: 'IT', icon: '🇮🇹', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN ITALIAN.]' }].forEach(lang => {
+            [{ code: 'EN', icon: '🇺🇸', rule: '[OUTPUT: ENGLISH]' }, { code: 'ES', icon: '🇪🇸', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN SPANISH. TRANSLATE ALL CONTENT.]' }, { code: 'PT', icon: '🇧🇷', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN PORTUGUESE.]' }, { code: 'IT', icon: '🇮🇹', rule: '[SYSTEM REQUIREMENT: OUTPUT MUST BE IN ITALIAN.]' }].forEach(lang => {
                 const chip = document.createElement('div');
                 chip.className = 'q-chip lang'; 
                 if (activeLangCode === lang.code) chip.classList.add('active-lang');
@@ -527,30 +536,90 @@
             document.getElementById(id).addEventListener('change', saveActiveConfig);
         });
 
-        // --- CHAT ENGINE ---
+        // --- CHAT ENGINE & DELETION LOGIC ---
         function loadChatHistory() {
             const hist = localStorage.getItem('nx_history');
             if(hist) {
                 chatHistory = JSON.parse(hist);
-                chatHistory.forEach(msg => renderMessage(msg.role, msg.content));
-                scrollToBottom();
+                renderChat(); // USA LA NUEVA FUNCIÓN DE RENDERIZADO
             }
+        }
+
+        function deleteMessage(index) {
+            // ELIMINAR DE MEMORIA
+            chatHistory.splice(index, 1);
+            localStorage.setItem('nx_history', JSON.stringify(chatHistory));
+            // REDIBUJAR TODO
+            renderChat();
+        }
+
+        function renderChat() {
+            chatView.innerHTML = ''; // LIMPIAR VISUALMENTE
+            chatHistory.forEach((msg, index) => {
+                const row = document.createElement('div');
+                row.className = `msg-row ${msg.role === 'user' ? 'user' : 'ai'}`;
+                
+                // BOTÓN DE BORRAR (X)
+                const delBtn = document.createElement('button');
+                delBtn.className = 'del-msg-btn';
+                delBtn.textContent = '✕';
+                delBtn.title = 'Remove from memory';
+                delBtn.onclick = () => deleteMessage(index);
+
+                const bubble = document.createElement('div');
+                bubble.className = `bubble ${msg.role === 'user' ? 'user' : 'ai'}`;
+                
+                if (msg.role === 'assistant' || msg.role === 'ai') {
+                    // BOTÓN CAPTURA (+)
+                    const addBtn = document.createElement('button');
+                    addBtn.className = 'add-btn';
+                    addBtn.textContent = '+';
+                    addBtn.onclick = (e) => { e.stopPropagation(); addToProject(msg.content, e.target); };
+                    bubble.appendChild(addBtn);
+
+                    try { 
+                        const contentDiv = document.createElement('div');
+                        contentDiv.innerHTML = marked.parse(msg.content);
+                        bubble.appendChild(contentDiv);
+                    } catch (e) { bubble.textContent = msg.content; }
+                } else { 
+                    bubble.textContent = msg.content; 
+                }
+                
+                // ORDEN VISUAL: Si es user, burbuja primero. Si es AI, X primero.
+                if(msg.role === 'user') {
+                    row.appendChild(delBtn);
+                    row.appendChild(bubble);
+                } else {
+                    row.appendChild(bubble);
+                    row.appendChild(delBtn);
+                }
+                
+                chatView.appendChild(row);
+            });
+            scrollToBottom();
         }
 
         async function handleSend() {
             const text = inputField.value.trim();
             if(!text) return;
             inputField.value = '';
-            renderMessage('user', text);
-            sendBtn.disabled = true;
-            showTyping();
+            
+            // 1. AÑADIR A MEMORIA Y PINTAR
             chatHistory.push({ role: "user", content: text });
             localStorage.setItem('nx_history', JSON.stringify(chatHistory));
+            renderChat(); // PINTAR
+
+            sendBtn.disabled = true;
+            showTyping();
+
             const url = document.getElementById('cfg-url').value.replace(/\/$/, "");
             const token = document.getElementById('cfg-token').value;
             const model = document.getElementById('cfg-model').value;
             const systemMsg = { role: "system", content: document.getElementById('p-prompt').value };
             const limit = parseInt(document.getElementById('p-ctx').value);
+            
+            // FILTRADO DE MEMORIA
             let contextMessages = (limit === 0) ? [...chatHistory] : chatHistory.slice(-limit);
             const finalMessages = [systemMsg, ...contextMessages];
 
@@ -563,42 +632,25 @@
                 if(!response.ok) throw new Error(`API: ${response.status}`);
                 const data = await response.json();
                 const reply = (data.choices && data.choices[0].message) ? data.choices[0].message.content : "Error";
+                
                 removeTyping();
-                renderMessage('ai', reply);
+                
+                // 2. AÑADIR RESPUESTA A MEMORIA Y PINTAR
                 chatHistory.push({ role: "assistant", content: reply });
                 localStorage.setItem('nx_history', JSON.stringify(chatHistory));
+                renderChat(); // PINTAR DE NUEVO
+
             } catch (err) {
                 removeTyping();
-                renderMessage('ai', `⚠️ Error: ${err.message}`);
+                // Mensaje de error temporal (no se guarda en historial)
+                const errRow = document.createElement('div'); errRow.className='msg-row ai';
+                errRow.innerHTML = `<div class="bubble ai" style="color:red">⚠️ ${err.message}</div>`;
+                chatView.appendChild(errRow);
+                scrollToBottom();
             } finally {
                 sendBtn.disabled = false;
                 if(window.innerWidth > 768) inputField.focus();
             }
-        }
-
-        function renderMessage(role, text) {
-            const row = document.createElement('div');
-            row.className = `msg-row ${role === 'user' ? 'user' : 'ai'}`;
-            const bubble = document.createElement('div');
-            bubble.className = `bubble ${role === 'user' ? 'user' : 'ai'}`;
-            if (role === 'assistant' || role === 'ai') {
-                // INYECTAR BOTÓN +
-                const btn = document.createElement('button');
-                btn.className = 'add-btn';
-                btn.textContent = '+';
-                // PASAMOS "e.target" para hacer la animación
-                btn.onclick = (e) => { e.stopPropagation(); addToProject(text, e.target); };
-                bubble.appendChild(btn);
-
-                try { 
-                    const contentDiv = document.createElement('div');
-                    contentDiv.innerHTML = marked.parse(text);
-                    bubble.appendChild(contentDiv);
-                } catch (e) { bubble.textContent = text; }
-            } else { bubble.textContent = text; }
-            row.appendChild(bubble);
-            chatView.appendChild(row);
-            scrollToBottom();
         }
 
         function showTyping() {
