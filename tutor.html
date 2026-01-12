@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
@@ -32,7 +32,7 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 0 15px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
-        .app-title { font-weight: 700; letter-spacing: 1px; font-size: 1rem; }
+        .app-title { font-weight: 700; letter-spacing: 1px; font-size: 1rem; transition: color 0.2s; min-width: 150px; text-align: center; }
         .icon-btn {
             background: rgba(255,255,255,0.15); border: none; color: #fff;
             width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
@@ -116,6 +116,10 @@
         .bubble code { background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; color: #d63384; font-family: monospace; }
         .bubble pre { background: #222; color: #f8f8f2; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
         
+        /* Interactive Word Hover Style */
+        .hover-word { cursor: help; border-bottom: 1px dotted transparent; transition: all 0.2s; }
+        .hover-word:hover { background-color: rgba(255, 255, 0, 0.3); border-bottom-color: #888; }
+
         /* Botón '+' de Captura (Vocabulario) */
         .add-btn {
             position: absolute; top: 8px; right: 8px;
@@ -124,6 +128,7 @@
             font-size: 18px; line-height: 1; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
+            z-index: 5;
         }
         .add-btn:hover { background: #ddd; color: #000; }
         .add-btn.success { background: var(--accent-success) !important; color: white !important; transform: scale(1.1); }
@@ -159,9 +164,11 @@
 
     <div class="top-bar">
         <button class="icon-btn" onclick="toggleMenu('menu-sys')">⚙️</button>
-        <div class="app-title">LINGUA LAB</div>
+        <div class="app-title" id="app-title">LINGUA LAB</div>
         <div class="top-right-group">
-            <button class="icon-btn" onclick="toggleMenu('menu-project')">📓</button> <button class="icon-btn" onclick="toggleMenu('menu-persona')">🎓</button> </div>
+            <button class="icon-btn" onclick="toggleMenu('menu-project')">📓</button> 
+            <button class="icon-btn" onclick="toggleMenu('menu-persona')">🎓</button> 
+        </div>
     </div>
 
     <div id="quick-bar"></div>
@@ -249,7 +256,7 @@
                 name: '👩‍🏫 Grammar Tutor', 
                 model: 'gemma3:12b', 
                 prompt: 'ROLE: Expert Language Teacher.\n\nOBJECTIVE: Explain grammar, correct mistakes, and teach clearly.\n\nBEHAVIOR:\n1. If the user makes a mistake, correct it gently and explain WHY.\n2. Use simple examples.\n3. Create Markdown tables for verb conjugations.\n4. Be encouraging but rigorous with grammar rules.', 
-                temp: 0.3, // Bajo para precisión gramatical
+                temp: 0.3, 
                 ctx: 20, 
                 len: 2048 
             },
@@ -258,7 +265,7 @@
                 name: '🗣️ Casual Buddy', 
                 model: 'gemma3:12b', 
                 prompt: 'ROLE: A friendly native speaker.\n\nOBJECTIVE: Casual conversation practice.\n\nBEHAVIOR:\n1. Speak naturally using idioms, slang, and contractions.\n2. Do NOT act like a teacher. Do NOT correct every mistake unless it makes the sentence unintelligible.\n3. Keep the conversation flowing by asking follow-up questions.\n4. Be witty and engaging.', 
-                temp: 0.8, // Alto para variedad y naturalidad
+                temp: 0.8, 
                 ctx: 30, 
                 len: 2048 
             },
@@ -286,6 +293,10 @@
         let savedPresets = [];
         let currentConfig = { ...DEFAULT_PRESETS[0] }; 
         let activeLangCode = 'EN'; 
+        
+        // Header Element for Translation
+        const titleElement = document.getElementById('app-title');
+        const defaultTitle = "LINGUA LAB";
 
         const chatView = document.getElementById('chat-view');
         const inputField = document.getElementById('message-input');
@@ -301,20 +312,87 @@
             document.getElementById('cfg-show-quick').checked = showQuick;
             toggleQuickBar(false); 
             // Cargar "Study Notebook"
-            const savedProject = localStorage.getItem('nx_notebook_content'); // Nombre de variable cambiado
+            const savedProject = localStorage.getItem('nx_notebook_content'); 
             if(savedProject) {
                 projectArea.value = savedProject;
                 updateStats();
             }
         };
 
-        // --- NOTEBOOK FUNCTIONS (Antes Project) ---
+        // --- TRANSLATION LOGIC ---
+        async function fetchTranslation(text) {
+            // Limpiar puntuación simple para traducir mejor la palabra suelta
+            const cleanText = text.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+            if (!cleanText.trim()) return "";
+            
+            try {
+                // Uso de API pública de Google Translate
+                const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(cleanText)}`);
+                const data = await res.json();
+                return data[0][0][0];
+            } catch (e) {
+                console.error("Translation error", e);
+                return "";
+            }
+        }
+
+        function showHeaderTranslation(text) {
+            titleElement.textContent = text;
+            titleElement.style.color = '#34c759'; // Verde para indicar traducción
+        }
+
+        function restoreHeaderTitle() {
+            titleElement.textContent = defaultTitle;
+            titleElement.style.color = '#fff';
+        }
+
+        // Esta función envuelve cada palabra en un SPAN para detectar el hover
+        function makeWordsInteractive(element) {
+            const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+            const textNodes = [];
+            while(walk.nextNode()) textNodes.push(walk.currentNode);
+
+            textNodes.forEach(node => {
+                if (node.parentElement.tagName === 'CODE' || node.parentElement.tagName === 'PRE') return; // Ignorar bloques de código
+                
+                const text = node.nodeValue;
+                if (!text.trim()) return;
+
+                const fragment = document.createDocumentFragment();
+                const words = text.split(/(\s+)/); // Separar manteniendo espacios
+
+                words.forEach(part => {
+                    if (part.trim().length > 0) {
+                        const span = document.createElement('span');
+                        span.textContent = part;
+                        span.className = 'hover-word';
+                        
+                        span.onmouseenter = async () => {
+                            const trans = await fetchTranslation(part);
+                            if(trans) showHeaderTranslation(trans);
+                        };
+                        
+                        span.onmouseleave = () => {
+                            restoreHeaderTitle();
+                        };
+                        
+                        fragment.appendChild(span);
+                    } else {
+                        fragment.appendChild(document.createTextNode(part));
+                    }
+                });
+
+                node.parentNode.replaceChild(fragment, node);
+            });
+        }
+
+        // --- NOTEBOOK FUNCTIONS ---
         function addToProject(text, btnElement) {
             const currentContent = projectArea.value;
             const sep = currentContent ? "\n\n---\n\n" : ""; 
             const newContent = currentContent + sep + text;
             projectArea.value = newContent;
-            localStorage.setItem('nx_notebook_content', newContent); // Nombre de variable cambiado
+            localStorage.setItem('nx_notebook_content', newContent); 
             updateStats();
             if(btnElement) {
                 btnElement.classList.add('success');
@@ -329,7 +407,6 @@
 
         function updateStats() {
             const text = projectArea.value || "";
-            // Contamos "Items" basados en separadores o líneas, más útil para vocabulario
             const count = text.split("---").length;
             document.getElementById('word-count').innerText = `Entries: ${text.trim() === '' ? 0 : count}`;
         }
@@ -367,7 +444,6 @@
 
         function renderQuickBar() {
             quickBar.innerHTML = '';
-            // Render Presets
             [...DEFAULT_PRESETS, ...savedPresets].forEach(p => {
                 const chip = document.createElement('div');
                 chip.className = 'q-chip';
@@ -381,7 +457,6 @@
             sep.style.width = '1px'; sep.style.height = '20px'; sep.style.background = '#ccc'; sep.style.margin = '0 5px';
             quickBar.appendChild(sep);
 
-            // Render Languages (Updated Instructions)
             [
                 { code: 'EN', icon: '🇺🇸', rule: '[INSTRUCTION: SPEAK IN ENGLISH ONLY. If correcting, explain in English.]' },
                 { code: 'ES', icon: '🇪🇸', rule: '[INSTRUCTION: SPEAK IN SPANISH ONLY. EXPLICAR TODO EN ESPAÑOL.]' },
@@ -400,7 +475,6 @@
 
         function setLanguage(rule, code) {
             const promptArea = document.getElementById('p-prompt');
-            // Remove previous language instructions to avoid conflicts
             let txt = promptArea.value.replace(/\[INSTRUCTION:.*?\]/g, "").trim();
             promptArea.value = txt + "\n\n" + rule;
             activeLangCode = code; 
@@ -411,7 +485,7 @@
         function activateQuickPreset(id) {
             document.getElementById('preset-select').value = id;
             loadPresetToUI();
-            activeLangCode = 'EN'; // Reset lang on preset change usually safer
+            activeLangCode = 'EN'; 
             renderQuickBar();
         }
 
@@ -531,7 +605,7 @@
             currentConfig = { ...DEFAULT_PRESETS[0] };
             updateUIFromConfig(currentConfig);
             saveActiveConfig();
-            document.getElementById('preset-select').value = 'tutor'; // Default ID
+            document.getElementById('preset-select').value = 'tutor'; 
             renderQuickBar();
         }
 
@@ -582,7 +656,7 @@
                 bubble.className = `bubble ${msg.role === 'user' ? 'user' : 'ai'}`;
                 
                 if (msg.role === 'assistant' || msg.role === 'ai') {
-                    // Botón + (Ahora "Add to Notebook")
+                    // Botón + (Add to Notebook)
                     const addBtn = document.createElement('button');
                     addBtn.className = 'add-btn';
                     addBtn.textContent = '+';
@@ -593,10 +667,18 @@
                     try { 
                         const contentDiv = document.createElement('div');
                         contentDiv.innerHTML = marked.parse(msg.content);
+                        
+                        // APLICAMOS LA MAGIA DE LA TRADUCCIÓN AQUÍ
+                        makeWordsInteractive(contentDiv);
+                        
                         bubble.appendChild(contentDiv);
                     } catch (e) { bubble.textContent = msg.content; }
                 } else { 
-                    bubble.textContent = msg.content; 
+                    // Para el usuario también aplicamos interactividad
+                    const contentDiv = document.createElement('div');
+                    contentDiv.textContent = msg.content;
+                    makeWordsInteractive(contentDiv);
+                    bubble.appendChild(contentDiv);
                 }
                 
                 if(msg.role === 'user') {
