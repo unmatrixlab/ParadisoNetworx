@@ -52,6 +52,7 @@
         
         /* INPUT */
         .bottom-bar { background: #fff; padding: 15px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; }
+        .bottom-bar:disabled { opacity: 0.5; }
         #message-input { flex: 1; padding: 12px 16px; border-radius: 25px; border: 1px solid #d1d5db; font-size: 16px; outline: none; }
         #message-input:focus { border-color: var(--accent); }
         #send-btn { width: 48px; height: 48px; border-radius: 50%; border: none; background: var(--accent); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
@@ -86,7 +87,7 @@
         const API_URL = "https://ai.paradisonetworx.com"; 
         const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjA4YTE5ZDI0LTAzMTktNDQ5ZS1hNTc0LWU3ZGZiMzRhYWUwZSIsImV4cCI6MTc3MDEzNjE5NiwianRpIjoiZWE4NDAyNWYtOTQwNi00MGVkLTg4MDAtNWJkYjIzZTcyODdhIn0.6DwQosJkJEdCPJbBWBfTsD1KmoUCSpZx0mPmeXCVX9U";
         
-        // MODELO HARDCODED (Oculto al usuario)
+        // MODELO HARDCODED
         const MODEL_ID = 'experto-mistral';
 
         let currentLang = 'ES';
@@ -105,13 +106,9 @@
 
         function renderChat() {
             chatView.innerHTML = '';
-            if (chatHistory.length === 0) {
-                const intro = document.createElement('div');
-                intro.style.textAlign='center'; intro.style.color='#aaa'; intro.style.marginTop='20px'; intro.style.fontSize='0.9rem';
-                intro.innerHTML = (currentLang==='ES') ? "Experto listo. Haz una pregunta." : "Expert ready. Ask a question.";
-                chatView.appendChild(intro);
-                return;
-            }
+            // Eliminé el mensaje de bienvenida estático para que no choque con la pregunta automática
+            if (chatHistory.length === 0) return;
+
             chatHistory.forEach(msg => {
                 if(msg.role === 'system') return;
                 const row = document.createElement('div'); row.className = `msg-row ${msg.role === 'user' ? 'user' : 'ai'}`;
@@ -124,10 +121,18 @@
             chatView.scrollTop = chatView.scrollHeight;
         }
 
-        async function handleSend() {
-            const text = inputField.value.trim();
+        // Modificado para aceptar texto automático
+        async function handleSend(customText = null) {
+            // Si customText es un evento (click) o null, usamos el input. Si es string, usamos el string.
+            const isAuto = (typeof customText === 'string');
+            const text = isAuto ? customText : inputField.value.trim();
+            
             if(!text) return;
-            inputField.value = ''; sendBtn.disabled = true;
+            
+            // Solo limpiamos el input si fue manual
+            if(!isAuto) inputField.value = ''; 
+            
+            sendBtn.disabled = true;
 
             chatHistory.push({ role: "user", content: text });
             renderChat();
@@ -139,7 +144,7 @@
 
             const messagesPayload = [
                 { role: "system", content: (currentLang === 'ES' ? sysPromptES : sysPromptEN) },
-                ...chatHistory.slice(-6) // Contexto corto para forzar enfoque en el doc
+                ...chatHistory.slice(-6)
             ];
 
             try {
@@ -149,7 +154,7 @@
                     body: JSON.stringify({
                         model: MODEL_ID,
                         messages: messagesPayload,
-                        temperature: 0.1, // Muy bajo para máxima precisión
+                        temperature: 0.1,
                         max_tokens: 4096
                     })
                 });
@@ -164,7 +169,7 @@
                 removeTyping();
                 chatHistory.push({ role: "assistant", content: `Error: ${err.message}` });
                 renderChat();
-            } finally { sendBtn.disabled = false; inputField.focus(); }
+            } finally { sendBtn.disabled = false; if(!isAuto) inputField.focus(); }
         }
 
         function showTyping() {
@@ -174,9 +179,19 @@
         }
         function removeTyping() { const e=document.getElementById('typing'); if(e) e.remove(); }
 
-        sendBtn.addEventListener('click', handleSend);
-        inputField.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSend(); });
-        renderChat();
+        sendBtn.addEventListener('click', (e) => handleSend(null));
+        inputField.addEventListener('keypress', (e) => { if(e.key === 'Enter') handleSend(null); });
+        
+        // --- AUTO-PREGUNTA AL INICIAR ---
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const autoQuestion = (currentLang === 'ES') 
+                    ? "Prepara una lista de preguntas importantes que crees que debería hacer sobre este documento para entender sus riesgos."
+                    : "Prepare a list of important questions you think I should ask about this document to understand its risks.";
+                handleSend(autoQuestion);
+            }, 800); // Pequeño retraso para efecto visual
+        });
+
     </script>
 </body>
 </html>
