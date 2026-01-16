@@ -128,11 +128,6 @@
         .bubble code { background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; color: #d63384; font-family: monospace; }
         .bubble pre { background: #222; color: #f8f8f2; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
         
-        /* Imagen dentro del chat */
-        .chat-img { max-width: 100%; border-radius: 12px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.2); display: block; }
-        .bubble.user .chat-img { border-color: rgba(255,255,255,0.3); }
-        .bubble.ai .chat-img { border-color: #eee; }
-
         /* Interactive Word Hover Style */
         .hover-word { cursor: help; border-bottom: 1px dotted transparent; transition: all 0.2s; }
         .hover-word:hover { background-color: rgba(255, 255, 0, 0.3); border-bottom-color: #888; }
@@ -169,32 +164,11 @@
         .dot:nth-child(1) { animation-delay: -0.32s; } .dot:nth-child(2) { animation-delay: -0.16s; }
         @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
 
-        /* Input Bar & Image Upload */
-        .bottom-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #e0e0e0; padding: 10px; display: flex; align-items: flex-end; gap: 8px; position: relative; }
+        /* Input Bar */
+        .bottom-bar { flex: 0 0 auto; background: #fff; border-top: 1px solid #e0e0e0; padding: 10px; display: flex; align-items: flex-end; gap: 10px; }
         #message-input { flex: 1; padding: 12px 15px; border-radius: 24px; border: 1px solid #ddd; background: #f9f9f9; font-size: 16px; outline: none; }
         #message-input:focus { border-color: var(--accent); background: #fff; }
         #send-btn { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--accent); color: white; cursor: pointer; flex-shrink: 0; }
-        
-        .attach-btn {
-            width: 40px; height: 40px; border-radius: 50%; border: none; background: transparent; 
-            color: #666; cursor: pointer; font-size: 1.3rem; display: flex; align-items: center; justify-content: center;
-            transition: background 0.2s;
-        }
-        .attach-btn:hover { background: #f0f0f0; color: #333; }
-
-        /* Preview de Imagen */
-        .preview-box {
-            display: none; position: absolute; bottom: 70px; left: 10px;
-            background: #fff; padding: 6px; border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 1px solid #eee;
-            animation: slideIn 0.2s;
-        }
-        .preview-img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; display: block; }
-        .remove-img {
-            position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
-            background: #ff3b30; color: white; border-radius: 50%; border: none;
-            font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        }
 
     </style>
 </head>
@@ -291,13 +265,6 @@
     <div id="chat-view"></div>
 
     <div class="bottom-bar">
-        <input type="file" id="img-upload" accept="image/*" style="display:none">
-        <div class="preview-box" id="img-preview">
-            <img id="preview-thumb" class="preview-img">
-            <button class="remove-img" onclick="clearImageSelection()">×</button>
-        </div>
-        <button class="attach-btn" onclick="document.getElementById('img-upload').click()" title="Attach Image">📷</button>
-        
         <input type="text" id="message-input" placeholder="Type to practice..." autocomplete="off">
         <button id="send-btn">➤</button>
     </div>
@@ -347,8 +314,7 @@
         let savedPresets = [];
         let currentConfig = { ...DEFAULT_PRESETS[0] }; 
         let activeLangCode = 'EN'; 
-        let currentImageBase64 = null; // Variable para almacenar imagen temporal
-
+        
         // Elementos DOM
         const titleElement = document.getElementById('app-title');
         const defaultTitle = "LINGUA LAB";
@@ -381,37 +347,7 @@
                     qb.scrollLeft += evt.deltaY;
                 }
             });
-
-            // MODIFICACIÓN IMAGEN: Listener
-            document.getElementById('img-upload').addEventListener('change', handleImageSelect);
         };
-
-        // --- LÓGICA DE IMAGEN ---
-        function handleImageSelect(e) {
-            const file = e.target.files[0];
-            if(!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                // evt.target.result es DataURL (data:image/jpeg;base64,.....)
-                // Para enviar a Ollama necesitamos solo la parte base64
-                currentImageBase64 = evt.target.result; 
-                
-                // Mostrar preview
-                document.getElementById('preview-thumb').src = currentImageBase64;
-                document.getElementById('img-preview').style.display = 'block';
-                
-                // Enfocar input para añadir comentario
-                inputField.focus();
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function clearImageSelection() {
-            currentImageBase64 = null;
-            document.getElementById('img-upload').value = '';
-            document.getElementById('img-preview').style.display = 'none';
-        }
 
         // --- LÓGICA DE TRADUCCIÓN ---
         async function fetchTranslation(text) {
@@ -739,20 +675,15 @@
 
         // --- CHAT LOGIC ---
         function loadChatHistory() {
-            try {
-                const h = localStorage.getItem('nx_history');
-                if(h) {
-                    chatHistory = JSON.parse(h);
-                    chatHistory.forEach(msg => appendMessage(msg.role, msg.content, false, msg.image));
-                    chatView.scrollTop = chatView.scrollHeight;
-                }
-            } catch (e) {
-                console.error("Error loading history", e);
-                localStorage.removeItem('nx_history'); // Corrupt data reset
+            const h = localStorage.getItem('nx_history');
+            if(h) {
+                chatHistory = JSON.parse(h);
+                chatHistory.forEach(msg => appendMessage(msg.role, msg.content, false));
+                chatView.scrollTop = chatView.scrollHeight;
             }
         }
 
-        function appendMessage(role, text, save = true, imageSrc = null) {
+        function appendMessage(role, text, save = true) {
             const row = document.createElement('div');
             row.className = `msg-row ${role}`;
             
@@ -762,29 +693,17 @@
             delBtn.innerHTML = '×';
             delBtn.onclick = () => {
                 row.remove();
+                // Remove from memory logic simplificada (re-save all)
                 chatHistory = chatHistory.filter(m => m.content !== text);
-                try {
-                    localStorage.setItem('nx_history', JSON.stringify(chatHistory));
-                } catch(e) { console.log("Storage full"); }
+                localStorage.setItem('nx_history', JSON.stringify(chatHistory));
             };
 
             const bubble = document.createElement('div');
             bubble.className = `bubble ${role}`;
             
-            // RENDER IMAGE IF PRESENT
-            if (imageSrc) {
-                const img = document.createElement('img');
-                img.src = imageSrc;
-                img.className = 'chat-img';
-                bubble.appendChild(img);
-            }
-
             // Parse Markdown
-            // Create a wrapper for text
-            const textDiv = document.createElement('div');
-            textDiv.innerHTML = marked.parse(text);
-            makeWordsInteractive(textDiv); // Interactive Words
-            bubble.appendChild(textDiv);
+            bubble.innerHTML = marked.parse(text);
+            makeWordsInteractive(bubble); // Interactive Words
 
             if(role === 'ai') {
                 const addBtn = document.createElement('button');
@@ -803,26 +722,17 @@
             chatView.scrollTop = chatView.scrollHeight;
 
             if(save) {
-                chatHistory.push({ role, content: text, image: imageSrc });
-                try {
-                    localStorage.setItem('nx_history', JSON.stringify(chatHistory));
-                } catch (e) {
-                    // Si falla por QuotaExceeded (imágenes muy grandes), no crasheamos
-                    console.warn("History storage full, message visible but not saved.");
-                }
+                chatHistory.push({ role, content: text });
+                localStorage.setItem('nx_history', JSON.stringify(chatHistory));
             }
         }
 
         async function sendMessage() {
             const text = inputField.value.trim();
-            const imgToSend = currentImageBase64; // Capturar referencia local
-
-            if(!text && !imgToSend) return;
+            if(!text) return;
             
             inputField.value = '';
-            clearImageSelection(); // Limpiar UI inmediatamente
-            
-            appendMessage('user', text, true, imgToSend);
+            appendMessage('user', text);
             
             // Typing Indicator
             const typing = document.createElement('div');
@@ -839,29 +749,14 @@
             
             // Construir historial limitado
             let apiMsgs = [{ role: "system", content: sysPrompt }];
-            
-            // Filtrar historial para no enviar imágenes base64 muy viejas si la API no lo soporta bien en historial
-            // (Aquí enviamos todo el historial reciente, cuidado con el tamaño)
             const historyToSend = ctxLimit === 0 ? chatHistory : chatHistory.slice(-ctxLimit);
-            
-            // Mapear historial al formato de API (limpiando propiedades extras de UI)
-            const cleanHistory = historyToSend.map(msg => {
-                const m = { role: msg.role, content: msg.content };
-                // Si el mensaje del historial tenía imagen, la incluimos si es reciente
-                // NOTA: Para modelos vision, el formato suele ser images: [base64]
-                if (msg.image && msg.image.startsWith('data:image')) {
-                    // Extraer solo el base64 sin el header para la API de Ollama
-                    m.images = [msg.image.split(',')[1]]; 
-                }
-                return m;
-            });
-
-            apiMsgs = apiMsgs.concat(cleanHistory);
+            apiMsgs = apiMsgs.concat(historyToSend);
 
             const url = document.getElementById('cfg-url').value;
             const token = document.getElementById('cfg-token').value;
 
             try {
+                // Simulación de endpoint compatible con OpenAI/Ollama
                 const res = await fetch(`${url}/api/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -883,7 +778,7 @@
                 appendMessage('ai', aiText);
 
             } catch (err) {
-                if(document.body.contains(typing)) chatView.removeChild(typing);
+                chatView.removeChild(typing);
                 appendMessage('ai', `**Error:** Could not connect to AI.\nCheck URL/Token in settings.\n_Details: ${err.message}_`);
             }
         }
