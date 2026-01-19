@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibrador Universal (Porcentajes)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
+        canvas { border: 2px solid #334155; box-shadow: 0 0 20px rgba(0,255,255,0.1); }
+        .btn-mode.active { border-color: white; box-shadow: 0 0 10px currentColor; }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+    <div class="max-w-4xl w-full">
+        <h1 class="text-2xl font-bold text-cyan-400 text-center mb-4">📡 CALIBRADOR RELATIVO (V2)</h1>
+
+        <div class="bg-slate-800 p-4 rounded-xl flex flex-wrap gap-4 justify-between items-center mb-4 shadow-lg">
+            <label class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded cursor-pointer font-bold text-sm">
+                📂 1. SUBIR FOTO
+                <input type="file" id="imgInput" accept="image/*" class="hidden">
+            </label>
+
+            <div class="flex gap-2">
+                <button onclick="setMode('zona', 'lime')" id="btnPos" class="btn-mode active bg-green-900 text-green-300 border border-green-700 px-3 py-1 rounded font-bold text-sm">ALARMA</button>
+                <button onclick="setMode('nozona', 'red')" id="btnNeg" class="btn-mode bg-red-900 text-red-300 border border-red-700 px-3 py-1 rounded font-bold text-sm">IGNORAR</button>
+            </div>
+
+            <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded">
+                <span class="text-slate-400 text-xs">NUM:</span>
+                <select id="zoneId" class="bg-transparent text-white font-bold outline-none">
+                    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="relative bg-black rounded-lg overflow-hidden border border-slate-700 shadow-2xl">
+            <p id="placeholder" class="absolute inset-0 flex items-center justify-center text-slate-500">Sube la foto que te envió el Bot...</p>
+            <canvas id="canvas" class="w-full h-auto block"></canvas>
+        </div>
+
+        <div class="mt-4 bg-black border border-cyan-900 rounded p-4 relative">
+            <p class="text-cyan-500 text-xs font-bold mb-1">COPIA Y PEGA EN TELEGRAM:</p>
+            <code id="output" class="text-sm font-mono text-white break-all">...</code>
+            <button onclick="copyText()" class="absolute top-4 right-4 bg-cyan-700 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs font-bold">COPIAR</button>
+        </div>
+        <p class="text-center mt-2 text-slate-500 text-xs">Usa <button onclick="reset()" class="text-red-400 underline">Deshacer</button> si te equivocas.</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let img = new Image();
+        let points = [];
+        let prefix = '/zona';
+        let color = 'lime';
+
+        document.getElementById('imgInput').addEventListener('change', e => {
+            if(e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    img.onload = () => {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        points = [];
+                        draw();
+                        document.getElementById('placeholder').style.display = 'none';
+                    }
+                    img.src = ev.target.result;
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        canvas.addEventListener('mousedown', e => {
+            if(points.length >= 4) points = [];
+            const rect = canvas.getBoundingClientRect();
+            // Calcular coordenadas reales en la imagen
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            points.push({x, y});
+            draw();
+            generate();
+        });
+
+        function draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            if(img.src) ctx.drawImage(img,0,0);
+            
+            if(points.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                points.forEach(p => ctx.lineTo(p.x, p.y));
+                if(points.length === 4) ctx.closePath();
+                ctx.lineWidth = Math.max(2, canvas.width/500);
+                ctx.strokeStyle = color;
+                ctx.stroke();
+                
+                points.forEach((p,i) => {
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, Math.max(3, canvas.width/200), 0, Math.PI*2);
+                    ctx.fill();
+                });
+            }
+        }
+
+        function generate() {
+            if(points.length < 4) { document.getElementById('output').textContent = "Marca 4 puntos..."; return; }
+            
+            // LA MAGIA: Convertir a Porcentajes (0.0 a 1.0)
+            // Limitamos a 4 decimales para que no sea un chorro de números
+            const coords = points.map(p => {
+                let px = (p.x / canvas.width).toFixed(4);
+                let py = (p.y / canvas.height).toFixed(4);
+                return `${px} ${py}`;
+            }).join(' ');
+
+            const id = document.getElementById('zoneId').value;
+            document.getElementById('output').textContent = `${prefix}${id} ${coords}`;
+        }
+
+        function setMode(m, c) {
+            prefix = '/' + m; color = c; points = []; draw();
+            document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active','border-white'));
+            document.getElementById(m === 'zona' ? 'btnPos' : 'btnNeg').classList.add('active');
+        }
+
+        function reset() { points = []; draw(); document.getElementById('output').textContent = "..."; }
+        function copyText() { navigator.clipboard.writeText(document.getElementById('output').textContent); alert("Copiado!"); }
+    </script>
+</body>
+</html>
