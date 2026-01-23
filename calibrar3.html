@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calibrador V3: Píxeles Reales</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
+        canvas { border: 2px solid #334155; cursor: crosshair; }
+        
+        /* Estilos compartidos para Indicadores y Botones de Zona */
+        .btn-style { transition: all 0.2s; border-width: 1px; }
+        
+        /* Estilo Activo (Iluminado) */
+        .active-green { 
+            background-color: rgba(22, 101, 52, 0.5); 
+            color: #4ade80; 
+            border-color: #f0fdf4; 
+            box-shadow: 0 0 15px #4ade80;
+            transform: scale(1.05);
+        }
+        
+        .active-red { 
+            background-color: rgba(127, 29, 29, 0.5); 
+            color: #f87171; 
+            border-color: #fef2f2; 
+            box-shadow: 0 0 15px #f87171;
+            transform: scale(1.05);
+        }
+
+        /* Estilo Inactivo */
+        .inactive-green { background-color: transparent; color: #166534; border-color: #166534; opacity: 0.6; }
+        .inactive-red { background-color: transparent; color: #7f1d1d; border-color: #7f1d1d; opacity: 0.6; }
+
+        /* Indicador de "Tiene Datos" */
+        .has-data-green { background-color: rgba(74, 222, 128, 0.1); color: #4ade80; border-color: #4ade80; box-shadow: 0 0 5px #4ade80; opacity: 1; }
+        .has-data-red { background-color: rgba(248, 113, 113, 0.1); color: #f87171; border-color: #f87171; box-shadow: 0 0 5px #f87171; opacity: 1; }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
+
+    <div class="max-w-5xl w-full">
+        <div class="flex justify-between items-end mb-4 border-b border-slate-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-cyan-400">📡 CALIBRADOR DE ZONAS (V3)</h1>
+                <p class="text-slate-400 text-xs">Genera coordenadas reales para cámara 4K.</p>
+            </div>
+            
+            <div class="flex gap-2 bg-slate-800 p-2 rounded text-xs">
+                <div class="flex flex-col">
+                    <span class="text-slate-500 font-bold">ANCHO REAL (CAM):</span>
+                    <input type="number" id="realW" value="3840" class="bg-black text-cyan-300 border border-slate-600 rounded px-1 w-20 text-center" onchange="draw()">
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-slate-500 font-bold">ALTO REAL (CAM):</span>
+                    <input type="number" id="realH" value="2160" class="bg-black text-cyan-300 border border-slate-600 rounded px-1 w-20 text-center" onchange="draw()">
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-4 rounded-xl mb-4 shadow-lg border border-slate-700">
+            <div class="flex flex-wrap gap-4 justify-between items-center mb-4">
+                <label class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded font-bold cursor-pointer text-sm shadow-lg hover:shadow-blue-500/50 transition-all">
+                    📂 1. SUBIR FOTO
+                    <input type="file" id="imgInput" accept="image/*" class="hidden">
+                </label>
+
+                <div class="flex gap-3">
+                    <div id="indicatorAlarm" class="btn-style px-4 py-2 rounded font-bold text-sm flex items-center gap-2 cursor-default transition-all duration-300 inactive-green">
+                        🛡️ ALARMA (1-4)
+                    </div>
+                    <div id="indicatorIgnore" class="btn-style px-4 py-2 rounded font-bold text-sm flex items-center gap-2 cursor-default transition-all duration-300 inactive-red">
+                        ⛔ IGNORAR (5-8)
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-slate-700 pt-3">
+                <span class="text-slate-400 text-xs font-bold block mb-2 uppercase tracking-widest">Seleccionar Zona:</span>
+                <div id="zoneButtonsContainer" class="flex gap-2 flex-wrap items-center"></div>
+            </div>
+        </div>
+
+        <div class="relative bg-black rounded-lg overflow-hidden border-2 border-slate-700 shadow-2xl">
+            <p id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 animate-pulse">
+                <span>⬆ Sube la foto que te envió el Bot en Telegram</span>
+                <span class="text-xs mt-2 text-slate-600">(No importa si está borrosa, el sistema la corregirá)</span>
+            </p>
+            <canvas id="canvas" class="w-full h-auto block"></canvas>
+            <div id="coordsInfo" class="absolute bottom-2 left-2 bg-black/80 text-cyan-400 text-xs px-2 py-1 rounded hidden font-mono">X: 0 Y: 0</div>
+        </div>
+
+        <div class="mt-4 bg-slate-900 border border-slate-700 rounded-lg p-4 relative">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-2 mb-3">
+                <h3 class="text-cyan-500 text-xs font-bold uppercase tracking-widest">Lista de Zonas Configuradas:</h3>
+                <button onclick="resetAll()" class="text-red-500 hover:text-red-400 text-xs font-bold border border-red-900 bg-red-900/20 px-3 py-1 rounded hover:bg-red-900/40 transition-colors flex items-center gap-1 shadow-md">
+                    🗑️ RESET TOTAL
+                </button>
+            </div>
+            
+            <div id="copyListContainer" class="flex flex-col gap-2">
+                <p class="text-slate-600 text-sm italic text-center py-2">Dibuja una zona para ver los códigos aquí...</p>
+            </div>
+
+            <div id="copyAllContainer" class="hidden mt-4 pt-4 border-t border-slate-700">
+                <button onclick="copyAllData()" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded font-bold text-sm shadow-lg transition-all border border-slate-500 flex justify-center items-center gap-2">
+                    📄 COPIAR TODAS (SEPARADAS POR COMA)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const coordsInfo = document.getElementById('coordsInfo');
+        let img = new Image();
+        
+        // ESTADO
+        let points = []; 
+        let currentZoneIndex = 1; 
+        let currentMode = 'zona'; 
+        let currentColor = '#4ade80';
+        
+        // ESTADO DE ARRASTRE (DRAG)
+        let dragTarget = null; // { mode, index, pointIndex }
+
+        let savedData = {
+            'zona': {},   
+            'nozona': {}  
+        };
+
+        function init() { selectZone(1); }
+
+        function getRealDims() {
+            return {
+                w: parseInt(document.getElementById('realW').value) || 3840,
+                h: parseInt(document.getElementById('realH').value) || 2160
+            };
+        }
+
+        // --- GESTION DE ZONAS Y UI ---
+        function selectZone(index) {
+            currentZoneIndex = index;
+            points = []; 
+            if (index <= 4) {
+                currentMode = 'zona'; currentColor = '#4ade80'; updateIndicators(true);
+            } else {
+                currentMode = 'nozona'; currentColor = '#f87171'; updateIndicators(false);
+            }
+            renderZoneButtons();
+            draw();
+        }
+
+        function updateIndicators(isAlarm) {
+            const indAlarm = document.getElementById('indicatorAlarm');
+            const indIgnore = document.getElementById('indicatorIgnore');
+            indAlarm.className = "btn-style px-4 py-2 rounded font-bold text-sm flex items-center gap-2 cursor-default transition-all duration-300";
+            indIgnore.className = "btn-style px-4 py-2 rounded font-bold text-sm flex items-center gap-2 cursor-default transition-all duration-300";
+
+            if (isAlarm) { indAlarm.classList.add('active-green'); indIgnore.classList.add('inactive-red'); } 
+            else { indAlarm.classList.add('inactive-green'); indIgnore.classList.add('active-red'); }
+        }
+
+        function renderZoneButtons() {
+            const container = document.getElementById('zoneButtonsContainer');
+            container.innerHTML = '';
+            for (let i = 1; i <= 8; i++) {
+                const btn = document.createElement('button');
+                btn.innerText = i;
+                const isAlarmGroup = i <= 4;
+                const modeKey = isAlarmGroup ? 'zona' : 'nozona';
+                const hasData = savedData[modeKey][i] !== undefined;
+                const isActive = i === currentZoneIndex;
+                let classes = "btn-style w-10 h-10 rounded font-bold text-sm flex items-center justify-center ";
+
+                if (isActive) classes += isAlarmGroup ? "active-green" : "active-red";
+                else if (hasData) classes += isAlarmGroup ? "has-data-green" : "has-data-red";
+                else classes += isAlarmGroup ? "inactive-green" : "inactive-red";
+
+                btn.className = classes;
+                btn.onclick = () => selectZone(i);
+                if (i === 5) { const sep = document.createElement('div'); sep.className = "w-px h-8 bg-slate-600 mx-2"; container.appendChild(sep); }
+                container.appendChild(btn);
+            }
+        }
+
+        // --- LOGICA DE CANVAS (MOUSE) ---
+        
+        // 1. HELPER: Detectar si el mouse está sobre un vértice
+        function getHoveredVertex(mouseX, mouseY) {
+            // Solo permitir editar si NO estamos dibujando una zona nueva en este momento
+            if (points.length > 0) return null;
+
+            const real = getRealDims();
+            const threshold = 10; // Distancia en pixeles para detectar click
+
+            // Revisar todas las zonas guardadas
+            for(let mode of ['zona', 'nozona']) {
+                for(let i = 1; i <= 8; i++) {
+                    if(savedData[mode][i]) {
+                        const parts = savedData[mode][i].split(' ');
+                        const rawCoords = parts.slice(1);
+                        
+                        // Revisar los 4 vertices
+                        for(let k=0; k<rawCoords.length; k+=2) {
+                            // Convertir Real -> Canvas
+                            const rX = parseInt(rawCoords[k]);
+                            const rY = parseInt(rawCoords[k+1]);
+                            const cX = (rX / real.w) * canvas.width;
+                            const cY = (rY / real.h) * canvas.height;
+
+                            // Calcular distancia
+                            const dist = Math.sqrt(Math.pow(mouseX - cX, 2) + Math.pow(mouseY - cY, 2));
+                            if(dist < threshold) {
+                                return { mode: mode, index: i, pointIndex: k }; // k es el indice en el array de coordenadas
+                            }
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 2. MOUSE DOWN (Dibujar o Empezar Arrastre)
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+
+            // A) Verificar si estamos haciendo click en un vertice existente (EDITAR)
+            const hovered = getHoveredVertex(mouseX, mouseY);
+            if(hovered) {
+                dragTarget = hovered;
+                return; // Detener flujo, entramos en modo arrastre
+            }
+
+            // B) Si no estamos editando, estamos dibujando
+            
+            // LOGICA REQ 1: Si es el primer punto, borrar zona vieja si existe
+            if(points.length === 0) {
+                if(savedData[currentMode][currentZoneIndex]) {
+                    delete savedData[currentMode][currentZoneIndex];
+                    renderCopyList();
+                    renderZoneButtons();
+                    draw(); // Limpia visualmente el rectangulo viejo
+                }
+            }
+
+            // Verificar limite de puntos
+            if(points.length >= 4) points = []; 
+
+            points.push({ x: mouseX, y: mouseY });
+            draw();
+            
+            if(points.length === 4) saveCurrentZoneData();
+        });
+
+        // 3. MOUSE MOVE (Mover cursor, Arrastrar vertice, o Mostrar coords)
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            const real = getRealDims();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const mouseX = (e.clientX - rect.left) * scaleX;
+            const mouseY = (e.clientY - rect.top) * scaleY;
+            
+            const finalX = Math.round((mouseX / canvas.width) * real.w);
+            const finalY = Math.round((mouseY / canvas.height) * real.h);
+
+            coordsInfo.style.display = 'block';
+            coordsInfo.textContent = `X: ${Math.max(0, finalX)} Y: ${Math.max(0, finalY)}`;
+
+            // A) Si estamos arrastrando (DRAGGING)
+            if(dragTarget) {
+                // Actualizar dato en memoria directo
+                const mode = dragTarget.mode;
+                const idx = dragTarget.index;
+                const pIdx = dragTarget.pointIndex; // indice en el string (x)
+
+                // Obtener array actual
+                let parts = savedData[mode][idx].split(' ');
+                // [comando, x1, y1, x2, y2...]
+                
+                // Actualizar X e Y en el array (sumando 1 porque el 0 es el comando)
+                parts[pIdx + 1] = Math.max(0, finalX); // X
+                parts[pIdx + 2] = Math.max(0, finalY); // Y
+
+                // Guardar
+                savedData[mode][idx] = parts.join(' ');
+                
+                // Redibujar todo
+                renderCopyList();
+                draw();
+                return;
+            }
+
+            // B) Si no arrastramos, cambiar cursor si pasamos sobre vertice (LOGICA REQ 2)
+            const hover = getHoveredVertex(mouseX, mouseY);
+            canvas.style.cursor = hover ? 'pointer' : 'crosshair';
+        });
+
+        // 4. MOUSE UP (Terminar Arrastre)
+        window.addEventListener('mouseup', () => {
+            if(dragTarget) {
+                dragTarget = null;
+                // Al soltar, nos aseguramos que la lista y botones esten al dia
+                renderCopyList();
+                renderZoneButtons();
+            }
+        });
+
+        // --- CARGA DE IMAGEN ---
+        document.getElementById('imgInput').addEventListener('change', e => {
+            if(e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    img.onload = () => {
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        points = [];
+                        draw();
+                        document.getElementById('placeholder').style.display = 'none';
+                    }
+                    img.src = ev.target.result;
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        function saveCurrentZoneData() {
+            const real = getRealDims();
+            const prefix = '/' + currentMode; 
+            const coords = points.map(p => {
+                let finalX = Math.round((p.x / canvas.width) * real.w);
+                let finalY = Math.round((p.y / canvas.height) * real.h);
+                return `${Math.max(0, finalX)} ${Math.max(0, finalY)}`;
+            }).join(' ');
+
+            const command = `${prefix}${currentZoneIndex} ${coords}`;
+            savedData[currentMode][currentZoneIndex] = command;
+
+            renderZoneButtons();
+            renderCopyList();
+            draw();
+        }
+
+        // --- DIBUJADO ---
+        function draw() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            if(img.src) ctx.drawImage(img,0,0);
+            
+            const real = getRealDims();
+            
+            // Dibujar Zonas Guardadas
+            ['zona', 'nozona'].forEach(mode => {
+                const color = mode === 'zona' ? '#4ade80' : '#f87171';
+                for(let i=1; i<=8; i++) {
+                    if(savedData[mode][i]) {
+                        const parts = savedData[mode][i].split(' ');
+                        const rawCoords = parts.slice(1);
+                        const polyPoints = [];
+                        for(let k=0; k<rawCoords.length; k+=2) {
+                            polyPoints.push({
+                                x: (parseInt(rawCoords[k]) / real.w) * canvas.width,
+                                y: (parseInt(rawCoords[k+1]) / real.h) * canvas.height
+                            });
+                        }
+                        drawPolygon(polyPoints, color, i, true);
+                    }
+                }
+            });
+
+            // Dibujar Zona en Proceso (Nueva)
+            if(points.length > 0) {
+                drawPolygon(points, currentColor, currentZoneIndex, true);
+            }
+        }
+
+        function drawPolygon(pts, colorStr, label, fill) {
+            if(pts.length === 0) return;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            pts.forEach(p => ctx.lineTo(p.x, p.y));
+            if(pts.length === 4) ctx.closePath();
+            
+            ctx.lineWidth = Math.max(3, canvas.width/400);
+            ctx.strokeStyle = colorStr;
+            ctx.stroke();
+            
+            if(fill && pts.length === 4) {
+                ctx.fillStyle = colorStr + '33'; 
+                ctx.fill();
+                if(label) {
+                    let sumX = 0, sumY = 0;
+                    pts.forEach(p => { sumX += p.x; sumY += p.y; });
+                    const centerX = sumX / 4;
+                    const centerY = sumY / 4;
+                    ctx.fillStyle = 'white'; 
+                    ctx.shadowColor = 'black'; 
+                    ctx.shadowBlur = 4;
+                    ctx.font = `bold ${Math.max(24, canvas.width/40)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, centerX, centerY);
+                    ctx.shadowBlur = 0; ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+                }
+            } 
+            
+            // Dibujar vertices (circulitos) para indicar que se pueden agarrar
+            pts.forEach(p => {
+                ctx.fillStyle = colorStr;
+                ctx.beginPath();
+                // Hacerlos un pelin mas grandes para que inviten a hacer click
+                ctx.arc(p.x, p.y, Math.max(5, canvas.width/120), 0, Math.PI*2);
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+        }
+
+        function deleteZone(mode, index) {
+            delete savedData[mode][index];
+            if((mode === 'zona' && index <=4) || (mode === 'nozona' && index >=5)) {
+                if(currentZoneIndex === index) points = [];
+            }
+            renderZoneButtons(); renderCopyList(); draw();
+        }
+
+        function resetAll() {
+            if(!confirm("⚠️ ¿Estás seguro de que quieres borrar TODAS las zonas?")) return;
+            savedData = { 'zona': {}, 'nozona': {} }; points = [];
+            renderZoneButtons(); renderCopyList(); draw();
+        }
+
+        function renderCopyList() {
+            const listContainer = document.getElementById('copyListContainer');
+            const copyAllBtn = document.getElementById('copyAllContainer');
+            listContainer.innerHTML = '';
+            let totalZones = 0;
+            ['zona', 'nozona'].forEach(mode => {
+                const label = mode === 'zona' ? 'ALARMA' : 'IGNORAR';
+                const textColor = mode === 'zona' ? 'text-green-500' : 'text-red-500';
+                const borderColor = mode === 'zona' ? 'border-green-900' : 'border-red-900';
+                const start = mode === 'zona' ? 1 : 5;
+                const end = mode === 'zona' ? 4 : 8;
+                for (let i = start; i <= end; i++) {
+                    if (savedData[mode][i]) {
+                        totalZones++;
+                        const cmd = savedData[mode][i];
+                        const row = document.createElement('div');
+                        row.className = `flex justify-between items-center bg-black/50 p-2 rounded border ${borderColor} mb-1`;
+                        row.innerHTML = `
+                            <div class="overflow-hidden mr-2 flex-1">
+                                <span class="text-xs font-bold ${textColor}">[${label} ${i}]</span>
+                                <code class="text-xs text-slate-400 block truncate">${cmd}</code>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="copySingle('${cmd}')" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs font-bold whitespace-nowrap border border-slate-600">COPIAR</button>
+                                <button onclick="deleteZone('${mode}', ${i})" class="bg-red-900/50 hover:bg-red-600 text-red-200 px-3 py-1 rounded text-xs font-bold border border-red-800">✖</button>
+                            </div>`;
+                        listContainer.appendChild(row);
+                    }
+                }
+            });
+            if (totalZones === 0) {
+                listContainer.innerHTML = '<p class="text-slate-600 text-sm italic text-center py-2">Dibuja una zona para ver los códigos aquí...</p>';
+                copyAllBtn.classList.add('hidden');
+            } else { copyAllBtn.classList.remove('hidden'); }
+        }
+
+        function copySingle(text) { navigator.clipboard.writeText(text); alert("Comando copiado: " + text); }
+
+        function copyAllData() {
+            let commandList = [];
+            ['zona', 'nozona'].forEach(mode => {
+                const start = mode === 'zona' ? 1 : 5;
+                const end = mode === 'zona' ? 4 : 8;
+                for (let i = start; i <= end; i++) {
+                    if (savedData[mode][i]) commandList.push(savedData[mode][i]);
+                }
+            });
+            const finalString = commandList.join(',');
+            if (commandList.length === 0) { alert("No hay zonas para copiar."); return; }
+            navigator.clipboard.writeText(finalString);
+            alert("Zonas copiadas al portapapeles (Separadas por comas).");
+        }
+
+        init();
+    </script>
+</body>
+</html>
