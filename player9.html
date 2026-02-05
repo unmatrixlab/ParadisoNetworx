@@ -189,8 +189,29 @@
         .line-content { display: flex; gap: 10px; align-items: flex-start; }
         .text-block { flex: 1; }
         .english { font-size: 1.1rem; font-weight: 500; line-height: 1.6; color: var(--text-main); margin-bottom: 8px; }
-        .spanish { font-size: 0.95rem; color: var(--text-sec); border-top: 1px solid var(--border); padding-top: 8px; display: none; line-height: 1.4; font-style: italic;}
-        .spanish.visible { display: block; animation: fadeIn 0.3s ease; }
+       /* === MODIFICACIÓN: SUBTÍTULOS SIEMPRE PRESENTES (DIFUMINADOS) === */
+        .spanish { 
+            font-size: 0.95rem; 
+            color: var(--text-sec); 
+            border-top: 1px solid var(--border); 
+            padding-top: 8px; 
+            line-height: 1.4; 
+            font-style: italic;
+            
+            /* CAMBIOS AQUÍ: */
+            display: block;              /* 1. Siempre ocupa espacio en el DOM */
+            filter: blur(6px);           /* 2. Difuminado fuerte por defecto */
+            opacity: 0.5;                /* 3. Semi-transparente para que no distraiga */
+            user-select: none;           /* 4. Evita que seleccionen el texto si no lo ven */
+            transition: all 0.3s ease;   /* 5. Transición suave entre borroso y nítido */
+        }
+
+        .spanish.visible { 
+            /* Al tener la clase .visible (botón activado): */
+            filter: blur(0);             /* Quita el difuminado */
+            opacity: 1;                  /* Opacidad completa */
+            user-select: text;           /* Permite seleccionar el texto */
+        }
         
         /* === MODIFICACIÓN: DIVIDIR BOTÓN PLAY === */
         .controls { display: flex; flex-direction: column; gap: 5px; min-width: 60px; margin-top: -2px; }
@@ -421,6 +442,55 @@
         body.focus-mode .line:not(.active-loop-range) { opacity: 0.1; filter: blur(3px); pointer-events: none; transition: all 0.5s; }
         .line.active-loop-range { opacity: 1; filter: none; transform: scale(1.01); border-left-color: var(--highlight); background: #283142; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
 
+
+
+/* Estilos para el Modo Teatro (Pantalla Dividida) */
+body.theater-mode #player-ui .page-max-width {
+    max-width: 100% !important;
+    flex-direction: row !important; /* Alineación horizontal */
+}
+
+body.theater-mode .video-wrapper {
+    width: 65% !important; /* El video ocupa el 65% del ancho */
+    height: 100vh !important;
+    display: flex;
+    align-items: center; /* Centra el video verticalmente en su mitad */
+    background: #000;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+}
+
+body.theater-mode .video-inner {
+    width: 100%;
+    padding-bottom: 56.25%; /* Mantiene proporción 16:9 */
+}
+
+body.theater-mode .dialogue-container {
+    width: 35% !important; /* Los subtítulos ocupan el 35% */
+    height: 100vh !important;
+    padding-top: 60px; /* Espacio para el botón Back */
+    padding-bottom: 100px; /* Espacio para la barra control */
+    max-width: none;
+}
+
+/* Ajustes responsivos para que no se rompa en móviles si se activa por error */
+@media (max-width: 800px) {
+    body.theater-mode #player-ui .page-max-width {
+        flex-direction: column !important;
+    }
+    body.theater-mode .video-wrapper, 
+    body.theater-mode .dialogue-container {
+        width: 100% !important;
+    }
+}
+
+
+        
+#movie_player > div.ytp-pause-overlay-container > div {
+    display: none !important;
+}
+
+        
     </style>
 </head>
 <body>
@@ -605,6 +675,7 @@
         <button class="bar-btn" id="btn-autoscroll" onclick="toggleAutoScroll()" style="color: #6366f1;">🔒</button>
         <button class="bar-btn" id="btn-toggle-trans" onclick="toggleAllTranslations()">👁️</button>
         <button class="bar-btn disabled" id="btn-clear" onclick="clearAllWords()">🗑️</button>
+        <button class="bar-btn" id="btn-theater" onclick="toggleTheaterMode()" title="Split View">🌓</button>
     </div>
 </div>
 
@@ -705,7 +776,7 @@
         }
     }
 
-    function renderLibraryItems() {
+function renderLibraryItems() {
         const list = document.getElementById('library-list');
         list.innerHTML = '';
         const filteredLib = (activeCategoryFilter === 'All') 
@@ -721,6 +792,7 @@
             div.style.borderLeft = "4px solid #6366f1";
             div.onclick = () => loadFromLibrary(originalIndex);
             const catDisplay = item.category ? `<span class="h-tag">${item.category}</span>` : '';
+            
             div.innerHTML = `
                 <div class="h-thumb" style="background-image: url('https://img.youtube.com/vi/${item.id}/default.jpg')"></div>
                 <div class="h-info">
@@ -729,7 +801,10 @@
                         <div class="h-tag">${catDisplay}</div>
                     </div>
                 </div>
-                <button class="h-btn-copy" onclick="handleLiteratureCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar como Texto (Literatura)">📖</button>
+                <button class="h-btn-copy" onclick="handleLiteratureCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar Literatura">📖</button>
+                
+                <button class="h-btn-copy" onclick="handleCleanListCopy(event, REMOTE_LIBRARY[${originalIndex}].srtEn, this)" title="Copiar Lista Limpia">📄</button>
+                
                 <div style="font-size:18px; color:#aaa; margin-left:10px;">▶</div>`;
             list.appendChild(div);
         });
@@ -1667,20 +1742,23 @@ function renderFragmentList() {
         btn.innerText = autoScroll ? '🔒' : '🔓';
     }
     
-    function toggleAllTranslations() { 
-        const container = document.querySelector('.dialogue-container');
-        const activeLine = document.querySelector('.line.active');
+  function toggleAllTranslations() { 
+        // const container = document.querySelector('.dialogue-container'); // YA NO ES NECESARIO
+        // const activeLine = document.querySelector('.line.active');       // YA NO ES NECESARIO
 
         allVisible = !allVisible; 
         localStorage.setItem(PREF_TRANS, allVisible); 
         document.getElementById('btn-toggle-trans').style.color = allVisible ? '#6366f1' : 'white'; 
         
+        /* === ELIMINAMOS ESTE BLOQUE QUE CAUSABA EL SALTO ===
         if(container) container.style.scrollBehavior = 'auto';
+        */
 
         document.querySelectorAll('.spanish').forEach(span => { 
             span.classList.toggle('visible', allVisible); 
         }); 
 
+        /* === Y ELIMINAMOS EL RE-CENTRADO FORZADO ===
         if (activeLine) {
             scrollToActiveElement(activeLine);
         }
@@ -1688,6 +1766,7 @@ function renderFragmentList() {
         if(container) {
             setTimeout(() => { container.style.scrollBehavior = 'smooth'; }, 50);
         }
+        */
     }
     
     function toggleLoop() {
@@ -2738,6 +2817,85 @@ async function handleLiteratureCopy(e, srtText, btn) {
         alert("Error al copiar al portapapeles");
     }
 }
+
+
+// Función para copiar lista limpia (Sin tiempos, sin [Music], sin huecos)
+async function handleCleanListCopy(e, srtText, btn) {
+    e.stopPropagation();
+    
+    if (!srtText) return alert("No subtitles available.");
+
+    const parsedLines = parseSRT(srtText);
+
+    const cleanText = parsedLines
+        .map(line => {
+            let text = line.text;
+            
+            // === LIMPIEZA AGRESIVA ===
+            text = text.replace(/\[.*?\]/g, "");      // Quitar corchetes: [Music], [Applause]
+            text = text.replace(/\(.*?\)/g, "");      // Quitar paréntesis: (Laughter)
+            text = text.replace(/\{.*?\}/g, "");      // Quitar llaves: {Speaker}
+            text = text.replace(/[♪♫♬]/g, "");        // Quitar símbolos musicales
+            text = text.replace(/<[^>]*>/g, "");      // Quitar etiquetas HTML (<i>, <b>)
+            text = text.replace(/^\s*[-—>]\s*/, "");  // Quitar guiones de diálogo al inicio
+            
+            // Quitar espacios extra a los lados
+            return text.trim();
+        })
+        // === FILTRO ===
+        // Si después de limpiar la línea quedó vacía (ej: era solo "[Music]"), la eliminamos de la lista
+        .filter(text => text.length > 0) 
+        .join('\n');
+
+    try {
+        await navigator.clipboard.writeText(cleanText);
+        
+        // Animación de éxito
+        const original = btn.innerText;
+        btn.innerText = "✨"; 
+        btn.style.opacity = "1";
+        btn.style.transform = "scale(1.2)";
+        
+        setTimeout(() => {
+            btn.innerText = original;
+            btn.style.opacity = "";
+            btn.style.transform = "";
+        }, 1000);
+    } catch (err) {
+        alert("Error al copiar al portapapeles");
+        console.error(err);
+    }
+}
+
+
+function toggleTheaterMode() {
+    const isTheater = document.body.classList.toggle('theater-mode');
+    const btn = document.getElementById('btn-theater');
+    
+    // Guardar preferencia
+    localStorage.setItem('mdc_theater_mode', isTheater);
+    
+    // Feedback visual en el botón
+    if(isTheater) {
+        btn.classList.add('active-state');
+        btn.style.color = '#6366f1';
+    } else {
+        btn.classList.remove('active-state');
+        btn.style.color = 'white';
+    }
+
+    // Forzar el scroll a la línea activa después del cambio de layout
+    setTimeout(() => {
+        const activeLine = document.querySelector('.line.active');
+        if (activeLine) scrollToActiveElement(activeLine);
+    }, 300);
+}
+
+// Opcional: Cargar la preferencia al iniciar (dentro de loadPreferences)
+// let savedTheater = localStorage.getItem('mdc_theater_mode') === 'true';
+// if(savedTheater) toggleTheaterMode();
+
+    
 </script>
     
 </body>
