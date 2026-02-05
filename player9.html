@@ -1102,49 +1102,53 @@ function renderLibraryItems() {
         }
     }
 
-    function checkTime() {
+   function checkTime() {
         if (!player || !player.getCurrentTime) return;
         const currentTime = player.getCurrentTime();
         if (Math.floor(currentTime) % 5 === 0) localStorage.setItem(STORAGE_KEY_TIME, currentTime);
         
-if (activeFragmentId) {
-    const frag = videoFragments.find(f => f.id === activeFragmentId);
-    if (frag) {
-        if (!document.body.classList.contains('focus-mode')) {
-            document.body.classList.add('focus-mode');
-        }
-        
-        document.querySelectorAll('.line').forEach(line => {
-            const lStart = parseFloat(line.dataset.start);
-            const lEnd = parseFloat(line.dataset.end);
+        if (activeFragmentId) {
+            const frag = videoFragments.find(f => f.id === activeFragmentId);
+            if (frag) {
+                if (!document.body.classList.contains('focus-mode')) {
+                    document.body.classList.add('focus-mode');
+                }
+                
+                document.querySelectorAll('.line').forEach(line => {
+                    const lStart = parseFloat(line.dataset.start);
+                    const lEnd = parseFloat(line.dataset.end);
+                    if (lStart >= frag.start && lEnd <= (frag.end + 0.05)) {
+                        line.classList.add('active-loop-range');
+                    } else {
+                        line.classList.remove('active-loop-range');
+                    }
+                });
 
-            // === CAMBIO AQUÍ: MISMA LÓGICA ESTRICTA ===
-            
-            if (lStart >= frag.start && lEnd <= (frag.end + 0.05)) {
-                line.classList.add('active-loop-range');
+                // --- LÓGICA DE BUCLE DE FRAGMENTO ---
+                if (currentTime >= frag.end || currentTime < frag.start - 0.5) {
+                    if (typeof isFragmentLoopActive !== 'undefined' && isFragmentLoopActive) {
+                        // Si el loop está activo, reinicia al inicio del fragmento sin pausar
+                        player.seekTo(frag.start);
+                    } else {
+                        // Si el loop NO está activo, pausa normalmente
+                        player.pauseVideo();
+                        player.seekTo(frag.start);
+                        return; 
+                    }
+                }
+
+                if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+                    trackFragmentTime(frag);
+                }
             } else {
-                line.classList.remove('active-loop-range');
+                activeFragmentId = null;
             }
-            // ==========================================
-        });
-
-               // REEMPLAZA TU BLOQUE ANTERIOR CON ESTE:
-if (currentTime >= frag.end || currentTime < frag.start - 0.5) {
-    if (typeof isFragmentLoopActive !== 'undefined' && isFragmentLoopActive) {
-        // MODO BUCLE: Rebobina y sigue jugando sin pausar
-        player.seekTo(frag.start);
-    } else {
-        // MODO NORMAL: Pausa y rebobina
-        player.pauseVideo();
-        player.seekTo(frag.start);
-        return; 
-    }
-}
-
-if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-    trackFragmentTime(frag);
-}
-// Fin del bloque modificado
+        } else {
+            if (document.body.classList.contains('focus-mode')) {
+                document.body.classList.remove('focus-mode');
+                document.querySelectorAll('.active-loop-range').forEach(l => l.classList.remove('active-loop-range'));
+            }
+        }
 
         if (isSegmentPlaying && currentTime >= segmentEndTime) {
             if (isMirrorActive) {
