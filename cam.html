@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guardian AI - Control Center</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --panel-bg: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent-color: #00ff88;
+            --accent-hover: #00cc6a;
+            --danger-color: #ff4444;
+            --info-color: #00aaff;
+            --border-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1, h2, h3 { color: #fff; margin-top: 0; }
+        
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* --- Canvas & Image Upload --- */
+        .upload-area {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: #111;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            align-items: center;
+        }
+        
+        input[type="file"] { display: none; }
+        
+        .btn {
+            background-color: var(--border-color);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        .btn:hover { background-color: #555; }
+        .btn.primary { background-color: var(--accent-color); color: #000; }
+        .btn.primary:hover { background-color: var(--accent-hover); }
+        .btn.danger { background-color: var(--danger-color); color: #fff; }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+        }
+        .mode-btn {
+            background: #222; border: 1px solid #444; color: #aaa;
+        }
+        .mode-btn.active {
+            background: var(--info-color); color: #fff; border-color: var(--info-color);
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            border: 1px solid var(--border-color);
+            background-color: #000;
+            display: none; 
+        }
+        canvas {
+            display: block; width: 100%; height: auto;
+        }
+        canvas.mode-zones { cursor: crosshair; }
+        canvas.mode-sim { cursor: crosshair; }
+
+        /* --- Algorithm Simulator Info --- */
+        #sim-info {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #0f1b29;
+            border: 1px solid var(--info-color);
+            border-radius: 6px;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+        .algo-card {
+            background: #111; padding: 10px; border-radius: 4px; border-left: 4px solid #444;
+        }
+        .algo-card h3 { margin-bottom: 5px; font-size: 16px; }
+        .algo-card.trigger { border-color: var(--accent-color); background: #0a2615; }
+        .algo-card.wait { border-color: #ffaa00; background: #261c0a; }
+
+        /* --- Scheduler UI --- */
+        .sched-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+        }
+        .time-format-toggle {
+            background: #222; border-radius: 4px; display: flex; overflow: hidden;
+        }
+        .time-format-toggle label {
+            padding: 5px 15px; cursor: pointer; border-right: 1px solid #333; font-weight: bold;
+        }
+        .time-format-toggle label:last-child { border: none; }
+        .time-format-toggle input { display: none; }
+        .time-format-toggle label.active { background: var(--accent-color); color: #000; }
+
+        .sched-row {
+            display: grid;
+            grid-template-columns: 30px 100px 1fr 200px;
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            background: #151515;
+        }
+        .sched-row:nth-child(even) { background: #1a1a1a; }
+        .sched-row.disabled { opacity: 0.5; }
+        
+        .time-ranges { display: flex; flex-wrap: wrap; gap: 8px; }
+        .time-pill {
+            background: #333; padding: 4px 8px; border-radius: 4px; font-size: 14px; display: flex; align-items: center; gap: 5px;
+        }
+        .time-pill button { background: none; border: none; color: var(--danger-color); cursor: pointer; font-weight: bold; }
+        
+        .add-range-ui { display: flex; gap: 5px; align-items: center; }
+        select.time-sel { background: #222; color: #fff; border: 1px solid #444; padding: 4px; border-radius: 3px;}
+
+        /* --- Output Box --- */
+        .output-box { display: flex; gap: 10px; margin-top: 15px; }
+        input[type="text"] {
+            flex: 1; background-color: #000; color: var(--accent-color);
+            border: 1px solid var(--border-color); padding: 10px; border-radius: 4px;
+            font-family: monospace; font-size: 16px;
+        }
+
+        .quick-commands { display: flex; flex-wrap: wrap; gap: 10px; }
+        
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: var(--accent-color);
+            color: #000; text-align: center; border-radius: 4px; padding: 12px;
+            position: fixed; z-index: 10; bottom: 30px; left: 50%; transform: translateX(-50%);
+            font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+    </style>
+</head>
+<body>
+
+    <h1>🛡️ Guardian AI - Control Center</h1>
+    
+    <div class="container">
+        
+        <div class="panel">
+            <h2>👁️ Visión y Análisis Espacial</h2>
+            
+            <div class="upload-area">
+                <label for="imageLoader" class="btn primary">📷 Cargar Snapshot</label>
+                <input type="file" id="imageLoader" accept="image/jpeg, image/png">
+                <button class="btn danger" id="clearGridBtn" style="display: none;" onclick="clearZones()">Limpiar Zonas</button>
+                
+                <div class="mode-selector">
+                    <button class="btn mode-btn active" id="btnModeZones" onclick="setMode('zones')">🛑 Zonas (/toggle)</button>
+                    <button class="btn mode-btn" id="btnModeSim" onclick="setMode('sim')">🧠 Simulador Algoritmos</button>
+                </div>
+            </div>
+
+            <div id="canvas-container">
+                <canvas id="mainCanvas" class="mode-zones"></canvas>
+            </div>
+
+            <div id="sim-info">
+                <div class="algo-card" id="cardA">
+                    <h3>🎯 Algo A (Center)</h3>
+                    <p id="descA" style="font-size:13px; color:#aaa;">Requiere que el centro del objeto esté en el recuadro verde.</p>
+                    <strong id="resA">Esperando...</strong>
+                </div>
+                <div class="algo-card" id="cardB">
+                    <h3>⏱️ Algo B (Delay/Area)</h3>
+                    <p style="font-size:13px; color:#aaa;">Analiza por 3s. Busca el área máxima.</p>
+                    <strong id="resB">Área actual: 0%</strong>
+                </div>
+                <div class="algo-card" id="cardC">
+                    <h3>🧬 Algo C (Hybrid)</h3>
+                    <p style="font-size:13px; color:#aaa;">Disparo instantáneo. Mejora a los 5s si el área sube 30%.</p>
+                    <strong id="resC">Esperando...</strong>
+                </div>
+            </div>
+
+            <div class="output-box" id="zone-output-container">
+                <input type="text" id="toggleCommandOutput" readonly placeholder="Comando /toggle aparecerá aquí...">
+                <button class="btn primary" onclick="copyToClipboard('toggleCommandOutput')">Copiar Comando</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="sched-header">
+                <h2>📅 Programador Interactivo (/schedule)</h2>
+                <div class="time-format-toggle" id="formatToggle">
+                    <label class="active" onclick="setFormat(24)">24h</label>
+                    <label onclick="setFormat(12)">12h</label>
+                </div>
+            </div>
+            
+            <div id="scheduler-container">
+                </div>
+        </div>
+
+        <div class="panel">
+            <h2>⚡ Comandos Rápidos</h2>
+            <div class="quick-commands">
+                <button class="btn" onclick="copyDirectCommand('/status')">📊 /status</button>
+                <button class="btn" onclick="copyDirectCommand('/snap')">📸 /snap</button>
+                <button class="btn" onclick="copyDirectCommand('/zone')">🛑 /zone</button>
+                <button class="btn" onclick="copyDirectCommand('/mute')">🔕 /mute (12h)</button>
+                <button class="btn" onclick="copyDirectCommand('/arm')">🔔 /arm</button>
+                <button class="btn" onclick="copyDirectCommand('/config')">⚙️ /config</button>
+                <button class="btn" onclick="copyDirectCommand('/schedule All off')">🗑️ Desarmar Todo (Schedule All Off)</button>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast">Copiado al portapapeles</div>
+
+    <script>
+        // ==========================================
+        // 1. GLOBAL STATE & UI HELPERS
+        // ==========================================
+        function showToast(msg = "Copiado al portapapeles") {
+            const toast = document.getElementById("toast");
+            toast.innerText = msg;
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 2800);
+        }
+
+        function copyToClipboard(id) {
+            const el = document.getElementById(id);
+            if(el.value) { navigator.clipboard.writeText(el.value).then(()=>showToast()); }
+        }
+
+        function copyDirectCommand(cmd) { navigator.clipboard.writeText(cmd).then(()=>showToast()); }
+
+        // ==========================================
+        // 2. CANVAS ENGINE (ZONES & SIMULATOR)
+        // ==========================================
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        
+        let img = new Image();
+        let mode = 'zones'; // 'zones' | 'sim'
+        
+        // Zone State
+        const GRID_COLS = 10, GRID_ROWS = 8;
+        let selectedZones = new Set();
+        let cellW, cellH;
+
+        // Simulator State
+        let isDrawingBox = false;
+        let simBox = null; // {x, y, w, h}
+        let dragStart = null;
+
+        document.getElementById('imageLoader').addEventListener('change', function(e) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                img.onload = function() {
+                    container.style.display = 'block';
+                    document.getElementById('clearGridBtn').style.display = 'inline-block';
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    cellW = canvas.width / GRID_COLS;
+                    cellH = canvas.height / GRID_ROWS;
+                    drawCanvas();
+                }
+                img.src = event.target.result;
+            }
+            if (e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+        });
+
+        function setMode(newMode) {
+            mode = newMode;
+            document.getElementById('btnModeZones').classList.toggle('active', mode==='zones');
+            document.getElementById('btnModeSim').classList.toggle('active', mode==='sim');
+            canvas.className = `mode-${mode}`;
+            
+            document.getElementById('zone-output-container').style.display = mode==='zones' ? 'flex' : 'none';
+            document.getElementById('sim-info').style.display = mode==='sim' ? 'grid' : 'none';
+            drawCanvas();
+        }
+
+        function clearZones() { selectedZones.clear(); simBox = null; drawCanvas(); }
+
+        function drawCanvas() {
+            if(!img.src) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            if (mode === 'zones') drawZonesGrid();
+            if (mode === 'sim') drawSimulator();
+        }
+
+        // --- ZONE DRAWING ---
+        function drawZonesGrid() {
+            ctx.lineWidth = 2;
+            ctx.font = `bold ${Math.max(16, Math.floor(cellH/4))}px Arial`;
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+
+            for (let r=0; r<GRID_ROWS; r++) {
+                for (let c=0; c<GRID_COLS; c++) {
+                    const x = c * cellW, y = r * cellH;
+                    const cellId = String.fromCharCode(65+r) + (c+1);
+
+                    if (selectedZones.has(cellId)) {
+                        ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+                        ctx.fillRect(x, y, cellW, cellH);
+                    }
+                    ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+                    ctx.strokeRect(x, y, cellW, cellH);
+                    
+                    ctx.fillStyle = "black"; ctx.fillText(cellId, x+cellW/2+2, y+cellH/2+2);
+                    ctx.fillStyle = "white"; ctx.fillText(cellId, x+cellW/2, y+cellH/2);
+                }
+            }
+            
+            if(selectedZones.size > 0) {
+                const sorted = Array.from(selectedZones).sort((a,b) => {
+                    if(a[0]===b[0]) return parseInt(a.substring(1)) - parseInt(b.substring(1));
+                    return a.charCodeAt(0) - b.charCodeAt(0);
+                });
+                document.getElementById('toggleCommandOutput').value = `/toggle ${sorted.join(',')}`;
+            } else {
+                document.getElementById('toggleCommandOutput').value = "";
+            }
+        }
+
+        // --- SIMULATOR DRAWING & LOGIC ---
+        function drawSimulator() {
+            const w = canvas.width, h = canvas.height;
+            
+            // 1. Draw Algo A Center Zone (Based on Python: w*0.25 to 0.75, h*0.2 to 0.8)
+            const cx1 = w*0.25, cx2 = w*0.75, cy1 = h*0.2, cy2 = h*0.8;
+            ctx.fillStyle = "rgba(0, 255, 136, 0.15)";
+            ctx.fillRect(cx1, cy1, cx2-cx1, cy2-cy1);
+            ctx.strokeStyle = "rgba(0, 255, 136, 0.8)";
+            ctx.setLineDash([10, 10]);
+            ctx.strokeRect(cx1, cy1, cx2-cx1, cy2-cy1);
+            ctx.setLineDash([]);
+            
+            // Text for Center Zone
+            ctx.fillStyle = "#00ff88"; ctx.font = "bold 24px Arial"; ctx.textAlign="left";
+            ctx.fillText("Zona Algo A (Centro)", cx1 + 10, cy1 + 30);
+
+            // 2. Draw User Bounding Box
+            if (simBox) {
+                ctx.strokeStyle = "#ffaa00";
+                ctx.lineWidth = 4;
+                ctx.strokeRect(simBox.x, simBox.y, simBox.w, simBox.h);
+                
+                // Draw Center Dot
+                const bcx = simBox.x + simBox.w/2;
+                const bcy = simBox.y + simBox.h/2;
+                ctx.fillStyle = "#ffaa00";
+                ctx.beginPath(); ctx.arc(bcx, bcy, 8, 0, Math.PI*2); ctx.fill();
+
+                evaluateAlgorithms(bcx, bcy, simBox.w, simBox.h, w, h);
+            }
+        }
+
+        function evaluateAlgorithms(bcx, bcy, bw, bh, w, h) {
+            // Evaluacion de Algo A
+            const inCenter = (bcx > w*0.25 && bcx < w*0.75) && (bcy > h*0.2 && bcy < h*0.8);
+            const cardA = document.getElementById('cardA');
+            if(inCenter) {
+                cardA.className = "algo-card trigger";
+                document.getElementById('resA').innerText = "✅ ¡Disparo Instantáneo! (En Centro)";
+            } else {
+                cardA.className = "algo-card wait";
+                document.getElementById('resA').innerText = "⏳ Esperando que entre al centro... (o 4s delay)";
+            }
+
+            // Evaluacion Algo B y C (Area)
+            const areaPct = ((bw * bh) / (w * h) * 100).toFixed(1);
+            document.getElementById('resB').innerText = `Área actual: ${areaPct}%. Analizando...`;
+            
+            document.getElementById('cardC').className = "algo-card trigger";
+            const umbralC = (parseFloat(areaPct) * 1.3).toFixed(1);
+            document.getElementById('resC').innerHTML = `✅ Alerta enviada.<br>Si el área sube a <strong>> ${umbralC}%</strong> en 5s, envía actualización.`;
+        }
+
+        // --- CANVAS MOUSE EVENTS ---
+        canvas.addEventListener('mousedown', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX, y = (e.clientY - rect.top) * scaleY;
+
+            if (mode === 'zones') {
+                const c = Math.floor(x / cellW), r = Math.floor(y / cellH);
+                if (c>=0 && c<GRID_COLS && r>=0 && r<GRID_ROWS) {
+                    const cellId = String.fromCharCode(65+r) + (c+1);
+                    selectedZones.has(cellId) ? selectedZones.delete(cellId) : selectedZones.add(cellId);
+                    drawCanvas();
+                }
+            } else if (mode === 'sim') {
+                isDrawingBox = true;
+                dragStart = {x, y};
+                simBox = {x, y, w: 0, h: 0};
+            }
+        });
+
+        canvas.addEventListener('mousemove', function(e) {
+            if (!isDrawingBox || mode !== 'sim') return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX, y = (e.clientY - rect.top) * scaleY;
+            
+            simBox.x = Math.min(dragStart.x, x);
+            simBox.y = Math.min(dragStart.y, y);
+            simBox.w = Math.abs(x - dragStart.x);
+            simBox.h = Math.abs(y - dragStart.y);
+            drawCanvas();
+        });
+
+        canvas.addEventListener('mouseup', () => { isDrawingBox = false; });
+        canvas.addEventListener('mouseleave', () => { isDrawingBox = false; });
+
+        // ==========================================
+        // 3. SCHEDULER ENGINE (12h/24h & Multi-day)
+        // ==========================================
+        const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        let schedData = {};
+        let timeFormat = 24; // 24 or 12
+
+        // Initialize state
+        days.forEach(d => schedData[d] = { enabled: true, ranges: [] });
+
+        function setFormat(fmt) {
+            timeFormat = fmt;
+            document.querySelectorAll('.time-format-toggle label').forEach(l => {
+                l.classList.toggle('active', l.innerText.includes(fmt));
+            });
+            renderScheduler();
+        }
+
+        function generateTimeOptions() {
+            let opts = "";
+            for(let h=0; h<24; h++) {
+                for(let m=0; m<60; m+=30) { // Step de 30 min para agilizar, puedes cambiarlo a 15
+                    const val24 = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                    let display = val24;
+                    if(timeFormat === 12) {
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const h12 = h % 12 || 12;
+                        display = `${h12.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')} ${ampm}`;
+                    }
+                    opts += `<option value="${val24}">${display}</option>`;
+                }
+            }
+            return opts;
+        }
+
+        function addRange(day) {
+            const startSelect = document.getElementById(`st_${day}`);
+            const endSelect = document.getElementById(`en_${day}`);
+            const rangeStr = `${startSelect.value}-${endSelect.value}`;
+            
+            if (!schedData[day].ranges.includes(rangeStr)) {
+                schedData[day].ranges.push(rangeStr);
+                renderScheduler();
+            }
+        }
+
+        function removeRange(day, index) {
+            schedData[day].ranges.splice(index, 1);
+            renderScheduler();
+        }
+
+        function toggleDay(day) {
+            schedData[day].enabled = !schedData[day].enabled;
+            renderScheduler();
+        }
+
+        function renderScheduler() {
+            const container = document.getElementById('scheduler-container');
+            container.innerHTML = "";
+            const optionsHtml = generateTimeOptions();
+
+            days.forEach(day => {
+                const data = schedData[day];
+                const row = document.createElement('div');
+                row.className = `sched-row ${data.enabled ? '' : 'disabled'}`;
+                
+                // 1. Checkbox
+                const cb = document.createElement('input');
+                cb.type = "checkbox"; cb.checked = data.enabled;
+                cb.onchange = () => toggleDay(day);
+                
+                // 2. Day Label
+                const lbl = document.createElement('strong'); lbl.innerText = day;
+
+                // 3. Middle Area (Ranges + Adder)
+                const mid = document.createElement('div');
+                if (data.enabled) {
+                    const rangesDiv = document.createElement('div');
+                    rangesDiv.className = "time-ranges";
+                    data.ranges.forEach((r, idx) => {
+                        rangesDiv.innerHTML += `<div class="time-pill">${r} <button onclick="removeRange('${day}', ${idx})">x</button></div>`;
+                    });
+
+                    const adderDiv = document.createElement('div');
+                    adderDiv.className = "add-range-ui";
+                    adderDiv.style.marginTop = data.ranges.length ? "8px" : "0";
+                    adderDiv.innerHTML = `
+                        <select class="time-sel" id="st_${day}">${optionsHtml}</select>
+                        <span>a</span>
+                        <select class="time-sel" id="en_${day}">${optionsHtml}</select>
+                        <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="addRange('${day}')">+ Agregar</button>
+                    `;
+                    mid.appendChild(rangesDiv);
+                    mid.appendChild(adderDiv);
+                } else {
+                    mid.innerHTML = `<span style="color:#666;">Día Desactivado (off)</span>`;
+                }
+
+                // 4. Output Command
+                const outDiv = document.createElement('div');
+                let cmdStr = `/schedule ${day} `;
+                if (!data.enabled) {
+                    cmdStr += "off";
+                } else if (data.ranges.length === 0) {
+                    cmdStr = "Añade un rango...";
+                } else {
+                    cmdStr += data.ranges.join(', ');
+                }
+                
+                outDiv.innerHTML = `
+                    <input type="text" value="${cmdStr}" readonly style="width:140px; font-size:12px; padding:6px; background:#000; color:var(--accent-color); border:1px solid #444;">
+                    <button class="btn primary" style="padding:6px; font-size:12px;" onclick="copyDirectCommand('${cmdStr}')">Copiar</button>
+                `;
+
+                row.appendChild(cb); row.appendChild(lbl); row.appendChild(mid); row.appendChild(outDiv);
+                container.appendChild(row);
+            });
+        }
+
+        // Initialize Scheduler
+        renderScheduler();
+
+    </script>
+</body>
+</html>
