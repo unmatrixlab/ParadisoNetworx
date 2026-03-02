@@ -55,6 +55,7 @@
             border: 1px solid var(--border-color);
             border-radius: 6px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         input[type="file"] { display: none; }
@@ -134,7 +135,7 @@
 
         .sched-row {
             display: grid;
-            grid-template-columns: 30px 100px 1fr 200px;
+            grid-template-columns: 30px 100px 1fr;
             gap: 10px;
             align-items: center;
             padding: 10px;
@@ -181,12 +182,18 @@
     <div class="container">
         
         <div class="panel">
-            <h2>👁️ Visión y Análisis Espacial</h2>
+            <h2>👁️ Visión y Análisis Espacial (/toggle)</h2>
+            <p style="font-size:14px; color:#aaa; margin-top:-10px;">Carga una foto, haz clic en las celdas y copia el comando para enmascarar o limpiar zonas muertas.</p>
             
             <div class="upload-area">
                 <label for="imageLoader" class="btn primary">📷 Cargar Snapshot</label>
                 <input type="file" id="imageLoader" accept="image/jpeg, image/png">
-                <button class="btn danger" id="clearGridBtn" style="display: none;" onclick="clearZones()">Limpiar Zonas</button>
+                
+                <div id="zone-controls" style="display: none; gap: 10px;">
+                    <button class="btn" onclick="clearZonesWeb()">Desmarcar web</button>
+                    <button class="btn danger" onclick="copyDirectCommand('/toggle clear')">🧹 Limpiar Todas (Bot)</button>
+                    <button class="btn" style="background:#880000; color:#fff;" onclick="copyDirectCommand('/toggle all')">🛑 Desactivar Todas (Bot)</button>
+                </div>
                 
                 <div class="mode-selector">
                     <button class="btn mode-btn active" id="btnModeZones" onclick="setMode('zones')">🛑 Zonas (/toggle)</button>
@@ -224,15 +231,21 @@
 
         <div class="panel">
             <div class="sched-header">
-                <h2>📅 Programador Interactivo (/schedule)</h2>
+                <h2>📅 Programador Semanal Completo (/setweek)</h2>
                 <div class="time-format-toggle" id="formatToggle">
                     <label class="active" onclick="setFormat(24)">24h</label>
                     <label onclick="setFormat(12)">12h</label>
                 </div>
             </div>
+            <p style="font-size:14px; color:#aaa; margin-top:-10px;">Prepara toda tu semana y cópiala en un solo clic.</p>
             
             <div id="scheduler-container">
                 </div>
+
+            <div class="output-box" style="margin-top:20px; border-top: 1px solid #333; padding-top: 20px;">
+                <input type="text" id="bulkScheduleOutput" readonly placeholder="/setweek Mon:09:00-18:00|Tue:off...">
+                <button class="btn primary" style="padding: 15px 30px; font-size: 16px;" onclick="copyToClipboard('bulkScheduleOutput')">📋 COPIAR SEMANA COMPLETA</button>
+            </div>
         </div>
 
         <div class="panel">
@@ -240,11 +253,11 @@
             <div class="quick-commands">
                 <button class="btn" onclick="copyDirectCommand('/status')">📊 /status</button>
                 <button class="btn" onclick="copyDirectCommand('/snap')">📸 /snap</button>
-                <button class="btn" onclick="copyDirectCommand('/zone')">🛑 /zone</button>
+                <button class="btn" onclick="copyDirectCommand('/zone')">🛑 /zone (Ver actuales)</button>
                 <button class="btn" onclick="copyDirectCommand('/mute')">🔕 /mute (12h)</button>
                 <button class="btn" onclick="copyDirectCommand('/arm')">🔔 /arm</button>
                 <button class="btn" onclick="copyDirectCommand('/config')">⚙️ /config</button>
-                <button class="btn" onclick="copyDirectCommand('/schedule All off')">🗑️ Desarmar Todo (Schedule All Off)</button>
+                <button class="btn" onclick="copyDirectCommand('/setweek Mon:off|Tue:off|Wed:off|Thu:off|Fri:off|Sat:off|Sun:off')">🗑️ Desarmar Semana</button>
             </div>
         </div>
 
@@ -265,10 +278,10 @@
 
         function copyToClipboard(id) {
             const el = document.getElementById(id);
-            if(el.value) { navigator.clipboard.writeText(el.value).then(()=>showToast()); }
+            if(el.value) { navigator.clipboard.writeText(el.value).then(()=>showToast("¡Semana copiada! Pégala en Telegram.")); }
         }
 
-        function copyDirectCommand(cmd) { navigator.clipboard.writeText(cmd).then(()=>showToast()); }
+        function copyDirectCommand(cmd) { navigator.clipboard.writeText(cmd).then(()=>showToast(`Comando copiado: ${cmd}`)); }
 
         // ==========================================
         // 2. CANVAS ENGINE (ZONES & SIMULATOR)
@@ -295,7 +308,7 @@
             reader.onload = function(event) {
                 img.onload = function() {
                     container.style.display = 'block';
-                    document.getElementById('clearGridBtn').style.display = 'inline-block';
+                    document.getElementById('zone-controls').style.display = 'flex';
                     canvas.width = img.width;
                     canvas.height = img.height;
                     cellW = canvas.width / GRID_COLS;
@@ -318,7 +331,7 @@
             drawCanvas();
         }
 
-        function clearZones() { selectedZones.clear(); simBox = null; drawCanvas(); }
+        function clearZonesWeb() { selectedZones.clear(); simBox = null; drawCanvas(); }
 
         function drawCanvas() {
             if(!img.src) return;
@@ -367,7 +380,7 @@
         function drawSimulator() {
             const w = canvas.width, h = canvas.height;
             
-            // 1. Draw Algo A Center Zone (Based on Python: w*0.25 to 0.75, h*0.2 to 0.8)
+            // 1. Draw Algo A Center Zone
             const cx1 = w*0.25, cx2 = w*0.75, cy1 = h*0.2, cy2 = h*0.8;
             ctx.fillStyle = "rgba(0, 255, 136, 0.15)";
             ctx.fillRect(cx1, cy1, cx2-cx1, cy2-cy1);
@@ -376,7 +389,6 @@
             ctx.strokeRect(cx1, cy1, cx2-cx1, cy2-cy1);
             ctx.setLineDash([]);
             
-            // Text for Center Zone
             ctx.fillStyle = "#00ff88"; ctx.font = "bold 24px Arial"; ctx.textAlign="left";
             ctx.fillText("Zona Algo A (Centro)", cx1 + 10, cy1 + 30);
 
@@ -386,7 +398,6 @@
                 ctx.lineWidth = 4;
                 ctx.strokeRect(simBox.x, simBox.y, simBox.w, simBox.h);
                 
-                // Draw Center Dot
                 const bcx = simBox.x + simBox.w/2;
                 const bcy = simBox.y + simBox.h/2;
                 ctx.fillStyle = "#ffaa00";
@@ -397,7 +408,6 @@
         }
 
         function evaluateAlgorithms(bcx, bcy, bw, bh, w, h) {
-            // Evaluacion de Algo A
             const inCenter = (bcx > w*0.25 && bcx < w*0.75) && (bcy > h*0.2 && bcy < h*0.8);
             const cardA = document.getElementById('cardA');
             if(inCenter) {
@@ -408,7 +418,6 @@
                 document.getElementById('resA').innerText = "⏳ Esperando que entre al centro... (o 4s delay)";
             }
 
-            // Evaluacion Algo B y C (Area)
             const areaPct = ((bw * bh) / (w * h) * 100).toFixed(1);
             document.getElementById('resB').innerText = `Área actual: ${areaPct}%. Analizando...`;
             
@@ -454,14 +463,22 @@
         canvas.addEventListener('mouseleave', () => { isDrawingBox = false; });
 
         // ==========================================
-        // 3. SCHEDULER ENGINE (12h/24h & Multi-day)
+        // 3. SCHEDULER ENGINE (12h/24h & Bulk Update)
         // ==========================================
-        const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const daysInfo = [
+            {full: "Monday", short: "Mon", label: "Lunes (Mon)"},
+            {full: "Tuesday", short: "Tue", label: "Martes (Tue)"},
+            {full: "Wednesday", short: "Wed", label: "Miércoles (Wed)"},
+            {full: "Thursday", short: "Thu", label: "Jueves (Thu)"},
+            {full: "Friday", short: "Fri", label: "Viernes (Fri)"},
+            {full: "Saturday", short: "Sat", label: "Sábado (Sat)"},
+            {full: "Sunday", short: "Sun", label: "Domingo (Sun)"}
+        ];
+        
         let schedData = {};
-        let timeFormat = 24; // 24 or 12
+        let timeFormat = 24;
 
-        // Initialize state
-        days.forEach(d => schedData[d] = { enabled: true, ranges: [] });
+        daysInfo.forEach(d => schedData[d.short] = { enabled: true, ranges: [] });
 
         function setFormat(fmt) {
             timeFormat = fmt;
@@ -474,7 +491,7 @@
         function generateTimeOptions() {
             let opts = "";
             for(let h=0; h<24; h++) {
-                for(let m=0; m<60; m+=30) { // Step de 30 min para agilizar, puedes cambiarlo a 15
+                for(let m=0; m<60; m+=30) {
                     const val24 = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
                     let display = val24;
                     if(timeFormat === 12) {
@@ -488,25 +505,38 @@
             return opts;
         }
 
-        function addRange(day) {
-            const startSelect = document.getElementById(`st_${day}`);
-            const endSelect = document.getElementById(`en_${day}`);
+        function addRange(dayShort) {
+            const startSelect = document.getElementById(`st_${dayShort}`);
+            const endSelect = document.getElementById(`en_${dayShort}`);
             const rangeStr = `${startSelect.value}-${endSelect.value}`;
             
-            if (!schedData[day].ranges.includes(rangeStr)) {
-                schedData[day].ranges.push(rangeStr);
+            if (!schedData[dayShort].ranges.includes(rangeStr)) {
+                schedData[dayShort].ranges.push(rangeStr);
                 renderScheduler();
             }
         }
 
-        function removeRange(day, index) {
-            schedData[day].ranges.splice(index, 1);
+        function removeRange(dayShort, index) {
+            schedData[dayShort].ranges.splice(index, 1);
             renderScheduler();
         }
 
-        function toggleDay(day) {
-            schedData[day].enabled = !schedData[day].enabled;
+        function toggleDay(dayShort) {
+            schedData[dayShort].enabled = !schedData[dayShort].enabled;
             renderScheduler();
+        }
+
+        function updateBulkCommand() {
+            const parts = [];
+            daysInfo.forEach(d => {
+                const data = schedData[d.short];
+                if (!data.enabled || data.ranges.length === 0) {
+                    parts.push(`${d.short}:off`);
+                } else {
+                    parts.push(`${d.short}:${data.ranges.join(',')}`);
+                }
+            });
+            document.getElementById('bulkScheduleOutput').value = `/setweek ${parts.join('|')}`;
         }
 
         function renderScheduler() {
@@ -514,18 +544,18 @@
             container.innerHTML = "";
             const optionsHtml = generateTimeOptions();
 
-            days.forEach(day => {
-                const data = schedData[day];
+            daysInfo.forEach(d => {
+                const data = schedData[d.short];
                 const row = document.createElement('div');
                 row.className = `sched-row ${data.enabled ? '' : 'disabled'}`;
                 
                 // 1. Checkbox
                 const cb = document.createElement('input');
                 cb.type = "checkbox"; cb.checked = data.enabled;
-                cb.onchange = () => toggleDay(day);
+                cb.onchange = () => toggleDay(d.short);
                 
                 // 2. Day Label
-                const lbl = document.createElement('strong'); lbl.innerText = day;
+                const lbl = document.createElement('strong'); lbl.innerText = d.label;
 
                 // 3. Middle Area (Ranges + Adder)
                 const mid = document.createElement('div');
@@ -533,17 +563,17 @@
                     const rangesDiv = document.createElement('div');
                     rangesDiv.className = "time-ranges";
                     data.ranges.forEach((r, idx) => {
-                        rangesDiv.innerHTML += `<div class="time-pill">${r} <button onclick="removeRange('${day}', ${idx})">x</button></div>`;
+                        rangesDiv.innerHTML += `<div class="time-pill">${r} <button onclick="removeRange('${d.short}', ${idx})">x</button></div>`;
                     });
 
                     const adderDiv = document.createElement('div');
                     adderDiv.className = "add-range-ui";
                     adderDiv.style.marginTop = data.ranges.length ? "8px" : "0";
                     adderDiv.innerHTML = `
-                        <select class="time-sel" id="st_${day}">${optionsHtml}</select>
+                        <select class="time-sel" id="st_${d.short}">${optionsHtml}</select>
                         <span>a</span>
-                        <select class="time-sel" id="en_${day}">${optionsHtml}</select>
-                        <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="addRange('${day}')">+ Agregar</button>
+                        <select class="time-sel" id="en_${d.short}">${optionsHtml}</select>
+                        <button class="btn" style="padding:4px 8px; font-size:12px;" onclick="addRange('${d.short}')">+ Agregar</button>
                     `;
                     mid.appendChild(rangesDiv);
                     mid.appendChild(adderDiv);
@@ -551,28 +581,13 @@
                     mid.innerHTML = `<span style="color:#666;">Día Desactivado (off)</span>`;
                 }
 
-                // 4. Output Command
-                const outDiv = document.createElement('div');
-                let cmdStr = `/schedule ${day} `;
-                if (!data.enabled) {
-                    cmdStr += "off";
-                } else if (data.ranges.length === 0) {
-                    cmdStr = "Añade un rango...";
-                } else {
-                    cmdStr += data.ranges.join(', ');
-                }
-                
-                outDiv.innerHTML = `
-                    <input type="text" value="${cmdStr}" readonly style="width:140px; font-size:12px; padding:6px; background:#000; color:var(--accent-color); border:1px solid #444;">
-                    <button class="btn primary" style="padding:6px; font-size:12px;" onclick="copyDirectCommand('${cmdStr}')">Copiar</button>
-                `;
-
-                row.appendChild(cb); row.appendChild(lbl); row.appendChild(mid); row.appendChild(outDiv);
+                row.appendChild(cb); row.appendChild(lbl); row.appendChild(mid);
                 container.appendChild(row);
             });
+
+            updateBulkCommand();
         }
 
-        // Initialize Scheduler
         renderScheduler();
 
     </script>
