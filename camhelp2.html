@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vision Core V2 - Factory Provisioning Guide</title>
+    <style>
+        :root {
+            --bg-base: #0f0f0f;
+            --bg-surface: #1c1c1e;
+            --accent: #00a8fc;
+            --text-main: #ffffff;
+            --text-muted: #8e8e93;
+            --border: #2c2c2e;
+            --success: #32d74b;
+            --warning: #ff9f0a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: var(--bg-surface);
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 { margin: 0; color: var(--accent); font-size: 24px; letter-spacing: 1px; }
+        header p { margin: 10px 0 0 0; color: var(--text-muted); font-size: 14px; }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: var(--text-main);
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        .step-number {
+            background-color: var(--accent);
+            color: #000;
+            font-weight: bold;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        code {
+            font-family: "Courier New", Courier, monospace;
+            background-color: #000;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--accent);
+            font-size: 14px;
+        }
+
+        pre {
+            background-color: #000;
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            color: #ddd;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+        }
+
+        .terminal-output {
+            color: var(--success);
+        }
+
+        .highlight-box {
+            background: rgba(255, 159, 10, 0.1);
+            border-left: 4px solid var(--warning);
+            padding: 15px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+        
+        .highlight-box h3 { margin-top: 0; font-size: 16px; color: var(--warning); margin-bottom: 8px;}
+        .highlight-box p { margin: 0; font-size: 14px; }
+
+        ul { padding-left: 20px; }
+        li { margin-bottom: 8px; color: #ccc; }
+        li strong { color: #fff; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>VISION CORE V2</h1>
+        <p>Sysprep & Factory Provisioning Guide (0 km)</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="card">
+            <h2><span class="step-number">1</span> System Architecture Overview</h2>
+            <p>Unlike older versions, Vision Core V2 uses an <strong>Externalized Credentials Architecture</strong> with an <strong>Auto-Healing Vault</strong>. You must NEVER hardcode client passwords directly into the Python source code.</p>
+            <p>To prepare a newly cloned Jetson drive for a client, you will use the automated Provisioning Script (Sysprep).</p>
+        </div>
+
+        <div class="card">
+            <h2><span class="step-number">2</span> Run the Provisioning Script</h2>
+            <p>Open the Jetson terminal, navigate to your project folder, and execute the following command:</p>
+            <pre>python3 preparar_equipo.py</pre>
+            
+            <p>The script will ask for 5 essential parameters. If you press <strong>ENTER</strong> without typing anything, it will use the default value shown in the brackets <code>[ ]</code>.</p>
+            
+            <pre>
+1. Camera IP [192.168.1.17]: 
+2. Camera User [admin]: 
+3. Camera Password [123456]: 
+4. Telegram Bot Token [8299472...]: 
+5. Admin Chat ID [8574599572]: </pre>
+
+            <div class="highlight-box">
+                <h3>⚠️ What happens in the background?</h3>
+                <p>Once you hit enter on the last question, the script performs a <strong>"0 km Factory Reset"</strong>:</p>
+                <ul>
+                    <li>Creates <code>credenciales.json</code> with atomic write protection.</li>
+                    <li>Creates an untouchable backup vault: <code>credenciales_backup.json</code>.</li>
+                    <li><strong>WIPES</strong> all old client data: Photos, Downtime Logs, Schedules, and Masked Zones.</li>
+                    <li><strong>DELETES</strong> <code>access_control.json</code> so the bot forgets previous owners.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><span class="step-number">3</span> Auto-Healing Verification</h2>
+            <p>The system is now fully provisioned. Start the main engine as usual:</p>
+            <pre>python3 guardian_produccion.py</pre>
+            <p><strong>Fail-Safe Mechanism:</strong> If the Jetson suffers a power outage and the primary <code>credenciales.json</code> gets corrupted, the system will automatically detect the failure, extract the clean data from the Backup Vault, rebuild the missing file, and boot the camera without crashing.</p>
+        </div>
+
+        <div class="card">
+            <h2><span class="step-number">4</span> Telegram Ownership (Super Admin)</h2>
+            <p>Because the provisioning script wiped the access control database, the bot is currently "unclaimed".</p>
+            <ul>
+                <li><strong>Claiming the System:</strong> The very first person to open Telegram and send a message (e.g., <code>/start</code>) to the bot will automatically be registered as the <strong>Super Admin</strong>.</li>
+                <li><strong>Adding Users:</strong> The Super Admin must approve all future users. If the client wants to add their family members, those members must message the bot, and the Super Admin will receive an alert with an <code>Approve Access</code> button.</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 12px;">
+            Vision Core Infrastructure &copy; 2026 | Confidential Technical Documentation
+        </div>
+
+    </div>
+
+</body>
+</html>
