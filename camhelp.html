@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Deployment Manual - Vision Core</title>
+    <style>
+        :root {
+            --bg-base: #0d1117;
+            --bg-surface: #161b22;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --danger: #f85149;
+            --success: #2ea043;
+            --warning: #d29922;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0; padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            border: 1px solid var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* COLLAPSIBLES */
+        details {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        summary {
+            padding: 15px 20px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            user-select: none;
+            color: var(--accent);
+            outline: none;
+        }
+
+        summary::-webkit-details-marker { display: none; }
+        
+        summary::before {
+            content: "▶";
+            display: inline-block;
+            width: 20px;
+            font-size: 12px;
+            transition: transform 0.2s ease-in-out;
+            color: var(--text-muted);
+        }
+
+        details[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        details[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .details-content {
+            padding: 20px;
+            background-color: var(--bg-base);
+        }
+
+        /* TYPOGRAPHY & ELEMENTS */
+        h3 {
+            margin-top: 0;
+            color: var(--text-main);
+        }
+
+        p { margin-top: 0; }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            background-color: rgba(110, 118, 129, 0.4);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #ff7b72;
+        }
+
+        pre {
+            background-color: #161b22;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+            overflow-x: auto;
+            color: #e6edf3;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .alert-box {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .alert-danger {
+            background: rgba(248, 81, 73, 0.1);
+            border-left: 4px solid var(--danger);
+        }
+        .alert-warning {
+            background: rgba(210, 153, 34, 0.1);
+            border-left: 4px solid var(--warning);
+        }
+
+        ul { margin-top: 0; padding-left: 20px; }
+        li { margin-bottom: 8px; }
+
+        .step-number {
+            display: inline-block;
+            background: var(--border);
+            color: var(--text-main);
+            width: 24px;
+            height: 24px;
+            text-align: center;
+            border-radius: 50%;
+            line-height: 24px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>⚙️ Assembly & Deployment Protocol <span class="badge">Internal Use Only</span></h1>
+            <p style="color: var(--text-muted); font-size: 14px; margin-top: 5px;">Standard Operating Procedure for setting up, cleaning, and provisioning NVIDIA Jetson Orin Nano systems before delivery to the end client.</p>
+        </header>
+
+        <details>
+            <summary>Phase 1: Factory Reset (Refurbishing a Used Device)</summary>
+            <div class="details-content">
+                <div class="alert-box alert-danger">
+                    <strong>CRITICAL:</strong> If this unit was previously used for testing or by another client, you MUST wipe the state files. If you skip this, the new client will be locked out of their own bot.
+                </div>
+                
+                <p>Open the Jetson terminal via SSH and navigate to the project directory. Execute the following commands sequentially to destroy all previous telemetry, photos, and permissions:</p>
+                
+                <pre><code># 1. Stop the running service
+sudo systemctl stop visioncore.service
+
+# 2. Delete all evidence photos
+rm -rf evidence_hd_blackbox/*.jpg
+
+# 3. Delete all State and Database JSON files
+rm access_control.json
+rm system_state.json
+rm schedule.json
+rm masked_zones.json
+rm downtime_history.json
+rm last_alive.txt
+
+# 4. Clear the system logs
+> system.log</code></pre>
+
+                <p><strong>Verification:</strong> The <code>access_control.json</code> file <em>must not exist</em>. When the script boots again, it will automatically recreate a blank one, ready for the new owner to claim.</p>
+            </div>
+        </details>
+
+        <details>
+            <summary>Phase 2: Provisioning the Telegram Bot</summary>
+            <div class="details-content">
+                <p>Each client needs a unique Bot Token. You must create this via Telegram before editing the code.</p>
+                
+                <ul>
+                    <li><span class="step-number">1</span> Open the Telegram App and search for the user <code>@BotFather</code>.</li>
+                    <li><span class="step-number">2</span> Send the command <code>/newbot</code>.</li>
+                    <li><span class="step-number">3</span> Name the bot (e.g., <em>Smith Residence Security</em>).</li>
+                    <li><span class="step-number">4</span> Choose a username ending in "bot" (e.g., <em>smith_guardian_bot</em>).</li>
+                    <li><span class="step-number">5</span> <strong>Copy the HTTP API Token</strong> provided by BotFather. It looks like this: <code>1234567890:ABCdefGhIJKlmNoPQRstuVWXyz</code>.</li>
+                </ul>
+
+                <div class="alert-box alert-warning">
+                    <strong>UX Setup:</strong> Send the command <code>/setuserpic</code> to BotFather and upload the client's logo or a generic camera icon to make the bot look professional.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>Phase 3: Python Configuration (.py)</summary>
+            <div class="details-content">
+                <p>Open the main Python script (e.g., <code>vision_core.py</code>) using <code>nano</code> or VS Code.</p>
+                <p>Locate the <code>class Config:</code> section at the top of the file. You must modify the following variables for the specific client:</p>
+
+                <pre><code>class Config:
+    # --- 1. TELEGRAM CONFIGURATION ---
+    # Paste the token generated by BotFather here:
+    TELEGRAM_TOKEN   = "YOUR_NEW_TOKEN_HERE"
+    
+    # Leave this ID as is, or put a random string. 
+    # It is only used for the boot message. The client will take over dynamically.
+    TELEGRAM_CHAT_ID = "8574599572" 
+
+    # --- 2. CAMERA CONFIGURATION ---
+    # Set the client's local static IP and RTSP credentials
+    CAM_IP   = "192.168.1.XX"
+    CAM_USER = "admin"
+    CAM_PASS = "FactoryPassword123"</code></pre>
+
+                <h3>Important Notes on IP Subnets:</h3>
+                <p>Ensure the Jetson Orin Nano and the PoE Camera are configured on the same subnet as the client's router (e.g., <code>192.168.1.X</code> or <code>10.1.10.X</code>). Set a Static IP for the Jetson in the Ubuntu Network Settings.</p>
+            </div>
+        </details>
+
+        <details>
+            <summary>Phase 4: Web Panel HTML Deployment</summary>
+            <div class="details-content">
+                <p>If you are deploying the Web App control panel for the client:</p>
+                <ul>
+                    <li><span class="step-number">1</span> Upload the <code>index.html</code> file to the client's web server or local Nginx/Apache instance on the Jetson.</li>
+                    <li><span class="step-number">2</span> Open the HTML file and verify that the <code>&lt;title&gt;</code> tag reflects the client's property (e.g., <code>&lt;title&gt;Smith Residence - Control Panel&lt;/title&gt;</code>).</li>
+                </ul>
+            </div>
+        </details>
+
+        <details>
+            <summary>Phase 5: Final Testing & Client Handover</summary>
+            <div class="details-content">
+                <p>Once the hardware is installed on-site, follow this strict procedure to hand over the digital keys securely:</p>
+
+                <ul>
+                    <li><span class="step-number">1</span> Reboot the Jetson device to ensure the <code>visioncore.service</code> auto-starts cleanly.</li>
+                    <li><span class="step-number">2</span> Ask the <strong>Primary Client (The Owner)</strong> to open Telegram on their phone and search for the bot's username (e.g., <code>@smith_guardian_bot</code>).</li>
+                    <li><span class="step-number">3</span> Instruct them to press <strong>START</strong> (or send <code>/start</code>).</li>
+                </ul>
+
+                <div class="alert-box alert-warning" style="background: rgba(46, 160, 67, 0.1); border-left-color: var(--success);">
+                    <strong>SUCCESS METRIC:</strong> The client should instantly receive a message stating: <br><em>"👑 INITIAL CONFIGURATION: You are now the Super Admin."</em><br><br>
+                    Because the <code>access_control.json</code> was wiped in Phase 1, the system binds its master ownership to the very first Telegram ID that contacts it.
+                </div>
+
+                <h3>Adding Family or Staff</h3>
+                <p>Instruct the owner that if they want their spouse or staff to have access, the staff member must find the bot and send a message. The owner will receive an alert with an <code>✅ APPROVE ACCESS</code> button to authorize them.</p>
+
+            </div>
+        </details>
+
+    </div>
+
+</body>
+</html>
