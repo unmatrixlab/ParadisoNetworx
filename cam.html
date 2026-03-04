@@ -212,6 +212,48 @@
             width: 100%; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px; cursor: pointer;
         }
 
+        /* -------------------------------------
+           TAB 4: EVIDENCE GALLERY (NUEVO RESPONSIVO)
+           ------------------------------------- */
+        .filter-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;
+        }
+        .filter-full { grid-column: span 2; }
+        .filter-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; display: block; font-weight: bold;}
+        .filter-input {
+            width: 100%; background: #000; border: 1px solid var(--border);
+            color: var(--text-main); padding: 12px; border-radius: 8px;
+            outline: none; color-scheme: dark; font-family: inherit; font-size: 14px;
+        }
+        .filter-input:focus { border-color: var(--accent); }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Por defecto en móvil (1 columna) */
+            gap: 15px;
+            margin-top: 20px;
+        }
+        /* Media Query para PC: Escala a 2 o 3 columnas automáticamente */
+        @media (min-width: 650px) {
+            .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+        }
+
+        .gallery-card {
+            background: var(--bg-surface); border: 1px solid var(--border);
+            border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s; cursor: pointer;
+        }
+        .gallery-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+        .gallery-card img { width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border); aspect-ratio: 16/9; object-fit: cover; }
+        .gallery-card-info { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .gallery-tag {
+            display: inline-block; background: rgba(0, 168, 252, 0.1); color: var(--accent);
+            padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;
+        }
+        .gallery-time { color: var(--text-main); font-size: 14px; margin: 0; font-weight: 500; display: block;}
+        .gallery-date { color: var(--text-muted); font-size: 11px; margin: 2px 0 0 0; display: block;}
+        .no-results { text-align: center; padding: 40px 10px; color: var(--text-muted); font-size: 14px; grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 8px;}
+
         /* BOTTOM NAV BAR (REFINED ACTIVE STATE) */
         .bottom-nav {
             position: fixed; bottom: 0; width: 100%; background: rgba(28, 28, 30, 0.95);
@@ -345,6 +387,34 @@
         </div>
     </div>
 
+    <div id="tab-gallery" class="tab-container">
+        <p class="desc">Search through your local 4K evidence database. Dates and times are adjusted to your local timezone.</p>
+        
+        <div class="filter-grid">
+            <div class="filter-full">
+                <span class="filter-label">Date (Local)</span>
+                <input type="date" id="searchDate" class="filter-input">
+            </div>
+            
+            <div>
+                <span class="filter-label">Time From (Optional)</span>
+                <input type="time" id="searchTimeFrom" class="filter-input">
+            </div>
+            <div>
+                <span class="filter-label">Time To (Optional)</span>
+                <input type="time" id="searchTimeTo" class="filter-input">
+            </div>
+            
+            <div class="filter-full">
+                <button class="btn primary" style="width: 100%; padding: 12px; margin-top: 5px;" onclick="executePhotoSearch()">🔍 SEARCH EVIDENCE</button>
+            </div>
+        </div>
+
+        <div id="gallery-results" class="gallery-grid">
+            <div class="no-results">Select a date and click Search to load photos.</div>
+        </div>
+    </div>
+
     <div class="bottom-nav">
         <div class="nav-item active" onclick="switchTab('help', this)">
             <span class="nav-icon">📖</span><span>Help</span>
@@ -354,6 +424,9 @@
         </div>
         <div class="nav-item" onclick="switchTab('schedule', this)">
             <span class="nav-icon">📅</span><span>Schedule</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('gallery', this)">
+            <span class="nav-icon">📸</span><span>Evidence</span>
         </div>
     </div>
 
@@ -728,6 +801,99 @@
 
         renderSC();
 
+        // ==========================================
+        // 🔥 TAB 4: EVIDENCE SEARCH ENGINE (NUEVO)
+        // ==========================================
+        
+        // Pone la fecha de hoy por defecto en el input
+        document.addEventListener("DOMContentLoaded", () => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            document.getElementById('searchDate').value = `${year}-${month}-${day}`;
+        });
+
+        async function executePhotoSearch() {
+            const gallery = document.getElementById('gallery-results');
+            gallery.innerHTML = '<div class="no-results">⏳ Fetching database...</div>';
+
+            const targetDateStr = document.getElementById('searchDate').value;
+            const targetTimeFrom = document.getElementById('searchTimeFrom').value;
+            const targetTimeTo = document.getElementById('searchTimeTo').value;
+
+            if(!targetDateStr) {
+                gallery.innerHTML = '<div class="no-results">⚠️ Please select a date first.</div>';
+                return;
+            }
+
+            try {
+                // Asume que tienes un pequeño archivo list_evidence.php junto a este HTML
+                const response = await fetch('list_evidence.php');
+                if(!response.ok) throw new Error("Backend not found");
+                const files = await response.json();
+
+                let resultsHTML = '';
+                let count = 0;
+
+                files.forEach(filename => {
+                    // Formato: EVIDENCE_PERSON_1709467200_ID1.jpg
+                    let match = filename.match(/_(\d{10})_/);
+                    if(match) {
+                        let unixTs = parseInt(match[1]);
+                        // Solución al Bug de Timezone: Se convierte a objeto Date (Hora Local)
+                        let d = new Date(unixTs * 1000);
+                        
+                        // Extraer YYYY-MM-DD local
+                        let fYear = d.getFullYear();
+                        let fMonth = String(d.getMonth() + 1).padStart(2, '0');
+                        let fDay = String(d.getDate()).padStart(2, '0');
+                        let fileDateStr = `${fYear}-${fMonth}-${fDay}`;
+
+                        // Si la fecha coincide
+                        if(fileDateStr === targetDateStr) {
+                            let fHour = String(d.getHours()).padStart(2, '0');
+                            let fMin = String(d.getMinutes()).padStart(2, '0');
+                            let fileTimeStr = `${fHour}:${fMin}`;
+
+                            // Filtrar por Hora si el usuario la introdujo
+                            let timePass = true;
+                            if(targetTimeFrom && fileTimeStr < targetTimeFrom) timePass = false;
+                            if(targetTimeTo && fileTimeStr > targetTimeTo) timePass = false;
+
+                            if(timePass) {
+                                count++;
+                                let labelMatch = filename.match(/EVIDENCE_([A-Z0-9]+)_/);
+                                let objLabel = labelMatch ? labelMatch[1] : "UNKNOWN";
+                                
+                                // Tarjeta Responsiva
+                                resultsHTML += `
+                                    <div class="gallery-card" onclick="window.open('evidence_hd_blackbox/${filename}', '_blank')">
+                                        <img src="evidence_hd_blackbox/${filename}" alt="${objLabel}" loading="lazy">
+                                        <div class="gallery-card-info">
+                                            <div>
+                                                <span class="gallery-time">${fileTimeStr}</span>
+                                                <span class="gallery-date">${fileDateStr}</span>
+                                            </div>
+                                            <div class="gallery-tag">${objLabel}</div>
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        }
+                    }
+                });
+
+                if(count === 0) {
+                    gallery.innerHTML = `<div class="no-results">❌ No evidence found for ${targetDateStr}.</div>`;
+                } else {
+                    gallery.innerHTML = resultsHTML;
+                }
+
+            } catch (error) {
+                gallery.innerHTML = `<div class="no-results">⚠️ Backend error. Make sure 'list_evidence.php' is in your server folder.</div>`;
+            }
+        }
     </script>
 </body>
 </html>
