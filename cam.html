@@ -650,6 +650,8 @@
                 });
                 out.value = `/setzone ${arr.join(',')}`;
             } else { out.value = `/setzone clear`; }
+
+            if (typeof saveState === 'function') saveState();
         }
 
         // ==========================================
@@ -773,8 +775,82 @@
             });
 
             document.getElementById('cmd-sched-out').value = `/setweek ${bulkStr.join('|')}`;
+            if (typeof saveState === 'function') saveState();
         }
 
+        // ==========================================
+        // PERSISTENCE ENGINE (Option B)
+        // ==========================================
+        const STORAGE_KEY = 'visionCoreData_v1';
+        let isRestoring = false;
+
+        function saveState() {
+            if (isRestoring) return;
+            try {
+                const dataToSave = {
+                    margin: document.getElementById('marginToggle') ? document.getElementById('marginToggle').checked : true,
+                    zones: Array.from(selZones),
+                    sched: scData,
+                    imgBase64: imgZ.src || null
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+            } catch (e) {
+                console.warn("Persistencia falló:", e);
+                if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    showToast("⚠️ Imagen muy pesada para memoria. Guardando solo conf.");
+                    try {
+                        // Si falla, reintentamos guardar todo menos la imagen
+                        const fallbackData = {
+                            margin: document.getElementById('marginToggle') ? document.getElementById('marginToggle').checked : true,
+                            zones: Array.from(selZones),
+                            sched: scData,
+                            imgBase64: null
+                        };
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(fallbackData));
+                    } catch (fallbackError) { }
+                }
+            }
+        }
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    isRestoring = true;
+                    const parsed = JSON.parse(saved);
+                    
+                    if (parsed.sched) {
+                        scData = parsed.sched;
+                    }
+                    
+                    if (parsed.margin !== undefined && document.getElementById('marginToggle')) {
+                        document.getElementById('marginToggle').checked = parsed.margin;
+                    }
+                    
+                    if (parsed.zones) {
+                        selZones = new Set(parsed.zones);
+                    }
+                    
+                    if (parsed.imgBase64) {
+                        imgZ.onload = function() {
+                            document.getElementById('canvas-wrapper').style.display = 'block';
+                            document.getElementById('zone-controls').style.display = 'block';
+                            canvas.width = imgZ.width; canvas.height = imgZ.height;
+                            cW = canvas.width / G_COLS; cH = canvas.height / G_ROWS;
+                            drawZ();
+                        };
+                        imgZ.src = parsed.imgBase64;
+                    }
+                    isRestoring = false;
+                }
+            } catch (e) {
+                console.error("Error cargando persistencia:", e);
+                isRestoring = false;
+            }
+        }
+
+        // Inicializar el sistema (Carga datos si existen, sino hace el render normal)
+        loadState();
         renderSC();
 
     </script>
