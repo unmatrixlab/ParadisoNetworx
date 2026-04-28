@@ -8,89 +8,54 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #1a1a1a; 
-            background-image: url('laura.jpeg'); /* Tu fondo de PC */
+            background-color: #1a1a1a;
+            background-image: url('laura.jpeg');
             background-size: cover;
             background-position: center;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: 'Courier New', Courier, monospace;
         }
 
         @media (max-width: 768px) {
-            body { background-image: url('lauraph.jpeg'); } /* Tu fondo de móvil */
+            body {
+                background-image: url('lauraph.jpg');
+            }
         }
 
         canvas {
-            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.4));
-            z-index: 1;
+            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
         }
 
-        /* Contenedor de contacto */
-        #contact-info {
+        #ui {
             position: absolute;
-            bottom: 40px;
-            text-align: center;
-            z-index: 2;
-            letter-spacing: 3px;
-        }
-
-        #contact-info a {
-            display: block;
-            color: #8c785d; /* Color más oscuro/sepia para separar visualmente */
-            text-decoration: none;
-            margin: 10px 0;
-            font-size: 14px;
-            transition: color 0.3s ease;
+            bottom: 20px;
+            color: #d2b48c;
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: 2px;
             text-transform: uppercase;
-        }
-
-        #contact-info a:hover {
-            color: #d2b48c; /* Brilla al pasar el ratón */
         }
     </style>
 </head>
 <body>
 
     <canvas id="canvas1"></canvas>
-
-    <div id="contact-info">
-        <a href="mailto:info@lauragoodstone.com">info@lauragoodstone.com</a>
-        <a href="tel:+34600000000">+34 600 000 000</a>
-    </div>
+    <div id="ui">Work in Progress</div>
 
     <script>
-        // ==========================================
-        // PANEL DE VARIABLES (Configura aquí tu arena)
-        // ==========================================
-        const CONFIG = {
-            logoPath: 'logo.png',            // Ruta de tu archivo de logo
-            logoScale: 0.5,                  // Tamaño del logo (0.1 a 1.0)
-            particleResolution: 4,           // Resolución: 1 es máxima (pesado), 4-6 es ideal
-            particleSizeMin: 1,              // Tamaño mínimo de grano de arena
-            particleSizeMax: 3,              // Tamaño máximo de grano de arena
-            mouseRadius: 150,                // Radio de explosión al pasar el ratón
-            returnSpeed: 0.02,               // Velocidad de retorno (0.01 lento, 0.1 rápido)
-            scatterForce: 30,                // Fuerza de dispersión
-            colors: ['#e3cba0', '#d2b48c', '#af9471', '#5e4f3a'], // Paleta de la arena
-            shadowColor: 'rgba(210, 180, 140, 0.5)' // Color del resplandor
-        };
-
         const canvas = document.getElementById('canvas1');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         let particleArray = [];
-        const mouse = { x: null, y: null, radius: CONFIG.mouseRadius };
+        const mouse = { x: null, y: null, radius: 100 };
 
-        window.addEventListener('mousemove', (e) => {
-            mouse.x = e.x;
-            mouse.y = e.y;
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
         });
 
         class Particle {
@@ -99,15 +64,18 @@
                 this.y = Math.random() * canvas.height;
                 this.destX = x;
                 this.destY = y;
-                this.size = Math.random() * (CONFIG.particleSizeMax - CONFIG.particleSizeMin) + CONFIG.particleSizeMin;
-                this.color = CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)];
-                this.density = (Math.random() * CONFIG.scatterForce) + 1;
+                this.size = Math.random() * 2 + 0.5; // Partículas un poco más finas para el logo
+                this.baseX = this.x;
+                this.baseY = this.y;
+                this.density = (Math.random() * 30) + 1;
+                this.color = '#d2b48c'; 
             }
 
             draw() {
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
                 ctx.fill();
             }
 
@@ -115,51 +83,63 @@
                 let dx = mouse.x - this.x;
                 let dy = mouse.y - this.y;
                 let distance = Math.sqrt(dx * dx + dy * dy);
+                let forceDirectionX = dx / distance;
+                let forceDirectionY = dy / distance;
+                let maxDistance = mouse.radius;
+                let force = (maxDistance - distance) / maxDistance;
+                let directionX = forceDirectionX * force * this.density;
+                let directionY = forceDirectionY * force * this.density;
 
                 if (distance < mouse.radius) {
-                    let force = (mouse.radius - distance) / mouse.radius;
-                    this.x -= (dx / distance) * force * this.density;
-                    this.y -= (dy / distance) * force * this.density;
+                    this.x -= directionX;
+                    this.y -= directionY;
                 } else {
-                    // Retorno suave a la posición original
                     if (this.x !== this.destX) {
-                        this.x -= (this.x - this.destX) * CONFIG.returnSpeed;
+                        let dx = this.x - this.destX;
+                        this.x -= dx / 15; // Un poco más rápido el retorno
                     }
                     if (this.y !== this.destY) {
-                        this.y -= (this.y - this.destY) * CONFIG.returnSpeed;
+                        let dy = this.y - this.destY;
+                        this.y -= dy / 15;
                     }
                 }
             }
         }
 
         const logoImage = new Image();
-        logoImage.src = CONFIG.logoPath;
-        
-        logoImage.onload = () => {
-            init();
-            animate();
-        };
+        logoImage.src = 'logo.png'; // Asegúrate de que el nombre coincida
 
         function init() {
             particleArray = [];
+            
+            // Calculamos dimensiones para centrar el logo
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
+            
+            // Ajustamos el tamaño del logo según la pantalla
+            const scale = window.innerWidth < 768 ? 0.6 : 0.8;
+            const logow = logoImage.width * scale;
+            const logoh = logoImage.height * scale;
+            
             tempCanvas.width = canvas.width;
             tempCanvas.height = canvas.height;
+            
+            // Dibujamos el logo centrado en el canvas temporal
+            tempCtx.drawImage(
+                logoImage, 
+                (canvas.width - logow) / 2, 
+                (canvas.height - logoh) / 2, 
+                logow, 
+                logoh
+            );
 
-            const w = logoImage.width * CONFIG.logoScale;
-            const h = logoImage.height * CONFIG.logoScale;
-            const x = (canvas.width - w) / 2;
-            const y = (canvas.height - h) / 2;
-
-            tempCtx.drawImage(logoImage, x, y, w, h);
-            const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
-
-            // Escaneo de píxeles según la resolución configurada
-            for (let y = 0; y < data.height; y += CONFIG.particleResolution) {
-                for (let x = 0; x < data.width; x += CONFIG.particleResolution) {
-                    // Si el píxel es lo suficientemente brillante (blanco del logo)
-                    if (data.data[(y * 4 * data.width) + (x * 4) + 3] > 128) {
+            const textCoordinates = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            // Recorremos los píxeles (cada 3 o 4 para no sobrecargar de partículas)
+            for (let y = 0; y < textCoordinates.height; y += 3) {
+                for (let x = 0; x < textCoordinates.width; x += 3) {
+                    // Si el pixel no es transparente (alpha > 128)
+                    if (textCoordinates.data[(y * 4 * textCoordinates.width) + (x * 4) + 3] > 128) {
                         particleArray.push(new Particle(x, y));
                     }
                 }
@@ -174,6 +154,12 @@
             }
             requestAnimationFrame(animate);
         }
+
+        // Importante: Esperar a que la imagen cargue antes de iniciar
+        logoImage.onload = () => {
+            init();
+            animate();
+        };
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
