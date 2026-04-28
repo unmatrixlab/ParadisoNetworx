@@ -22,8 +22,10 @@
             content: "";
             position: absolute;
             inset: 0;
+
             background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
                         url('laura.jpeg');
+
             background-size: cover;
             background-position: center;
             z-index: 0;
@@ -44,6 +46,7 @@
             filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
         }
 
+        /* TEXTO INFERIOR */
         .footer {
             position: absolute;
             bottom: 30px;
@@ -88,21 +91,15 @@ canvas.height = window.innerHeight;
 
 let particleArray = [];
 
-/* MOUSE COMO VIENTO REAL */
-const mouse = {
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0
-};
+const mouse = { x: null, y: null, radius: 150 };
 
-window.addEventListener('mousemove', (e) => {
-    mouse.vx = e.clientX - mouse.x;
-    mouse.vy = e.clientY - mouse.y;
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
+/* MOUSE */
+window.addEventListener('mousemove', (event) => {
+    mouse.x = event.x;
+    mouse.y = event.y;
 });
 
+/* TOUCH (ARREGLADO + MÁS SUAVE) */
 window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     mouse.x = t.clientX;
@@ -111,48 +108,47 @@ window.addEventListener('touchstart', (e) => {
 
 window.addEventListener('touchmove', (e) => {
     const t = e.touches[0];
-    mouse.vx = (t.clientX - mouse.x);
-    mouse.vy = (t.clientY - mouse.y);
-    mouse.x = t.clientX;
-    mouse.y = t.clientY;
+
+    /* interpolación suave */
+    mouse.x += (t.clientX - mouse.x) * 0.3;
+    mouse.y += (t.clientY - mouse.y) * 0.3;
 });
 
-/* PARTÍCULAS */
 class Particle {
     constructor(x, y) {
-        this.x = x;
-        this.y = y;
-
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
         this.destX = x;
         this.destY = y;
-
-        this.size = Math.random() * 1.5 + 0.5;
+        this.size = Math.random() * 3 + 1;
 
         const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
         this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
+
+        this.density = (Math.random() * 30) + 1;
     }
 
     draw() {
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     update() {
-        const dx = this.x - mouse.x;
-        const dy = this.y - mouse.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        let dx = mouse.x - this.x;
+        let dy = mouse.y - this.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
 
-        /* VIENTO DIRECCIONAL (NO RADIAL) */
-        if (dist < 100) {
-            const power = (100 - dist) / 100;
+        let force = (mouse.radius - distance) / mouse.radius;
 
-            this.x += mouse.vx * power * 0.4;
-            this.y += mouse.vy * power * 0.4;
+        if (distance < mouse.radius) {
+            this.x -= dx * force * 0.2;
+            this.y -= dy * force * 0.2;
+        } else {
+            this.x += (this.destX - this.x) / 50;
+            this.y += (this.destY - this.y) / 50;
         }
-
-        /* REGRESO SECO (SIN GELATINA) */
-        this.x += (this.destX - this.x) * 0.08;
-        this.y += (this.destY - this.y) * 0.08;
     }
 }
 
@@ -174,25 +170,24 @@ function initWithLogo() {
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    const scale = window.innerWidth < 768 ? 0.45 : 0.6;
+    const scale = 0.6;
 
     const w = logoImage.width * scale;
     const h = logoImage.height * scale;
 
-    const x = (canvas.width - w) / 2;
-    const y = (canvas.height - h) / 2;
+    const xPos = (canvas.width - w) / 2;
+    const yPos = (canvas.height - h) / 2;
 
-    tempCtx.drawImage(logoImage, x, y, w, h);
+    tempCtx.drawImage(logoImage, xPos, yPos, w, h);
 
     const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
 
-    /* MUCHAS MÁS PARTÍCULAS */
-    for (let yPos = 0; yPos < data.height; yPos += 2) {
-        for (let xPos = 0; xPos < data.width; xPos += 2) {
-            const i = (yPos * 4 * data.width) + (xPos * 4);
+    for (let y = 0; y < data.height; y += 4) {
+        for (let x = 0; x < data.width; x += 4) {
+            const i = (y * 4 * data.width) + (x * 4);
 
             if (data.data[i] > 150) {
-                particleArray.push(new Particle(xPos, yPos));
+                particleArray.push(new Particle(x, y));
             }
         }
     }
