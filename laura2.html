@@ -88,15 +88,14 @@ canvas.height = window.innerHeight;
 
 let particleArray = [];
 
-/* MOUSE / TOUCH COMO VIENTO */
+/* MOUSE COMO VIENTO REAL */
 const mouse = {
-    x: null,
-    y: null,
+    x: 0,
+    y: 0,
     vx: 0,
     vy: 0
 };
 
-/* DESKTOP */
 window.addEventListener('mousemove', (e) => {
     mouse.vx = e.clientX - mouse.x;
     mouse.vy = e.clientY - mouse.y;
@@ -104,7 +103,6 @@ window.addEventListener('mousemove', (e) => {
     mouse.y = e.clientY;
 });
 
-/* TOUCH */
 window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     mouse.x = t.clientX;
@@ -113,13 +111,8 @@ window.addEventListener('touchstart', (e) => {
 
 window.addEventListener('touchmove', (e) => {
     const t = e.touches[0];
-
-    const dx = t.clientX - mouse.x;
-    const dy = t.clientY - mouse.y;
-
-    mouse.vx = dx * 0.6;
-    mouse.vy = dy * 0.6;
-
+    mouse.vx = (t.clientX - mouse.x);
+    mouse.vy = (t.clientY - mouse.y);
     mouse.x = t.clientX;
     mouse.y = t.clientY;
 });
@@ -127,19 +120,16 @@ window.addEventListener('touchmove', (e) => {
 /* PARTÍCULAS */
 class Particle {
     constructor(x, y) {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = x;
+        this.y = y;
 
         this.destX = x;
         this.destY = y;
 
-        this.size = Math.random() * 2 + 0.5;
+        this.size = Math.random() * 1.5 + 0.5;
 
         const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
         this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
-
-        this.vx = 0;
-        this.vy = 0;
     }
 
     draw() {
@@ -148,26 +138,21 @@ class Particle {
     }
 
     update() {
-        /* FUERZA DE VIENTO */
         const dx = this.x - mouse.x;
         const dy = this.y - mouse.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 120) {
-            this.vx += mouse.vx * 0.02;
-            this.vy += mouse.vy * 0.02;
+        /* VIENTO DIRECCIONAL (NO RADIAL) */
+        if (dist < 100) {
+            const power = (100 - dist) / 100;
+
+            this.x += mouse.vx * power * 0.4;
+            this.y += mouse.vy * power * 0.4;
         }
 
-        /* FRICCIÓN (arena pierde energía) */
-        this.vx *= 0.92;
-        this.vy *= 0.92;
-
-        /* REGRESO SUAVE */
-        this.vx += (this.destX - this.x) * 0.002;
-        this.vy += (this.destY - this.y) * 0.002;
-
-        this.x += this.vx;
-        this.y += this.vy;
+        /* REGRESO SECO (SIN GELATINA) */
+        this.x += (this.destX - this.x) * 0.08;
+        this.y += (this.destY - this.y) * 0.08;
     }
 }
 
@@ -201,8 +186,9 @@ function initWithLogo() {
 
     const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
 
-    for (let yPos = 0; yPos < data.height; yPos += 3) {
-        for (let xPos = 0; xPos < data.width; xPos += 3) {
+    /* MUCHAS MÁS PARTÍCULAS */
+    for (let yPos = 0; yPos < data.height; yPos += 2) {
+        for (let xPos = 0; xPos < data.width; xPos += 2) {
             const i = (yPos * 4 * data.width) + (xPos * 4);
 
             if (data.data[i] > 150) {
