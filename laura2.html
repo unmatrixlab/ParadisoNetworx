@@ -8,50 +8,89 @@
         body {
             margin: 0;
             padding: 0;
-            /* Fondo oscuro para que la arena clara resalte */
             background-color: #1a1a1a; 
-            /* REEMPLAZA CON TU IMAGEN DE FONDO REAL */
-            background-image: url('laura.jpeg'); 
+            background-image: url('laura.jpeg'); /* Tu fondo de PC */
             background-size: cover;
             background-position: center;
             overflow: hidden;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
         }
 
-        /* Estilos para móvil */
         @media (max-width: 768px) {
-            body {
-                /* REEMPLAZA CON TU IMAGEN DE FONDO PARA MÓVIL REAL */
-                background-image: url('lauraph.jpeg');
-            }
+            body { background-image: url('lauraph.jpeg'); } /* Tu fondo de móvil */
         }
 
         canvas {
-            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
+            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.4));
+            z-index: 1;
         }
 
-        /* Eliminado el estilo #ui, el logo entero es de partículas */
+        /* Contenedor de contacto */
+        #contact-info {
+            position: absolute;
+            bottom: 40px;
+            text-align: center;
+            z-index: 2;
+            letter-spacing: 3px;
+        }
+
+        #contact-info a {
+            display: block;
+            color: #8c785d; /* Color más oscuro/sepia para separar visualmente */
+            text-decoration: none;
+            margin: 10px 0;
+            font-size: 14px;
+            transition: color 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        #contact-info a:hover {
+            color: #d2b48c; /* Brilla al pasar el ratón */
+        }
     </style>
 </head>
 <body>
 
     <canvas id="canvas1"></canvas>
+
+    <div id="contact-info">
+        <a href="mailto:info@lauragoodstone.com">info@lauragoodstone.com</a>
+        <a href="tel:+34600000000">+34 600 000 000</a>
+    </div>
+
     <script>
+        // ==========================================
+        // PANEL DE VARIABLES (Configura aquí tu arena)
+        // ==========================================
+        const CONFIG = {
+            logoPath: 'logo.png',            // Ruta de tu archivo de logo
+            logoScale: 0.5,                  // Tamaño del logo (0.1 a 1.0)
+            particleResolution: 4,           // Resolución: 1 es máxima (pesado), 4-6 es ideal
+            particleSizeMin: 1,              // Tamaño mínimo de grano de arena
+            particleSizeMax: 3,              // Tamaño máximo de grano de arena
+            mouseRadius: 150,                // Radio de explosión al pasar el ratón
+            returnSpeed: 0.02,               // Velocidad de retorno (0.01 lento, 0.1 rápido)
+            scatterForce: 30,                // Fuerza de dispersión
+            colors: ['#e3cba0', '#d2b48c', '#af9471', '#5e4f3a'], // Paleta de la arena
+            shadowColor: 'rgba(210, 180, 140, 0.5)' // Color del resplandor
+        };
+
         const canvas = document.getElementById('canvas1');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         let particleArray = [];
-        // Mejorado: Radio del ratón aumentado para mayor interacción
-        const mouse = { x: null, y: null, radius: 150 }; 
+        const mouse = { x: null, y: null, radius: CONFIG.mouseRadius };
 
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = event.x;
-            mouse.y = event.y;
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.x;
+            mouse.y = e.y;
         });
 
         class Particle {
@@ -60,21 +99,15 @@
                 this.y = Math.random() * canvas.height;
                 this.destX = x;
                 this.destY = y;
-                // Mejorado: Rango de tamaño mayor para textura
-                this.size = Math.random() * 3 + 1; 
-                this.baseX = this.x;
-                this.baseY = this.y;
-                // Mejorado: Paleta de colores arena variada
-                const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
-                this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
-                this.density = (Math.random() * 30) + 1;
+                this.size = Math.random() * (CONFIG.particleSizeMax - CONFIG.particleSizeMin) + CONFIG.particleSizeMin;
+                this.color = CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)];
+                this.density = (Math.random() * CONFIG.scatterForce) + 1;
             }
 
             draw() {
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.closePath();
                 ctx.fill();
             }
 
@@ -82,75 +115,51 @@
                 let dx = mouse.x - this.x;
                 let dy = mouse.y - this.y;
                 let distance = Math.sqrt(dx * dx + dy * dy);
-                let forceDirectionX = dx / distance;
-                let forceDirectionY = dy / distance;
-                let maxDistance = mouse.radius;
-                let force = (maxDistance - distance) / maxDistance;
-                let directionX = forceDirectionX * force * this.density;
-                let directionY = forceDirectionY * force * this.density;
 
                 if (distance < mouse.radius) {
-                    this.x -= directionX;
-                    this.y -= directionY;
+                    let force = (mouse.radius - distance) / mouse.radius;
+                    this.x -= (dx / distance) * force * this.density;
+                    this.y -= (dy / distance) * force * this.density;
                 } else {
-                    // Mejorado: Retorno más lento para un efecto de "flotación"
+                    // Retorno suave a la posición original
                     if (this.x !== this.destX) {
-                        let dxBack = this.x - this.destX;
-                        this.x -= dxBack / 50; // Retorno más lento (era /20)
+                        this.x -= (this.x - this.destX) * CONFIG.returnSpeed;
                     }
                     if (this.y !== this.destY) {
-                        let dyBack = this.y - this.destY;
-                        this.y -= dyBack / 50;
+                        this.y -= (this.y - this.destY) * CONFIG.returnSpeed;
                     }
                 }
             }
         }
 
-        // Carga la imagen del logo. El logo proporcionado tiene fondo negro.
-        // El script buscará los píxeles blancos.
         const logoImage = new Image();
-        // REEMPLAZA CON LA RUTA DE TU IMAGEN DE LOGO REAL
-        logoImage.src = 'logo.png'; 
+        logoImage.src = CONFIG.logoPath;
         
-        // Manejamos la carga asíncrona de la imagen
         logoImage.onload = () => {
-            initWithLogo();
+            init();
             animate();
         };
 
-        function initWithLogo() {
+        function init() {
             particleArray = [];
-            
-            // Creamos un canvas temporal y oculto para procesar la imagen
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             tempCanvas.width = canvas.width;
             tempCanvas.height = canvas.height;
 
-            // Centramos y escalamos la imagen en el canvas temporal
-            const scale = 0.6; // Ajusta este factor para cambiar el tamaño del logo en pantalla
-            const imgWidth = logoImage.width * scale;
-            const imgHeight = logoImage.height * scale;
-            const xPos = (tempCanvas.width - imgWidth) / 2;
-            const yPos = (tempCanvas.height - imgHeight) / 2;
+            const w = logoImage.width * CONFIG.logoScale;
+            const h = logoImage.height * CONFIG.logoScale;
+            const x = (canvas.width - w) / 2;
+            const y = (canvas.height - h) / 2;
 
-            tempCtx.drawImage(logoImage, xPos, yPos, imgWidth, imgHeight);
+            tempCtx.drawImage(logoImage, x, y, w, h);
+            const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
 
-            // Capturamos los datos de los píxeles del logo dibujado
-            const textCoordinates = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            
-            // Procesamos cada 4 píxeles para velocidad
-            for (let y = 0, y2 = textCoordinates.height; y < y2; y += 4) {
-                for (let x = 0, x2 = textCoordinates.width; x < x2; x += 4) {
-                    const pixelIndex = (y * 4 * textCoordinates.width) + (x * 4);
-                    const r = textCoordinates.data[pixelIndex];
-                    const g = textCoordinates.data[pixelIndex + 1];
-                    const b = textCoordinates.data[pixelIndex + 2];
-                    const a = textCoordinates.data[pixelIndex + 3];
-
-                    // Detectamos los píxeles blancos del logo original (blanco sobre negro)
-                    // Buscamos brillo alto en R, G, y B.
-                    if (r > 150 && g > 150 && b > 150 && a > 128) { 
+            // Escaneo de píxeles según la resolución configurada
+            for (let y = 0; y < data.height; y += CONFIG.particleResolution) {
+                for (let x = 0; x < data.width; x += CONFIG.particleResolution) {
+                    // Si el píxel es lo suficientemente brillante (blanco del logo)
+                    if (data.data[(y * 4 * data.width) + (x * 4) + 3] > 128) {
                         particleArray.push(new Particle(x, y));
                     }
                 }
@@ -166,14 +175,10 @@
             requestAnimationFrame(animate);
         }
 
-        // Eliminados los init() y animate() originales del final.
-        // Ahora se ejecutan en el logoImage.onload.
-
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // Volvemos a inicializar para re-centrar el logo
-            initWithLogo(); 
+            init();
         });
     </script>
 </body>
