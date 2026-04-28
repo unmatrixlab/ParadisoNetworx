@@ -56,17 +56,21 @@ canvas.height = window.innerHeight;
 
 let particleArray = [];
 
-/* INTERACCIÓN MÁS SUTIL */
-const mouse = { x: null, y: null, radius: 80 };
+/* MOUSE COMO VIENTO */
+const mouse = { x: null, y: null, vx: 0, vy: 0 };
 
 window.addEventListener('mousemove', (event) => {
+    mouse.vx = event.x - mouse.x;
+    mouse.vy = event.y - mouse.y;
     mouse.x = event.x;
     mouse.y = event.y;
 });
 
-/* TOUCH MÁS ORGÁNICO */
+/* TOUCH */
 window.addEventListener('touchmove', (event) => {
     const touch = event.touches[0];
+    mouse.vx = touch.clientX - mouse.x;
+    mouse.vy = touch.clientY - mouse.y;
     mouse.x = touch.clientX;
     mouse.y = touch.clientY;
 });
@@ -77,36 +81,33 @@ class Particle {
         this.y = Math.random() * canvas.height;
         this.destX = x;
         this.destY = y;
-        this.size = Math.random() * 2 + 0.5;
-        this.baseX = this.x;
-        this.baseY = this.y;
+        this.size = Math.random() * 2 + 0.3;
 
         const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
         this.color = color || sandColors[Math.floor(Math.random() * sandColors.length)];
 
-        this.density = (Math.random() * 20) + 1;
+        this.speed = Math.random() * 0.5 + 0.5;
     }
 
     draw() {
         ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.fillRect(this.x, this.y, this.size, this.size);
     }
 
     update() {
-        let dx = mouse.x - this.x;
-        let dy = mouse.y - this.y;
-        let distance = Math.sqrt(dx * dx + dy * dy);
+        /* VIENTO (NO CÍRCULO) */
+        const dx = this.x - mouse.x;
+        const dy = this.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance < mouse.radius) {
-            this.x -= dx * 0.02;
-            this.y -= dy * 0.02;
-        } else {
-            this.x += (this.destX - this.x) * 0.02;
-            this.y += (this.destY - this.y) * 0.02;
+        if (dist < 120) {
+            this.x += mouse.vx * 0.3;
+            this.y += mouse.vy * 0.3;
         }
+
+        /* REGRESO SUAVE */
+        this.x += (this.destX - this.x) * 0.03 * this.speed;
+        this.y += (this.destY - this.y) * 0.03 * this.speed;
     }
 }
 
@@ -114,7 +115,7 @@ class Particle {
 const logoImage = new Image();
 logoImage.src = 'logo.png';
 
-/* TEXTO CANVAS */
+/* TEXTO */
 const textCanvas = document.createElement('canvas');
 const textCtx = textCanvas.getContext('2d');
 
@@ -133,21 +134,21 @@ function initWithLogo() {
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    /* LOGO MÁS PEQUEÑO EN MÓVIL */
-    let scale = window.innerWidth < 768 ? 0.35 : 0.6;
+    let scale = window.innerWidth < 768 ? 0.4 : 0.7;
 
-    const imgWidth = logoImage.width * scale;
-    const imgHeight = logoImage.height * scale;
+    const w = logoImage.width * scale;
+    const h = logoImage.height * scale;
 
-    const xPos = (tempCanvas.width - imgWidth) / 2;
-    const yPos = (tempCanvas.height - imgHeight) / 2;
+    const xPos = (canvas.width - w) / 2;
+    const yPos = (canvas.height - h) / 2;
 
-    tempCtx.drawImage(logoImage, xPos, yPos, imgWidth, imgHeight);
+    tempCtx.drawImage(logoImage, xPos, yPos, w, h);
 
-    const data = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
 
-    for (let y = 0; y < data.height; y += 4) {
-        for (let x = 0; x < data.width; x += 4) {
+    /* MUCHAS MÁS PARTÍCULAS */
+    for (let y = 0; y < data.height; y += 2) {
+        for (let x = 0; x < data.width; x += 2) {
             const i = (y * 4 * data.width) + (x * 4);
             if (data.data[i] > 150) {
                 particleArray.push(new Particle(x, y));
@@ -156,28 +157,38 @@ function initWithLogo() {
     }
 }
 
-/* TEXTO COMO ARENA */
 function initText() {
     textCanvas.width = canvas.width;
     textCanvas.height = canvas.height;
 
     textCtx.fillStyle = "white";
-    textCtx.font = "14px Arial";
     textCtx.textAlign = "center";
 
+    /* TIPOGRAFÍA MÁS PARECIDA */
+    textCtx.font = "600 16px Arial";
+    textCtx.letterSpacing = "3px";
+
     textCtx.fillText(
-        "WORK IN PROGRESS · contacto@mail.com",
+        "WORK IN PROGRESS",
         canvas.width / 2,
-        canvas.height - 40
+        canvas.height - 60
     );
 
-    const textData = textCtx.getImageData(0, 0, canvas.width, canvas.height);
+    textCtx.font = "14px Arial";
 
-    for (let y = 0; y < textData.height; y += 6) {
-        for (let x = 0; x < textData.width; x += 6) {
-            const i = (y * 4 * textData.width) + (x * 4);
-            if (textData.data[i] > 150) {
-                particleArray.push(new Particle(x, y, "#888")); // gris arena
+    textCtx.fillText(
+        "contacto@mail.com",
+        canvas.width / 2,
+        canvas.height - 35
+    );
+
+    const data = textCtx.getImageData(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < data.height; y += 3) {
+        for (let x = 0; x < data.width; x += 3) {
+            const i = (y * 4 * data.width) + (x * 4);
+            if (data.data[i] > 150) {
+                particleArray.push(new Particle(x, y, "#9a9a9a"));
             }
         }
     }
