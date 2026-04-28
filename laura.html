@@ -2,193 +2,212 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>LAURA GOODSTONE - Work in Progress</title>
+
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #1a1a1a; 
-            background-image: url('laura.jpeg'); 
-            background-size: cover;
-            background-position: center;
+            background-color: #1a1a1a;
             overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            /* Soporte para navegadores móviles con barras de herramientas dinámicas */
+            height: -webkit-fill-available; 
+            position: relative;
         }
 
+        html {
+            height: -webkit-fill-available;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+                        url('laura.jpeg');
+            background-size: cover;
+            background-position: center;
+            z-index: 0;
+        }
+
+        /* MOBILE FIX */
         @media (max-width: 768px) {
-            body {
-                background-image: url('lauraph.JPG');
+            body::before {
+                background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)),
+                            url('lauraph.JPG');
+                background-size: cover; /* Cambiado a cover para ocupar alto completo */
+                background-position: center;
+            }
+
+            .footer {
+                bottom: 20px !important;
+                font-size: 11px;
             }
         }
 
         canvas {
-            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            filter: drop-shadow(0 0 8px rgba(210, 180, 140, 0.4));
         }
 
-        /* TEXTO INFERIOR */
-        #footerText {
+        .footer {
             position: absolute;
             bottom: 30px;
             width: 100%;
             text-align: center;
-            color: #999;
+            z-index: 10; /* Asegura que esté por encima de todo */
             font-family: Arial, sans-serif;
-            font-size: 14px;
+            color: #ccc;
             letter-spacing: 2px;
-            pointer-events: none;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .footer a {
+            color: #fff;
+            text-decoration: none;
+            word-break: break-word;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
+
 <body>
 
 <canvas id="canvas1"></canvas>
-<div id="footerText">WORK IN PROGRESS · contacto@mail.com</div>
+
+<div class="footer">
+    <div style="margin-bottom: 5px;">WORK IN PROGRESS</div>
+    <div>
+        <a href="mailto:lauragoodstone01@gmail.com">
+            lauragoodstone01@gmail.com
+        </a>
+    </div>
+</div>
 
 <script>
 const canvas = document.getElementById('canvas1');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
 let particleArray = [];
+const mouse = { x: null, y: null, radius: 120 };
 
-/* MOUSE COMO VIENTO */
-const mouse = { x: null, y: null, vx: 0, vy: 0 };
+// Configuración solicitada
+const SETTINGS = {
+    gap: 2,           // Mitad de 4 = Doble de densidad
+    sizeFactor: 0.5,  // Multiplicador para reducir tamaño a la mitad
+    baseSize: 1.5     // Tamaño máximo reducido
+};
+
+function setCanvasSize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+setCanvasSize();
 
 window.addEventListener('mousemove', (event) => {
-    mouse.vx = event.x - mouse.x;
-    mouse.vy = event.y - mouse.y;
     mouse.x = event.x;
     mouse.y = event.y;
 });
 
-/* TOUCH */
-window.addEventListener('touchmove', (event) => {
-    const touch = event.touches[0];
-    mouse.vx = touch.clientX - mouse.x;
-    mouse.vy = touch.clientY - mouse.y;
-    mouse.x = touch.clientX;
-    mouse.y = touch.clientY;
-});
+window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    mouse.x = t.clientX;
+    mouse.y = t.clientY;
+}, {passive: true});
+
+window.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    mouse.x = t.clientX;
+    mouse.y = t.clientY;
+}, {passive: true});
 
 class Particle {
-    constructor(x, y, color = null) {
+    constructor(x, y) {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
         this.destX = x;
         this.destY = y;
-        this.size = Math.random() * 2 + 0.3;
+        // Tamaño a la mitad: antes era Math.random() * 3 + 1
+        this.size = (Math.random() * SETTINGS.baseSize + 0.5) * SETTINGS.sizeFactor;
 
-        const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
-        this.color = color || sandColors[Math.floor(Math.random() * sandColors.length)];
-
-        this.speed = Math.random() * 0.5 + 0.5;
+        const sandColors = ['#e3cba0', '#d2b48c', '#c2a075', '#f5f5dc'];
+        this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
+        this.friction = 0.95;
+        this.ease = 0.05;
     }
 
     draw() {
         ctx.fillStyle = this.color;
-        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     update() {
-        /* VIENTO (NO CÍRCULO) */
-        const dx = this.x - mouse.x;
-        const dy = this.y - mouse.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        let dx = mouse.x - this.x;
+        let dy = mouse.y - this.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < 120) {
-            this.x += mouse.vx * 0.3;
-            this.y += mouse.vy * 0.3;
+        if (distance < mouse.radius) {
+            let force = (mouse.radius - distance) / mouse.radius;
+            let dirX = dx / distance;
+            let dirY = dy / distance;
+            this.x -= dirX * force * 5;
+            this.y -= dirY * force * 5;
+        } else {
+            this.x += (this.destX - this.x) * this.ease;
+            this.y += (this.destY - this.y) * this.ease;
         }
-
-        /* REGRESO SUAVE */
-        this.x += (this.destX - this.x) * 0.03 * this.speed;
-        this.y += (this.destY - this.y) * 0.03 * this.speed;
     }
 }
 
-/* LOGO */
 const logoImage = new Image();
 logoImage.src = 'logo.png';
 
-/* TEXTO */
-const textCanvas = document.createElement('canvas');
-const textCtx = textCanvas.getContext('2d');
-
 logoImage.onload = () => {
     initWithLogo();
-    initText();
     animate();
 };
 
 function initWithLogo() {
     particleArray = [];
-
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
 
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    let scale = window.innerWidth < 768 ? 0.4 : 0.7;
+    let scale = 0.6;
+    if (window.innerWidth < 768) {
+        scale = 0.4; 
+    }
 
     const w = logoImage.width * scale;
     const h = logoImage.height * scale;
-
     const xPos = (canvas.width - w) / 2;
     const yPos = (canvas.height - h) / 2;
 
     tempCtx.drawImage(logoImage, xPos, yPos, w, h);
-
     const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
 
-    /* MUCHAS MÁS PARTÍCULAS */
-    for (let y = 0; y < data.height; y += 2) {
-        for (let x = 0; x < data.width; x += 2) {
+    // gap: 2 crea una partícula cada 2 píxeles (4 veces más que gap: 4)
+    for (let y = 0; y < data.height; y += SETTINGS.gap) {
+        for (let x = 0; x < data.width; x += SETTINGS.gap) {
             const i = (y * 4 * data.width) + (x * 4);
-            if (data.data[i] > 150) {
+            // Detectamos si el píxel tiene color o es opaco
+            if (data.data[i + 3] > 128 || data.data[i] > 100) {
                 particleArray.push(new Particle(x, y));
-            }
-        }
-    }
-}
-
-function initText() {
-    textCanvas.width = canvas.width;
-    textCanvas.height = canvas.height;
-
-    textCtx.fillStyle = "white";
-    textCtx.textAlign = "center";
-
-    /* TIPOGRAFÍA MÁS PARECIDA */
-    textCtx.font = "600 16px Arial";
-    textCtx.letterSpacing = "3px";
-
-    textCtx.fillText(
-        "WORK IN PROGRESS",
-        canvas.width / 2,
-        canvas.height - 60
-    );
-
-    textCtx.font = "14px Arial";
-
-    textCtx.fillText(
-        "contacto@mail.com",
-        canvas.width / 2,
-        canvas.height - 35
-    );
-
-    const data = textCtx.getImageData(0, 0, canvas.width, canvas.height);
-
-    for (let y = 0; y < data.height; y += 3) {
-        for (let x = 0; x < data.width; x += 3) {
-            const i = (y * 4 * data.width) + (x * 4);
-            if (data.data[i] > 150) {
-                particleArray.push(new Particle(x, y, "#9a9a9a"));
             }
         }
     }
@@ -196,20 +215,16 @@ function initText() {
 
 function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    particleArray.forEach(p => {
-        p.update();
-        p.draw();
-    });
-
+    for (let i = 0; i < particleArray.length; i++) {
+        particleArray[i].update();
+        particleArray[i].draw();
+    }
     requestAnimationFrame(animate);
 }
 
 window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    setCanvasSize();
     initWithLogo();
-    initText();
 });
 </script>
 
