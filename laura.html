@@ -16,11 +16,10 @@ body {
     align-items: center;
 
     height: 100vh;
-    height: 100svh; /* FIX móvil moderno */
+    height: 100svh;
     position: relative;
 }
 
-/* BACKGROUND */
 body::before {
     content: "";
     position: absolute;
@@ -41,14 +40,12 @@ body::before {
     }
 }
 
-/* CANVAS */
 canvas {
     position: relative;
     z-index: 1;
     filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
 }
 
-/* FOOTER FIXED (SIEMPRE VISIBLE) */
 .footer {
     position: fixed;
     bottom: 20px;
@@ -58,17 +55,14 @@ canvas {
     font-family: Arial, sans-serif;
     color: #aaa;
     letter-spacing: 2px;
-    pointer-events: none;
 }
 
 .footer a {
     color: #aaa;
     text-decoration: none;
     word-break: break-word;
-    pointer-events: auto;
 }
 
-/* MOBILE SMALL FIX */
 @media (max-width: 768px) {
     .footer {
         font-size: 12px;
@@ -99,8 +93,9 @@ const ctx = canvas.getContext('2d');
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    // Re-inicializamos el logo al cambiar el tamaño para que mantenga el ancho completo
+    if (logoImage.complete) initWithLogo();
 }
-resizeCanvas();
 
 let particleArray = [];
 
@@ -121,12 +116,11 @@ function activateMouse(x, y) {
     lastMoveTime = Date.now();
 }
 
-/* MOUSE */
+/* INPUT */
 window.addEventListener('mousemove', (e) => {
     activateMouse(e.x, e.y);
 });
 
-/* TOUCH */
 window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
     activateMouse(t.clientX, t.clientY);
@@ -143,12 +137,15 @@ class Particle {
         this.y = Math.random() * canvas.height;
         this.destX = x;
         this.destY = y;
-        this.size = Math.random() * 3 + 1;
+
+        this.size = window.innerWidth < 768
+            ? Math.random() * 3.8 + 1.8
+            : Math.random() * 3 + 1;
 
         const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
         this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
 
-        this.reactToMouse = Math.random() < 0.5; // 50% partículas
+        this.reactToMouse = Math.random() < 0.5;
     }
 
     draw() {
@@ -159,13 +156,11 @@ class Particle {
     }
 
     update() {
-
         if (Date.now() - lastMoveTime > ACTIVITY_TIMEOUT) {
             mouse.active = false;
         }
 
         if (mouse.active && this.reactToMouse) {
-
             let dx = mouse.x - this.x;
             let dy = mouse.y - this.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
@@ -184,12 +179,11 @@ class Particle {
     }
 }
 
-/* LOGO */
 const logoImage = new Image();
 logoImage.src = 'logo.png';
 
 logoImage.onload = () => {
-    initWithLogo();
+    resizeCanvas();
     animate();
 };
 
@@ -202,18 +196,32 @@ function initWithLogo() {
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    let scale = 0.6;
+    let w, h;
 
-if (window.innerWidth < 768) {
-    scale = 0.30; // 👈 aquí controlas el tamaño en móvil
-}
+    if (window.innerWidth < 768) {
+        /* 📱 MÓVIL: 95% ancho para que sea casi completo */
+        const targetWidth = canvas.width * 0.95;
+        const ratio = logoImage.height / logoImage.width;
 
-    const w = logoImage.width * scale;
-    const h = logoImage.height * scale;
+        w = targetWidth;
+        h = w * ratio;
+
+        // Seguridad: si el logo es muy alto, lo limitamos para que no se corte
+        if (h > canvas.height * 0.7) {
+            h = canvas.height * 0.7;
+            w = h / ratio;
+        }
+    } else {
+        /* 💻 DESKTOP */
+        const scale = 0.7;
+        w = logoImage.width * scale;
+        h = logoImage.height * scale;
+    }
 
     const xPos = (canvas.width - w) / 2;
     const yPos = (canvas.height - h) / 2;
 
+    tempCtx.clearRect(0, 0, canvas.width, canvas.height);
     tempCtx.drawImage(logoImage, xPos, yPos, w, h);
 
     const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
@@ -221,7 +229,6 @@ if (window.innerWidth < 768) {
     for (let y = 0; y < data.height; y += 4) {
         for (let x = 0; x < data.width; x += 4) {
             const i = (y * 4 * data.width) + (x * 4);
-
             if (data.data[i] > 150) {
                 particleArray.push(new Particle(x, y));
             }
@@ -231,12 +238,10 @@ if (window.innerWidth < 768) {
 
 function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     particleArray.forEach(p => {
         p.update();
         p.draw();
     });
-
     requestAnimationFrame(animate);
 }
 
