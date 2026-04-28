@@ -1,82 +1,77 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LAURA GOODSTONE - Work in Progress</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LAURA GOODSTONE - Work in Progress</title>
 
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #1a1a1a;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            position: relative;
-        }
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #1a1a1a;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 
-        body::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
-                        url('laura.jpeg');
-            background-size: cover;
-            background-position: center;
-            z-index: 0;
-        }
+    height: 100vh;
+    height: 100svh;
+    position: relative;
+}
 
-        /* MOBILE FIX */
-        @media (max-width: 768px) {
-            body {
-                overflow: hidden;
-            }
+/* BACKGROUND */
+body::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+                url('laura.jpeg');
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+}
 
-            body::before {
-                background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
-                            url('lauraph.JPG');
-                background-size: contain; /* <-- muestra imagen completa */
-                background-repeat: no-repeat;
-                background-position: center;
-            }
+@media (max-width: 768px) {
+    body::before {
+        background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
+                    url('lauraph.JPG');
+        background-size: cover;
+        background-position: center;
+    }
+}
 
-            .footer {
-                bottom: 15px;
-                font-size: 12px;
-                padding: 0 10px;
-            }
-        }
+canvas {
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
+}
 
-        canvas {
-            position: relative;
-            z-index: 1;
-            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
-        }
+.footer {
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    text-align: center;
+    z-index: 10;
+    font-family: Arial, sans-serif;
+    color: #aaa;
+    letter-spacing: 2px;
+}
 
-        .footer {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            text-align: center;
-            z-index: 2;
-            font-family: Arial, sans-serif;
-            color: #aaa;
-            letter-spacing: 2px;
-        }
+.footer a {
+    color: #aaa;
+    text-decoration: none;
+    word-break: break-word;
+}
 
-        .footer a {
-            color: #aaa;
-            text-decoration: none;
-            word-break: break-word; /* <-- evita que el mail se corte */
-        }
-
-        .footer a:hover {
-            text-decoration: underline;
-        }
-    </style>
+@media (max-width: 768px) {
+    .footer {
+        font-size: 12px;
+        bottom: 15px;
+        padding: 0 10px;
+    }
+}
+</style>
 </head>
 
 <body>
@@ -96,28 +91,44 @@
 const canvas = document.getElementById('canvas1');
 const ctx = canvas.getContext('2d');
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resizeCanvas();
 
 let particleArray = [];
 
-const mouse = { x: null, y: null, radius: 150 };
+const mouse = {
+    x: null,
+    y: null,
+    radius: 150,
+    active: false
+};
 
-window.addEventListener('mousemove', (event) => {
-    mouse.x = event.x;
-    mouse.y = event.y;
+let lastMoveTime = 0;
+const ACTIVITY_TIMEOUT = 120;
+
+function activateMouse(x, y) {
+    mouse.x = x;
+    mouse.y = y;
+    mouse.active = true;
+    lastMoveTime = Date.now();
+}
+
+/* INPUT */
+window.addEventListener('mousemove', (e) => {
+    activateMouse(e.x, e.y);
 });
 
 window.addEventListener('touchstart', (e) => {
     const t = e.touches[0];
-    mouse.x = t.clientX;
-    mouse.y = t.clientY;
+    activateMouse(t.clientX, t.clientY);
 });
 
 window.addEventListener('touchmove', (e) => {
     const t = e.touches[0];
-    mouse.x += (t.clientX - mouse.x) * 0.3;
-    mouse.y += (t.clientY - mouse.y) * 0.3;
+    activateMouse(t.clientX, t.clientY);
 });
 
 class Particle {
@@ -126,12 +137,16 @@ class Particle {
         this.y = Math.random() * canvas.height;
         this.destX = x;
         this.destY = y;
-        this.size = Math.random() * 3 + 1;
+
+        /* 🔥 MÁS VISIBILIDAD EN MÓVIL */
+        this.size = window.innerWidth < 768
+            ? Math.random() * 3.8 + 1.8
+            : Math.random() * 3 + 1;
 
         const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
         this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
 
-        this.density = (Math.random() * 30) + 1;
+        this.reactToMouse = Math.random() < 0.5;
     }
 
     draw() {
@@ -142,20 +157,28 @@ class Particle {
     }
 
     update() {
-        let dx = mouse.x - this.x;
-        let dy = mouse.y - this.y;
-        let distance = Math.sqrt(dx * dx + dy * dy);
 
-        let force = (mouse.radius - distance) / mouse.radius;
-
-        if (distance < mouse.radius) {
-            /* REDUCCIÓN A ~50% */
-            this.x -= dx * force * 0.1;
-            this.y -= dy * force * 0.1;
-        } else {
-            this.x += (this.destX - this.x) / 50;
-            this.y += (this.destY - this.y) / 50;
+        if (Date.now() - lastMoveTime > ACTIVITY_TIMEOUT) {
+            mouse.active = false;
         }
+
+        if (mouse.active && this.reactToMouse) {
+
+            let dx = mouse.x - this.x;
+            let dy = mouse.y - this.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            let force = (mouse.radius - distance) / mouse.radius;
+
+            if (distance < mouse.radius) {
+                this.x -= dx * force * 0.2;
+                this.y -= dy * force * 0.2;
+                return;
+            }
+        }
+
+        this.x += (this.destX - this.x) / 50;
+        this.y += (this.destY - this.y) / 50;
     }
 }
 
@@ -176,14 +199,20 @@ function initWithLogo() {
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
 
-    /* ESCALA RESPONSIVE */
-    let scale = 0.6;
-    if (window.innerWidth < 768) {
-        scale = 0.35; /* <-- logo más chico en móvil */
-    }
+    let w, h;
 
-    const w = logoImage.width * scale;
-    const h = logoImage.height * scale;
+    if (window.innerWidth < 768) {
+        /* 📱 MÓVIL: logo casi pantalla completa */
+        const ratio = logoImage.width / logoImage.height;
+
+        h = canvas.height * 0.75; // ocupa 75% de alto
+        w = h * ratio;
+    } else {
+        /* 💻 DESKTOP */
+        const scale = 0.6;
+        w = logoImage.width * scale;
+        h = logoImage.height * scale;
+    }
 
     const xPos = (canvas.width - w) / 2;
     const yPos = (canvas.height - h) / 2;
@@ -214,11 +243,8 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    initWithLogo();
-});
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', resizeCanvas);
 </script>
 
 </body>
