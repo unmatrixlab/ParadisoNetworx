@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LAURA GOODSTONE - Work in Progress</title>
+
     <style>
         body {
             margin: 0;
@@ -17,7 +18,6 @@
             position: relative;
         }
 
-        /* FONDO OSCURECIDO (DESKTOP) */
         body::before {
             content: "";
             position: absolute;
@@ -28,11 +28,9 @@
 
             background-size: cover;
             background-position: center;
-
             z-index: 0;
         }
 
-        /* FONDO OSCURECIDO (MÓVIL) */
         @media (max-width: 768px) {
             body::before {
                 background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
@@ -47,133 +45,171 @@
             z-index: 1;
             filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
         }
+
+        /* TEXTO INFERIOR */
+        .footer {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            z-index: 2;
+            font-family: Arial, sans-serif;
+            color: #aaa;
+            letter-spacing: 2px;
+        }
+
+        .footer a {
+            color: #aaa;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
+
 <body>
 
-    <canvas id="canvas1"></canvas>
+<canvas id="canvas1"></canvas>
 
-    <script>
-        const canvas = document.getElementById('canvas1');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+<div class="footer">
+    <div>WORK IN PROGRESS</div>
+    <div>
+        <a href="mailto:lauragoodstone01@gmail.com">
+            lauragoodstone01@gmail.com
+        </a>
+    </div>
+</div>
 
-        let particleArray = [];
-        const mouse = { x: null, y: null, radius: 150 }; 
+<script>
+const canvas = document.getElementById('canvas1');
+const ctx = canvas.getContext('2d');
 
-        window.addEventListener('mousemove', (event) => {
-            mouse.x = event.x;
-            mouse.y = event.y;
-        });
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-        class Particle {
-            constructor(x, y) {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.destX = x;
-                this.destY = y;
-                this.size = Math.random() * 3 + 1; 
-                this.baseX = this.x;
-                this.baseY = this.y;
+let particleArray = [];
 
-                const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
-                this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
+const mouse = { x: null, y: null, radius: 150 };
 
-                this.density = (Math.random() * 30) + 1;
-            }
+/* MOUSE */
+window.addEventListener('mousemove', (event) => {
+    mouse.x = event.x;
+    mouse.y = event.y;
+});
 
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.closePath();
-                ctx.fill();
-            }
+/* TOUCH (ARREGLADO + MÁS SUAVE) */
+window.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    mouse.x = t.clientX;
+    mouse.y = t.clientY;
+});
 
-            update() {
-                let dx = mouse.x - this.x;
-                let dy = mouse.y - this.y;
-                let distance = Math.sqrt(dx * dx + dy * dy);
-                let forceDirectionX = dx / distance;
-                let forceDirectionY = dy / distance;
-                let maxDistance = mouse.radius;
-                let force = (maxDistance - distance) / maxDistance;
-                let directionX = forceDirectionX * force * this.density;
-                let directionY = forceDirectionY * force * this.density;
+window.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
 
-                if (distance < mouse.radius) {
-                    this.x -= directionX;
-                    this.y -= directionY;
-                } else {
-                    if (this.x !== this.destX) {
-                        let dxBack = this.x - this.destX;
-                        this.x -= dxBack / 50;
-                    }
-                    if (this.y !== this.destY) {
-                        let dyBack = this.y - this.destY;
-                        this.y -= dyBack / 50;
-                    }
-                }
+    /* interpolación suave */
+    mouse.x += (t.clientX - mouse.x) * 0.3;
+    mouse.y += (t.clientY - mouse.y) * 0.3;
+});
+
+class Particle {
+    constructor(x, y) {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.destX = x;
+        this.destY = y;
+        this.size = Math.random() * 3 + 1;
+
+        const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
+        this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
+
+        this.density = (Math.random() * 30) + 1;
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    update() {
+        let dx = mouse.x - this.x;
+        let dy = mouse.y - this.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+
+        let force = (mouse.radius - distance) / mouse.radius;
+
+        if (distance < mouse.radius) {
+            this.x -= dx * force * 0.2;
+            this.y -= dy * force * 0.2;
+        } else {
+            this.x += (this.destX - this.x) / 50;
+            this.y += (this.destY - this.y) / 50;
+        }
+    }
+}
+
+/* LOGO */
+const logoImage = new Image();
+logoImage.src = 'logo.png';
+
+logoImage.onload = () => {
+    initWithLogo();
+    animate();
+};
+
+function initWithLogo() {
+    particleArray = [];
+
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+
+    const scale = 0.6;
+
+    const w = logoImage.width * scale;
+    const h = logoImage.height * scale;
+
+    const xPos = (canvas.width - w) / 2;
+    const yPos = (canvas.height - h) / 2;
+
+    tempCtx.drawImage(logoImage, xPos, yPos, w, h);
+
+    const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < data.height; y += 4) {
+        for (let x = 0; x < data.width; x += 4) {
+            const i = (y * 4 * data.width) + (x * 4);
+
+            if (data.data[i] > 150) {
+                particleArray.push(new Particle(x, y));
             }
         }
+    }
+}
 
-        const logoImage = new Image();
-        logoImage.src = 'logo.png'; 
-        
-        logoImage.onload = () => {
-            initWithLogo();
-            animate();
-        };
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        function initWithLogo() {
-            particleArray = [];
-            
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
+    particleArray.forEach(p => {
+        p.update();
+        p.draw();
+    });
 
-            const scale = 0.6;
-            const imgWidth = logoImage.width * scale;
-            const imgHeight = logoImage.height * scale;
-            const xPos = (tempCanvas.width - imgWidth) / 2;
-            const yPos = (tempCanvas.height - imgHeight) / 2;
+    requestAnimationFrame(animate);
+}
 
-            tempCtx.drawImage(logoImage, xPos, yPos, imgWidth, imgHeight);
-
-            const textCoordinates = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-            
-            for (let y = 0, y2 = textCoordinates.height; y < y2; y += 4) {
-                for (let x = 0, x2 = textCoordinates.width; x < x2; x += 4) {
-                    const pixelIndex = (y * 4 * textCoordinates.width) + (x * 4);
-                    const r = textCoordinates.data[pixelIndex];
-                    const g = textCoordinates.data[pixelIndex + 1];
-                    const b = textCoordinates.data[pixelIndex + 2];
-                    const a = textCoordinates.data[pixelIndex + 3];
-
-                    if (r > 150 && g > 150 && b > 150 && a > 128) { 
-                        particleArray.push(new Particle(x, y));
-                    }
-                }
-            }
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let i = 0; i < particleArray.length; i++) {
-                particleArray[i].update();
-                particleArray[i].draw();
-            }
-            requestAnimationFrame(animate);
-        }
-
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            initWithLogo(); 
-        });
-    </script>
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    initWithLogo();
+});
+</script>
 
 </body>
 </html>
