@@ -1,1 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAURA GOODSTONE - Work in Progress</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a; /* Color oscuro base */
+            background-image: url('laura.jpeg'); /* Tu imagen de fondo */
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
 
+        /* Estilos para móvil */
+        @media (max-width: 768px) {
+            body {
+                background-image: url('lauraph.jpeg');
+            }
+        }
+
+        canvas {
+            filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            color: #d2b48c; /* Color arena */
+            font-family: 'Courier New', Courier, monospace;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas1"></canvas>
+    <div id="ui">Work in Progress</div>
+
+    <script>
+        const canvas = document.getElementById('canvas1');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particleArray = [];
+        const mouse = { x: null, y: null, radius: 100 };
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.x;
+            mouse.y = event.y;
+        });
+
+        class Particle {
+            constructor(x, y) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.destX = x;
+                this.destY = y;
+                this.size = Math.random() * 2 + 1;
+                this.baseX = this.x;
+                this.baseY = this.y;
+                this.density = (Math.random() * 30) + 1;
+                this.color = '#d2b48c'; // Color arena desértica
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            update() {
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let forceDirectionX = dx / distance;
+                let forceDirectionY = dy / distance;
+                let maxDistance = mouse.radius;
+                let force = (maxDistance - distance) / maxDistance;
+                let directionX = forceDirectionX * force * this.density;
+                let directionY = forceDirectionY * force * this.density;
+
+                if (distance < mouse.radius) {
+                    this.x -= directionX;
+                    this.y -= directionY;
+                } else {
+                    if (this.x !== this.destX) {
+                        let dx = this.x - this.destX;
+                        this.x -= dx / 20;
+                    }
+                    if (this.y !== this.destY) {
+                        let dy = this.y - this.destY;
+                        this.y -= dy / 20;
+                    }
+                }
+            }
+        }
+
+        function init() {
+            particleArray = [];
+            // Dibujamos el texto oculto para capturar los pixeles
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 60px serif'; // Aquí podrías cargar una fuente Western
+            ctx.fillText('LAURA GOODSTONE', canvas.width/2 - 300, canvas.height/2);
+            
+            const textCoordinates = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            
+            for (let y = 0, y2 = textCoordinates.height; y < y2; y += 4) {
+                for (let x = 0, x2 = textCoordinates.width; x < x2; x += 4) {
+                    if (textCoordinates.data[(y * 4 * textCoordinates.width) + (x * 4) + 3] > 128) {
+                        particleArray.push(new Particle(x, y));
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particleArray.length; i++) {
+                particleArray[i].update();
+                particleArray[i].draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            init();
+        });
+    </script>
+</body>
+</html>
