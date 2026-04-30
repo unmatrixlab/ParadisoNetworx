@@ -1,210 +1,773 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LAURA GOODSTONE - Work in Progress</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Single Page Hero Tabs</title>
 
-<style>
-body {
-    margin: 0;
-    padding: 0;
-    background-color: #1a1a1a;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    height: 100svh;
-    position: relative;
-}
+  <style>
+    :root {
+      --bg-dark: #050505;
+      --text-light: #ffffff;
+      --text-soft: rgba(255, 255, 255, 0.78);
+      --glass: rgba(0, 0, 0, 0.42);
+      --accent: #d7b56d;
+      --menu-height: 82px;
 
-body::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
-                url('laura.jpeg');
-    background-size: cover;
-    background-position: center;
-    z-index: 0;
-}
+      --hero-title-size-desktop: clamp(3rem, 8vw, 7rem);
+      --hero-title-size-mobile: clamp(2.4rem, 14vw, 4.6rem);
+      --hero-subtitle-size: clamp(1rem, 2vw, 1.35rem);
+      --overlay-opacity: 0.52;
+    }
 
-@media (max-width: 768px) {
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      background: var(--bg-dark);
+      color: var(--text-light);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+
+    body.no-scroll {
+      overflow: hidden;
+    }
+
     body::before {
-        background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)),
-                    url('lauraph.JPG');
-        background-size: cover;
-        background-position: center;
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at top left, rgba(215, 181, 109, 0.15), transparent 36%),
+        radial-gradient(circle at bottom right, rgba(255, 255, 255, 0.08), transparent 32%);
+      z-index: 20;
+      mix-blend-mode: screen;
     }
-}
 
-canvas {
-    position: relative;
-    z-index: 1;
-    filter: drop-shadow(0 0 10px rgba(210, 180, 140, 0.5));
-}
-
-.footer {
-    position: fixed;
-    bottom: 20px;
-    width: 100%;
-    text-align: center;
-    z-index: 10;
-    font-family: Arial, sans-serif;
-    color: #aaa;
-    letter-spacing: 2px;
-}
-
-.footer a {
-    color: #aaa;
-    text-decoration: none;
-    word-break: break-word;
-}
-
-@media (max-width: 768px) {
-    .footer {
-        font-size: 12px;
-        bottom: 15px;
-        padding: 0 10px;
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--menu-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px clamp(20px, 5vw, 70px);
+      z-index: 50;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0.76), rgba(0, 0, 0, 0));
     }
-}
-</style>
+
+    .brand {
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      color: rgba(255, 255, 255, 0.86);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .menu {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .menu button {
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(0, 0, 0, 0.22);
+      color: rgba(255, 255, 255, 0.82);
+      padding: 11px 17px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-family: Arial, sans-serif;
+      font-size: 0.75rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      backdrop-filter: blur(14px);
+      transition: 0.28s ease;
+    }
+
+    .menu button:hover {
+      color: #fff;
+      border-color: rgba(215, 181, 109, 0.65);
+      background: rgba(215, 181, 109, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .menu button.active {
+      color: #000;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    main {
+      width: 100%;
+      overflow-x: hidden;
+      background: var(--bg-dark);
+    }
+
+    .page-section {
+      display: none;
+      width: 100%;
+      min-height: 100vh;
+      overflow-x: hidden;
+      animation: fadeIn 0.45s ease both;
+    }
+
+    .page-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .hero,
+    .image-block {
+      position: relative;
+      width: 100%;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: calc(var(--menu-height) + 50px) clamp(24px, 7vw, 100px) 70px;
+      background-image: var(--bg-image);
+      background-size: cover;
+      background-position: center;
+      overflow: hidden;
+    }
+
+    .image-block {
+      min-height: 78vh;
+    }
+
+    .hero::before,
+    .image-block::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to right, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.30), rgba(0, 0, 0, 0.72)),
+        linear-gradient(to top, rgba(0, 0, 0, 0.86), transparent 45%);
+      opacity: var(--overlay-opacity);
+      z-index: 1;
+    }
+
+    .hero::after,
+    .image-block::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 90px 90px;
+      opacity: 0.16;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .hero-content,
+    .photo-text {
+      position: relative;
+      z-index: 3;
+      max-width: 760px;
+      padding: clamp(22px, 4vw, 46px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: linear-gradient(135deg, rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.20));
+      backdrop-filter: blur(10px);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+      border-radius: 30px;
+    }
+
+    .photo-text {
+      max-width: 660px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+      color: var(--accent);
+      font-family: Arial, sans-serif;
+      font-size: 0.76rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 44px;
+      height: 1px;
+      background: var(--accent);
+      display: inline-block;
+    }
+
+    h1 {
+      font-size: var(--hero-title-size-desktop);
+      line-height: 0.9;
+      letter-spacing: -0.055em;
+      margin-bottom: 24px;
+      text-shadow: 0 12px 34px rgba(0, 0, 0, 0.65);
+    }
+
+    h2 {
+      font-size: clamp(2.2rem, 5vw, 4.8rem);
+      line-height: 0.95;
+      letter-spacing: -0.045em;
+      margin-bottom: 22px;
+      text-shadow: 0 12px 34px rgba(0, 0, 0, 0.65);
+    }
+
+    p {
+      color: var(--text-soft);
+      font-family: Arial, sans-serif;
+      font-size: var(--hero-subtitle-size);
+      line-height: 1.7;
+      max-width: 620px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 34px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-family: Arial, sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      transition: 0.25s ease;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn.secondary {
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #fff;
+      background: rgba(0, 0, 0, 0.22);
+    }
+
+    .btn.video-btn {
+      background: rgba(255, 255, 255, 0.92);
+      color: #000;
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      filter: brightness(1.08);
+    }
+
+    .text-section {
+      width: 100%;
+      padding: clamp(70px, 10vw, 130px) clamp(24px, 8vw, 120px);
+      background:
+        radial-gradient(circle at top left, rgba(215, 181, 109, 0.12), transparent 32%),
+        linear-gradient(135deg, #090909, #14100a);
+      overflow-x: hidden;
+    }
+
+    .text-inner {
+      max-width: 920px;
+    }
+
+    .text-inner h2 {
+      margin-bottom: 28px;
+    }
+
+    .text-inner p + p {
+      margin-top: 24px;
+    }
+
+    .floating-note {
+      position: absolute;
+      right: clamp(22px, 5vw, 70px);
+      bottom: clamp(22px, 5vw, 60px);
+      z-index: 4;
+      max-width: 310px;
+      padding: 20px;
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: var(--glass);
+      backdrop-filter: blur(14px);
+      font-family: Arial, sans-serif;
+      color: rgba(255, 255, 255, 0.72);
+      line-height: 1.55;
+      font-size: 0.9rem;
+    }
+
+    .floating-note strong {
+      display: block;
+      color: #fff;
+      margin-bottom: 7px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+    }
+
+    .video-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(18px, 4vw, 60px);
+      background:
+        radial-gradient(circle at top, rgba(215, 181, 109, 0.18), transparent 38%),
+        rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    .video-modal.active {
+      display: flex;
+      animation: modalFadeIn 0.24s ease both;
+    }
+
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .video-window {
+      position: relative;
+      width: min(1120px, 100%);
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(10, 10, 10, 0.86);
+      box-shadow: 0 40px 140px rgba(0, 0, 0, 0.75);
+      overflow: hidden;
+      animation: videoScaleIn 0.28s ease both;
+    }
+
+    @keyframes videoScaleIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(14px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .video-header {
+      min-height: 64px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .video-header span {
+      font-family: Arial, sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .close-video {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(0, 0, 0, 0.38);
+      color: #fff;
+      cursor: pointer;
+      font-size: 1.4rem;
+      line-height: 1;
+      transition: 0.25s ease;
+    }
+
+    .close-video:hover {
+      background: var(--accent);
+      color: #000;
+      transform: rotate(90deg);
+    }
+
+    .video-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+    }
+
+    .video-frame iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    @media (max-width: 780px) {
+      :root {
+        --menu-height: 92px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        gap: 14px;
+        padding: 18px;
+      }
+
+      .brand {
+        font-size: 0.72rem;
+        max-width: 120px;
+        line-height: 1.4;
+      }
+
+      .menu {
+        gap: 7px;
+        flex-wrap: wrap;
+      }
+
+      .menu button {
+        padding: 9px 11px;
+        font-size: 0.64rem;
+      }
+
+      .hero,
+      .image-block {
+        align-items: flex-end;
+        padding: calc(var(--menu-height) + 30px) 18px 110px;
+      }
+
+      .hero-content,
+      .photo-text {
+        width: 100%;
+        border-radius: 24px;
+      }
+
+      h1 {
+        font-size: var(--hero-title-size-mobile);
+      }
+
+      .floating-note {
+        left: 18px;
+        right: 18px;
+        bottom: 18px;
+        max-width: none;
+        font-size: 0.8rem;
+      }
+
+      .video-window {
+        border-radius: 22px;
+      }
+
+      .video-header {
+        min-height: 58px;
+        padding: 12px 14px;
+      }
+
+      .video-header span {
+        font-size: 0.68rem;
+      }
+
+      .close-video {
+        width: 38px;
+        height: 38px;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-<canvas id="canvas1"></canvas>
+  <header class="topbar">
+    <a href="#" class="brand">Your Brand</a>
 
-<div class="footer">
-    <div>WORK IN PROGRESS</div>
-    <div>
-        <a href="mailto:lauragoodstone01@gmail.com">
-            lauragoodstone01@gmail.com
-        </a>
+    <nav class="menu" aria-label="Main menu">
+      <button class="tab-button active" data-target="home">Home</button>
+      <button class="tab-button" data-target="story">Story</button>
+      <button class="tab-button" data-target="contact">Contact</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="home" class="page-section active">
+      <div
+        class="hero"
+        style="--bg-image: url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="hero-content">
+          <div class="eyebrow">Home</div>
+
+          <h1>Big Hero Image</h1>
+
+          <p>
+            Este texto aparece sobre la foto principal. Puedes usarlo como presentación,
+            frase artística, mensaje de bienvenida o anuncio principal.
+          </p>
+
+          <div class="actions">
+            <a class="btn primary" href="#">Main Action</a>
+            <a class="btn secondary" href="#">Learn More</a>
+          </div>
+        </div>
+
+        <div class="floating-note">
+          <strong>Texto opcional</strong>
+          Puedes usar esta caja para una frase corta, una fecha, una llamada a la acción o una nota artística.
+        </div>
+      </div>
+
+      <section class="text-section">
+        <div class="text-inner">
+          <div class="eyebrow">Random Text</div>
+
+          <h2>Una sección de texto entre imágenes</h2>
+
+          <p>
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer sed lectus
+            vitae justo gravida fermentum. Donec vel sem at magna tincidunt viverra.
+            Suspendisse potenti. Sed non massa vitae erat pulvinar dignissim.
+          </p>
+
+          <p>
+            Aliquam erat volutpat. Curabitur sit amet lacus nec justo commodo suscipit.
+            Praesent euismod, justo at aliquet porta, velit neque tempor massa, sed
+            ultrices magna lacus nec libero.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="image-block"
+        style="--bg-image: url('https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="photo-text">
+          <div class="eyebrow">Second Image</div>
+
+          <h2>Texto sobre otra foto</h2>
+
+          <p>
+            Esta es una segunda imagen dentro de la misma pestaña. Sirve para probar el
+            scroll vertical y mantener una composición visual más larga.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="image-block"
+        style="--bg-image: url('https://images.unsplash.com/photo-1493246507139-91e8fad9978e?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="photo-text">
+          <div class="eyebrow">Third Image</div>
+
+          <h2>Otra imagen con texto</h2>
+
+          <p>
+            Aquí puedes colocar una frase, una descripción, una historia breve o cualquier
+            texto que quieras superponer sobre la fotografía.
+          </p>
+        </div>
+      </section>
+    </section>
+
+    <section id="story" class="page-section">
+      <div
+        class="hero"
+        style="--bg-image: url('https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="hero-content">
+          <div class="eyebrow">Story</div>
+
+          <h1>Your Story</h1>
+
+          <p>
+            Esta es la segunda pestaña. También puede tener scroll propio si agregas más bloques debajo.
+          </p>
+
+          <div class="actions">
+            <a class="btn primary" href="#">Read More</a>
+            <a class="btn secondary" href="#">Gallery</a>
+          </div>
+        </div>
+      </div>
+
+      <section
+        class="image-block"
+        style="--bg-image: url('https://images.unsplash.com/photo-1508973379184-7517410fb0bc?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="photo-text">
+          <div class="eyebrow">Featured Video</div>
+
+          <h2>Una historia en movimiento</h2>
+
+          <p>
+            Esta sección combina foto, texto y un botón que abre un video de YouTube en
+            una ventana dedicada sin salir de la página.
+          </p>
+
+          <div class="actions">
+            <button
+              class="btn video-btn open-video"
+              data-video="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0"
+            >
+              Watch Video
+            </button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="contact" class="page-section">
+      <div
+        class="hero"
+        style="--bg-image: url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2200&q=85');"
+      >
+        <div class="hero-content">
+          <div class="eyebrow">Contact</div>
+
+          <h1>Get in Touch</h1>
+
+          <p>
+            Puedes poner aquí un email, redes sociales, teléfono o un pequeño formulario.
+          </p>
+
+          <div class="actions">
+            <a class="btn primary" href="mailto:your@email.com">Email</a>
+            <a class="btn secondary" href="#">Instagram</a>
+          </div>
+        </div>
+
+        <div class="floating-note">
+          <strong>Contacto</strong>
+          your@email.com<br />
+          Miami, Florida
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="video-modal" id="videoModal" aria-hidden="true">
+    <div class="video-window">
+      <div class="video-header">
+        <span>Featured Video</span>
+        <button class="close-video" id="closeVideo" aria-label="Cerrar video">×</button>
+      </div>
+
+      <div class="video-frame">
+        <iframe
+          id="youtubeFrame"
+          src=""
+          title="YouTube video player"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+        ></iframe>
+      </div>
     </div>
-</div>
+  </div>
 
-<script>
-const canvas = document.getElementById('canvas1');
-const ctx = canvas.getContext('2d');
+  <script>
+    const buttons = document.querySelectorAll(".tab-button");
+    const sections = document.querySelectorAll(".page-section");
 
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    if (logoImage.complete) initWithLogo();
-}
+    function showSection(targetId) {
+      sections.forEach(section => {
+        section.classList.toggle("active", section.id === targetId);
+      });
 
-let particleArray = [];
-const mouse = { x: null, y: null, radius: 150, active: false };
-let lastMoveTime = 0;
-const ACTIVITY_TIMEOUT = 120;
+      buttons.forEach(button => {
+        button.classList.toggle("active", button.dataset.target === targetId);
+      });
 
-function activateMouse(x, y) {
-    mouse.x = x;
-    mouse.y = y;
-    mouse.active = true;
-    lastMoveTime = Date.now();
-}
+      closeVideoModal();
 
-window.addEventListener('mousemove', (e) => activateMouse(e.x, e.y));
-window.addEventListener('touchstart', (e) => activateMouse(e.touches[0].clientX, e.touches[0].clientY));
-window.addEventListener('touchmove', (e) => activateMouse(e.touches[0].clientX, e.touches[0].clientY));
-
-class Particle {
-    constructor(x, y) {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.destX = x;
-        this.destY = y;
-        this.size = window.innerWidth < 768 ? Math.random() * 3.5 + 1.5 : Math.random() * 3 + 1;
-        const sandColors = ['#e3cba0', '#d2b48c', '#c2a075'];
-        this.color = sandColors[Math.floor(Math.random() * sandColors.length)];
-        this.reactToMouse = Math.random() < 0.5;
+      window.scrollTo({
+        top: 0,
+        behavior: "instant"
+      });
     }
 
-    draw() {
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    update() {
-        if (Date.now() - lastMoveTime > ACTIVITY_TIMEOUT) mouse.active = false;
-        if (mouse.active && this.reactToMouse) {
-            let dx = mouse.x - this.x;
-            let dy = mouse.y - this.y;
-            let distance = Math.sqrt(dx * dx + dy * dy);
-            let force = (mouse.radius - distance) / mouse.radius;
-            if (distance < mouse.radius) {
-                this.x -= dx * force * 0.2;
-                this.y -= dy * force * 0.2;
-                return;
-            }
-        }
-        this.x += (this.destX - this.x) / 50;
-        this.y += (this.destY - this.y) / 50;
-    }
-}
-
-const logoImage = new Image();
-logoImage.src = 'logo.png';
-
-logoImage.onload = () => {
-    resizeCanvas();
-    animate();
-};
-
-function initWithLogo() {
-    particleArray = [];
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-
-    let w, h;
-    const ratio = logoImage.height / logoImage.width;
-
-    if (window.innerWidth < 768) {
-        /* FUERZA ANCHO CASI TOTAL (98%) */
-        w = canvas.width * 0.98; 
-        h = w * ratio;
-    } else {
-        w = logoImage.width * 0.7;
-        h = logoImage.height * 0.7;
-    }
-
-    const xPos = (canvas.width - w) / 2;
-    const yPos = (canvas.height - h) / 2;
-
-    tempCtx.clearRect(0, 0, canvas.width, canvas.height);
-    tempCtx.drawImage(logoImage, xPos, yPos, w, h);
-
-    const data = tempCtx.getImageData(0, 0, canvas.width, canvas.height);
-
-    /* Muestreo de partículas */
-    for (let y = 0; y < data.height; y += 4) {
-        for (let x = 0; x < data.width; x += 4) {
-            const i = (y * 4 * data.width) + (x * 4);
-            if (data.data[i] > 150) {
-                particleArray.push(new Particle(x, y));
-            }
-        }
-    }
-}
-
-function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particleArray.forEach(p => {
-        p.update();
-        p.draw();
+    buttons.forEach(button => {
+      button.addEventListener("click", () => {
+        showSection(button.dataset.target);
+      });
     });
-    requestAnimationFrame(animate);
-}
 
-window.addEventListener('resize', resizeCanvas);
-</script>
+    const videoModal = document.getElementById("videoModal");
+    const youtubeFrame = document.getElementById("youtubeFrame");
+    const closeVideo = document.getElementById("closeVideo");
+    const openVideoButtons = document.querySelectorAll(".open-video");
+
+    function openVideoModal(videoUrl) {
+      youtubeFrame.src = videoUrl;
+      videoModal.classList.add("active");
+      videoModal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("no-scroll");
+    }
+
+    function closeVideoModal() {
+      youtubeFrame.src = "";
+      videoModal.classList.remove("active");
+      videoModal.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("no-scroll");
+    }
+
+    openVideoButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        openVideoModal(button.dataset.video);
+      });
+    });
+
+    closeVideo.addEventListener("click", closeVideoModal);
+
+    videoModal.addEventListener("click", event => {
+      if (event.target === videoModal) {
+        closeVideoModal();
+      }
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        closeVideoModal();
+      }
+    });
+  </script>
 
 </body>
 </html>
