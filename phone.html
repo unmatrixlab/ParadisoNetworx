@@ -2775,7 +2775,36 @@
         height: 64px;
       }
     }
-  </style>
+  
+
+    /* ==================================================
+       PHONE MEDIA TOUCH FIX
+       Makes song/video/interview selectors reliable on mobile.
+    ================================================== */
+    body.phone-version .media-list {
+      position: relative;
+      z-index: 4;
+    }
+
+    body.phone-version .media-item,
+    body.phone-version .poster-card.media-trigger {
+      position: relative;
+      z-index: 5;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(215, 181, 109, 0.18);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    body.phone-version .media-item:active,
+    body.phone-version .poster-card.media-trigger:active {
+      transform: scale(0.985);
+    }
+
+    body.phone-version .media-player-panel {
+      scroll-margin-top: calc(var(--phone-header-height, 112px) + 14px);
+    }
+</style>
 <style id="style-story">
   /* ==================================================
      STORY / SMALL OVERRIDES ONLY
@@ -3900,7 +3929,7 @@
             <a class="btn secondary media-more-link" href="https://open.spotify.com/track/1YSlDO1A5xo0ZmNik3aaNp?si=2456d1d892eb4b64" target="_blank" rel="noopener">More on Spotify</a>
           </div>
           <div class="media-room-layout">
-            <div class="media-list"><button class="media-item active" type="button" data-index="0">
+            <div class="media-list"><button class="media-item" type="button" data-index="0">
         <span class="media-item-thumb">
           <img src="https://www.paradisonetworx.com/laura_spotify.png" alt="She’s Country" loading="lazy">
         </span>
@@ -3909,7 +3938,7 @@
           <strong class="media-item-title">She’s Country</strong>
           <span class="media-item-note">Official Spotify track</span>
         </span>
-      </button><button class="media-item" type="button" data-index="1">
+      </button><button class="media-item active" type="button" data-index="1">
         <span class="media-item-thumb">
           <img src="https://www.paradisonetworx.com/laura_spotify.png" alt="She’s Country" loading="lazy">
         </span>
@@ -4683,6 +4712,28 @@
     const mediaTriggers = document.querySelectorAll(".media-trigger");
     let mediaDisplayMode = localStorage.getItem("lauraMediaDisplayMode") || "single";
 
+    function isPhoneLayout() {
+      return document.body.classList.contains("phone-version") || document.documentElement.clientWidth <= 760;
+    }
+
+    function scrollMediaPlayerIntoView(panel) {
+      if (!isPhoneLayout() || !panel) {
+        return;
+      }
+
+      window.setTimeout(() => {
+        const fixedHeader = document.querySelector(".phone-topbar, .topbar");
+        const headerHeight = fixedHeader ? fixedHeader.getBoundingClientRect().height : 0;
+        const panelTop = panel.getBoundingClientRect().top + window.pageYOffset;
+        const targetTop = Math.max(0, panelTop - headerHeight - 14);
+
+        window.scrollTo({
+          top: targetTop,
+          behavior: "smooth"
+        });
+      }, 80);
+    }
+
     const mediaData = {
       music: {
         title: "Selected Songs",
@@ -4819,13 +4870,17 @@
         thumbImage.addEventListener("error", () => thumbImage.classList.add("is-broken"), { once: true });
       }
 
-      button.addEventListener("click", () => {
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+
         mediaList.querySelectorAll(".media-item").forEach(node => {
           node.classList.remove("active");
         });
 
         button.classList.add("active");
         openMediaItem(item);
+        scrollMediaPlayerIntoView(mediaPlayerPanel);
       });
 
       return button;
@@ -4976,10 +5031,14 @@
         if (thumbImage) {
           thumbImage.addEventListener("error", () => thumbImage.classList.add("is-broken"), { once: true });
         }
-        freshButton.addEventListener("click", () => {
+        freshButton.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+
           list.querySelectorAll(".media-item").forEach(node => node.classList.remove("active"));
           freshButton.classList.add("active");
           openLocalItem(item);
+          scrollMediaPlayerIntoView(section.querySelector(".media-player-panel"));
         });
         return freshButton;
       }
@@ -5098,7 +5157,9 @@
     }
 
     mediaTriggers.forEach(trigger => {
-      trigger.addEventListener("click", () => {
+      trigger.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
         openMediaGallery(trigger.dataset.media);
       });
     });
