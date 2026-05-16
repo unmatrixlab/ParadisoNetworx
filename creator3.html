@@ -2293,6 +2293,75 @@
       accent-color: #d7b56d;
     }
 
+    .laura-section-order-box {
+      padding: 12px;
+      margin: 0 0 16px;
+      border: 1px solid rgba(215, 181, 109, 0.18);
+      border-radius: 18px;
+      background: rgba(215, 181, 109, 0.055);
+    }
+
+    .laura-section-order-rows {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .laura-section-order-row {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid rgba(215, 181, 109, 0.16);
+      border-radius: 14px;
+      background: rgba(0, 0, 0, 0.24);
+    }
+
+    .laura-section-order-number {
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(215, 181, 109, 0.16);
+      color: #efe4cc;
+      font-family: var(--font-display);
+      font-size: 0.66rem;
+    }
+
+    .laura-section-order-name {
+      color: rgba(247, 241, 230, 0.88);
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+
+    .laura-section-order-name small {
+      display: block;
+      margin-top: 3px;
+      color: rgba(247, 241, 230, 0.48);
+      font-size: 0.66rem;
+      letter-spacing: 0.02em;
+    }
+
+    .laura-section-order-buttons {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .laura-section-order-buttons .laura-menu-mini-button {
+      min-width: 34px;
+      padding: 0 8px;
+    }
+
+    .laura-section-order-actions {
+      margin-top: 10px;
+      display: grid;
+    }
+
 
     .laura-editor-field {
       padding: 12px;
@@ -2668,6 +2737,16 @@
         <div class="laura-media-mode-options">
           <label><input type="radio" name="lauraMediaDisplayMode" value="single" checked> Only selected section visible</label>
           <label><input type="radio" name="lauraMediaDisplayMode" value="all"> Show all three sections</label>
+        </div>
+      </div>
+      <div class="laura-section-order-box" id="lauraSectionOrderBox" data-editor-only="true">
+        <div class="laura-media-mode-title">
+          <strong>Home block order</strong>
+          <small>Hero, top menu and footer stay fixed. Reorder everything between them.</small>
+        </div>
+        <div id="lauraSectionOrderRows" class="laura-section-order-rows"></div>
+        <div class="laura-section-order-actions">
+          <button class="laura-menu-mini-button" id="lauraSectionOrderReset" type="button">Reset Order</button>
         </div>
       </div>
       <div class="laura-memory-box" id="lauraEditorMemoryBox">
@@ -3965,6 +4044,7 @@
       const output = document.getElementById("lauraEditorOutput");
       const memorySlotsWrap = document.getElementById("lauraMemorySlots");
       const memoryStatus = document.getElementById("lauraMemoryStatus");
+      const orderRowsWrap = document.getElementById("lauraSectionOrderRows");
       const root = document.documentElement;
       const headerMenu = document.querySelector(".topbar .menu");
       let defaultMenuTarget = document.querySelector(".topbar .tab-button.active")?.dataset.target || "home";
@@ -4027,6 +4107,125 @@
           "\"": "&quot;",
           "'": "&#039;"
         }[character]));
+      }
+
+      const homeBlockOrderStorageKey = "lauraHomeBlockOrder";
+      const defaultHomeBlockOrder = ["media", "sound", "featured", "coming"];
+      let homeBlockOrder = defaultHomeBlockOrder.slice();
+
+      const homeBlocks = {
+        media: {
+          label: "Media Room",
+          note: "Music / Videos / Interviews area",
+          selectors: ["#mediaGallery", "#mediaGalleryAll"]
+        },
+        sound: {
+          label: "The Sound",
+          note: "Text section after the hero",
+          selectors: [".block-home-sound"]
+        },
+        featured: {
+          label: "Featured Release",
+          note: "She’s Country image block",
+          selectors: ["#featured-release"]
+        },
+        coming: {
+          label: "Coming Next",
+          note: "I’m Still Alive image block",
+          selectors: ["#coming-next"]
+        }
+      };
+
+      function normalizeHomeBlockOrder(value) {
+        const source = Array.isArray(value) ? value : [];
+        const clean = source.filter(key => Object.prototype.hasOwnProperty.call(homeBlocks, key));
+        defaultHomeBlockOrder.forEach(key => {
+          if (!clean.includes(key)) clean.push(key);
+        });
+        return clean;
+      }
+
+      function readHomeBlockOrder() {
+        try {
+          return normalizeHomeBlockOrder(JSON.parse(localStorage.getItem(homeBlockOrderStorageKey) || "null"));
+        } catch (error) {
+          return defaultHomeBlockOrder.slice();
+        }
+      }
+
+      function getHomeBlockNodes(key) {
+        const block = homeBlocks[key];
+        if (!block) return [];
+        return block.selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)));
+      }
+
+      function saveHomeBlockOrder() {
+        localStorage.setItem(homeBlockOrderStorageKey, JSON.stringify(homeBlockOrder));
+      }
+
+      function applyHomeBlockOrder(options = {}) {
+        const home = document.getElementById("home");
+        const hero = home?.querySelector(".block-home-hero");
+        if (!home || !hero) return;
+
+        let insertAfter = hero;
+        homeBlockOrder.forEach(key => {
+          getHomeBlockNodes(key).forEach(node => {
+            insertAfter.after(node);
+            insertAfter = node;
+          });
+        });
+
+        if (options.scrollToKey) {
+          const target = getHomeBlockNodes(options.scrollToKey)[0];
+          target?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+
+      function moveHomeBlock(index, direction) {
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= homeBlockOrder.length) return;
+        const copy = homeBlockOrder.slice();
+        const item = copy.splice(index, 1)[0];
+        copy.splice(nextIndex, 0, item);
+        homeBlockOrder = normalizeHomeBlockOrder(copy);
+        saveHomeBlockOrder();
+        applyHomeBlockOrder({ scrollToKey: item });
+        renderHomeBlockOrderManager();
+      }
+
+      function resetHomeBlockOrder() {
+        homeBlockOrder = defaultHomeBlockOrder.slice();
+        saveHomeBlockOrder();
+        applyHomeBlockOrder({ scrollToKey: "media" });
+        renderHomeBlockOrderManager();
+      }
+
+      function renderHomeBlockOrderManager() {
+        if (!orderRowsWrap) return;
+        orderRowsWrap.innerHTML = "";
+
+        homeBlockOrder.forEach((key, index) => {
+          const block = homeBlocks[key];
+          if (!block) return;
+          const row = document.createElement("div");
+          row.className = "laura-section-order-row";
+          row.innerHTML = `
+            <span class="laura-section-order-number">${index + 1}</span>
+            <span class="laura-section-order-name">${escapeHtml(block.label)}<small>${escapeHtml(block.note)}</small></span>
+            <span class="laura-section-order-buttons">
+              <button class="laura-menu-mini-button" type="button" data-action="up" ${index === 0 ? "disabled" : ""}>Up</button>
+              <button class="laura-menu-mini-button" type="button" data-action="down" ${index === homeBlockOrder.length - 1 ? "disabled" : ""}>Down</button>
+              <button class="laura-menu-mini-button" type="button" data-action="jump">Go</button>
+            </span>
+          `;
+          row.querySelector('[data-action="up"]').addEventListener("click", () => moveHomeBlock(index, -1));
+          row.querySelector('[data-action="down"]').addEventListener("click", () => moveHomeBlock(index, 1));
+          row.querySelector('[data-action="jump"]').addEventListener("click", () => {
+            applyHomeBlockOrder({ scrollToKey: key });
+          });
+          orderRowsWrap.appendChild(row);
+        });
       }
 
       function applyHeaderMenu() {
@@ -4556,7 +4755,11 @@
       document.getElementById("lauraEditorDownload").addEventListener("click", downloadCleanHtml);
       document.getElementById("lauraEditorCloseOutput").addEventListener("click", () => outputWrap.classList.remove("active"));
       document.getElementById("lauraEditorToggle").addEventListener("click", () => document.body.classList.toggle("editor-collapsed"));
+      document.getElementById("lauraSectionOrderReset")?.addEventListener("click", resetHomeBlockOrder);
 
+      homeBlockOrder = readHomeBlockOrder();
+      applyHomeBlockOrder();
+      renderHomeBlockOrderManager();
       applyHeaderMenu();
       initializeDefaults();
       loadSection("global");
