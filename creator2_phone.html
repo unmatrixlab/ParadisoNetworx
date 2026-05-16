@@ -3880,7 +3880,7 @@
         event.preventDefault();
         event.stopPropagation();
 
-        const currentList = button.closest(".media-list");
+        const currentList = button.closest(".media-list") || mediaList;
         if (currentList) {
           currentList.querySelectorAll(".media-item").forEach(node => {
             node.classList.remove("active");
@@ -4032,26 +4032,44 @@
       }
 
       function renderLocalItem(item, index) {
-        const button = renderMediaItem(item, index);
-        const freshButton = button.cloneNode(true);
-        freshButton.dataset.index = String(index);
-        const thumbImage = freshButton.querySelector(".media-item-thumb img");
+        const button = document.createElement("button");
+        button.className = "media-item";
+        button.type = "button";
+        button.dataset.index = String(index);
+
+        const safeThumb = String(item.thumb || "").replace(/"/g, "&quot;");
+        const safeTitle = String(item.title || "Media item").replace(/"/g, "&quot;");
+
+        button.innerHTML = `
+          <span class="media-item-thumb">
+            <img src="${safeThumb}" alt="${safeTitle}" loading="lazy">
+          </span>
+          <span>
+            <span class="media-item-kicker">${item.kicker}</span>
+            <strong class="media-item-title">${item.title}</strong>
+            <span class="media-item-note">${item.note}</span>
+          </span>
+        `;
+
+        const thumbImage = button.querySelector(".media-item-thumb img");
         if (thumbImage) {
           thumbImage.addEventListener("error", () => thumbImage.classList.add("is-broken"), { once: true });
         }
-        freshButton.addEventListener("click", event => {
+
+        button.addEventListener("click", event => {
           event.preventDefault();
           event.stopPropagation();
 
-          const currentList = freshButton.closest(".media-list") || list;
+          const currentList = button.closest(".media-list") || list;
           currentList.querySelectorAll(".media-item").forEach(node => {
             node.classList.remove("active");
           });
 
-          freshButton.classList.add("active");
+          button.classList.add("active");
           openLocalItem(item);
         });
-        return freshButton;
+
+        return button;
       }
 
       clearLocalPlayer();
@@ -4066,8 +4084,12 @@
       return section;
     }
 
-    function renderAllMediaGalleries() {
-      if (!mediaGalleryAll || mediaGalleryAll.dataset.rendered === "true") {
+    function renderAllMediaGalleries(force = false) {
+      if (!mediaGalleryAll) {
+        return;
+      }
+
+      if (mediaGalleryAll.dataset.rendered === "true" && !force) {
         return;
       }
 
@@ -4100,7 +4122,7 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries();
+        renderAllMediaGalleries(true);
         mediaGalleryAll?.classList.add("active");
         mediaGallery?.classList.remove("active");
       } else {
@@ -4132,7 +4154,7 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries();
+        renderAllMediaGalleries(true);
         mediaGallery.classList.remove("active");
         mediaGalleryAll?.classList.add("active");
         scrollToMediaType(type);
@@ -4819,7 +4841,7 @@
 
       function ensureAllMediaSectionsForOrder() {
         if (currentMediaDisplayModeForOrder() === "all" && typeof window.renderAllMediaGalleries === "function") {
-          window.renderAllMediaGalleries();
+          window.renderAllMediaGalleries(true);
         }
       }
 
@@ -5407,7 +5429,7 @@
       window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
     }
     if (finalMediaMode === "all" && typeof window.renderAllMediaGalleries === "function") {
-      window.renderAllMediaGalleries();
+      window.renderAllMediaGalleries(true);
     }
     const home = document.getElementById("home");
     const hero = home && home.querySelector(".block-home-hero");
@@ -5429,9 +5451,59 @@
         clone.querySelector("body").appendChild(script);
       }
 
+      function resetClonedMediaRuntimeState(clone) {
+        const singleGallery = clone.querySelector("#mediaGallery");
+        const singleList = clone.querySelector("#mediaList");
+        const singleEmpty = clone.querySelector("#mediaPlayerEmpty");
+        const singleFrame = clone.querySelector("#mediaPlayerFrame");
+        const allGallery = clone.querySelector("#mediaGalleryAll");
+
+        if (singleList) {
+          singleList.innerHTML = "";
+        }
+
+        if (singleFrame) {
+          singleFrame.innerHTML = "";
+          singleFrame.classList.remove("active");
+        }
+
+        if (singleEmpty) {
+          singleEmpty.style.display = "";
+        }
+
+        if (singleGallery) {
+          singleGallery.classList.remove("active", "media-mode-music", "media-mode-videos", "media-mode-interviews");
+        }
+
+        if (allGallery) {
+          allGallery.innerHTML = "";
+          allGallery.classList.remove("active");
+          allGallery.removeAttribute("data-rendered");
+        }
+
+        clone.querySelectorAll(".media-trigger").forEach(trigger => {
+          trigger.classList.toggle("active", trigger.dataset.media === "music");
+        });
+
+        clone.querySelectorAll(".media-item").forEach(item => {
+          item.remove();
+        });
+
+        clone.querySelectorAll(".media-player-frame").forEach(frame => {
+          frame.innerHTML = "";
+          frame.classList.remove("active");
+        });
+
+        clone.querySelectorAll(".media-player-empty").forEach(empty => {
+          empty.style.display = "";
+        });
+      }
+
       function generateCleanHtml() {
         applyHomeBlockOrder();
         const clone = document.documentElement.cloneNode(true);
+
+        resetClonedMediaRuntimeState(clone);
 
         clone.querySelectorAll("[data-editor-only='true'], #lauraEditorScript, #lauraEditorStyles").forEach(node => node.remove());
         clone.querySelector("#lauraEditorPanel")?.remove();
@@ -5453,7 +5525,7 @@
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "desktop-edited.html";
+        link.download = "phone-edited.html";
         document.body.appendChild(link);
         link.click();
         link.remove();
