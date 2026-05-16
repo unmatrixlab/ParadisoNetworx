@@ -3320,36 +3320,7 @@
         height: 64px;
       }
     }
-  
-
-    /* ==================================================
-       PHONE MEDIA TOUCH FIX
-       Makes song/video/interview selectors reliable on mobile.
-    ================================================== */
-    body.phone-version .media-list {
-      position: relative;
-      z-index: 4;
-    }
-
-    body.phone-version .media-item,
-    body.phone-version .poster-card.media-trigger {
-      position: relative;
-      z-index: 5;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: rgba(215, 181, 109, 0.18);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    body.phone-version .media-item:active,
-    body.phone-version .poster-card.media-trigger:active {
-      transform: scale(0.985);
-    }
-
-    body.phone-version .media-player-panel {
-      scroll-margin-top: calc(var(--phone-header-height, 112px) + 14px);
-    }
-</style>
+  </style>
 </head>
 <body class="phone-version">
 <!-- ==================================================
@@ -3768,28 +3739,6 @@
     const mediaTriggers = document.querySelectorAll(".media-trigger");
     let mediaDisplayMode = localStorage.getItem("lauraMediaDisplayMode") || "single";
 
-    function isPhoneLayout() {
-      return document.body.classList.contains("phone-version") || document.documentElement.clientWidth <= 760;
-    }
-
-    function scrollMediaPlayerIntoView(panel) {
-      if (!isPhoneLayout() || !panel) {
-        return;
-      }
-
-      window.setTimeout(() => {
-        const fixedHeader = document.querySelector(".phone-topbar, .topbar");
-        const headerHeight = fixedHeader ? fixedHeader.getBoundingClientRect().height : 0;
-        const panelTop = panel.getBoundingClientRect().top + window.pageYOffset;
-        const targetTop = Math.max(0, panelTop - headerHeight - 14);
-
-        window.scrollTo({
-          top: targetTop,
-          behavior: "smooth"
-        });
-      }, 80);
-    }
-
     const mediaData = {
       music: {
         title: "Selected Songs",
@@ -3909,10 +3858,11 @@
       button.dataset.index = String(index);
 
       const safeThumb = String(item.thumb || "").replace(/"/g, "&quot;");
+      const safeTitle = String(item.title || "Media item").replace(/"/g, "&quot;");
 
       button.innerHTML = `
         <span class="media-item-thumb">
-          <img src="${safeThumb}" alt="${String(item.title || "Media item").replace(/"/g, "&quot;")}" loading="lazy">
+          <img src="${safeThumb}" alt="${safeTitle}" loading="lazy">
         </span>
         <span>
           <span class="media-item-kicker">${item.kicker}</span>
@@ -3930,13 +3880,15 @@
         event.preventDefault();
         event.stopPropagation();
 
-        mediaList.querySelectorAll(".media-item").forEach(node => {
-          node.classList.remove("active");
-        });
+        const currentList = button.closest(".media-list");
+        if (currentList) {
+          currentList.querySelectorAll(".media-item").forEach(node => {
+            node.classList.remove("active");
+          });
+        }
 
         button.classList.add("active");
         openMediaItem(item);
-        scrollMediaPlayerIntoView(mediaPlayerPanel);
       });
 
       return button;
@@ -4091,10 +4043,13 @@
           event.preventDefault();
           event.stopPropagation();
 
-          list.querySelectorAll(".media-item").forEach(node => node.classList.remove("active"));
+          const currentList = freshButton.closest(".media-list") || list;
+          currentList.querySelectorAll(".media-item").forEach(node => {
+            node.classList.remove("active");
+          });
+
           freshButton.classList.add("active");
           openLocalItem(item);
-          scrollMediaPlayerIntoView(section.querySelector(".media-player-panel"));
         });
         return freshButton;
       }
@@ -4213,9 +4168,7 @@
     }
 
     mediaTriggers.forEach(trigger => {
-      trigger.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
+      trigger.addEventListener("click", () => {
         openMediaGallery(trigger.dataset.media);
       });
     });
