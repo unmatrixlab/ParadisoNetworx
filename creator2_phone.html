@@ -3858,11 +3858,10 @@
       button.dataset.index = String(index);
 
       const safeThumb = String(item.thumb || "").replace(/"/g, "&quot;");
-      const safeTitle = String(item.title || "Media item").replace(/"/g, "&quot;");
 
       button.innerHTML = `
         <span class="media-item-thumb">
-          <img src="${safeThumb}" alt="${safeTitle}" loading="lazy">
+          <img src="${safeThumb}" alt="${String(item.title || "Media item").replace(/"/g, "&quot;")}" loading="lazy">
         </span>
         <span>
           <span class="media-item-kicker">${item.kicker}</span>
@@ -3876,16 +3875,10 @@
         thumbImage.addEventListener("error", () => thumbImage.classList.add("is-broken"), { once: true });
       }
 
-      button.addEventListener("click", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const currentList = button.closest(".media-list") || mediaList;
-        if (currentList) {
-          currentList.querySelectorAll(".media-item").forEach(node => {
-            node.classList.remove("active");
-          });
-        }
+      button.addEventListener("click", () => {
+        mediaList.querySelectorAll(".media-item").forEach(node => {
+          node.classList.remove("active");
+        });
 
         button.classList.add("active");
         openMediaItem(item);
@@ -4032,44 +4025,19 @@
       }
 
       function renderLocalItem(item, index) {
-        const button = document.createElement("button");
-        button.className = "media-item";
-        button.type = "button";
-        button.dataset.index = String(index);
-
-        const safeThumb = String(item.thumb || "").replace(/"/g, "&quot;");
-        const safeTitle = String(item.title || "Media item").replace(/"/g, "&quot;");
-
-        button.innerHTML = `
-          <span class="media-item-thumb">
-            <img src="${safeThumb}" alt="${safeTitle}" loading="lazy">
-          </span>
-          <span>
-            <span class="media-item-kicker">${item.kicker}</span>
-            <strong class="media-item-title">${item.title}</strong>
-            <span class="media-item-note">${item.note}</span>
-          </span>
-        `;
-
-        const thumbImage = button.querySelector(".media-item-thumb img");
+        const button = renderMediaItem(item, index);
+        const freshButton = button.cloneNode(true);
+        freshButton.dataset.index = String(index);
+        const thumbImage = freshButton.querySelector(".media-item-thumb img");
         if (thumbImage) {
           thumbImage.addEventListener("error", () => thumbImage.classList.add("is-broken"), { once: true });
         }
-
-        button.addEventListener("click", event => {
-          event.preventDefault();
-          event.stopPropagation();
-
-          const currentList = button.closest(".media-list") || list;
-          currentList.querySelectorAll(".media-item").forEach(node => {
-            node.classList.remove("active");
-          });
-
-          button.classList.add("active");
+        freshButton.addEventListener("click", () => {
+          list.querySelectorAll(".media-item").forEach(node => node.classList.remove("active"));
+          freshButton.classList.add("active");
           openLocalItem(item);
         });
-
-        return button;
+        return freshButton;
       }
 
       clearLocalPlayer();
@@ -4084,12 +4052,8 @@
       return section;
     }
 
-    function renderAllMediaGalleries(force = false) {
-      if (!mediaGalleryAll) {
-        return;
-      }
-
-      if (mediaGalleryAll.dataset.rendered === "true" && !force) {
+    function renderAllMediaGalleries() {
+      if (!mediaGalleryAll || mediaGalleryAll.dataset.rendered === "true") {
         return;
       }
 
@@ -4122,7 +4086,7 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries(true);
+        renderAllMediaGalleries();
         mediaGalleryAll?.classList.add("active");
         mediaGallery?.classList.remove("active");
       } else {
@@ -4154,7 +4118,7 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries(true);
+        renderAllMediaGalleries();
         mediaGallery.classList.remove("active");
         mediaGalleryAll?.classList.add("active");
         scrollToMediaType(type);
@@ -4841,7 +4805,7 @@
 
       function ensureAllMediaSectionsForOrder() {
         if (currentMediaDisplayModeForOrder() === "all" && typeof window.renderAllMediaGalleries === "function") {
-          window.renderAllMediaGalleries(true);
+          window.renderAllMediaGalleries();
         }
       }
 
@@ -5429,7 +5393,7 @@
       window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
     }
     if (finalMediaMode === "all" && typeof window.renderAllMediaGalleries === "function") {
-      window.renderAllMediaGalleries(true);
+      window.renderAllMediaGalleries();
     }
     const home = document.getElementById("home");
     const hero = home && home.querySelector(".block-home-hero");
@@ -5451,11 +5415,12 @@
         clone.querySelector("body").appendChild(script);
       }
 
-      function resetClonedMediaRuntimeState(clone) {
+
+      function resetDynamicMediaStateInClone(clone) {
         const singleGallery = clone.querySelector("#mediaGallery");
         const singleList = clone.querySelector("#mediaList");
-        const singleEmpty = clone.querySelector("#mediaPlayerEmpty");
         const singleFrame = clone.querySelector("#mediaPlayerFrame");
+        const singleEmpty = clone.querySelector("#mediaPlayerEmpty");
         const allGallery = clone.querySelector("#mediaGalleryAll");
 
         if (singleList) {
@@ -5468,7 +5433,7 @@
         }
 
         if (singleEmpty) {
-          singleEmpty.style.display = "";
+          singleEmpty.style.display = "block";
         }
 
         if (singleGallery) {
@@ -5478,24 +5443,13 @@
         if (allGallery) {
           allGallery.innerHTML = "";
           allGallery.classList.remove("active");
+          delete allGallery.dataset.rendered;
           allGallery.removeAttribute("data-rendered");
         }
 
+        clone.querySelectorAll(".media-item").forEach(item => item.classList.remove("active"));
         clone.querySelectorAll(".media-trigger").forEach(trigger => {
           trigger.classList.toggle("active", trigger.dataset.media === "music");
-        });
-
-        clone.querySelectorAll(".media-item").forEach(item => {
-          item.remove();
-        });
-
-        clone.querySelectorAll(".media-player-frame").forEach(frame => {
-          frame.innerHTML = "";
-          frame.classList.remove("active");
-        });
-
-        clone.querySelectorAll(".media-player-empty").forEach(empty => {
-          empty.style.display = "";
         });
       }
 
@@ -5503,7 +5457,7 @@
         applyHomeBlockOrder();
         const clone = document.documentElement.cloneNode(true);
 
-        resetClonedMediaRuntimeState(clone);
+        resetDynamicMediaStateInClone(clone);
 
         clone.querySelectorAll("[data-editor-only='true'], #lauraEditorScript, #lauraEditorStyles").forEach(node => node.remove());
         clone.querySelector("#lauraEditorPanel")?.remove();
@@ -5525,7 +5479,7 @@
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "phone-edited.html";
+        link.download = "desktop-edited.html";
         document.body.appendChild(link);
         link.click();
         link.remove();
