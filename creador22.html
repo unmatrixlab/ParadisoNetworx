@@ -1452,7 +1452,18 @@
     <div class="lg-editor-panel" data-editor-panel="export">
       <div class="lg-editor-group">
         <p class="lg-editor-group-title">Export Clean Code</p>
-        <small>The exported file removes the sidebar/editor and keeps your current colors, opacities, images, and memories-applied values.</small>
+        <small>
+          Choose Regular Page for a complete standalone HTML file, or Embed Section for a clean block that can be inserted inside another desktop page without duplicating html/body.
+        </small>
+
+        <div class="lg-control">
+          <label>Export Type</label>
+          <select id="lgExportMode">
+            <option value="regular">Regular page - full HTML document</option>
+            <option value="embed">Embed section - style + section only</option>
+          </select>
+        </div>
+
         <div class="lg-editor-buttons">
           <button class="lg-editor-btn primary" id="lgGenerateCode" type="button">Generate Code</button>
           <button class="lg-editor-btn" id="lgDownloadCode" type="button">Download HTML</button>
@@ -1585,9 +1596,9 @@
         }
       }
 
-      function currentCssOverrides() {
+      function currentCssOverrides(selector = ":root") {
         const state = getState();
-        let css = ":root {\n";
+        let css = selector + " {\n";
         Object.entries(state).forEach(([key, value]) => {
           if (key.startsWith("--img-")) {
             css += `  ${key}: ${cssUrl(value)};\n`;
@@ -1601,20 +1612,32 @@
         return css;
       }
 
-      function cleanHtml() {
+      function removeEditorNodes(scope) {
+        scope.querySelectorAll("[data-export-remove], #lgEditorToggle, #lgShowsEditorScript").forEach((node) => {
+          node.remove();
+        });
+
+        scope.querySelectorAll(".lg-editor, .lg-editor-toggle").forEach((node) => {
+          node.remove();
+        });
+      }
+
+      function stripEmbedUnsafeCss(css) {
+        return String(css || "")
+          .replace(/html\s*,\s*body\s*\{[\s\S]*?\n\s*\}/g, "")
+          .replace(/body::before\s*\{[\s\S]*?\n\s*\}/g, "")
+          .replace(/body::after\s*\{[\s\S]*?\n\s*\}/g, "")
+          .replace(/\n\s*\/\*\s*=+\s*EDITOR SIDEBAR[\s\S]*?@media \(max-width: 1100px\)/g, "\n    @media (max-width: 1100px)")
+          .trim();
+      }
+
+      function cleanRegularHtml() {
         const clone = document.documentElement.cloneNode(true);
-
-        clone.querySelectorAll("[data-export-remove], #lgEditorToggle, #lgShowsEditorScript").forEach((node) => {
-          node.remove();
-        });
-
-        clone.querySelectorAll(".lg-editor, .lg-editor-toggle").forEach((node) => {
-          node.remove();
-        });
+        removeEditorNodes(clone);
 
         const liveStyle = clone.querySelector("#lgShowsExportedOverrides") || clone.ownerDocument.createElement("style");
         liveStyle.id = "lgShowsExportedOverrides";
-        liveStyle.textContent = currentCssOverrides();
+        liveStyle.textContent = currentCssOverrides(":root");
 
         const head = clone.querySelector("head");
         const baseStyle = clone.querySelector("#lgShowsBaseStyles");
@@ -1627,8 +1650,48 @@
         return "<!DOCTYPE html>\n" + clone.outerHTML;
       }
 
+      function cleanEmbedHtml() {
+        const page = document.querySelector(".lg-shows-page");
+        const baseStyle = document.getElementById("lgShowsBaseStyles");
+        if (!page || !baseStyle) return "";
+
+        const pageClone = page.cloneNode(true);
+        removeEditorNodes(pageClone);
+
+        const fonts = [
+          '<link rel="preconnect" href="https://fonts.googleapis.com">',
+          '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+          '<link href="https://fonts.googleapis.com/css2?family=Rye&family=Playball&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">'
+        ].join("\n");
+
+        const scopedOverrides = currentCssOverrides("#live-shows.lg-shows-page");
+        const safeBaseCss = stripEmbedUnsafeCss(baseStyle.textContent);
+
+        return [
+          "<!-- ==================================================",
+          "     LAURA GOODSTONE / LIVE SHOWS EMBED SECTION",
+          "     Paste this block inside the target page body.",
+          "     It avoids duplicate html/body tags and keeps the generated content.",
+          "================================================== -->",
+          "",
+          fonts,
+          "",
+          '<style id="lgShowsEmbedStyles">',
+          safeBaseCss,
+          "",
+          scopedOverrides,
+          "</style>",
+          "",
+          pageClone.outerHTML
+        ].join("\n");
+      }
+
+      function selectedExportMode() {
+        return document.getElementById("lgExportMode")?.value || "regular";
+      }
+
       function generateCode() {
-        const code = cleanHtml();
+        const code = selectedExportMode() === "embed" ? cleanEmbedHtml() : cleanRegularHtml();
         generatedCode.value = code;
         codeWrap.classList.add("active");
         return code;
@@ -1640,7 +1703,9 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "laura-goodstone-live-shows-desktop.html";
+        a.download = selectedExportMode() === "embed"
+          ? "laura-goodstone-live-shows-embed.html"
+          : "laura-goodstone-live-shows-desktop.html";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -1650,12 +1715,12 @@
       function copyCode() {
         const code = generatedCode.value || generateCode();
         navigator.clipboard.writeText(code).then(() => {
-          alert("Clean HTML copied.");
+          alert(selectedExportMode() === "embed" ? "Embed code copied." : "Clean HTML copied.");
         }).catch(() => {
           generatedCode.focus();
           generatedCode.select();
           document.execCommand("copy");
-          alert("Clean HTML copied.");
+          alert(selectedExportMode() === "embed" ? "Embed code copied." : "Clean HTML copied.");
         });
       }
 
