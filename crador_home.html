@@ -4552,6 +4552,61 @@
           const activeClass = item.target === defaultMenuTarget ? " active" : "";
           return `<button class="tab-button${activeClass}" type="button" data-menu-type="${escapeHtml(item.type)}" data-target="${escapeHtml(item.target)}" data-new-tab="${item.newTab ? "true" : "false"}">${escapeHtml(item.label)}</button>`;
         }).join("\n      ");
+        updateTopMenuLiveStyles();
+      }
+
+      function getCssVarValue(varName, fallback = "") {
+        const inlineValue = root.style.getPropertyValue(varName).trim();
+        if (inlineValue) return inlineValue;
+        const computedValue = getComputedStyle(root).getPropertyValue(varName).trim();
+        return computedValue || fallback;
+      }
+
+      function updateTopMenuLiveStyles() {
+        const styleId = "lauraTopMenuDynamicStyles";
+        let style = document.getElementById(styleId);
+        if (!style) {
+          style = document.createElement("style");
+          style.id = styleId;
+          document.head.appendChild(style);
+        }
+
+        const bgTopRgb = getCssVarValue("--edit-menu-bg-top-rgb", "14, 10, 6");
+        const bgTopOpacity = getCssVarValue("--edit-menu-bg-top-opacity", "0.96");
+        const bgMidRgb = getCssVarValue("--edit-menu-bg-mid-rgb", "14, 10, 6");
+        const bgMidOpacity = getCssVarValue("--edit-menu-bg-mid-opacity", "0.58");
+        const borderRgb = getCssVarValue("--edit-menu-border-rgb", "215, 181, 109");
+        const borderOpacity = getCssVarValue("--edit-menu-border-opacity", "0.16");
+        const borderVisible = getCssVarValue("--edit-menu-border-visible", "1") === "0" ? "0" : "1";
+        const buttonBgRgb = getCssVarValue("--edit-menu-button-bg-rgb", "22, 15, 8");
+        const buttonBgOpacity = getCssVarValue("--edit-menu-button-bg-opacity", "0.42");
+        const buttonBorderRgb = getCssVarValue("--edit-menu-button-border-rgb", "215, 181, 109");
+        const buttonBorderOpacity = getCssVarValue("--edit-menu-button-border-opacity", "0.35");
+        const activeBg = getCssVarValue("--edit-menu-active-bg", "#d7b56d");
+        const activeText = getCssVarValue("--edit-menu-active-text", "#20150a");
+        const buttonText = getCssVarValue("--edit-menu-button-text", "#efe4cc");
+        const buttonHoverText = getCssVarValue("--edit-menu-button-hover-text", "#ffffff");
+
+        style.textContent = `
+.topbar {
+  background: linear-gradient(to bottom, rgba(${bgTopRgb}, ${bgTopOpacity}), rgba(${bgMidRgb}, ${bgMidOpacity}), rgba(${bgMidRgb}, 0)) !important;
+  border-bottom-style: solid !important;
+  border-bottom-width: ${borderVisible === "1" ? "1px" : "0px"} !important;
+  border-bottom-color: rgba(${borderRgb}, ${borderVisible === "1" ? borderOpacity : "0"}) !important;
+}
+.menu button {
+  background: rgba(${buttonBgRgb}, ${buttonBgOpacity}) !important;
+  border-color: rgba(${buttonBorderRgb}, ${buttonBorderOpacity}) !important;
+  color: ${buttonText} !important;
+}
+.menu button:hover {
+  color: ${buttonHoverText} !important;
+}
+.menu button.active {
+  background: ${activeBg} !important;
+  border-color: ${activeBg} !important;
+  color: ${activeText} !important;
+}`;
       }
 
       function updateMenuItem(index, key, value) {
@@ -4787,6 +4842,9 @@
         if (control.type === "color") {
           const rgb = hexToRgb(value);
           root.style.setProperty(control.varName + "-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+        }
+        if (String(control.varName || "").startsWith("--edit-menu-")) {
+          updateTopMenuLiveStyles();
         }
       }
 
@@ -5110,6 +5168,7 @@
 
       function generateCleanHtml() {
         applyHomeBlockOrder();
+        updateTopMenuLiveStyles();
         const clone = document.documentElement.cloneNode(true);
 
         clone.querySelectorAll("[data-editor-only='true'], #lauraEditorScript, #lauraEditorStyles").forEach(node => node.remove());
