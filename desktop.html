@@ -3293,7 +3293,7 @@
        DESKTOP APP MENU
   ================================================== -->
 <header class="topbar">
-    <nav class="menu" aria-label="Main menu"><button class="tab-button active" type="button" data-menu-type="section" data-target="https://paradisonetworx.com/desktop2.html" data-new-tab="false">Home</button>
+    <nav class="menu" aria-label="Main menu"><button class="tab-button" type="button" data-menu-type="section" data-target="https://paradisonetworx.com/desktop2.html" data-new-tab="false">Home</button>
       <button class="tab-button" type="button" data-menu-type="section" data-target="https://paradisonetworx.com/booking.html" data-new-tab="false">Booking</button>
       <button class="tab-button" type="button" data-menu-type="section" data-target="https://paradisonetworx.com/tour." data-new-tab="false">Tour</button></nav>
   </header>
@@ -4619,11 +4619,44 @@
         return;
       }
 
-      if (type === "anchor") {
-        const anchorTarget = target.startsWith("#") ? target : "#" + target;
-        const node = document.querySelector(anchorTarget);
+      if (type === "embeddedPage") {
+        const cleanTarget = target.replace(/^#/, "");
+        const pageId = cleanTarget.replace(/\.html?$/i, "");
+        const knownPage = pagesToPreload.find(page => page.id === pageId || page.file === cleanTarget);
+        const pageToLoad = knownPage || { id: pageId, file: /\.html?$/i.test(cleanTarget) ? cleanTarget : pageId + ".html" };
+
+        if (document.getElementById(pageId)) {
+          showSection(pageId);
+        } else {
+          preloadPage(pageToLoad).then(() => showSection(pageId)).catch(error => {
+            console.warn(error);
+            if (newTab) {
+              window.open(pageToLoad.file, "_blank", "noopener");
+            } else {
+              window.location.href = pageToLoad.file;
+            }
+          });
+        }
+        return;
+      }
+
+      if (type === "anchor" || type === "scroll") {
+        const cleanTarget = target.replace(/^#/, "");
+        const anchorTarget = "#" + cleanTarget;
+        let node = document.getElementById(cleanTarget);
+
+        if (!node) {
+          node = document.querySelector(anchorTarget);
+        }
+
         if (node) {
-          node.scrollIntoView({ behavior: "smooth", block: "start" });
+          const parentPage = node.closest(".page-section");
+          if (parentPage && !parentPage.classList.contains("active")) {
+            showSection(parentPage.id);
+            setTimeout(() => node.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+          } else {
+            node.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
         } else {
           window.location.href = anchorTarget;
         }
