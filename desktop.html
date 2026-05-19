@@ -2228,7 +2228,7 @@
 
   
 
-<style id="style-story">
+<style id="style-story-0">
   /* ==================================================
      STORY / SMALL OVERRIDES ONLY
      No global reset. No duplicate body/html styles.
@@ -3295,8 +3295,8 @@
 <header class="topbar">
     <nav class="menu" aria-label="Main menu"><button class="tab-button active" type="button" data-menu-type="embeddedPage" data-target="https://paradisonetworx.com/desktop.html" data-new-tab="false">Home</button>
       <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="https://paradisonetworx.com/booking.html" data-new-tab="false">Booking</button>
-      <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="https://paradisonetworx.com/tour." data-new-tab="false">Tour</button>
-      <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="contact" data-new-tab="false">Contact</button></nav>
+      <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="https://paradisonetworx.com/tour.html" data-new-tab="false">Tour</button>
+      <button class="tab-button" type="button" data-menu-type="scroll" data-target="globalFooter" data-new-tab="false">Contact</button></nav>
   </header>
 
   <main id="desktopApp">
@@ -4099,6 +4099,62 @@
       });
     }
 
+    function removeEmbeddedGlobalShell(root) {
+      if (!root) return;
+
+      root.querySelectorAll(`
+        .topbar,
+        header,
+        nav,
+        footer,
+        .footer-v1,
+        .site-footer,
+        .global-footer,
+        #globalFooter,
+        #videoModal,
+        .video-modal,
+        .laura-editor,
+        .editor-panel,
+        [data-main-shell],
+        [data-global-only]
+      `).forEach(node => node.remove());
+    }
+
+    function buildFallbackEmbeddedSection(page, pageDocument) {
+      const body = pageDocument.body;
+
+      if (!body) {
+        throw new Error("Missing body in " + page.file);
+      }
+
+      removeEmbeddedGlobalShell(body);
+
+      const pageSection = document.createElement("section");
+      pageSection.id = page.id;
+      pageSection.className = "page-section";
+
+      Array.from(body.children).forEach(child => {
+        if (child.tagName.toLowerCase() !== "script") {
+          pageSection.appendChild(child);
+        }
+      });
+
+      return pageSection;
+    }
+
+    function loadEmbeddedPageStyles(page, pageDocument) {
+      pageDocument.querySelectorAll("style").forEach((styleNode, index) => {
+        const styleId = styleNode.getAttribute("data-page-style") || "style-" + page.id + "-" + index;
+
+        if (!document.getElementById(styleId)) {
+          const newStyle = document.createElement("style");
+          newStyle.id = styleId;
+          newStyle.textContent = styleNode.textContent;
+          document.head.appendChild(newStyle);
+        }
+      });
+    }
+
     async function preloadPage(page) {
       if (document.getElementById(page.id)) {
         return;
@@ -4113,26 +4169,23 @@
       const htmlText = await response.text();
       const parser = new DOMParser();
       const pageDocument = parser.parseFromString(htmlText, "text/html");
-      const pageSection = pageDocument.getElementById(page.id);
+      let pageSection = pageDocument.getElementById(page.id);
 
-      if (!pageSection) {
-        throw new Error("Missing section #" + page.id + " in " + page.file);
+      if (pageSection) {
+        pageSection.classList.add("page-section");
+        removeEmbeddedGlobalShell(pageSection);
+      } else {
+        pageSection = buildFallbackEmbeddedSection(page, pageDocument);
       }
 
-      pageDocument.querySelectorAll("style").forEach(styleNode => {
-        const styleId = styleNode.getAttribute("data-page-style") || "style-" + page.id;
-
-        if (!document.getElementById(styleId)) {
-          const newStyle = document.createElement("style");
-          newStyle.id = styleId;
-          newStyle.textContent = styleNode.textContent;
-          document.head.appendChild(newStyle);
-        }
-      });
-
+      loadEmbeddedPageStyles(page, pageDocument);
       main.appendChild(pageSection);
       preloadBackgroundImages(pageSection);
       executePageScripts(pageDocument);
+
+      if (window.LauraDesktopApp && typeof window.LauraDesktopApp.bindVideoButtons === "function") {
+        window.LauraDesktopApp.bindVideoButtons(pageSection);
+      }
     }
 
     window.LauraDesktopApp = {
