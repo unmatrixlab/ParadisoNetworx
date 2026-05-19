@@ -813,12 +813,6 @@
       text-align: center;
     }
 
-    /* Keep Media Room placeholder text out of the final design.
-       The first media item is loaded automatically, so no explanatory card is needed. */
-    .media-player-empty {
-      display: none !important;
-    }
-
     .media-player-empty span {
       display: inline-flex;
       margin-bottom: 16px;
@@ -1869,7 +1863,6 @@
           rgba(var(--edit-menu-bg-mid-rgb), var(--edit-menu-bg-mid-opacity)),
           rgba(var(--edit-menu-bg-mid-rgb), 0)
         );
-      border-bottom-style: solid;
       border-bottom-width: calc(1px * var(--edit-menu-border-visible, 1));
       border-bottom-color: rgba(var(--edit-menu-border-rgb), calc(var(--edit-menu-border-opacity) * var(--edit-menu-border-visible, 1)));
     }
@@ -2936,8 +2929,6 @@
             <div class="media-list" id="mediaList"></div>
 
             <div class="media-player-panel" id="mediaPlayerPanel">
-              <div class="media-player-empty" id="mediaPlayerEmpty" style="display: none;" aria-hidden="true"></div>
-
               <div class="media-player-frame" id="mediaPlayerFrame"></div>
             </div>
           </div>
@@ -3267,7 +3258,7 @@
     const mediaMoreLink = document.getElementById("mediaMoreLink");
     const mediaList = document.getElementById("mediaList");
     const mediaPlayerPanel = document.getElementById("mediaPlayerPanel");
-    const mediaPlayerEmpty = document.getElementById("mediaPlayerEmpty");
+    const mediaPlayerEmpty = null;
     const mediaPlayerFrame = document.getElementById("mediaPlayerFrame");
     const mediaGalleryAll = document.getElementById("mediaGalleryAll");
     const mediaTriggers = document.querySelectorAll(".media-trigger");
@@ -3392,13 +3383,12 @@
     };
 
     function clearMediaPlayer() {
-      if (!mediaPlayerFrame || !mediaPlayerEmpty) {
+      if (!mediaPlayerFrame) {
         return;
       }
 
       mediaPlayerFrame.innerHTML = "";
       mediaPlayerFrame.classList.remove("active");
-      mediaPlayerEmpty.style.display = "none";
     }
 
     function renderMediaItem(item, index) {
@@ -3437,13 +3427,13 @@
       return button;
     }
 
-    function openMediaItem(item) {
-      mediaPlayerFrame.innerHTML = "";
-      mediaPlayerEmpty.style.display = "none";
-      mediaPlayerFrame.classList.add("active");
+    function renderMediaPlayerFrame(frame, item) {
+      if (!frame || !item) return;
+      frame.innerHTML = "";
+      frame.classList.add("active");
 
       if (item.type === "spotify") {
-        mediaPlayerFrame.innerHTML = `
+        frame.innerHTML = `
           <div class="spotify-embed">
             <iframe
               src="https://open.spotify.com/embed/track/${item.spotifyId}?utm_source=generator"
@@ -3458,7 +3448,7 @@
       }
 
       if (item.type === "youtube") {
-        mediaPlayerFrame.innerHTML = `
+        frame.innerHTML = `
           <iframe
             class="youtube-embed"
             src="https://www.youtube-nocookie.com/embed/${item.youtubeId}?rel=0"
@@ -3471,7 +3461,7 @@
       }
 
       if (item.type === "interview") {
-        mediaPlayerFrame.innerHTML = `
+        frame.innerHTML = `
           <article class="interview-preview">
             <span>${item.kicker}</span>
             <h3>${item.title}</h3>
@@ -3483,6 +3473,42 @@
         `;
       }
     }
+
+    function openMediaItem(item) {
+      renderMediaPlayerFrame(mediaPlayerFrame, item);
+    }
+
+    function getMediaTypeFromSection(section) {
+      if (!section) return null;
+      if (section.dataset.mediaSection) return section.dataset.mediaSection;
+      if (section.classList.contains("media-mode-music")) return "music";
+      if (section.classList.contains("media-mode-videos")) return "videos";
+      if (section.classList.contains("media-mode-interviews")) return "interviews";
+      return null;
+    }
+
+    function openMediaItemInSection(section, index) {
+      const type = getMediaTypeFromSection(section);
+      const data = type ? mediaData[type] : null;
+      const item = data && data.items ? data.items[index] : null;
+      const list = section ? section.querySelector(".media-list") : null;
+      const frame = section ? section.querySelector(".media-player-frame") : null;
+      if (!item || !list || !frame) return;
+
+      list.querySelectorAll(".media-item").forEach(node => node.classList.remove("active"));
+      const activeButton = list.querySelector(`.media-item[data-index="${index}"]`);
+      if (activeButton) activeButton.classList.add("active");
+      renderMediaPlayerFrame(frame, item);
+    }
+
+    document.addEventListener("click", event => {
+      const button = event.target.closest(".media-item");
+      if (!button) return;
+      const section = button.closest(".media-gallery-section");
+      if (!section) return;
+      const index = Number(button.dataset.index || 0);
+      openMediaItemInSection(section, index);
+    });
 
     function createMediaRoomSection(type) {
       const data = mediaData[type];
@@ -3506,7 +3532,6 @@
           <div class="media-room-layout">
             <div class="media-list"></div>
             <div class="media-player-panel">
-              <div class="media-player-empty" style="display: none;" aria-hidden="true"></div>
               <div class="media-player-frame"></div>
             </div>
           </div>
@@ -3514,60 +3539,15 @@
       `;
 
       const list = section.querySelector(".media-list");
-      const empty = section.querySelector(".media-player-empty");
       const frame = section.querySelector(".media-player-frame");
 
       function clearLocalPlayer() {
         frame.innerHTML = "";
         frame.classList.remove("active");
-        empty.style.display = "none";
       }
 
       function openLocalItem(item) {
-        frame.innerHTML = "";
-        empty.style.display = "none";
-        frame.classList.add("active");
-
-        if (item.type === "spotify") {
-          frame.innerHTML = `
-            <div class="spotify-embed">
-              <iframe
-                src="https://open.spotify.com/embed/track/${item.spotifyId}?utm_source=generator"
-                width="100%"
-                height="352"
-                allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy">
-              </iframe>
-            </div>
-          `;
-          return;
-        }
-
-        if (item.type === "youtube") {
-          frame.innerHTML = `
-            <iframe
-              class="youtube-embed"
-              src="https://www.youtube-nocookie.com/embed/${item.youtubeId}?rel=0"
-              title="${item.title}"
-              allow="encrypted-media; picture-in-picture"
-              allowfullscreen>
-            </iframe>
-          `;
-          return;
-        }
-
-        if (item.type === "interview") {
-          frame.innerHTML = `
-            <article class="interview-preview">
-              <span>${item.kicker}</span>
-              <h3>${item.title}</h3>
-              <p>${item.preview}</p>
-              <div class="actions">
-                <a class="btn primary" href="${item.url}" target="_blank" rel="noopener">Read Full Feature</a>
-              </div>
-            </article>
-          `;
-        }
+        renderMediaPlayerFrame(frame, item);
       }
 
       function renderLocalItem(item, index) {
@@ -3598,12 +3578,8 @@
       return section;
     }
 
-    function renderAllMediaGalleries(options = {}) {
-      if (!mediaGalleryAll) {
-        return;
-      }
-
-      if (mediaGalleryAll.dataset.rendered === "true" && options.force !== true) {
+    function renderAllMediaGalleries() {
+      if (!mediaGalleryAll || mediaGalleryAll.dataset.rendered === "true") {
         return;
       }
 
@@ -3636,13 +3612,15 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries({ force: options.forceRender === true });
+        renderAllMediaGalleries();
         mediaGalleryAll?.classList.add("active");
         mediaGallery?.classList.remove("active");
       } else {
         mediaGalleryAll?.classList.remove("active");
-        const activeType = options.mediaType || document.querySelector(".media-trigger.active")?.dataset.media || "music";
-        openMediaGallery(activeType, { suppressScroll: !options.scrollTo });
+        if (!mediaGallery?.classList.contains("active")) {
+          openMediaGallery("music");
+          return;
+        }
       }
 
       if (typeof window.refreshHomeBlockOrderManager === "function") {
@@ -3654,7 +3632,7 @@
       }
     }
 
-    function openMediaGallery(type, options = {}) {
+    function openMediaGallery(type) {
       const data = mediaData[type];
 
       if (!data || !mediaGallery) {
@@ -3696,12 +3674,10 @@
         openMediaItem(data.items[0]);
       }
 
-      if (!options.suppressScroll) {
-        mediaGallery.scrollIntoView({
-          behavior: "smooth",
-          block: "start"
-        });
-      }
+      mediaGallery.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
     }
 
     mediaTriggers.forEach(trigger => {
@@ -3716,7 +3692,7 @@
       });
     });
 
-    setMediaDisplayMode(mediaDisplayMode, { scrollTo: null, forceRender: true });
+    setMediaDisplayMode(mediaDisplayMode, { scrollTo: null });
 
     window.openMediaGallery = openMediaGallery;
     window.setMediaDisplayMode = setMediaDisplayMode;
@@ -5055,6 +5031,29 @@
         clone.querySelector("body").appendChild(script);
       }
 
+      function prepareMediaRoomForCleanExport(clone) {
+        const singleGallery = clone.querySelector("#mediaGallery");
+        if (singleGallery) {
+          const singleList = singleGallery.querySelector("#mediaList, .media-list");
+          const singleFrame = singleGallery.querySelector("#mediaPlayerFrame, .media-player-frame");
+          singleList && (singleList.innerHTML = "");
+          if (singleFrame) {
+            singleFrame.innerHTML = "";
+            singleFrame.classList.remove("active");
+          }
+          singleGallery.classList.remove("active", "media-mode-music", "media-mode-videos", "media-mode-interviews");
+        }
+
+        const allGallery = clone.querySelector("#mediaGalleryAll");
+        if (allGallery) {
+          allGallery.innerHTML = "";
+          allGallery.classList.remove("active");
+          allGallery.removeAttribute("data-rendered");
+        }
+
+        clone.querySelectorAll(".media-player-empty, #mediaPlayerEmpty").forEach(node => node.remove());
+      }
+
       function injectFinalLayoutScript(clone) {
         const finalMode = currentMediaDisplayModeForOrder();
         const finalOrder = normalizeHomeBlockOrder(homeBlockOrder, finalMode);
@@ -5078,11 +5077,16 @@
   }
   function applyFinalLayout() {
     try { localStorage.setItem("lauraMediaDisplayMode", finalMediaMode); } catch (error) {}
+    const allGallery = document.getElementById("mediaGalleryAll");
+    if (allGallery) allGallery.removeAttribute("data-rendered");
     if (typeof window.setMediaDisplayMode === "function") {
       window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
     }
     if (finalMediaMode === "all" && typeof window.renderAllMediaGalleries === "function") {
       window.renderAllMediaGalleries();
+    }
+    if (finalMediaMode !== "all" && typeof window.openMediaGallery === "function") {
+      window.openMediaGallery("music");
     }
     const home = document.getElementById("home");
     const hero = home && home.querySelector(".block-home-hero");
@@ -5104,54 +5108,6 @@
         clone.querySelector("body").appendChild(script);
       }
 
-      function prepareMediaForExport(clone) {
-        const allMediaWrap = clone.querySelector("#mediaGalleryAll");
-        if (allMediaWrap) {
-          allMediaWrap.innerHTML = "";
-          delete allMediaWrap.dataset.rendered;
-          allMediaWrap.classList.remove("active");
-        }
-
-        const singleMedia = clone.querySelector("#mediaGallery");
-        if (singleMedia) {
-          singleMedia.classList.remove("media-mode-videos", "media-mode-interviews");
-          singleMedia.classList.add("media-mode-music", "active");
-        }
-
-        clone.querySelectorAll(".media-trigger").forEach(trigger => {
-          trigger.classList.toggle("active", trigger.dataset.media === "music");
-        });
-
-        clone.querySelectorAll(".media-list").forEach(list => {
-          list.innerHTML = "";
-        });
-
-        clone.querySelectorAll(".media-player-frame").forEach(frame => {
-          frame.innerHTML = "";
-          frame.classList.remove("active");
-        });
-
-        clone.querySelectorAll(".media-player-empty").forEach(empty => {
-          empty.innerHTML = "";
-          empty.style.display = "none";
-          empty.setAttribute("aria-hidden", "true");
-        });
-
-        const title = clone.querySelector("#mediaGalleryTitle");
-        const intro = clone.querySelector("#mediaGalleryIntro");
-        const moreLink = clone.querySelector("#mediaMoreLink");
-
-        if (title) title.textContent = "Selected Songs";
-        if (intro) {
-          intro.textContent = "";
-          intro.style.display = "none";
-        }
-        if (moreLink) {
-          moreLink.textContent = "More on Spotify";
-          moreLink.href = "https://open.spotify.com/track/1YSlDO1A5xo0ZmNik3aaNp?si=2456d1d892eb4b64";
-        }
-      }
-
       function generateCleanHtml() {
         applyHomeBlockOrder();
         const clone = document.documentElement.cloneNode(true);
@@ -5160,8 +5116,8 @@
         clone.querySelector("#lauraEditorPanel")?.remove();
         clone.querySelector("#lauraEditorToggle")?.remove();
         clone.querySelector("#lauraEditorCopyArea")?.remove();
+        prepareMediaRoomForCleanExport(clone);
 
-        prepareMediaForExport(clone);
         injectFinalImageScript(clone);
         injectFinalLayoutScript(clone);
 
