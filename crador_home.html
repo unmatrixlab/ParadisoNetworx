@@ -3578,16 +3578,47 @@
       return section;
     }
 
+    function removeDuplicatedMediaRoomSections() {
+      const seen = new Set();
+      document.querySelectorAll(
+        '#mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews, .media-gallery-anchor[data-media-section]'
+      ).forEach(section => {
+        const type = section.dataset.mediaSection || String(section.id || "").replace("mediaGalleryAll-", "");
+        if (!type) return;
+        if (seen.has(type)) {
+          section.remove();
+          return;
+        }
+        seen.add(type);
+      });
+    }
+
     function renderAllMediaGalleries() {
-      if (!mediaGalleryAll || mediaGalleryAll.dataset.rendered === "true") {
+      if (!mediaGalleryAll) {
+        removeDuplicatedMediaRoomSections();
         return;
       }
 
+      /*
+        IMPORTANT FOR EXPORTED HTML:
+        The editor/exporter can clone a page while the all-media sections are already
+        rendered. The final HTML then runs this function again. To avoid duplicated
+        Laura Media Room blocks, we always rebuild the all-media stack from zero and
+        remove any loose exported copies before creating fresh functional sections.
+      */
+      document.querySelectorAll(
+        '.media-gallery-anchor[data-media-section], #mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews'
+      ).forEach(section => section.remove());
+
       mediaGalleryAll.innerHTML = "";
+      mediaGalleryAll.removeAttribute("data-rendered");
+
       ["music", "videos", "interviews"].forEach(type => {
         const section = createMediaRoomSection(type);
         if (section) mediaGalleryAll.appendChild(section);
       });
+
+      removeDuplicatedMediaRoomSections();
       mediaGalleryAll.dataset.rendered = "true";
     }
 
@@ -5102,6 +5133,8 @@
           singleGallery.classList.remove("active", "media-mode-music", "media-mode-videos", "media-mode-interviews");
         }
 
+        clone.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews").forEach(node => node.remove());
+
         const allGallery = clone.querySelector("#mediaGalleryAll");
         if (allGallery) {
           allGallery.innerHTML = "";
@@ -5133,10 +5166,23 @@
     }[key] || [];
     return selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)));
   }
+  function removeExportedMediaDuplicates() {
+    const seen = new Set();
+    document.querySelectorAll('.media-gallery-anchor[data-media-section], #mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews').forEach(section => {
+      const type = section.dataset.mediaSection || String(section.id || "").replace("mediaGalleryAll-", "");
+      if (!type) return;
+      if (seen.has(type)) section.remove();
+      else seen.add(type);
+    });
+  }
   function applyFinalLayout() {
     try { localStorage.setItem("lauraMediaDisplayMode", finalMediaMode); } catch (error) {}
+    removeExportedMediaDuplicates();
     const allGallery = document.getElementById("mediaGalleryAll");
-    if (allGallery) allGallery.removeAttribute("data-rendered");
+    if (allGallery) {
+      allGallery.innerHTML = "";
+      allGallery.removeAttribute("data-rendered");
+    }
     if (typeof window.setMediaDisplayMode === "function") {
       window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
     }
@@ -5156,6 +5202,7 @@
         insertAfter = node;
       });
     });
+    removeExportedMediaDuplicates();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", applyFinalLayout);
