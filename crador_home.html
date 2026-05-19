@@ -1863,6 +1863,8 @@
           rgba(var(--edit-menu-bg-mid-rgb), var(--edit-menu-bg-mid-opacity)),
           rgba(var(--edit-menu-bg-mid-rgb), 0)
         );
+      border-bottom-style: solid;
+      border-bottom-width: calc(1px * var(--edit-menu-border-visible, 1));
       border-bottom-color: rgba(var(--edit-menu-border-rgb), calc(var(--edit-menu-border-opacity) * var(--edit-menu-border-visible, 1)));
     }
 
@@ -3601,8 +3603,12 @@
       return section;
     }
 
-    function renderAllMediaGalleries() {
-      if (!mediaGalleryAll || mediaGalleryAll.dataset.rendered === "true") {
+    function renderAllMediaGalleries(options = {}) {
+      if (!mediaGalleryAll) {
+        return;
+      }
+
+      if (mediaGalleryAll.dataset.rendered === "true" && options.force !== true) {
         return;
       }
 
@@ -3635,15 +3641,13 @@
       });
 
       if (mediaDisplayMode === "all") {
-        renderAllMediaGalleries();
+        renderAllMediaGalleries({ force: options.forceRender === true });
         mediaGalleryAll?.classList.add("active");
         mediaGallery?.classList.remove("active");
       } else {
         mediaGalleryAll?.classList.remove("active");
-        if (!mediaGallery?.classList.contains("active")) {
-          openMediaGallery("music");
-          return;
-        }
+        const activeType = options.mediaType || document.querySelector(".media-trigger.active")?.dataset.media || "music";
+        openMediaGallery(activeType, { suppressScroll: !options.scrollTo });
       }
 
       if (typeof window.refreshHomeBlockOrderManager === "function") {
@@ -3655,7 +3659,7 @@
       }
     }
 
-    function openMediaGallery(type) {
+    function openMediaGallery(type, options = {}) {
       const data = mediaData[type];
 
       if (!data || !mediaGallery) {
@@ -3697,10 +3701,12 @@
         openMediaItem(data.items[0]);
       }
 
-      mediaGallery.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
+      if (!options.suppressScroll) {
+        mediaGallery.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      }
     }
 
     mediaTriggers.forEach(trigger => {
@@ -3715,7 +3721,7 @@
       });
     });
 
-    setMediaDisplayMode(mediaDisplayMode, { scrollTo: null });
+    setMediaDisplayMode(mediaDisplayMode, { scrollTo: null, forceRender: true });
 
     window.openMediaGallery = openMediaGallery;
     window.setMediaDisplayMode = setMediaDisplayMode;
@@ -5103,6 +5109,52 @@
         clone.querySelector("body").appendChild(script);
       }
 
+      function prepareMediaForExport(clone) {
+        const allMediaWrap = clone.querySelector("#mediaGalleryAll");
+        if (allMediaWrap) {
+          allMediaWrap.innerHTML = "";
+          delete allMediaWrap.dataset.rendered;
+          allMediaWrap.classList.remove("active");
+        }
+
+        const singleMedia = clone.querySelector("#mediaGallery");
+        if (singleMedia) {
+          singleMedia.classList.remove("media-mode-videos", "media-mode-interviews");
+          singleMedia.classList.add("media-mode-music", "active");
+        }
+
+        clone.querySelectorAll(".media-trigger").forEach(trigger => {
+          trigger.classList.toggle("active", trigger.dataset.media === "music");
+        });
+
+        clone.querySelectorAll(".media-list").forEach(list => {
+          list.innerHTML = "";
+        });
+
+        clone.querySelectorAll(".media-player-frame").forEach(frame => {
+          frame.innerHTML = "";
+          frame.classList.remove("active");
+        });
+
+        clone.querySelectorAll(".media-player-empty").forEach(empty => {
+          empty.style.display = "block";
+        });
+
+        const title = clone.querySelector("#mediaGalleryTitle");
+        const intro = clone.querySelector("#mediaGalleryIntro");
+        const moreLink = clone.querySelector("#mediaMoreLink");
+
+        if (title) title.textContent = "Selected Songs";
+        if (intro) {
+          intro.textContent = "";
+          intro.style.display = "none";
+        }
+        if (moreLink) {
+          moreLink.textContent = "More on Spotify";
+          moreLink.href = "https://open.spotify.com/track/1YSlDO1A5xo0ZmNik3aaNp?si=2456d1d892eb4b64";
+        }
+      }
+
       function generateCleanHtml() {
         applyHomeBlockOrder();
         const clone = document.documentElement.cloneNode(true);
@@ -5112,6 +5164,7 @@
         clone.querySelector("#lauraEditorToggle")?.remove();
         clone.querySelector("#lauraEditorCopyArea")?.remove();
 
+        prepareMediaForExport(clone);
         injectFinalImageScript(clone);
         injectFinalLayoutScript(clone);
 
