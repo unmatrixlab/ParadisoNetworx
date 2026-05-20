@@ -986,9 +986,8 @@
         };
       }
 
-      function buildBandsintownCode() {
+      function buildBandsintownAnchor() {
         const widget = getWidgetState();
-        if (widget.rawCode.trim()) return widget.rawCode.trim();
         const attrs = [
           ['class', 'bit-widget-initializer'],
           ['data-artist-name', widget.artist],
@@ -1005,8 +1004,24 @@
           ['data-display-play-my-city', widget.playMyCity ? 'true' : 'false'],
           ['data-separator-color', widget.separatorColor]
         ];
-        return '<a ' + attrs.map(([key, value]) => key + '="' + escapeHtml(value) + '"').join(' ') + '></a>\n' +
-          '<script charset="utf-8" src="https://widget.bandsintown.com/main.min.js"><\/script>';
+        return '<a ' + attrs.map(([key, value]) => key + '="' + escapeHtml(value) + '"').join(' ') + '></a>';
+      }
+
+      function buildBandsintownScriptTag(cacheBust = false) {
+        const src = 'https://widget.bandsintown.com/main.min.js' + (cacheBust ? '?lgTourReload=' + Date.now() : '');
+        return '<script charset="utf-8" src="' + src + '"><\/script>';
+      }
+
+      function buildBandsintownFallbackLoader() {
+        const code = "(function(img){var root=img.closest('.lg-ecosystem-embed-page')||document;var holder=root.querySelector('#tourWidgetHolder');if(!holder||holder.getAttribute('data-bit-loader-fired')==='1')return;holder.setAttribute('data-bit-loader-fired','1');var s=document.createElement('script');s.charset='utf-8';s.src='https://widget.bandsintown.com/main.min.js?lgTourReload='+Date.now();(document.head||document.body).appendChild(s);setTimeout(function(){if(img&&img.parentNode)img.parentNode.removeChild(img);},50);})(this)";
+        return '<img alt="" aria-hidden="true" src="x" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onerror="' + escapeHtml(code) + '">';
+      }
+
+      function buildBandsintownCode(options = {}) {
+        const widget = getWidgetState();
+        if (widget.rawCode.trim()) return widget.rawCode.trim() + (options.includeFallback === true ? '\n' + buildBandsintownFallbackLoader() : '');
+        const includeFallback = options.includeFallback === true;
+        return buildBandsintownAnchor() + '\n' + buildBandsintownScriptTag(options.cacheBust === true) + (includeFallback ? '\n' + buildBandsintownFallbackLoader() : '');
       }
 
       function renderWidgetPreview() {
@@ -1118,13 +1133,13 @@
       function selectedEmbedPageId() { return normalizeEmbedPageId(document.getElementById("lgEmbedPageId")?.value || "tour"); }
       function selectedExportMode() { return document.getElementById("lgExportMode")?.value || "regular"; }
 
-      function injectFinalWidget(pageClone) {
+      function injectFinalWidget(pageClone, includeFallback = false) {
         const holder = pageClone.querySelector("#tourWidgetHolder");
-        if (holder) holder.innerHTML = buildBandsintownCode();
+        if (holder) holder.innerHTML = buildBandsintownCode({ includeFallback: includeFallback, cacheBust: includeFallback });
       }
 
       function buildBandsintownRuntimeScript(pageId) {
-        const widgetCode = buildBandsintownCode();
+        const widgetCode = buildBandsintownCode({ includeFallback: true, cacheBust: true });
         return [
           "<script>",
           "  (function () {",
@@ -1154,7 +1169,7 @@
         removeEditorNodes(clone);
         const baseStyle = clone.querySelector("#lgTourBaseStyles");
         if (baseStyle) baseStyle.textContent += "\n\n" + currentCssOverrides(":root");
-        injectFinalWidget(clone);
+        injectFinalWidget(clone, true);
         clone.querySelector("body")?.insertAdjacentHTML("beforeend", buildBandsintownRuntimeScript(""));
         return "<!DOCTYPE html>\n" + clone.outerHTML;
       }
@@ -1165,7 +1180,7 @@
         if (!page || !baseStyle) return "";
         const pageClone = page.cloneNode(true);
         removeEditorNodes(pageClone);
-        injectFinalWidget(pageClone);
+        injectFinalWidget(pageClone, true);
         const pageId = selectedEmbedPageId();
         const safeBaseCss = stripEmbedUnsafeCss(baseStyle.textContent);
         const scopedOverrides = currentCssOverrides("#tour-page.lg-tour-page");
