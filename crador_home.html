@@ -5217,6 +5217,75 @@
         clone.querySelector("body").appendChild(script);
       }
 
+      function cssEscapeForFinalStyle(value) {
+        return String(value ?? "").replace(/\\/g, "\\\\").replace(/\*/g, "\\*").replace(/\//g, "\\/");
+      }
+
+      function collectFinalEditorVariables() {
+        const declarations = new Map();
+        Object.values(sections).forEach(section => {
+          section.controls.forEach(control => {
+            if (!control.varName) return;
+            const value = getControlValue(control);
+            if (control.type === "url") {
+              if (control.action === "cssUrlVar") {
+                declarations.set(control.varName, cssUrl(value));
+              } else {
+                declarations.set(control.varName, String(value ?? "").trim());
+              }
+              return;
+            }
+            declarations.set(control.varName, String(value ?? "").trim());
+            if (control.type === "color") {
+              const rgb = hexToRgb(value);
+              declarations.set(control.varName + "-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+            }
+          });
+        });
+
+        Array.from(root.style).forEach(name => {
+          if (name.startsWith("--edit-")) {
+            declarations.set(name, root.style.getPropertyValue(name).trim());
+          }
+        });
+
+        return declarations;
+      }
+
+      function injectFinalEditorStateStyle(clone) {
+        const declarations = collectFinalEditorVariables();
+        let css = ":root {\n";
+        declarations.forEach((value, name) => {
+          if (!name || value === "") return;
+          css += `  ${name}: ${cssEscapeForFinalStyle(value)};\n`;
+        });
+        css += "}\n";
+
+        Object.values(sections).forEach(section => {
+          section.controls.forEach(control => {
+            const value = getControlValue(control);
+            if (!value || control.type !== "url") return;
+            if (control.action === "cssBgVar" && control.selector) {
+              css += `${control.selector} { ${control.property || "--bg-image"}: ${cssUrl(value)} !important; }\n`;
+            }
+            if (control.action === "backgroundImage" && control.selector) {
+              css += `${control.selector} { background-image: ${cssUrl(value)} !important; }\n`;
+            }
+          });
+        });
+
+        const style = clone.ownerDocument.createElement("style");
+        style.id = "lauraFinalEditorState";
+        style.textContent = css;
+        const head = clone.querySelector("head");
+        const imageStyles = clone.querySelector("#lauraImageOverrideStyles");
+        if (imageStyles && imageStyles.parentNode) {
+          imageStyles.parentNode.insertBefore(style, imageStyles.nextSibling);
+        } else if (head) {
+          head.appendChild(style);
+        }
+      }
+
       function generateCleanHtml() {
         applyHomeBlockOrder();
         updateTopMenuLiveStyles();
@@ -5227,6 +5296,7 @@
         clone.querySelector("#lauraEditorToggle")?.remove();
         clone.querySelector("#lauraEditorCopyArea")?.remove();
         prepareMediaRoomForCleanExport(clone);
+        injectFinalEditorStateStyle(clone);
 
         injectFinalImageScript(clone);
         injectFinalLayoutScript(clone);
