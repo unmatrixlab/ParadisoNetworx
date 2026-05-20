@@ -4024,7 +4024,8 @@
             { label: "Veil left", varName: "--edit-sound-veil-left", type: "color", value: "#000000" },
             { label: "Veil left opacity", varName: "--edit-sound-veil-left-opacity", type: "range", value: "0.38", min: 0, max: 0.8, step: 0.01 },
             { label: "Veil right", varName: "--edit-sound-veil-right", type: "color", value: "#000000" },
-            { label: "Veil right opacity", varName: "--edit-sound-veil-right-opacity", type: "range", value: "0.34", min: 0, max: 0.8, step: 0.01 }
+            { label: "Veil right opacity", varName: "--edit-sound-veil-right-opacity", type: "range", value: "0.34", min: 0, max: 0.8, step: 0.01 },
+            { label: "Show Sound text veil", varName: "--edit-sound-text-veil-visible", type: "checkbox", value: "1", checkedValue: "1", uncheckedValue: "0" }
           ]
         },
         featured: {
@@ -4780,7 +4781,9 @@
       }
 
       function hexToRgb(hex) {
-        const clean = hex.replace("#", "");
+        let clean = String(hex || "#000000").trim().replace("#", "");
+        if (clean.length === 3) clean = clean.split("").map(char => char + char).join("");
+        if (!/^[0-9a-fA-F]{6}$/.test(clean)) clean = "000000";
         const bigint = parseInt(clean, 16);
         return {
           r: (bigint >> 16) & 255,
@@ -4803,16 +4806,12 @@
       }
 
       function refreshVisibleMediaThumb(control, value) {
-        if (!mediaGallery || !mediaList || !control.media) {
+        if (!control || !control.media) {
           return;
         }
 
-        if (!mediaGallery.classList.contains("media-mode-" + control.media)) {
-          return;
-        }
-
-        const thumb = mediaList.querySelector(`.media-item[data-index="${control.index}"] .media-item-thumb`);
-        if (thumb) {
+        const updateThumb = thumb => {
+          if (!thumb) return;
           const image = thumb.querySelector("img");
           if (image) {
             image.classList.remove("is-broken");
@@ -4820,58 +4819,63 @@
           } else {
             thumb.style.backgroundImage = cssUrl(value);
           }
+        };
+
+        if (mediaGallery && mediaGallery.classList.contains("media-mode-" + control.media) && mediaList) {
+          updateThumb(mediaList.querySelector(`.media-item[data-index="${control.index}"] .media-item-thumb`));
         }
+
+        document.querySelectorAll(`#mediaGalleryAll-${control.media} .media-item[data-index="${control.index}"] .media-item-thumb`).forEach(updateThumb);
       }
 
       function applyImageControl(control, value) {
         const cleanValue = String(value || "").trim();
-        if (!cleanValue) {
-          return;
-        }
 
         if (control.action === "cssBgVar") {
           document.querySelectorAll(control.selector).forEach(node => {
-            node.style.setProperty(control.property || "--bg-image", cssUrl(cleanValue));
+            if (cleanValue) node.style.setProperty(control.property || "--bg-image", cssUrl(cleanValue));
           });
           return;
         }
 
         if (control.action === "backgroundImage") {
           document.querySelectorAll(control.selector).forEach(node => {
-            node.style.backgroundImage = cssUrl(cleanValue);
+            if (cleanValue) node.style.backgroundImage = cssUrl(cleanValue);
           });
           return;
         }
 
         if (control.action === "cssUrlVar") {
-          root.style.setProperty(control.varName, cssUrl(cleanValue));
+          if (cleanValue) root.style.setProperty(control.varName, cssUrl(cleanValue));
           return;
         }
 
         if (control.action === "mediaThumb") {
-          if (typeof mediaData !== "undefined" && mediaData[control.media] && mediaData[control.media].items[control.index]) {
+          if (typeof mediaData !== "undefined" && mediaData[control.media] && mediaData[control.media].items[control.index] && cleanValue) {
             mediaData[control.media].items[control.index].thumb = cleanValue;
           }
-          refreshVisibleMediaThumb(control, cleanValue);
+          if (cleanValue) refreshVisibleMediaThumb(control, cleanValue);
         }
       }
 
       function setVar(control, value) {
-        editorCurrentValues[control.varName] = value;
+        if (!control || !control.varName) return;
+        const cleanValue = String(value ?? "").trim();
+        editorCurrentValues[control.varName] = cleanValue;
 
         if (control.type === "url") {
           if (control.action === "cssUrlVar") {
-            root.style.setProperty(control.varName, cssUrl(value));
+            if (cleanValue) root.style.setProperty(control.varName, cssUrl(cleanValue));
           } else {
-            root.style.setProperty(control.varName, String(value || "").trim());
+            root.style.setProperty(control.varName, cleanValue);
           }
-          applyImageControl(control, value);
+          applyImageControl(control, cleanValue);
           return;
         }
 
-        root.style.setProperty(control.varName, value);
+        root.style.setProperty(control.varName, cleanValue);
         if (control.type === "color") {
-          const rgb = hexToRgb(value);
+          const rgb = hexToRgb(cleanValue);
           root.style.setProperty(control.varName + "-rgb", `${rgb.r}, ${rgb.g}, ${rgb.b}`);
         }
         if (String(control.varName || "").startsWith("--edit-menu-")) {
