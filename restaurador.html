@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laura Editor Memory Restorer</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top left, rgba(215,181,109,.18), transparent 32%), #090806;
+      color: #f7f1e6;
+    }
+    .card {
+      width: min(980px, 100%);
+      border: 1px solid rgba(215,181,109,.28);
+      border-radius: 28px;
+      background: rgba(20, 14, 8, .82);
+      box-shadow: 0 30px 90px rgba(0,0,0,.45);
+      padding: clamp(22px, 4vw, 42px);
+    }
+    h1 { margin: 0 0 10px; font-size: clamp(1.9rem, 4vw, 3rem); }
+    p { line-height: 1.55; color: rgba(247,241,230,.82); }
+    .warning {
+      margin: 22px 0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      background: rgba(215,181,109,.10);
+      border: 1px solid rgba(215,181,109,.26);
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 22px;
+      margin: 8px 8px 8px 0;
+      cursor: pointer;
+      font-weight: 800;
+      letter-spacing: .04em;
+      background: #d7b56d;
+      color: #20150a;
+    }
+    button.secondary { background: rgba(255,255,255,.12); color: #f7f1e6; border: 1px solid rgba(255,255,255,.16); }
+    pre {
+      overflow: auto;
+      max-height: 320px;
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(0,0,0,.35);
+      color: #efe4cc;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    .status { margin-top: 16px; font-weight: 700; color: #d7b56d; }
+    ul { color: rgba(247,241,230,.78); line-height: 1.55; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Restaurador de memorias — Laura Editor</h1>
+    <p>Este archivo reconstruye las memorias del editor usando los valores encontrados en la página final exportada.</p>
+
+    <div class="warning">
+      <b>Muy importante:</b> para que funcione, abre este archivo desde el mismo origen donde usas el editor original.
+      Si el editor corre en <b>paradisonetworx.com</b>, sube este HTML a ese dominio y ejecútalo allí. Si lo abres como archivo local y el editor está en un dominio web, Chrome no permitirá escribir en la misma memoria.
+    </div>
+
+    <p>Qué va a restaurar:</p>
+    <ul>
+      <li>Memoria 1 de Global, Menu, Header Menu, Hero, Music, Videos, Interviews, Sound, Featured, Coming y Footer.</li>
+      <li>El modo de Media Room detectado en la página exportada: <b>all</b>.</li>
+      <li>El orden de bloques base usado por el editor.</li>
+    </ul>
+
+    <button onclick="restoreSlot(1)">Restaurar en Memory 1</button>
+    <button onclick="restoreAllSlots()">Restaurar en Memory 1, 2 y 3</button>
+    <button class="secondary" onclick="downloadBackup()">Descargar backup JSON</button>
+
+    <div class="status" id="status">Esperando acción...</div>
+    <pre id="preview"></pre>
+  </main>
+
+  <script>
+    const RECOVERED_STATE = {
+  "mediaDisplayMode": "all",
+  "homeBlockOrder": {
+    "single": [
+      "media",
+      "sound",
+      "featured",
+      "coming"
+    ],
+    "all": [
+      "mediaMusic",
+      "mediaVideos",
+      "mediaInterviews",
+      "sound",
+      "featured",
+      "coming"
+    ]
+  },
+  "memories": {
+    "laura-color-lab:global:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "global",
+      "values": {
+        "--edit-page-glow": "#d7b56d",
+        "--edit-page-glow-opacity": "0.08",
+        "--edit-page-bg-start": "#120d08",
+        "--edit-page-bg-end": "#050505",
+        "--edit-paper": "#000000",
+        "--edit-text-soft": "#f7f1e6",
+        "--edit-text-soft-opacity": "0.86",
+        "--edit-accent": "#d7b56d"
+      },
+      "menu": null
+    },
+    "laura-color-lab:menu:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "menu",
+      "values": {
+        "--edit-menu-bg-top": "#0e0a06",
+        "--edit-menu-bg-top-opacity": "0.96",
+        "--edit-menu-bg-mid": "#0e0a06",
+        "--edit-menu-bg-mid-opacity": "0.58",
+        "--edit-menu-border": "#d7b56d",
+        "--edit-menu-border-opacity": "0.16",
+        "--edit-menu-border-visible": "0",
+        "--edit-menu-button-bg": "#160f08",
+        "--edit-menu-button-bg-opacity": "0.42",
+        "--edit-menu-active-bg": "#d7b56d",
+        "--edit-menu-active-text": "#20150a",
+        "--edit-menu-button-text": "#efe4cc",
+        "--edit-menu-button-hover-text": "#ffffff"
+      },
+      "menu": null
+    },
+    "laura-color-lab:hero:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "hero",
+      "values": {
+        "--edit-hero-overlay-left": "#0f0904",
+        "--edit-hero-overlay-left-opacity": "0.96",
+        "--edit-hero-overlay-mid": "#0f0904",
+        "--edit-hero-overlay-mid-opacity": "0.62",
+        "--edit-hero-overlay-right": "#0f0904",
+        "--edit-hero-overlay-right-opacity": "0.72",
+        "--edit-hero-panel-start": "#120c07",
+        "--edit-hero-panel-start-opacity": "0.82",
+        "--edit-hero-panel-end": "#120c07",
+        "--edit-hero-panel-end-opacity": "0.36",
+        "--edit-hero-panel-glow": "#d7b56d",
+        "--edit-hero-panel-glow-opacity": "0.12",
+        "--edit-hero-text-panel-visible": "1",
+        "--edit-hero-text-panel-border-visible": "1",
+        "--edit-hero-text-panel-blur-visible": "1",
+        "--edit-hero-card-bg-start": "#efe4cc",
+        "--edit-hero-card-bg-start-opacity": "0.06",
+        "--edit-hero-card-bg-end": "#000000",
+        "--edit-hero-card-bg-end-opacity": "0.20",
+        "--edit-hero-title": "#9d2a2a",
+        "--edit-hero-script": "#d8c19a",
+        "--edit-hero-lead": "#f7f1e6",
+        "--edit-hero-lead-opacity": "0.86",
+        "--edit-hero-eyebrow": "#d7b56d",
+        "--edit-hero-card-kicker": "#d7b56d",
+        "--edit-hero-card-title": "#ffffff",
+        "--edit-hero-bg-image": "https://www.paradisonetworx.com/laura_hero_001.png",
+        "--edit-hero-card-music-image": "https://www.paradisonetworx.com/laura_spotify.png",
+        "--edit-hero-card-videos-image": "https://www.paradisonetworx.com/laura_youtube.jpeg",
+        "--edit-hero-card-interviews-image": "https://www.paradisonetworx.com/laura_interview5.jpg"
+      },
+      "menu": null
+    },
+    "laura-color-lab:music:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "music",
+      "values": {
+        "--edit-media-music-glow": "#d7b56d",
+        "--edit-media-music-glow-opacity": "0.6",
+        "--edit-media-music-bg-start": "#df4949",
+        "--edit-media-music-bg-end": "#000000",
+        "--edit-media-music-panel-start": "#292929",
+        "--edit-media-music-panel-start-opacity": "0.30",
+        "--edit-media-music-panel-end": "#14100a",
+        "--edit-media-music-panel-end-opacity": "0.88",
+        "--edit-media-music-item": "#222120",
+        "--edit-media-music-item-opacity": "0.74",
+        "--edit-media-music-active": "#000000",
+        "--edit-media-music-active-opacity": "0.82",
+        "--edit-media-music-texture-opacity": "0.5",
+        "--edit-media-music-text-panel-visible": "1",
+        "--edit-media-music-title": "#efe4cc",
+        "--edit-media-music-text": "#f7f1e6",
+        "--edit-media-music-text-opacity": "0.86",
+        "--edit-media-music-eyebrow": "#d7b56d",
+        "--edit-media-music-item-title": "#efe4cc",
+        "--edit-media-music-item-note": "#f7f1e6",
+        "--edit-media-music-item-note-opacity": "0.62",
+        "--edit-media-music-texture-image": "https://www.paradisonetworx.com/laura_img_001_landscape.png",
+        "--edit-music-item-1-image": "https://www.paradisonetworx.com/laura_spotify.png",
+        "--edit-music-item-2-image": "https://www.paradisonetworx.com/laura_spotify.png",
+        "--edit-music-item-3-image": "https://www.paradisonetworx.com/laura_spotify.png"
+      },
+      "menu": null
+    },
+    "laura-color-lab:videos:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "videos",
+      "values": {
+        "--edit-media-videos-glow": "#00b3ff",
+        "--edit-media-videos-glow-opacity": "0.20",
+        "--edit-media-videos-bg-start": "#1aacbc",
+        "--edit-media-videos-bg-mid": "#000000",
+        "--edit-media-videos-bg-end": "#333333",
+        "--edit-media-videos-panel-start": "#0c3236",
+        "--edit-media-videos-panel-start-opacity": "0",
+        "--edit-media-videos-panel-end": "#14100a",
+        "--edit-media-videos-panel-end-opacity": "0",
+        "--edit-media-videos-item": "#525252",
+        "--edit-media-videos-item-opacity": "0.52",
+        "--edit-media-videos-active": "#080e0e",
+        "--edit-media-videos-active-opacity": "1",
+        "--edit-media-videos-texture-opacity": "0.08",
+        "--edit-media-videos-text-panel-visible": "1",
+        "--edit-media-videos-title": "#efe4cc",
+        "--edit-media-videos-text": "#f7f1e6",
+        "--edit-media-videos-text-opacity": "0.86",
+        "--edit-media-videos-eyebrow": "#d7b56d",
+        "--edit-media-videos-item-title": "#efe4cc",
+        "--edit-media-videos-item-note": "#f7f1e6",
+        "--edit-media-videos-item-note-opacity": "0.62",
+        "--edit-media-videos-texture-image": "https://www.paradisonetworx.com/laura_img_001_landscape.png",
+        "--edit-video-item-1-image": "https://img.youtube.com/vi/apu4ucL5q2E/hqdefault.jpg",
+        "--edit-video-item-2-image": "https://img.youtube.com/vi/jJ0Uuo0Kav4/hqdefault.jpg",
+        "--edit-video-item-3-image": "https://img.youtube.com/vi/eUh6uyAQCWs/hqdefault.jpg",
+        "--edit-video-item-4-image": "https://img.youtube.com/vi/WzoYx6Md45M/hqdefault.jpg",
+        "--edit-video-item-5-image": "https://img.youtube.com/vi/3dd3gjRniqE/hqdefault.jpg"
+      },
+      "menu": null
+    },
+    "laura-color-lab:interviews:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "interviews",
+      "values": {
+        "--edit-media-interviews-glow": "#d7b56d",
+        "--edit-media-interviews-glow-opacity": "0.14",
+        "--edit-media-interviews-bg-start": "#933462",
+        "--edit-media-interviews-bg-mid": "#120905",
+        "--edit-media-interviews-bg-end": "#f5e5e5",
+        "--edit-media-interviews-panel-start": "#9c7963",
+        "--edit-media-interviews-panel-start-opacity": "0.85",
+        "--edit-media-interviews-panel-end": "#080503",
+        "--edit-media-interviews-panel-end-opacity": "0.15",
+        "--edit-media-interviews-item": "#120905",
+        "--edit-media-interviews-item-opacity": "0.48",
+        "--edit-media-interviews-active": "#120905",
+        "--edit-media-interviews-active-opacity": "0.34",
+        "--edit-media-interviews-active-tint": "#ededed",
+        "--edit-media-interviews-active-tint-opacity": "0.56",
+        "--edit-media-interviews-texture-opacity": "0.41",
+        "--edit-media-interviews-text-panel-visible": "1",
+        "--edit-media-interviews-title": "#efe4cc",
+        "--edit-media-interviews-text": "#f7f1e6",
+        "--edit-media-interviews-text-opacity": "0.86",
+        "--edit-media-interviews-eyebrow": "#d7b56d",
+        "--edit-media-interviews-item-title": "#efe4cc",
+        "--edit-media-interviews-item-note": "#f7f1e6",
+        "--edit-media-interviews-item-note-opacity": "0.62",
+        "--edit-media-interviews-texture-image": "https://www.paradisonetworx.com/laura_img_001_landscape.png",
+        "--edit-interview-item-1-image": "https://www.paradisonetworx.com/laura_youtube2.webp",
+        "--edit-interview-item-2-image": "https://www.paradisonetworx.com/laura_interviews.JPG",
+        "--edit-interview-item-3-image": "https://www.paradisonetworx.com/laura_interview33.webp"
+      },
+      "menu": null
+    },
+    "laura-color-lab:sound:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "sound",
+      "values": {
+        "--edit-sound-glow": "#000000",
+        "--edit-sound-glow-opacity": "0.45",
+        "--edit-sound-bg-start": "#d3b192",
+        "--edit-sound-bg-end": "#7c4c04",
+        "--edit-sound-title": "#731717",
+        "--edit-sound-text": "#ffedc7",
+        "--edit-sound-text-opacity": "1",
+        "--edit-sound-accent": "#d7b56d",
+        "--edit-sound-texture-opacity": "0.5",
+        "--edit-sound-veil-left": "#000000",
+        "--edit-sound-veil-left-opacity": "0.8",
+        "--edit-sound-veil-right": "#000000",
+        "--edit-sound-veil-right-opacity": "0",
+        "--edit-sound-texture-image": "https://www.paradisonetworx.com/laura_stage.png"
+      },
+      "menu": null
+    },
+    "laura-color-lab:featured:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "featured",
+      "values": {
+        "--edit-featured-overlay-left": "#ff0000",
+        "--edit-featured-overlay-left-opacity": "0.18",
+        "--edit-featured-overlay-mid": "#af1212",
+        "--edit-featured-overlay-mid-opacity": "1",
+        "--edit-featured-overlay-right": "#e01010",
+        "--edit-featured-overlay-right-opacity": "1",
+        "--edit-featured-panel-start": "#b83d3d",
+        "--edit-featured-panel-start-opacity": "0",
+        "--edit-featured-panel-end": "#0011ff",
+        "--edit-featured-panel-end-opacity": "0",
+        "--edit-featured-bottom-veil": "#000000",
+        "--edit-featured-bottom-veil-opacity": "1",
+        "--edit-featured-grid": "#ffffff",
+        "--edit-featured-grid-opacity": "0.15",
+        "--edit-featured-panel-border": "#000000",
+        "--edit-featured-panel-border-opacity": "1",
+        "--edit-featured-text-panel-visible": "0",
+        "--edit-featured-text-panel-border-visible": "0",
+        "--edit-featured-text-panel-blur-visible": "0",
+        "--edit-featured-button-primary": "#d7b56d",
+        "--edit-featured-button-primary-text": "#20150a",
+        "--edit-featured-button-secondary": "#000000",
+        "--edit-featured-button-secondary-opacity": "0.24",
+        "--edit-featured-button-secondary-border": "#d7b56d",
+        "--edit-featured-button-secondary-border-opacity": "0.34",
+        "--edit-featured-title": "#c9b42c",
+        "--edit-featured-text": "#f7f1e6",
+        "--edit-featured-text-opacity": "0.77",
+        "--edit-featured-eyebrow": "#d7b56d",
+        "--edit-featured-bg-image": "https://paradisonetworx.com/laura_nf.jpg"
+      },
+      "menu": null
+    },
+    "laura-color-lab:coming:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "coming",
+      "values": {
+        "--edit-coming-overlay-left": "#000000",
+        "--edit-coming-overlay-left-opacity": "0.84",
+        "--edit-coming-overlay-mid": "#000000",
+        "--edit-coming-overlay-mid-opacity": "0.34",
+        "--edit-coming-overlay-right": "#000000",
+        "--edit-coming-overlay-right-opacity": "0.76",
+        "--edit-coming-panel-start": "#000000",
+        "--edit-coming-panel-start-opacity": "0.56",
+        "--edit-coming-panel-end": "#000000",
+        "--edit-coming-panel-end-opacity": "0.22",
+        "--edit-coming-bottom-veil": "#000000",
+        "--edit-coming-bottom-veil-opacity": "0.88",
+        "--edit-coming-grid": "#ffffff",
+        "--edit-coming-grid-opacity": "0.15",
+        "--edit-coming-panel-border": "#ffffff",
+        "--edit-coming-panel-border-opacity": "0",
+        "--edit-coming-text-panel-visible": "0",
+        "--edit-coming-text-panel-border-visible": "0",
+        "--edit-coming-text-panel-blur-visible": "0",
+        "--edit-coming-button-primary": "#d7b56d",
+        "--edit-coming-button-primary-text": "#20150a",
+        "--edit-coming-button-secondary": "#000000",
+        "--edit-coming-button-secondary-opacity": "0.24",
+        "--edit-coming-button-secondary-border": "#d7b56d",
+        "--edit-coming-button-secondary-border-opacity": "0.34",
+        "--edit-coming-title": "#b80000",
+        "--edit-coming-text": "#f7f1e6",
+        "--edit-coming-text-opacity": "0.88",
+        "--edit-coming-eyebrow": "#d7b56d",
+        "--edit-coming-bg-image": "https://paradisonetworx.com/laura_band_2.png"
+      },
+      "menu": null
+    },
+    "laura-color-lab:footer:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "footer",
+      "values": {
+        "--edit-footer-glow": "#ffffff",
+        "--edit-footer-glow-opacity": "0.10",
+        "--edit-footer-bg-start": "#0b0e0e",
+        "--edit-footer-bg-end": "#0a0a0a",
+        "--edit-footer-title": "#6d5c36",
+        "--edit-footer-muted": "#f7f1e6",
+        "--edit-footer-muted-opacity": "0.68",
+        "--edit-footer-contact-opacity": "0.74",
+        "--edit-footer-bottom-opacity": "0.48",
+        "--edit-footer-accent": "#d7b56d",
+        "--edit-footer-border": "#ffffff",
+        "--edit-footer-border-opacity": "0.12",
+        "--edit-footer-divider": "#d1e91c",
+        "--edit-footer-divider-opacity": "0.19",
+        "--edit-footer-link-text": "#efe4cc",
+        "--edit-footer-button-bg": "#000000",
+        "--edit-footer-button-bg-opacity": "0",
+        "--edit-footer-button-border": "#d7b56d",
+        "--edit-footer-button-border-opacity": "0.32",
+        "--edit-footer-button-hover-bg": "#d7b56d",
+        "--edit-footer-button-hover-text": "#111111"
+      },
+      "menu": null
+    },
+    "laura-color-lab:headerMenu:memory-1": {
+      "savedAt": "2026-05-20T04:22:35Z",
+      "section": "headerMenu",
+      "values": {},
+      "menu": {
+        "items": [
+          {
+            "label": "Home",
+            "type": "section",
+            "target": "home",
+            "visible": true,
+            "newTab": false
+          },
+          {
+            "label": "Booking",
+            "type": "embeddedPage",
+            "target": "booking",
+            "visible": true,
+            "newTab": false
+          },
+          {
+            "label": "Tour",
+            "type": "embeddedPage",
+            "target": "tour",
+            "visible": true,
+            "newTab": false
+          },
+          {
+            "label": "Contact",
+            "type": "scroll",
+            "target": "globalFooter",
+            "visible": true,
+            "newTab": false
+          }
+        ],
+        "defaultTarget": "home"
+      }
+    }
+  },
+  "varCount": 345,
+  "sectionCounts": {
+    "global": 8,
+    "menu": 13,
+    "hero": 30,
+    "music": 25,
+    "videos": 28,
+    "interviews": 28,
+    "sound": 14,
+    "featured": 30,
+    "coming": 30,
+    "footer": 21
+  },
+  "source": "Pasted text(48).txt"
+};
+
+    function cloneForSlot(key, slot) {
+      return key.replace(/memory-\d+$/, "memory-" + slot);
+    }
+
+    function restoreSlot(slot) {
+      let count = 0;
+      Object.entries(RECOVERED_STATE.memories).forEach(([key, snapshot]) => {
+        const targetKey = cloneForSlot(key, slot);
+        const copy = JSON.parse(JSON.stringify(snapshot));
+        copy.savedAt = new Date().toISOString();
+        localStorage.setItem(targetKey, JSON.stringify(copy));
+        count += 1;
+      });
+
+      localStorage.setItem("lauraMediaDisplayMode", RECOVERED_STATE.mediaDisplayMode || "single");
+      localStorage.setItem("lauraHomeBlockOrder", JSON.stringify(RECOVERED_STATE.homeBlockOrder));
+
+      document.getElementById("status").textContent = "Listo: se restauraron " + count + " memorias en el slot " + slot + ". Abre el editor y presiona Load " + slot + " en cada sección.";
+    }
+
+    function restoreAllSlots() {
+      restoreSlot(1);
+      restoreSlot(2);
+      restoreSlot(3);
+      document.getElementById("status").textContent = "Listo: se restauraron las memorias en los slots 1, 2 y 3. Abre el editor y usa Load en la sección que necesites.";
+    }
+
+    function downloadBackup() {
+      const blob = new Blob([JSON.stringify(RECOVERED_STATE, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "laura-editor-recovered-memory-backup.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("preview").textContent = JSON.stringify({
+      recoveredSections: Object.keys(RECOVERED_STATE.memories),
+      sectionCounts: RECOVERED_STATE.sectionCounts,
+      mediaDisplayMode: RECOVERED_STATE.mediaDisplayMode,
+      menuItems: RECOVERED_STATE.memories["laura-color-lab:headerMenu:memory-1"].menu.items
+    }, null, 2);
+  </script>
+</body>
+</html>
