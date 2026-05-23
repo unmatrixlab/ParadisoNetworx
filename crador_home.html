@@ -5273,6 +5273,7 @@
 (function () {
   const finalMediaMode = ${JSON.stringify(finalMode)};
   const finalHomeOrder = ${JSON.stringify(finalOrder)};
+
   function getNodes(key) {
     const selectors = {
       media: ["#mediaGallery", "#mediaGalleryAll"],
@@ -5285,46 +5286,76 @@
     }[key] || [];
     return selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)));
   }
+
   function removeExportedMediaDuplicates() {
     const seen = new Set();
-    document.querySelectorAll('.media-gallery-anchor[data-media-section], #mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews').forEach(section => {
+    document.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGalleryAll-music, #mediaGalleryAll-videos, #mediaGalleryAll-interviews").forEach(section => {
       const type = section.dataset.mediaSection || String(section.id || "").replace("mediaGalleryAll-", "");
       if (!type) return;
-      if (seen.has(type)) section.remove();
-      else seen.add(type);
+      if (seen.has(type)) {
+        section.remove();
+      } else {
+        seen.add(type);
+      }
     });
   }
+
+  function safelySetMediaMode() {
+    /*
+      IMPORTANT EXPORT FIX:
+      In the editor, setMediaDisplayMode() calls window.refreshHomeBlockOrderManager().
+      The previous exported code assigned refreshHomeBlockOrderManager = applyFinalLayout.
+      That created a recursive loop on exported pages:
+      applyFinalLayout -> setMediaDisplayMode -> refreshHomeBlockOrderManager -> applyFinalLayout...
+      The loop stopped the script before the Media Room sections could be rebuilt.
+    */
+    const previousRefresh = window.refreshHomeBlockOrderManager;
+    window.refreshHomeBlockOrderManager = null;
+
+    try {
+      if (typeof window.setMediaDisplayMode === "function") {
+        window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
+      }
+    } finally {
+      window.refreshHomeBlockOrderManager = previousRefresh;
+    }
+  }
+
   function applyFinalLayout() {
     try { localStorage.setItem("lauraMediaDisplayMode", finalMediaMode); } catch (error) {}
-    removeExportedMediaDuplicates();
-    const allGallery = document.getElementById("mediaGalleryAll");
-    if (allGallery) {
-      allGallery.innerHTML = "";
-      allGallery.removeAttribute("data-rendered");
-    }
-    if (typeof window.setMediaDisplayMode === "function") {
-      window.setMediaDisplayMode(finalMediaMode, { scrollTo: null });
-    }
+
+    safelySetMediaMode();
+
     if (finalMediaMode === "all" && typeof window.renderAllMediaGalleries === "function") {
       window.renderAllMediaGalleries();
+      const allGallery = document.getElementById("mediaGalleryAll");
+      if (allGallery) allGallery.classList.add("active");
     }
+
     if (finalMediaMode !== "all" && typeof window.openMediaGallery === "function") {
       window.openMediaGallery("music");
     }
+
+    removeExportedMediaDuplicates();
+
     const home = document.getElementById("home");
     const hero = home && home.querySelector(".block-home-hero");
     if (!home || !hero) return;
+
     let insertAfter = hero;
     finalHomeOrder.forEach(key => {
       getNodes(key).forEach(node => {
+        if (!node || node === insertAfter) return;
         insertAfter.after(node);
         insertAfter = node;
       });
     });
+
     removeExportedMediaDuplicates();
   }
+
   window.applyHomeBlockOrder = applyFinalLayout;
-  window.refreshHomeBlockOrderManager = applyFinalLayout;
+  window.refreshHomeBlockOrderManager = function () {};
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", applyFinalLayout);
