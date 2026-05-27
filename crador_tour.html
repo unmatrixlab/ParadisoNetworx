@@ -1005,7 +1005,7 @@
           ['data-auto-style', widget.autoStyle ? 'true' : 'false'],
           ['data-text-color', widget.textColor],
           ['data-link-color', widget.linkColor],
-          ['data-background-color', 'rgba(0,0,0,0)'],
+          ['data-background-color', widget.backgroundColor],
           ['data-display-limit', widget.displayLimit],
           ['data-display-start-time', 'true'],
           ['data-link-text-color', widget.linkTextColor],
@@ -1238,7 +1238,12 @@
         const cleaned = String(value || "tour").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
         return cleaned || "tour";
       }
-      function selectedEmbedPageId() { return normalizeEmbedPageId(document.getElementById("lgEmbedPageId")?.value || "tour"); }
+      function selectedEmbedPageId() {
+        const input = document.getElementById("lgEmbedPageId");
+        const normalized = normalizeEmbedPageId(input?.value || "tour");
+        if (input && input.value !== normalized) input.value = normalized;
+        return normalized;
+      }
       function selectedExportMode() { return document.getElementById("lgExportMode")?.value || "regular"; }
 
       function injectFinalWidget(pageClone, includeFallback = false) {
@@ -1303,7 +1308,7 @@
         injectFinalWidget(pageClone, true);
         const pageId = selectedEmbedPageId();
         const safeBaseCss = stripEmbedUnsafeCss(baseStyle.textContent);
-        const scopedOverrides = currentCssOverrides("#tour-page.lg-tour-page");
+        const scopedOverrides = currentCssOverrides("#" + pageId + " #tour-page.lg-tour-page");
         const ecosystemCss = [
           "@import url('https://fonts.googleapis.com/css2?family=Rye&family=Playball&family=Cormorant+Garamond:wght@400;500;600;700&display=swap');",
           "",
@@ -1367,7 +1372,7 @@
           "     This export intentionally contains NO html, body, menu, footer, or editor.",
           "================================================== -->",
           "",
-          '<section id="' + pageId + '" class="page-section lg-ecosystem-embed-page" data-embedded-page="tour">',
+          '<section id="' + pageId + '" class="page-section lg-ecosystem-embed-page" data-embedded-page="' + pageId + '">',
           '  <style id="lgTourEmbedStyles-' + pageId + '" data-page-style="' + pageId + '-tour-page-style">',
           safeBaseCss,
           "",
@@ -1388,7 +1393,7 @@
         return code;
       }
       function downloadCode() {
-        const code = generatedCode.value || generateCode();
+        const code = generateCode();
         const blob = new Blob([code], { type: "text/html;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1397,7 +1402,7 @@
         document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       }
       async function copyCode() {
-        const code = generatedCode.value || generateCode();
+        const code = generateCode();
         try { await navigator.clipboard.writeText(code); alert("Code copied."); }
         catch (error) { generatedCode.focus(); generatedCode.select(); document.execCommand("copy"); alert("Code selected/copied."); }
       }
@@ -1414,7 +1419,10 @@
       document.querySelectorAll("[data-var], [data-rgb-var], [data-image-var]").forEach(input => { applyInput(input); input.addEventListener("input", () => { applyInput(input); saveAuto(); }); input.addEventListener("change", () => { applyInput(input); saveAuto(); }); });
       document.querySelectorAll("[data-text-key]").forEach(input => { applyTextInput(input); input.addEventListener("input", () => { applyTextInput(input); saveAuto(); }); });
       document.querySelectorAll("[data-event-visible], [data-event-url]").forEach(input => { applyEventInput(input); input.addEventListener("input", () => { applyEventInput(input); saveAuto(); }); input.addEventListener("change", () => { applyEventInput(input); saveAuto(); }); });
-      document.querySelectorAll("[data-widget]").forEach(input => { input.addEventListener("input", saveAuto); input.addEventListener("change", saveAuto); });
+      document.querySelectorAll("[data-widget]").forEach(input => {
+        input.addEventListener("input", () => { saveAuto(); if (input.id !== "bitRawCode") renderWidgetPreview(); });
+        input.addEventListener("change", () => { saveAuto(); renderWidgetPreview(); });
+      });
       document.getElementById("bitRefreshPreview")?.addEventListener("click", renderWidgetPreview);
       document.querySelectorAll("[data-save-memory]").forEach(btn => btn.addEventListener("click", () => saveMemory(btn.dataset.saveMemory)));
       document.querySelectorAll("[data-load-memory]").forEach(btn => btn.addEventListener("click", () => loadMemory(btn.dataset.loadMemory)));
