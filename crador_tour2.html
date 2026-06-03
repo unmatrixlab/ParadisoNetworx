@@ -1012,61 +1012,38 @@
         return '<script charset="utf-8" src="' + src + '"><\/script>';
       }
 
-      function runScriptTagsInside(holder) {
-        if (!holder) return;
-        holder.querySelectorAll("script").forEach(oldScript => {
-          const script = document.createElement("script");
-          Array.from(oldScript.attributes).forEach(attr => script.setAttribute(attr.name, attr.value));
-          script.textContent = oldScript.textContent || "";
-          oldScript.replaceWith(script);
-        });
-      }
-
-      function buildBandsintownCode(options = {}) {
-        const widget = getWidgetState();
-        const includeFallback = options.includeFallback === true;
-        const pageId = options.pageId || "";
-        const coreCode = widget.rawCode.trim()
-          ? widget.rawCode.trim()
-          : buildBandsintownAnchor() + "\n" + buildBandsintownScriptTag(options.cacheBust === true);
-        return coreCode + (includeFallback ? "\n" + buildBandsintownFallbackLoader(pageId) : "");
-      }
-
-      function buildBandsintownStarterCode(options = {}) {
-        const includeFallback = options.includeFallback === true;
-        const pageId = options.pageId || "";
-        return buildBandsintownAnchor() + (includeFallback ? "\n" + buildBandsintownFallbackLoader(pageId) : "");
-      }
-
       function buildBandsintownFallbackLoader(pageId = "") {
         const widgetCode = buildBandsintownCode({ includeFallback: false, cacheBust: true });
         const code = [
-          "(function(trigger){",
-          "var pageId=" + JSON.stringify(pageId) + ";",
-          "var root=pageId?document.getElementById(pageId):(trigger.closest('.lg-ecosystem-embed-page')||document);",
-          "if(!root)root=document;",
-          "function isReady(){if(root===document)return true;if(root.classList&&root.classList.contains('active'))return true;try{return window.getComputedStyle(root).display!=='none';}catch(e){return true;}}",
-          "function run(){",
-          "if(!isReady()){setTimeout(run,180);return;}",
-          "var holder=root.querySelector('#tourWidgetHolder');",
-          "if(!holder||holder.getAttribute('data-bit-loaded')==='1')return;",
-          "holder.setAttribute('data-bit-loaded','1');",
-          "holder.innerHTML=" + scriptSafeJson(widgetCode) + ";",
-          "holder.querySelectorAll('script').forEach(function(oldScript){var script=document.createElement('script');Array.prototype.slice.call(oldScript.attributes).forEach(function(attr){script.setAttribute(attr.name,attr.value);});script.textContent=oldScript.textContent||'';oldScript.parentNode.replaceChild(script,oldScript);});",
-          "}",
-          "run();",
-          "setTimeout(function(){if(trigger&&trigger.parentNode)trigger.parentNode.removeChild(trigger);},600);",
+          "(function(img){",
+          "var pageId=" + JSON.stringify(pageId || "") + ";",
+          "function root(){return pageId?document.getElementById(pageId):(img.closest('.lg-ecosystem-embed-page')||document);}",
+          "function visible(el){if(!el||el===document)return true;if(el.classList&&el.classList.contains('active'))return true;try{var s=getComputedStyle(el);if(s.display==='none'||s.visibility==='hidden')return false;return !!(el.offsetWidth||el.offsetHeight||el.getClientRects().length);}catch(e){return true;}}",
+          "function run(){var r=root();if(!r||!visible(r)){setTimeout(run,180);return;}var h=r.querySelector('#tourWidgetHolder');if(!h){setTimeout(run,180);return;}if(h.getAttribute('data-bit-loaded')==='1')return;h.setAttribute('data-bit-loaded','1');h.innerHTML=" + scriptSafeJson(widgetCode) + ";h.querySelectorAll('script').forEach(function(o){var n=document.createElement('script');Array.prototype.slice.call(o.attributes).forEach(function(a){n.setAttribute(a.name,a.value);});n.textContent=o.textContent||'';o.parentNode.replaceChild(n,o);});setTimeout(function(){if(img&&img.parentNode)img.parentNode.removeChild(img);},300);}",
+          "run();window.addEventListener('load',run,{once:true});setTimeout(run,600);setTimeout(run,1800);",
           "})(this)"
         ].join("");
         return '<img alt="" aria-hidden="true" src="x" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;" onerror="' + escapeHtml(code) + '">';
       }
 
+      function buildBandsintownCode(options = {}) {
+        const widget = getWidgetState();
+        if (widget.rawCode.trim()) return widget.rawCode.trim() + (options.includeFallback === true ? '\n' + buildBandsintownFallbackLoader(options.pageId || '') : '');
+        const includeFallback = options.includeFallback === true;
+        return buildBandsintownAnchor() + '\n' + buildBandsintownScriptTag(options.cacheBust === true) + (includeFallback ? '\n' + buildBandsintownFallbackLoader(options.pageId || '') : '');
+      }
+
       function renderWidgetPreview() {
         const holder = document.getElementById("tourWidgetHolder");
         if (!holder) return;
-        holder.removeAttribute("data-bit-loaded");
-        holder.innerHTML = buildBandsintownCode({ cacheBust: true });
-        runScriptTagsInside(holder);
+        holder.innerHTML = buildBandsintownCode();
+        const scripts = holder.querySelectorAll("script");
+        scripts.forEach(oldScript => {
+          const script = document.createElement("script");
+          Array.from(oldScript.attributes).forEach(attr => script.setAttribute(attr.name, attr.value));
+          script.textContent = oldScript.textContent;
+          oldScript.replaceWith(script);
+        });
       }
 
       function getState() {
@@ -1089,10 +1066,10 @@
         if (!state) return;
         document.querySelectorAll("[data-var], [data-rgb-var], [data-image-var]").forEach(input => {
           const keys = [input.dataset.var, input.dataset.rgbVar, input.dataset.imageVar].filter(Boolean);
-          if (!state.css || !keys.length) return;
-          const storedKey = keys.find(key => state.css[key] !== undefined);
-          if (!storedKey) return;
-          input.type === "checkbox" ? input.checked = state.css[storedKey] === "1" || state.css[storedKey] === true : input.value = state.css[storedKey];
+          if (!keys.length || !state.css) return;
+          const key = keys.find(candidate => state.css[candidate] !== undefined);
+          if (!key) return;
+          input.type === "checkbox" ? input.checked = state.css[key] === "1" || state.css[key] === true : input.value = state.css[key];
           applyInput(input);
         });
         document.querySelectorAll("[data-text-key]").forEach(input => {
@@ -1118,9 +1095,9 @@
         }
         if (state.exportSettings) {
           const mode = document.getElementById("lgExportMode");
-          const pageId = document.getElementById("lgEmbedPageId");
+          const pageIdInput = document.getElementById("lgEmbedPageId");
           if (mode && state.exportSettings.mode) mode.value = state.exportSettings.mode;
-          if (pageId && state.exportSettings.embedPageId) pageId.value = state.exportSettings.embedPageId;
+          if (pageIdInput && state.exportSettings.embedPageId) pageIdInput.value = state.exportSettings.embedPageId;
         }
         renderWidgetPreview();
       }
@@ -1178,13 +1155,13 @@
 
       function injectFinalWidget(pageClone, options = {}) {
         const holder = pageClone.querySelector("#tourWidgetHolder");
-        if (holder) {
-          holder.removeAttribute("data-bit-loader-fired");
-          holder.removeAttribute("data-bit-loaded");
-          holder.innerHTML = buildBandsintownStarterCode({
-            includeFallback: options.includeFallback === true,
-            pageId: options.pageId || ""
-          });
+        if (!holder) return;
+        holder.removeAttribute("data-bit-loader-fired");
+        holder.removeAttribute("data-bit-loaded");
+        if (options.deferUntilVisible === true) {
+          holder.innerHTML = buildBandsintownAnchor() + "\n" + buildBandsintownFallbackLoader(options.pageId || "");
+        } else {
+          holder.innerHTML = buildBandsintownCode({ includeFallback: false, cacheBust: true });
         }
       }
 
@@ -1201,15 +1178,16 @@
         return [
           "<script>",
           "  (function () {",
-          "    var root = " + (pageId ? "document.getElementById(" + JSON.stringify(pageId) + ")" : "document") + ";",
-          "    if (!root) return;",
-          "    function pageIsReady() {",
-          "      if (root === document) return true;",
+          "    var pageId = " + JSON.stringify(pageId || "") + ";",
+          "    function getRoot() { return pageId ? document.getElementById(pageId) : document; }",
+          "    function isVisible(root) {",
+          "      if (!root || root === document) return true;",
           "      if (root.classList && root.classList.contains('active')) return true;",
-          "      try { return window.getComputedStyle(root).display !== 'none'; } catch (error) { return true; }",
+          "      try { var s = getComputedStyle(root); if (s.display === 'none' || s.visibility === 'hidden') return false; return !!(root.offsetWidth || root.offsetHeight || root.getClientRects().length); } catch (e) { return true; }",
           "    }",
           "    function mountBandsintownWidget() {",
-          "      if (!pageIsReady()) return;",
+          "      var root = getRoot();",
+          "      if (!root || !isVisible(root)) return;",
           "      var holder = root.querySelector('#tourWidgetHolder');",
           "      if (!holder || holder.getAttribute('data-bit-loaded') === '1') return;",
           "      holder.setAttribute('data-bit-loaded', '1');",
@@ -1221,13 +1199,12 @@
           "        oldScript.parentNode.replaceChild(script, oldScript);",
           "      });",
           "    }",
-          "    function scheduleMount() { setTimeout(mountBandsintownWidget, 80); setTimeout(mountBandsintownWidget, 450); }",
+          "    function scheduleMount() { setTimeout(mountBandsintownWidget, 80); setTimeout(mountBandsintownWidget, 450); setTimeout(mountBandsintownWidget, 1400); }",
           "    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleMount);",
           "    else scheduleMount();",
           "    window.addEventListener('load', scheduleMount, { once: true });",
-          "    if (root !== document && window.MutationObserver) {",
-          "      new MutationObserver(scheduleMount).observe(root, { attributes: true, attributeFilter: ['class', 'style'] });",
-          "    }",
+          "    var root = getRoot();",
+          "    if (root && root !== document && window.MutationObserver) new MutationObserver(scheduleMount).observe(root, { attributes: true, attributeFilter: ['class', 'style'] });",
           "  })();",
           "<\/script>"
         ].join("\n");
@@ -1238,8 +1215,7 @@
         removeEditorNodes(clone);
         const baseStyle = clone.querySelector("#lgTourBaseStyles");
         if (baseStyle) baseStyle.textContent += "\n\n" + currentCssOverrides(":root");
-        injectFinalWidget(clone, { includeFallback: true });
-        clone.querySelector("body")?.insertAdjacentHTML("beforeend", buildBandsintownRuntimeScript(""));
+        injectFinalWidget(clone, { deferUntilVisible: false });
         return "<!DOCTYPE html>\n" + clone.outerHTML;
       }
 
@@ -1249,8 +1225,8 @@
         if (!page || !baseStyle) return "";
         const pageClone = page.cloneNode(true);
         removeEditorNodes(pageClone);
-        injectFinalWidget(pageClone, { includeFallback: true, pageId: pageId });
         const pageId = selectedEmbedPageId();
+        injectFinalWidget(pageClone, { deferUntilVisible: true, pageId: pageId });
         const safeBaseCss = stripEmbedUnsafeCss(baseStyle.textContent);
         const scopedOverrides = currentCssOverrides("#tour-page.lg-tour-page");
         const ecosystemCss = [
@@ -1363,10 +1339,9 @@
       document.querySelectorAll("[data-var], [data-rgb-var], [data-image-var]").forEach(input => { applyInput(input); input.addEventListener("input", () => { applyInput(input); saveAuto(); }); input.addEventListener("change", () => { applyInput(input); saveAuto(); }); });
       document.querySelectorAll("[data-text-key]").forEach(input => { applyTextInput(input); input.addEventListener("input", () => { applyTextInput(input); saveAuto(); }); });
       document.querySelectorAll("[data-event-visible], [data-event-url]").forEach(input => { applyEventInput(input); input.addEventListener("input", () => { applyEventInput(input); saveAuto(); }); input.addEventListener("change", () => { applyEventInput(input); saveAuto(); }); });
-      document.querySelectorAll("[data-widget]").forEach(input => {
-        input.addEventListener("input", () => { saveAuto(); });
-        input.addEventListener("change", () => { saveAuto(); renderWidgetPreview(); });
-      });
+      document.querySelectorAll("[data-widget]").forEach(input => { input.addEventListener("input", saveAuto); input.addEventListener("change", saveAuto); });
+      document.getElementById("lgExportMode")?.addEventListener("change", saveAuto);
+      document.getElementById("lgEmbedPageId")?.addEventListener("input", saveAuto);
       document.getElementById("bitRefreshPreview")?.addEventListener("click", renderWidgetPreview);
       document.querySelectorAll("[data-save-memory]").forEach(btn => btn.addEventListener("click", () => saveMemory(btn.dataset.saveMemory)));
       document.querySelectorAll("[data-load-memory]").forEach(btn => btn.addEventListener("click", () => loadMemory(btn.dataset.loadMemory)));
