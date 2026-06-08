@@ -4049,6 +4049,12 @@
       <div class="phone-editor-field"><label for="thumbInterview3">Interview 3</label><input id="thumbInterview3" type="url" data-edit-thumb="interviews:2" value="https://lauragoodstone.com/p_36.webp"></div>
     </div>
 
+    <div class="phone-editor-group" data-editor-group="menu-links">
+      <strong>Direcciones de menú</strong>
+      <div class="phone-editor-field"><label for="menuBookingUrl">Booking apunta a</label><input id="menuBookingUrl" type="text" data-menu-url="booking" value="booking.html" placeholder="booking.html o https://..."></div>
+      <div class="phone-editor-field"><label for="menuTourUrl">Tour apunta a</label><input id="menuTourUrl" type="text" data-menu-url="tour" value="tour.html" placeholder="tour.html o https://..."></div>
+    </div>
+
     <div class="phone-editor-group" data-editor-group="text-offsets">
       <strong>Bajar textos por sección</strong>
       <div class="phone-editor-field"><label>Hero</label><div class="phone-editor-range-row"><input type="range" min="-80" max="260" value="0" data-text-offset="hero"><span class="phone-editor-value">0px</span></div></div>
@@ -4089,8 +4095,8 @@
     <div class="menu-scroll-wrap">
       <nav class="menu phone-menu" aria-label="Main menu">
         <button class="tab-button active" type="button" data-menu-type="section" data-target="home" data-new-tab="false">Home</button>
-        <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="booking" data-new-tab="false">Booking</button>
-        <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="tour" data-new-tab="false">Tour</button>
+        <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="booking.html" data-menu-key="booking" data-new-tab="false">Booking</button>
+        <button class="tab-button" type="button" data-menu-type="embeddedPage" data-target="tour.html" data-menu-key="tour" data-new-tab="false">Tour</button>
         <button class="tab-button" type="button" data-menu-type="scroll" data-target="artist-identity" data-new-tab="false">Bio</button>
         <button class="tab-button" type="button" data-menu-type="scroll" data-target="globalFooter" data-new-tab="false">Contact</button>
       </nav>
@@ -5011,7 +5017,17 @@
       }
 
       if (type === "embeddedPage") {
-        const cleanTarget = target.replace(/^#/, "");
+        const rawTarget = String(target || "").trim();
+        const cleanTarget = rawTarget.replace(/^#/, "");
+        const isExternalUrl = /^https?:\/\//i.test(cleanTarget) || /^mailto:/i.test(cleanTarget) || /^tel:/i.test(cleanTarget);
+        const isRootRelative = cleanTarget.startsWith("/");
+
+        if (isExternalUrl || isRootRelative) {
+          if (newTab) window.open(cleanTarget, "_blank", "noopener");
+          else window.location.href = cleanTarget;
+          return;
+        }
+
         const pageId = cleanTarget.replace(/\.html?$/i, "");
         const knownPage = pagesToPreload.find(page => page.id === pageId || page.file === cleanTarget);
         const pageToLoad = knownPage || { id: pageId, file: /\.html?$/i.test(cleanTarget) ? cleanTarget : pageId + ".html" };
@@ -5360,6 +5376,11 @@
   const outputText = document.getElementById("phoneEditorCleanCode");
   const downloadLink = document.getElementById("phoneEditorDownloadClean");
 
+  const menuLinkMap = {
+    booking: '.tab-button[data-menu-key="booking"], .tab-button[data-target="booking"], .tab-button[data-target="booking.html"]',
+    tour: '.tab-button[data-menu-key="tour"], .tab-button[data-target="tour"], .tab-button[data-target="tour.html"]'
+  };
+
   const imageMap = {
     hero: {
       cssVar: "--edit-hero-bg-image",
@@ -5485,6 +5506,31 @@
     document.querySelectorAll(selector).forEach(el => el.style.setProperty("--text-offset-y", px));
   }
 
+  function applyMenuLink(key, value) {
+    const selector = menuLinkMap[key];
+    if (!selector) return;
+    const cleanValue = String(value || "").trim();
+    if (!cleanValue) return;
+    document.querySelectorAll(selector).forEach(button => {
+      button.dataset.target = cleanValue;
+      button.setAttribute("data-target", cleanValue);
+      button.dataset.menuKey = key;
+      button.setAttribute("data-menu-key", key);
+      if (!button.dataset.menuType) {
+        button.dataset.menuType = "embeddedPage";
+        button.setAttribute("data-menu-type", "embeddedPage");
+      }
+    });
+  }
+
+  function collectMenuLinks() {
+    const result = {};
+    document.querySelectorAll("[data-menu-url]").forEach(input => {
+      result[input.dataset.menuUrl] = String(input.value || "").trim();
+    });
+    return result;
+  }
+
   function collectImages() {
     const result = {};
     document.querySelectorAll("[data-edit-image]").forEach(input => {
@@ -5533,6 +5579,7 @@
       if (valueNode) valueNode.textContent = input.value + "px";
       applyOffset(input.dataset.textOffset, input.value);
     });
+    document.querySelectorAll("[data-menu-url]").forEach(input => applyMenuLink(input.dataset.menuUrl, input.value));
   }
 
   function addEditorFinalScript(doc) {
@@ -5542,11 +5589,122 @@
       images: collectImages(),
       imagePositions: collectImagePositions(),
       thumbs: collectThumbs(),
-      offsets: collectOffsets()
+      offsets: collectOffsets(),
+      menuLinks: collectMenuLinks()
     };
     const script = doc.createElement("script");
     script.id = "lauraPhoneEditorFinalSettings";
-    script.textContent = `\n(function () {\n  const finalPhoneEditorSettings = ${JSON.stringify(data, null, 2)};\n  function applyThumbs() {\n    try {\n      if (typeof mediaData !== "undefined") {\n        Object.entries(finalPhoneEditorSettings.thumbs || {}).forEach(([category, thumbs]) => {\n          if (!mediaData[category]) return;\n          thumbs.forEach((thumb, index) => {\n            if (thumb && mediaData[category].items[index]) mediaData[category].items[index].thumb = thumb;\n          });\n        });\n      }\n      document.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGallery").forEach(section => {\n        const category = section.dataset.mediaSection || String(section.className).match(/media-mode-(music|videos|interviews)/)?.[1];\n        if (!category || !finalPhoneEditorSettings.thumbs[category]) return;\n        finalPhoneEditorSettings.thumbs[category].forEach((thumb, index) => {\n          const img = section.querySelector('.media-item[data-index="' + index + '"] img');\n          if (img && thumb) img.src = thumb;\n        });\n      });\n    } catch (error) {}\n  }\n  function applyOffsets() {\n    const offsetMap = {\n      hero: ".mobile-title-panel",\n      featured: ".block-home-featured-release",\n      identity: ".block-home-identity",\n      sound: ".block-home-sound",\n      coming: ".block-home-coming-next",\n      media: ".media-gallery-section"\n    };\n    Object.entries(finalPhoneEditorSettings.offsets || {}).forEach(([key, value]) => {\n      document.querySelectorAll(offsetMap[key] || "").forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));\n    });\n  }\n  function applyAll() { applyImages(); applyImagePositions(); applyThumbs(); applyOffsets(); }\n  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyAll);\n  else setTimeout(applyAll, 0);\n})();\n`;
+    script.textContent = `
+(function () {
+  const finalPhoneEditorSettings = ${JSON.stringify(data, null, 2)};
+  const imageMap = {
+    hero: { selector: ".block-home-hero", property: "--bg-image" },
+    heroMusic: { selector: ".media-trigger[data-media='music'] .poster-thumb", property: "backgroundImage" },
+    heroVideos: { selector: ".media-trigger[data-media='videos'] .poster-thumb", property: "backgroundImage" },
+    heroInterviews: { selector: ".media-trigger[data-media='interviews'] .poster-thumb", property: "backgroundImage" },
+    featured: { selector: ".block-home-featured-release", property: "--bg-image" },
+    coming: { selector: ".block-home-coming-next", property: "--bg-image" },
+    musicTexture: { selector: ".media-gallery-section.media-mode-music, .media-gallery-anchor[data-media-section='music']", property: "--texture-image" },
+    videosTexture: { selector: ".media-gallery-section.media-mode-videos, .media-gallery-anchor[data-media-section='videos']", property: "--texture-image" },
+    interviewsTexture: { selector: ".media-gallery-section.media-mode-interviews, .media-gallery-anchor[data-media-section='interviews']", property: "--texture-image" },
+    identityTexture: { selector: ".block-home-identity", property: "--texture-image" },
+    soundTexture: { selector: ".block-home-sound", property: "--texture-image" }
+  };
+  const imagePositionMap = {
+    hero: { selector: ".block-home-hero, .hero-photo-stage", position: "top" },
+    heroMusic: { selector: ".media-trigger[data-media='music'] .poster-thumb", position: "center" },
+    heroVideos: { selector: ".media-trigger[data-media='videos'] .poster-thumb", position: "center" },
+    heroInterviews: { selector: ".media-trigger[data-media='interviews'] .poster-thumb", position: "center" },
+    featured: { selector: ".block-home-featured-release", position: "center" },
+    coming: { selector: ".block-home-coming-next", position: "center" },
+    musicTexture: { selector: ".media-gallery-section.media-mode-music, .media-gallery-anchor[data-media-section='music']", texture: true },
+    videosTexture: { selector: ".media-gallery-section.media-mode-videos, .media-gallery-anchor[data-media-section='videos']", texture: true },
+    interviewsTexture: { selector: ".media-gallery-section.media-mode-interviews, .media-gallery-anchor[data-media-section='interviews']", texture: true },
+    identityTexture: { selector: ".block-home-identity", texture: true },
+    soundTexture: { selector: ".block-home-sound", texture: true }
+  };
+  function asCssUrl(url) { return "url(" + JSON.stringify(String(url || "").trim()) + ")"; }
+  function applyImages() {
+    Object.entries(finalPhoneEditorSettings.images || {}).forEach(([key, url]) => {
+      if (!url || !imageMap[key]) return;
+      const cssUrl = asCssUrl(url);
+      document.querySelectorAll(imageMap[key].selector).forEach(el => {
+        if (imageMap[key].property === "backgroundImage") el.style.setProperty("background-image", cssUrl, "important");
+        else el.style.setProperty(imageMap[key].property, cssUrl, "important");
+      });
+      if (key === "hero") {
+        document.querySelectorAll(".hero-photo-stage").forEach(stage => {
+          stage.style.setProperty("--bg-image", cssUrl, "important");
+          stage.style.setProperty("background-image", "linear-gradient(to bottom, rgba(0,0,0,0.08), rgba(0,0,0,0.12) 38%, rgba(0,0,0,0.42)), " + cssUrl, "important");
+        });
+      }
+    });
+  }
+  function applyImagePositions() {
+    Object.entries(finalPhoneEditorSettings.imagePositions || {}).forEach(([key, value]) => {
+      const config = imagePositionMap[key];
+      if (!config) return;
+      const pct = Math.max(0, Math.min(100, Number(value || 50))) + "%";
+      document.querySelectorAll(config.selector).forEach(el => {
+        if (config.texture) el.style.setProperty("--texture-position", pct + " center", "important");
+        else el.style.setProperty("background-position", pct + " " + (config.position || "center"), "important");
+        if (key === "hero") {
+          el.style.setProperty("--hero-phone-position", pct + " top", "important");
+          el.style.setProperty("--bg-position", pct + " center", "important");
+        }
+      });
+    });
+  }
+  function applyMenuLinks() {
+    const map = { booking: '.tab-button[data-menu-key="booking"]', tour: '.tab-button[data-menu-key="tour"]' };
+    Object.entries(finalPhoneEditorSettings.menuLinks || {}).forEach(([key, value]) => {
+      if (!value || !map[key]) return;
+      document.querySelectorAll(map[key]).forEach(button => {
+        button.dataset.target = value;
+        button.setAttribute("data-target", value);
+        button.dataset.menuType = "embeddedPage";
+        button.setAttribute("data-menu-type", "embeddedPage");
+      });
+    });
+  }
+  function applyThumbs() {
+    try {
+      if (typeof mediaData !== "undefined") {
+        Object.entries(finalPhoneEditorSettings.thumbs || {}).forEach(([category, thumbs]) => {
+          if (!mediaData[category]) return;
+          thumbs.forEach((thumb, index) => {
+            if (thumb && mediaData[category].items[index]) mediaData[category].items[index].thumb = thumb;
+          });
+        });
+      }
+      document.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGallery").forEach(section => {
+        const category = section.dataset.mediaSection || String(section.className).match(/media-mode-(music|videos|interviews)/)?.[1];
+        if (!category || !finalPhoneEditorSettings.thumbs[category]) return;
+        finalPhoneEditorSettings.thumbs[category].forEach((thumb, index) => {
+          const img = section.querySelector('.media-item[data-index="' + index + '"] img');
+          if (img && thumb) img.src = thumb;
+        });
+      });
+    } catch (error) {}
+  }
+  function applyOffsets() {
+    const offsetMap = {
+      hero: ".mobile-title-panel",
+      featured: ".block-home-featured-release",
+      identity: ".block-home-identity",
+      sound: ".block-home-sound",
+      coming: ".block-home-coming-next",
+      media: ".media-gallery-section"
+    };
+    Object.entries(finalPhoneEditorSettings.offsets || {}).forEach(([key, value]) => {
+      document.querySelectorAll(offsetMap[key] || "").forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));
+    });
+  }
+  function applyAll() { applyMenuLinks(); applyImages(); applyImagePositions(); applyThumbs(); applyOffsets(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyAll);
+  else setTimeout(applyAll, 0);
+})();
+`;
     doc.body.appendChild(script);
   }
 
@@ -5557,8 +5715,8 @@
 
   function cleanHtmlString() {
     syncInputsFromPage();
-    const clone = document.documentElement.cloneNode(true);
     const doc = document.implementation.createHTMLDocument("");
+    const clone = doc.importNode(document.documentElement, true);
     doc.replaceChild(clone, doc.documentElement);
     removeEditorFromClone(doc);
     addEditorFinalScript(doc);
@@ -5566,15 +5724,22 @@
   }
 
   function showCleanOutput() {
-    const clean = cleanHtmlString();
-    outputText.value = clean;
-    const blob = new Blob([clean], { type: "text/html;charset=utf-8" });
-    const oldUrl = downloadLink.dataset.blobUrl;
-    if (oldUrl) URL.revokeObjectURL(oldUrl);
-    const url = URL.createObjectURL(blob);
-    downloadLink.href = url;
-    downloadLink.dataset.blobUrl = url;
-    output.classList.add("active");
+    try {
+      const clean = cleanHtmlString();
+      if (outputText) outputText.value = clean;
+      if (downloadLink) {
+        const blob = new Blob([clean], { type: "text/html;charset=utf-8" });
+        const oldUrl = downloadLink.dataset.blobUrl;
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.dataset.blobUrl = url;
+      }
+      if (output) output.classList.add("active");
+    } catch (error) {
+      console.error("No se pudo generar el código limpio:", error);
+      alert("No se pudo generar el código limpio. Revisa la consola para ver el detalle del error.");
+    }
   }
 
   toggle?.addEventListener("click", () => body.classList.toggle("phone-editor-open"));
@@ -5601,6 +5766,10 @@
       if (valueNode) valueNode.textContent = input.value + "px";
       applyOffset(input.dataset.textOffset, input.value);
     });
+  });
+
+  document.querySelectorAll("[data-menu-url]").forEach(input => {
+    input.addEventListener("input", () => applyMenuLink(input.dataset.menuUrl, input.value));
   });
 
   document.getElementById("phoneEditorExport")?.addEventListener("click", showCleanOutput);
