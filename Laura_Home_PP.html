@@ -5697,7 +5697,9 @@
       media: ".media-gallery-section"
     };
     Object.entries(finalPhoneEditorSettings.offsets || {}).forEach(([key, value]) => {
-      document.querySelectorAll(offsetMap[key] || "").forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));
+      const selector = offsetMap[key];
+      if (!selector) return;
+      document.querySelectorAll(selector).forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));
     });
   }
   function applyAll() { applyMenuLinks(); applyImages(); applyImagePositions(); applyThumbs(); applyOffsets(); }
@@ -5715,30 +5717,53 @@
 
   function cleanHtmlString() {
     syncInputsFromPage();
-    const doc = document.implementation.createHTMLDocument("");
-    const clone = doc.importNode(document.documentElement, true);
-    doc.replaceChild(clone, doc.documentElement);
+
+    /*
+      Export robusto:
+      La versión anterior intentaba importar <html> dentro de un documento nuevo.
+      En algunos navegadores eso puede lanzar un DOMException y el botón queda sin generar nada.
+      Aquí clonamos el HTML como texto parseado, limpiamos el editor y agregamos un pequeño
+      script final que conserva imágenes, posiciones, links y offsets.
+    */
+    const sourceHtml = document.documentElement.outerHTML;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(sourceHtml, "text/html");
+
     removeEditorFromClone(doc);
     addEditorFinalScript(doc);
+
     return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
   }
 
   function showCleanOutput() {
     try {
       const clean = cleanHtmlString();
+
       if (outputText) outputText.value = clean;
+
+      /*
+        El enlace de descarga es secundario. Si el navegador bloquea Blob/ObjectURL,
+        igual mostramos el código para copiar.
+      */
       if (downloadLink) {
-        const blob = new Blob([clean], { type: "text/html;charset=utf-8" });
-        const oldUrl = downloadLink.dataset.blobUrl;
-        if (oldUrl) URL.revokeObjectURL(oldUrl);
-        const url = URL.createObjectURL(blob);
-        downloadLink.href = url;
-        downloadLink.dataset.blobUrl = url;
+        try {
+          const blob = new Blob([clean], { type: "text/html;charset=utf-8" });
+          const oldUrl = downloadLink.dataset.blobUrl;
+          if (oldUrl) URL.revokeObjectURL(oldUrl);
+          const url = URL.createObjectURL(blob);
+          downloadLink.href = url;
+          downloadLink.dataset.blobUrl = url;
+        } catch (downloadError) {
+          console.warn("El código limpio se generó, pero no se pudo crear el enlace de descarga:", downloadError);
+          downloadLink.removeAttribute("href");
+        }
       }
+
       if (output) output.classList.add("active");
     } catch (error) {
       console.error("No se pudo generar el código limpio:", error);
-      alert("No se pudo generar el código limpio. Revisa la consola para ver el detalle del error.");
+      const detail = error && (error.message || error.name) ? "\n\nDetalle: " + (error.message || error.name) : "";
+      alert("No se pudo generar el código limpio." + detail);
     }
   }
 
