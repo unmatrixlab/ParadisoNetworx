@@ -818,6 +818,7 @@
   const BASE_TEMPLATE = decoder.decode(bytes);
 
   const page = document.querySelector('#tour-page');
+  const root = document.querySelector('#tour');
   const inputs = Array.from(document.querySelectorAll('[data-var]'));
   const output = document.getElementById('lgCleanOutput');
 
@@ -828,20 +829,16 @@
     return value;
   }
 
-  function rawValue(input) {
-    return (input.value || '').trim();
-  }
-
   function applyPreview() {
-    if (!page) return;
+    const targets = [page, root].filter(Boolean);
     inputs.forEach(input => {
-      page.style.setProperty(input.dataset.var, cssValue(input));
+      const value = cssValue(input);
+      targets.forEach(target => target.style.setProperty(input.dataset.var, value));
     });
   }
 
   function replaceVar(source, varName, value) {
-    const escaped = varName.replace(/[.*+?^${}()|[\]\]/g, '\$&');
-    const re = new RegExp(escaped + '\s*:\s*[^;]+;', 'g');
+    const re = new RegExp(varName + '\s*:\s*[^;]+;', 'g');
     return source.replace(re, varName + ': ' + value + ';');
   }
 
@@ -851,14 +848,8 @@
       clean = replaceVar(clean, input.dataset.var, cssValue(input));
     });
 
-    // Safety: preserve the Bandsintown JS string exactly as valid JavaScript.
-    // Some previous exporters turned \n into a literal line break inside holder.innerHTML.
-    clean = clean.replace(/<\\/a>
-?
-<script/g, '<\/a>\n<script');
-    clean = clean.replace(/&lt;\\/a&gt;
-?
-&lt;script/g, '&lt;\/a&gt;\n&lt;script');
+    clean = clean.replace(new RegExp('<\\/a>\r?\n<script', 'g'), '<\/a>\n<script');
+    clean = clean.replace(new RegExp('&lt;\\/a&gt;\r?\n&lt;script', 'g'), '&lt;\/a&gt;\n&lt;script');
 
     output.value = clean;
     output.focus();
@@ -870,8 +861,15 @@
   document.getElementById('generateCleanCode').addEventListener('click', generateClean);
   document.getElementById('copyCleanCode').addEventListener('click', async function() {
     if (!output.value) generateClean();
-    try { await navigator.clipboard.writeText(output.value); this.textContent = 'Copiado'; setTimeout(() => this.textContent = 'Copiar código', 1300); }
-    catch (e) { output.focus(); output.select(); document.execCommand('copy'); }
+    try {
+      await navigator.clipboard.writeText(output.value);
+      this.textContent = 'Copiado';
+      setTimeout(() => this.textContent = 'Copiar código', 1300);
+    } catch (e) {
+      output.focus();
+      output.select();
+      document.execCommand('copy');
+    }
   });
 
   applyPreview();
