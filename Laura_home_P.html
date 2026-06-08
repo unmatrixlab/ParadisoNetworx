@@ -5328,7 +5328,7 @@
 
   function setCssVariable(name, value) {
     if (!name) return;
-    root.style.setProperty(name, value);
+    root.style.setProperty(name, value, "important");
   }
 
   function applyImage(key, url) {
@@ -5337,10 +5337,11 @@
     const styleValue = config.urlFunction ? asCssUrl(url) : url;
     if (config.cssVar) setCssVariable(config.cssVar, styleValue);
     document.querySelectorAll(config.selector).forEach(el => {
+      const cssUrl = asCssUrl(url);
       if (config.property === "backgroundImage") {
-        el.style.backgroundImage = asCssUrl(url);
+        el.style.setProperty("background-image", cssUrl, "important");
       } else {
-        el.style.setProperty(config.property, asCssUrl(url));
+        el.style.setProperty(config.property, cssUrl, "important");
       }
     });
     if (typeof config.extra === "function") config.extra(url);
@@ -5371,6 +5372,14 @@
     const selector = offsetMap[key];
     if (!selector) return;
     document.querySelectorAll(selector).forEach(el => el.style.setProperty("--text-offset-y", px));
+  }
+
+  function collectImages() {
+    const result = {};
+    document.querySelectorAll("[data-edit-image]").forEach(input => {
+      result[input.dataset.editImage] = input.value.trim();
+    });
+    return result;
   }
 
   function collectThumbs() {
@@ -5406,12 +5415,13 @@
     const old = doc.getElementById("lauraPhoneEditorFinalSettings");
     if (old) old.remove();
     const data = {
+      images: collectImages(),
       thumbs: collectThumbs(),
       offsets: collectOffsets()
     };
     const script = doc.createElement("script");
     script.id = "lauraPhoneEditorFinalSettings";
-    script.textContent = `\n(function () {\n  const finalPhoneEditorSettings = ${JSON.stringify(data, null, 2)};\n  function applyThumbs() {\n    try {\n      if (typeof mediaData !== "undefined") {\n        Object.entries(finalPhoneEditorSettings.thumbs || {}).forEach(([category, thumbs]) => {\n          if (!mediaData[category]) return;\n          thumbs.forEach((thumb, index) => {\n            if (thumb && mediaData[category].items[index]) mediaData[category].items[index].thumb = thumb;\n          });\n        });\n      }\n      document.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGallery").forEach(section => {\n        const category = section.dataset.mediaSection || String(section.className).match(/media-mode-(music|videos|interviews)/)?.[1];\n        if (!category || !finalPhoneEditorSettings.thumbs[category]) return;\n        finalPhoneEditorSettings.thumbs[category].forEach((thumb, index) => {\n          const img = section.querySelector('.media-item[data-index="' + index + '"] img');\n          if (img && thumb) img.src = thumb;\n        });\n      });\n    } catch (error) {}\n  }\n  function applyOffsets() {\n    const offsetMap = {\n      hero: ".mobile-title-panel",\n      featured: ".block-home-featured-release",\n      identity: ".block-home-identity",\n      sound: ".block-home-sound",\n      coming: ".block-home-coming-next",\n      media: ".media-gallery-section"\n    };\n    Object.entries(finalPhoneEditorSettings.offsets || {}).forEach(([key, value]) => {\n      document.querySelectorAll(offsetMap[key] || "").forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));\n    });\n  }\n  function applyAll() { applyThumbs(); applyOffsets(); }\n  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyAll);\n  else setTimeout(applyAll, 0);\n})();\n`;
+    script.textContent = `\n(function () {\n  const finalPhoneEditorSettings = ${JSON.stringify(data, null, 2)};\n  function applyThumbs() {\n    try {\n      if (typeof mediaData !== "undefined") {\n        Object.entries(finalPhoneEditorSettings.thumbs || {}).forEach(([category, thumbs]) => {\n          if (!mediaData[category]) return;\n          thumbs.forEach((thumb, index) => {\n            if (thumb && mediaData[category].items[index]) mediaData[category].items[index].thumb = thumb;\n          });\n        });\n      }\n      document.querySelectorAll(".media-gallery-anchor[data-media-section], #mediaGallery").forEach(section => {\n        const category = section.dataset.mediaSection || String(section.className).match(/media-mode-(music|videos|interviews)/)?.[1];\n        if (!category || !finalPhoneEditorSettings.thumbs[category]) return;\n        finalPhoneEditorSettings.thumbs[category].forEach((thumb, index) => {\n          const img = section.querySelector('.media-item[data-index="' + index + '"] img');\n          if (img && thumb) img.src = thumb;\n        });\n      });\n    } catch (error) {}\n  }\n  function applyOffsets() {\n    const offsetMap = {\n      hero: ".mobile-title-panel",\n      featured: ".block-home-featured-release",\n      identity: ".block-home-identity",\n      sound: ".block-home-sound",\n      coming: ".block-home-coming-next",\n      media: ".media-gallery-section"\n    };\n    Object.entries(finalPhoneEditorSettings.offsets || {}).forEach(([key, value]) => {\n      document.querySelectorAll(offsetMap[key] || "").forEach(el => el.style.setProperty("--text-offset-y", Number(value || 0) + "px"));\n    });\n  }\n  function applyAll() { applyImages(); applyThumbs(); applyOffsets(); }\n  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyAll);\n  else setTimeout(applyAll, 0);\n})();\n`;
     doc.body.appendChild(script);
   }
 
